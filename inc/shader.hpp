@@ -2,6 +2,54 @@
 
 namespace shaders {
 
+  struct Shader {
+    string code;
+    GLuint type;
+    GLuint id;
+
+    Shader(string code_, GLuint type_) 
+      : code(code_),
+      type(type_)
+    {
+      id = glCreateShader(type);
+      auto p = code.c_str();
+      glShaderSource(id, 1, &p, NULL);
+      glCompileShader(id);
+      ofstream file(string("shader.") + ((type==GL_VERTEX_SHADER) ? "vert" : "frag"));
+      file << p << endl;
+
+      GLint shader_ok;
+      glGetShaderiv(id, GL_COMPILE_STATUS, &shader_ok);
+      if (shader_ok != GL_TRUE)
+      {
+        GLsizei log_length;
+        char info_log[8192];
+        std::cerr << "ERROR: Failed to compile ";
+        if(type==GL_VERTEX_SHADER)
+          std::cerr << "vertex ";
+        if(type==GL_FRAGMENT_SHADER)
+          std::cerr << "fragment ";
+        std::cerr << "shader " << std::endl;
+        glGetShaderInfoLog(id, 8192, &log_length,info_log);
+        std::cerr << "ERROR: " << info_log << std::endl;;
+      }
+    }
+  };
+
+  struct Program {
+    std::vector<Shader> shaders;
+    GLuint id;
+
+    Program (std::initializer_list<Shader> list) 
+      : shaders(list)
+    {
+      id = glCreateProgram();
+      for( auto &shader : shaders)
+        glAttachShader(id, shader.id);
+      glLinkProgram(id);
+    }
+  };
+
     namespace fragment {
             static string header = R"shader_string(
 #version 150

@@ -1,6 +1,7 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include "linmath.h"
+#include <glmath.hpp>
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -10,6 +11,8 @@
 #include <fstream>
 using std::string;
 
+using namespace ngbla;
+
 #include <glerror.hpp>
 #include <generate_shader.hpp>
 
@@ -18,60 +21,12 @@ string readFile(string f) {
     return string((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
 }
 
-constexpr int order = 10;
+constexpr int order = 0;
 constexpr int ndof = (order+1)*(order+2)*(order+3)/6;
 constexpr float ticks_per_second = 10;
 
-
-struct Shader {
-    string code;
-    GLuint type;
-    GLuint id;
-
-    Shader(string code_, GLuint type_) 
-      : code(code_),
-      type(type_)
-    {
-      id = glCreateShader(type);
-      auto p = code.c_str();
-      glShaderSource(id, 1, &p, NULL);
-      glCompileShader(id);
-      ofstream file(string("shader.") + ((type==GL_VERTEX_SHADER) ? "vert" : "frag"));
-      file << p << endl;
-
-      GLint shader_ok;
-      glGetShaderiv(id, GL_COMPILE_STATUS, &shader_ok);
-      if (shader_ok != GL_TRUE)
-        {
-          GLsizei log_length;
-          char info_log[8192];
-          std::cerr << "ERROR: Failed to compile ";
-          if(type==GL_VERTEX_SHADER)
-            std::cerr << "vertex ";
-          if(type==GL_FRAGMENT_SHADER)
-            std::cerr << "fragment ";
-          std::cerr << "shader " << std::endl;
-          glGetShaderInfoLog(id, 8192, &log_length,info_log);
-          std::cerr << "ERROR: " << info_log << std::endl;;
-        }
-    }
-};
-
-struct Program {
-    std::vector<Shader> shaders;
-    GLuint id;
-
-    Program (std::initializer_list<Shader> list) 
-      : shaders(list)
-      {
-        id = glCreateProgram();
-        for( auto &shader : shaders)
-          glAttachShader(id, shader.id);
-        glLinkProgram(id);
-      }
-
-
-};
+using shaders::Shader;
+using shaders::Program;
 
 static const float coordinates[] = {
     -1.0f,  -1.0f, 0.0f, 
@@ -106,29 +61,24 @@ static const struct
     {   0.f,  0.6f, 0.f, 0.f, 1.f }
 };
 
-static void error_callback(int error, const char* description)
-{
-  fprintf(stderr, "Error: %s\n", description);
-}
-
-static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
-{
-  if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
-    glfwSetWindowShouldClose(window, GLFW_TRUE);
-}
-
 double mousex, mousey;
 bool do_rotate;
 GLfloat alpha = 210.f, beta = -70.f;
 
 int main()
 {
+  cout << RotateX(0.4f) << endl;
   GLFWwindow* window;
   GLuint vertex_buffer, program;
   GLuint coordinates_buffer, colors_buffer, coefs_buffer;
   GLint mvp_location, vpos_location, vcol_location, coefs_location;
 
-  glfwSetErrorCallback(error_callback);
+  glfwSetErrorCallback(
+      [](int error, const char* description)
+      {
+        cerr << "Error: " << description << endl;
+      });
+
 
   if (!glfwInit())
     exit(EXIT_FAILURE);
@@ -143,27 +93,37 @@ int main()
       exit(EXIT_FAILURE);
     }
 
-  glfwSetKeyCallback(window, key_callback);
-  glfwSetMouseButtonCallback(window, [](GLFWwindow* window, int button, int action, int mods) {
-    if (button != GLFW_MOUSE_BUTTON_LEFT)
-        return;
-    if (action == GLFW_PRESS)
-    {
-        do_rotate = true;
-        glfwGetCursorPos(window, &mousex, &mousey);
-    }
-    else
-        do_rotate = false;
-  });
-                             
-  glfwSetCursorPosCallback(window, [](GLFWwindow* window, double x, double y) {
-    if(!do_rotate) return;
-    alpha += (GLfloat) (x - mousex) / 10.f;
-    beta += (GLfloat) (y - mousey) / 10.f;
+  glfwSetKeyCallback(window,
+      [](GLFWwindow* window, int key, int scancode, int action, int mods)
+      {
+        if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+        glfwSetWindowShouldClose(window, GLFW_TRUE);
+      });
 
-    mousex = x;
-    mousey = y;
-  });
+  glfwSetMouseButtonCallback(window, 
+      [](GLFWwindow* window, int button, int action, int mods)
+      {
+        if (button != GLFW_MOUSE_BUTTON_LEFT)
+            return;
+        if (action == GLFW_PRESS)
+        {
+            do_rotate = true;
+            glfwGetCursorPos(window, &mousex, &mousey);
+        }
+        else
+            do_rotate = false;
+      });
+                             
+  glfwSetCursorPosCallback(window, 
+      [](GLFWwindow* window, double x, double y)
+      {
+        if(!do_rotate) return;
+        alpha += (GLfloat) (x - mousex) / 10.f;
+        beta += (GLfloat) (y - mousey) / 10.f;
+
+        mousex = x;
+        mousey = y;
+      });
 
   glfwMakeContextCurrent(window);
   gladLoadGLLoader((GLADloadproc) glfwGetProcAddress);
@@ -255,8 +215,22 @@ int main()
       mat4x4_ortho(p, -ratio, ratio, -1.f, 1.f, 1.f, -1.f);
       mat4x4_mul(mvp, p, m);
 
+      auto m2 = Identity();
+      auto rx = RotateX(beta);
+      auto rz = RotateZ(alpha);
+      auto p2 = Ortho(-ratio, ratio, -1.f, 1.f, 1.f, -1.f);
+      auto mvp2 = p2*rz*rx;
+//       auto mvp2 = rx*rz*p2;
+      for (auto i : Range(4))
+        for (auto j : Range(4))
+          cout << mvp[i][j] << '\t' << mvp2(i,j) << endl;
+      cout << "-------------------------" << endl;
+
+//       for (auto i : Range(16))
+//         cout << mvp2(i) << endl << mvp[i] << endl << endl;
+
       glUseProgram(program);
-      glUniformMatrix4fv(mvp_location, 1, GL_FALSE, (const GLfloat*) mvp);
+      glUniformMatrix4fv(mvp_location, 1, GL_FALSE, (const GLfloat*) &mvp2(0,0));
       glDrawArrays(GL_TRIANGLES, 0, 3);
 
       glfwSwapBuffers(window);
