@@ -121,13 +121,20 @@ public:
   auto Size() { return size; }
 };
 
+class GUI;
+
 class Scene
 {
+protected:
+  Mat4 model;
+  Mat4 view;
+  Mat4 projection;
+
 public:
 
   Scene();
-  virtual void Update() {};
-  virtual void Render() {};
+  virtual void Update(const GUI& gui);
+  virtual void Render() = 0;
   virtual ~Scene();
 };
 
@@ -144,8 +151,10 @@ class GUI
 
   float ratio;
   int width, height;
-  Mat4 mvp;
   double told;
+
+
+  Array<shared_ptr<Scene>> scenes;
 
 public:
   GLFWwindow* window;
@@ -153,36 +162,31 @@ public:
   GUI();
   void Update();
   void Render();
-  Mat4 GetMVP();
+  void GetMatrices(Mat4 & model, Mat4 &view, Mat4 &projection) const;
   void SwapBuffers();
   bool ShouldCloseWindow();
   virtual ~GUI();
 };
 
-class MeshScene
+
+class MeshScene : public Scene
 {
 protected:
   shared_ptr<ngcomp::MeshAccess> ma;
   Program shaderProgram;
-  shared_ptr<GUI> gui;
 
   GLuint vao;
   GLint vpos_location, mvp_location, fcolor_location;
   ArrayBuffer<GLfloat> coordinates_buffer;
   ArrayBuffer<GLuint> trig_index_buffer, line_index_buffer;
-//   GLuint trig_index_buffer, line_index_buffer;
   size_t nvertices, nlines, ntrigs;
 
 public:
 
-  MeshScene(shared_ptr<ngcomp::MeshAccess> ma_, shared_ptr<GUI> gui_); 
+  MeshScene(shared_ptr<ngcomp::MeshAccess> ma_); 
 
-  virtual void Update()
-  {
-  };
-
-  virtual void Render();
-
+  virtual void Update(const GUI &gui) override;
+  virtual void Render() override;
   virtual void RenderWireframe();
   virtual void RenderSurface();
 
@@ -192,6 +196,7 @@ public:
 class SolutionScene : public MeshScene
 {
   shared_ptr<ngcomp::GridFunction> gf;
+  shared_ptr<MeshScene> mesh_scene;
 
   Program solution_program;
   GLint tbo_tex_location;
@@ -202,9 +207,9 @@ class SolutionScene : public MeshScene
 
 public:
 
-  SolutionScene(shared_ptr<ngcomp::GridFunction> gf_, shared_ptr<GUI> gui_); 
+  SolutionScene(shared_ptr<ngcomp::GridFunction> gf_); 
 
-  virtual void Update() override;
+  virtual void Update(const GUI &gui) override;
 
   virtual void Render() override;
 

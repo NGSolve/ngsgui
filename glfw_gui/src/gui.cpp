@@ -16,12 +16,29 @@ bool do_translate;
 bool do_zoom;
 
 
+Mat4 rotmat;
 auto TRANSPOSE=GL_TRUE;
 
-GLfloat alpha = 0.0f, beta = 0.f, zoom=0.0f, dx=0.0f, dy=0.0f;
+GLfloat zoom=0.0f, dx=0.0f, dy=0.0f;
+
+void Scene::Update(const GUI& gui)
+{
+  gui.GetMatrices(model, view, projection);
+}
+
+Scene::Scene()
+{
+}
+
+Scene::~Scene()
+{
+}
+
+
 
 GUI::GUI()
 {
+  rotmat = Identity();
   glfwSetErrorCallback(
       [](int error, const char* description)
       {
@@ -76,24 +93,34 @@ GUI::GUI()
         }
       });
                              
+  glfwSetScrollCallback(window, 
+      [](GLFWwindow* window, double x, double y)
+      {
+          zoom -= 5.0f*y;
+      }
+  );
+
+
   glfwSetCursorPosCallback(window, 
       [](GLFWwindow* window, double x, double y)
       {
+        float dxm = x-mousex;
+        float dym = y-mousey;
         if(do_rotate)
         {
-          alpha += (GLfloat) (x - mousex) / 10.f;
-          beta += (GLfloat) (y - mousey) / 10.f;
+          rotmat = RotateY(-dxm/50.0f)*rotmat;
+          rotmat = RotateX(-dym/50.0f)*rotmat;
         }
 
         if(do_translate)
         {
-          float s = 0.45*exp(-zoom/100);
-          dx += (GLfloat) (x - mousex) / (1000.f*s);
-          dy += (GLfloat) (y - mousey) / (1000.f*s);
+          float s = 0.20*exp(-zoom/100);
+          dx += dxm / (1000.f*s);
+          dy += dym / (1000.f*s);
         }
 
         if(do_zoom)
-          zoom += (GLfloat) (y-mousey);
+          zoom += dym;
 
         mousex = x;
         mousey = y;
@@ -102,6 +129,10 @@ GUI::GUI()
   glfwMakeContextCurrent(window);
   gladLoadGLLoader((GLADloadproc) glfwGetProcAddress);
   glfwSwapInterval(1);
+  glEnable(GL_DEPTH_TEST);
+  glPolygonOffset (-1, -1);
+  glEnable(GL_POLYGON_OFFSET_LINE);
+  glDepthFunc(GL_LEQUAL);
 }
 
 void GUI::Update()
@@ -113,7 +144,7 @@ void GUI::Render()
         check_gl_error();
       glClearColor( 1.f, 1.f, 1.f, 0.f);
         check_gl_error();
-      glClear(GL_COLOR_BUFFER_BIT);
+      glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
         check_gl_error();
 //       glViewport(0, 0, width, height);
         check_gl_error();
@@ -128,7 +159,7 @@ void GUI::SwapBuffers()
       glfwSwapBuffers(window);
       glfwPollEvents();
       double t = glfwGetTime();
-      std::cout << "\rframes per second: " << 1.0/(t-told) << std::flush;
+//       std::cout << "\rframes per second: " << 1.0/(t-told) << std::flush;
       told = t;
 
 }
@@ -141,7 +172,7 @@ GUI::~GUI() {
   glfwTerminate();
 }
 
-Mat4 GUI::GetMVP() {
+void GUI::GetMatrices(Mat4 &model, Mat4 &view, Mat4 &projection) const {
     check_gl_error();
 
     int width, height;
@@ -150,27 +181,15 @@ Mat4 GUI::GetMVP() {
     glViewport(0,0,width, height);
 
     float s = 0.6f;
-    Mat4 mvp = Identity();
 
-    Mat4 view = Identity();
-    Mat4 model = Identity();
-    Mat4 projection = Identity();
+    view = Identity();
+    model = Identity();
+    projection = Identity();
 
-//     if(ratio >= 1.0f)
-//         projection = Ortho(-ratio*s, ratio*s, -s, s, 1.f, -1.f);
-//     else
-//         projection = Ortho(-s, s, -s/ratio, s/ratio, 1.f, -1.f);
-// 
-//     projection = Ortho(-s, s, -s/ratio, s/ratio, 10.f, -10.f);
-    projection = Perspective(1.0f, ratio, .1f, 20.f);
-
-    mat4x4 M;
-    mat4x4_identity(M);
-    mat4x4_perspective(M, 1.0f, ratio, 0.1f, 20.f);
-
+    projection = Perspective(0.8f, ratio, .1f, 20.f);
 
     mat4x4 Mview;
-    vec3 eye = { 0.f, 0.f, 2.0f };
+    vec3 eye = { 0.f, 0.f, 6.0f };
     vec3 center = { 0.f, 0.f, 0.f };
     vec3 up = { 0.f, 1.f, 0.f };
     mat4x4_look_at( Mview, eye, center, up );
@@ -180,20 +199,16 @@ Mat4 GUI::GetMVP() {
           view(i,j) = Mview[i][j];
       }
 
+    model = rotmat*model;
     // move unit square to center
-    model = Translate(-0.5, -0.5, 0 )*model;
-
-    model = RotateY(-alpha/5)*model;
-    model = RotateX(-beta/5)*model;
     model = Translate(dx, -dy, -0 )*model;
     model = Scale(exp(-zoom/100))*model;
-    model = Translate(0, -0, -2 )*model;
-    return projection*view*model;
+    model = Translate(0, -0, -5 )*model;
+//     return projection*view*model;
 }
 
-MeshScene::MeshScene(shared_ptr<ngcomp::MeshAccess> ma_, shared_ptr<GUI> gui_)
-      : ma(ma_),
-      gui(gui_)
+MeshScene::MeshScene(shared_ptr<ngcomp::MeshAccess> ma_)
+      : ma(ma_)
     {
         check_gl_error();
         Shader vshader{shaders::vertex_mesh, GL_VERTEX_SHADER};
@@ -206,22 +221,41 @@ MeshScene::MeshScene(shared_ptr<ngcomp::MeshAccess> ma_, shared_ptr<GUI> gui_)
 
         check_gl_error();
 
-        auto vertices = ma->Nodes(ngcomp::NT_VERTEX);
-        nvertices = ma->GetNV();
-        ntrigs = ma->GetNFaces();
+        if(ma->GetDimension()==2)
+        {
+            ntrigs = ma->GetNE();
+            for (auto i : ngcomp::Range(ntrigs)) {
+                auto verts = ma->GetElement(ElementId( VOL, i)).Vertices();
 
-        for (auto i : ngcomp::Range(ntrigs)) {
-            auto verts = ma->GetElement(i).Vertices();
+                ArrayMem<int,3> sorted_vertices{0,1,2};
+                ArrayMem<int,3> unsorted_vertices{verts[0], verts[1], verts[2]};
 
-            ArrayMem<int,3> sorted_vertices{0,1,2};
-            ArrayMem<int,3> unsorted_vertices{verts[0], verts[1], verts[2]};
+                BubbleSort (unsorted_vertices, sorted_vertices);
+                for (auto j : ngcomp::Range(3)) {
+                    auto v = ma->GetPoint<3>(unsorted_vertices[j]);
+                    coordinates.Append(v[0]);
+                    coordinates.Append(v[1]);
+                    coordinates.Append(v[2]);
+                }
+            }
+        }
+        else
+        {
+            ntrigs = ma->GetNSE();
 
-            BubbleSort (unsorted_vertices, sorted_vertices);
-            for (auto j : ngcomp::Range(3)) {
-                auto v = ma->GetPoint<3>(unsorted_vertices[j]);
-                coordinates.Append(v[0]);
-                coordinates.Append(v[1]);
-                coordinates.Append(v[2]);
+            for (auto i : ngcomp::Range(ntrigs)) {
+                auto verts = ma->GetElement(ElementId( BND, i)).Vertices();
+
+                ArrayMem<int,3> sorted_vertices{0,1,2};
+                ArrayMem<int,3> unsorted_vertices{verts[0], verts[1], verts[2]};
+
+                BubbleSort (unsorted_vertices, sorted_vertices);
+                for (auto j : ngcomp::Range(3)) {
+                    auto v = ma->GetPoint<3>(unsorted_vertices[j]);
+                    coordinates.Append(v[0]);
+                    coordinates.Append(v[1]);
+                    coordinates.Append(v[2]);
+                }
             }
         }
 
@@ -244,6 +278,19 @@ MeshScene::MeshScene(shared_ptr<ngcomp::MeshAccess> ma_, shared_ptr<GUI> gui_)
         check_gl_error();
     }
 
+void MeshScene::Update(const GUI &gui)
+{
+  Scene::Update(gui);
+  netgen::Point3d pmin, pmax;
+  if(ma->GetDimension()==2)
+      ma->GetNetgenMesh()->GetBox(pmin, pmax);
+  else
+      ma->GetNetgenMesh()->GetBox(pmin, pmax, netgen::SURFACEPOINT);
+  auto c = 0.5*(pmin+pmax);
+
+  model = model*Translate(-c.X(), -c.Y(), -c.Z());
+};
+
 void MeshScene::Render()
 {
   RenderSurface();
@@ -253,7 +300,7 @@ void MeshScene::Render()
 void MeshScene::RenderWireframe()
 {
   check_gl_error();
-  auto mvp = gui->GetMVP();
+  auto mvp = projection*view*model;
   glUseProgram(shaderProgram.id);
   glUniformMatrix4fv(mvp_location, 1, TRANSPOSE, (const GLfloat*) &mvp);
   glUniform4f(fcolor_location, 0.0f, 0.0f ,0.0f, 1.0f);
@@ -268,7 +315,7 @@ void MeshScene::RenderWireframe()
 void MeshScene::RenderSurface()
 {
   check_gl_error();
-  auto mvp = gui->GetMVP();
+  auto mvp = projection*view*model;
   glUseProgram(shaderProgram.id);
   glUniformMatrix4fv(mvp_location, 1, TRANSPOSE, (const GLfloat*) &mvp);
   glUniform4f(fcolor_location, 0.0f, 1.0f ,0.0f, 1.0f);
@@ -283,8 +330,8 @@ void MeshScene::RenderSurface()
 MeshScene::~MeshScene() {
 }
 
-SolutionScene::SolutionScene(shared_ptr<ngcomp::GridFunction> gf_, shared_ptr<GUI> gui_)
-      : MeshScene(gf_->GetMeshAccess(), gui_), gf(gf_)
+SolutionScene::SolutionScene(shared_ptr<ngcomp::GridFunction> gf_)
+      : MeshScene(gf_->GetMeshAccess()), gf(gf_)
 {
   auto &fes = *gf->GetFESpace();
   int order = fes.GetOrder();
@@ -335,14 +382,16 @@ SolutionScene::SolutionScene(shared_ptr<ngcomp::GridFunction> gf_, shared_ptr<GU
 
 }
 
-void SolutionScene::Update()
+void SolutionScene::Update(const GUI & gui)
 {
+  Scene::Update(gui);
+  MeshScene::Update(gui);
 }
 
 void SolutionScene::Render()
 {
   check_gl_error();
-  auto mvp = gui->GetMVP();
+  auto mvp = projection*view*model;
   glUseProgram(solution_program.id);
   check_gl_error();
   glUniformMatrix4fv(mvp_location, 1, TRANSPOSE, (const GLfloat*) &mvp);
@@ -369,10 +418,10 @@ SolutionScene::~SolutionScene()
 PYBIND11_MODULE(ngui, m) {
     m.def("Draw", [] (shared_ptr<ngcomp::GridFunction> gf) {
       auto gui = make_shared<GUI>();
-      SolutionScene scene(gf, gui);
+      SolutionScene scene(gf);
       while (!gui->ShouldCloseWindow())
       {
-          scene.Update();
+          scene.Update(*gui);
           gui->Render();
           scene.Render();
           scene.RenderWireframe();
@@ -381,10 +430,10 @@ PYBIND11_MODULE(ngui, m) {
    });
     m.def("Draw", [] (shared_ptr<ngcomp::MeshAccess> ma) {
       auto gui = make_shared<GUI>();
-      MeshScene scene(ma, gui);
+      MeshScene scene(ma);
       while (!gui->ShouldCloseWindow())
       {
-          scene.Update();
+          scene.Update(*gui);
           gui->Render();
           scene.Render();
           gui->SwapBuffers();

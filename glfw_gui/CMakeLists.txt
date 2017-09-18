@@ -12,5 +12,7 @@ target_compile_options(ngvis_deps INTERFACE -g)
 
 find_package(NGSolve CONFIG REQUIRED HINTS /opt/netgen)
 
-add_subdirectory(examples)
+set(CMAKE_INSTALL_PREFIX ${NGSOLVE_INSTALL_DIR}/${NGSOLVE_INSTALL_DIR_PYTHON} CACHE PATH "Install dir" FORCE)
+
 add_subdirectory(src)
+add_subdirectory(examples)
