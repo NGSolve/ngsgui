@@ -96,35 +96,18 @@ out vec3 fPos;
 uniform mat4 MVP;
  
  void main() {
-    gl_Position = MVP * vec4(gPos[0],1);
-    fPos = gPos[0];
-    EmitVertex();
-    gl_Position = MVP * vec4(gPos[1],1);
-    fPos = gPos[1];
-    EmitVertex();
-    gl_Position = MVP * vec4(gPos[2],1);
-    fPos = gPos[2];
-    EmitVertex();
+    for (int i=0; i<3; ++i) {
+      gl_Position = MVP * vec4(gPos[i],1);
+      fPos = gPos[i];
+      EmitVertex();
+    }
     EndPrimitive();
-
-    gl_Position = MVP * vec4(gPos[0]+vec3(0,0,1),1);
-    fPos = gPos[0];
-    EmitVertex();
-    gl_Position = MVP * vec4(gPos[1]+vec3(0,0,1),1);
-    fPos = gPos[1];
-    EmitVertex();
-    gl_Position = MVP * vec4(gPos[2]+vec3(0,0,1),1);
-    fPos = gPos[2];
-    EmitVertex();
+    for (int i=0; i<3; ++i) {
+      gl_Position = MVP * vec4(gPos[i]+vec3(0,0,1),1);
+      fPos = gPos[i];
+      EmitVertex();
+    }
     EndPrimitive();
- 
-//     for(int i = 0; i < 3; i++)   {
-//       gl_Position = projModelViewMatrix * (gl_in[i].gl_Position + vec4(0,10,0,0));
-// //       VertexOut.fPos = VertexIn[i].fPos;
-//       EmitVertex();
-//     }
-//     EndPrimitive();
- 
 }
 
 )shader_string";
