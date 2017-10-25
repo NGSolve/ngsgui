@@ -13,6 +13,8 @@
 using std::string;
 
 
+static std::map<decltype(GL_VERTEX_SHADER), string>
+shader_extension{ {GL_VERTEX_SHADER, "vert"}, {GL_FRAGMENT_SHADER, "frag"}, {GL_GEOMETRY_SHADER, "geom"} };
 
 struct Shader {
     string code;
@@ -27,7 +29,7 @@ struct Shader {
         auto p = code.c_str();
         glShaderSource(id, 1, &p, NULL);
         glCompileShader(id);
-        std::ofstream file(string("shader.") + ((type==GL_VERTEX_SHADER) ? "vert" : "frag"));
+        std::ofstream file(string("shader.") + shader_extension[type]);
         file << p << std::endl;
 
         GLint shader_ok;
@@ -165,6 +167,11 @@ public:
   void GetMatrices(Mat4 & model, Mat4 &view, Mat4 &projection) const;
   void SwapBuffers();
   bool ShouldCloseWindow();
+  void AddScene( shared_ptr<Scene> scene )
+  {
+    scenes.Append(scene);
+
+  }
   virtual ~GUI();
 };
 
@@ -222,4 +229,5 @@ namespace shaders {
     extern string fragment_header;
     extern string fragment_main;
     extern string vertex_simple;
+    extern string geometry_copy;
 }

@@ -1,8 +1,11 @@
-#include <gui.hpp>
+// #include <gui.hpp>
+#include <string>
+using std::string;
 namespace shaders {
     string fragment_mesh = R"shader_string(
 #version 150
 uniform vec4 fColor;
+in vec3 fPos;
 void main()
 {
   gl_FragColor = fColor; //vec4(0.0, 1.0, 0.0, 1.0);
@@ -13,9 +16,11 @@ void main()
 #version 150
 uniform mat4 MVP;
 in vec3 vPos;
+out vec3 gPos;
 void main()
 {
     gl_Position = MVP * vec4(vPos, 1.0);
+    gPos = vPos;
 }
 )shader_string";
 
@@ -76,5 +81,51 @@ void main()
     if(index==1) fLam.y = 1.0;
     if(index==2) fLam.z = 1.0;
 }
+)shader_string";
+
+string geometry_copy = R"shader_string(
+#version 420
+ 
+layout(triangles) in;
+layout(triangle_strip, max_vertices=6) out;
+ 
+in vec3 gPos[];
+ 
+out vec3 fPos;
+ 
+uniform mat4 MVP;
+ 
+ void main() {
+    gl_Position = MVP * vec4(gPos[0],1);
+    fPos = gPos[0];
+    EmitVertex();
+    gl_Position = MVP * vec4(gPos[1],1);
+    fPos = gPos[1];
+    EmitVertex();
+    gl_Position = MVP * vec4(gPos[2],1);
+    fPos = gPos[2];
+    EmitVertex();
+    EndPrimitive();
+
+    gl_Position = MVP * vec4(gPos[0]+vec3(0,0,1),1);
+    fPos = gPos[0];
+    EmitVertex();
+    gl_Position = MVP * vec4(gPos[1]+vec3(0,0,1),1);
+    fPos = gPos[1];
+    EmitVertex();
+    gl_Position = MVP * vec4(gPos[2]+vec3(0,0,1),1);
+    fPos = gPos[2];
+    EmitVertex();
+    EndPrimitive();
+ 
+//     for(int i = 0; i < 3; i++)   {
+//       gl_Position = projModelViewMatrix * (gl_in[i].gl_Position + vec4(0,10,0,0));
+// //       VertexOut.fPos = VertexIn[i].fPos;
+//       EmitVertex();
+//     }
+//     EndPrimitive();
+ 
+}
+
 )shader_string";
 }

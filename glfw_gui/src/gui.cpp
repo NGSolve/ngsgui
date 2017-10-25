@@ -5,6 +5,7 @@
 #include <pybind11/pybind11.h>
 #include <linmath.h>
 
+namespace py = pybind11;
 // constexpr int order = 20;
 // constexpr int ndof = (order+1)*(order+2)*(order+3)/6;
 // constexpr int ndof = (order+1)*(order+2)/2;
@@ -137,6 +138,8 @@ GUI::GUI()
 
 void GUI::Update()
 {
+  for(auto & scene : scenes)
+    scene->Update(*this);
 }
 
 void GUI::Render()
@@ -152,6 +155,9 @@ void GUI::Render()
 //       glUniformMatrix4fv(mvp_location, 1, GL_FALSE, (const GLfloat*) &mvp(0,0));
 //       glDrawArrays(GL_TRIANGLES, 0, 3);
 
+  for(auto & scene : scenes)
+    scene->Render();
+  SwapBuffers();
 }
 
 void GUI::SwapBuffers()
@@ -213,9 +219,10 @@ MeshScene::MeshScene(shared_ptr<ngcomp::MeshAccess> ma_)
         check_gl_error();
         Shader vshader{shaders::vertex_mesh, GL_VERTEX_SHADER};
         Shader fshader{shaders::fragment_mesh, GL_FRAGMENT_SHADER};
+        Shader gshader{shaders::geometry_copy, GL_GEOMETRY_SHADER};
         check_gl_error();
 
-        shaderProgram = Program{vshader, fshader};
+        shaderProgram = Program{vshader, fshader, gshader};
         check_gl_error();
         ngstd::Array<GLfloat> coordinates;
 
@@ -384,7 +391,6 @@ SolutionScene::SolutionScene(shared_ptr<ngcomp::GridFunction> gf_)
 
 void SolutionScene::Update(const GUI & gui)
 {
-  Scene::Update(gui);
   MeshScene::Update(gui);
 }
 
@@ -408,6 +414,7 @@ void SolutionScene::Render()
   glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
   glDrawArrays(GL_TRIANGLES, 0, 3*ntrigs);
   check_gl_error();
+  RenderWireframe();
 }
 
 SolutionScene::~SolutionScene()
@@ -416,27 +423,45 @@ SolutionScene::~SolutionScene()
 
 
 PYBIND11_MODULE(ngui, m) {
-    m.def("Draw", [] (shared_ptr<ngcomp::GridFunction> gf) {
-      auto gui = make_shared<GUI>();
-      SolutionScene scene(gf);
-      while (!gui->ShouldCloseWindow())
-      {
-          scene.Update(*gui);
-          gui->Render();
-          scene.Render();
-          scene.RenderWireframe();
-          gui->SwapBuffers();
-      }
-   });
-    m.def("Draw", [] (shared_ptr<ngcomp::MeshAccess> ma) {
-      auto gui = make_shared<GUI>();
-      MeshScene scene(ma);
-      while (!gui->ShouldCloseWindow())
-      {
-          scene.Update(*gui);
-          gui->Render();
-          scene.Render();
-          gui->SwapBuffers();
-      }
-   });
+    py::class_<GUI>(m, "GUI")
+      .def(py::init<>())
+      .def("Update", &GUI::Update)
+      .def("Render", &GUI::Render)
+      .def("AddScene", &GUI::AddScene)
+      ;
+
+    py::class_<Scene, shared_ptr<Scene>>(m, "Scene");
+
+    py::class_<MeshScene, Scene, shared_ptr<MeshScene>>(m, "MeshScene")
+      .def(py::init<shared_ptr<ngcomp::MeshAccess>>())
+      ;
+
+    py::class_<SolutionScene, MeshScene, shared_ptr<SolutionScene>>(m, "SolutionScene")
+      .def(py::init<shared_ptr<ngcomp::GridFunction>>())
+      ;
+
+//     m.def("Draw", [] (shared_ptr<ngcomp::GridFunction> gf) {
+// //       auto gui = make_shared<GUI>();
+//       auto scene = make_shared<SolutionScene>(gf);
+// //       while (!gui->ShouldCloseWindow())
+// //       {
+// //           scene.Update(*gui);
+// //           gui->Render();
+// //           scene.Render();
+// // //           scene.RenderWireframe();
+// //           gui->SwapBuffers();
+// //       }
+//       return scene;
+//    });
+//     m.def("Draw", [] (shared_ptr<ngcomp::MeshAccess> ma) {
+//       auto gui = make_shared<GUI>();
+//       MeshScene scene(ma);
+//       while (!gui->ShouldCloseWindow())
+//       {
+//           scene.Update(*gui);
+//           gui->Render();
+//           scene.Render();
+//           gui->SwapBuffers();
+//       }
+//    });
 }

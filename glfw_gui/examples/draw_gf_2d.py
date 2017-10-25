@@ -11,4 +11,8 @@ gf = GridFunction(fes)
 gf.Set(sin(40*x)*sin(40*y))
 
 import ngui
-ngui.Draw(gf)
+gui = ngui.GUI()
+gui.AddScene(ngui.SolutionScene(gf))
+gui.Update()
+gui.Render()
+input()
