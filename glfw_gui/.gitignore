@@ -2,3 +2,5 @@ build
 src/ngui*
 *.frag
 *.vert
+*.swp
+*.swo

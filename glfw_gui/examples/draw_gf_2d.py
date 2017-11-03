@@ -15,7 +15,9 @@ gui = ngui.GUI()
 gui.AddScene(ngui.SolutionScene(gf))
 gui.Update()
 gui.Render()
-for i in range(100):
-    gui.Update()
-    gui.Render()
-input()
+try:
+    while True:
+        gui.Update()
+        gui.Render()
+except KeyboardInterrupt:
+    pass

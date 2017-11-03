@@ -135,7 +135,7 @@ namespace genshader {
 
         stringstream ss;
         fel.MyCalcShape (ip, SBLambda([&] (int i, auto c) {
-                                      ss << "result += texelFetch( coefficients, fElement*"+ToString(fel.ndof) + "+"  + ToString(i) + ").r * " + c.s << ";" << endl;
+                                      ss << "result += texelFetch( coefficients, inData.element*"+ToString(fel.ndof) + "+"  + ToString(i) + ").r * " + c.s << ";" << endl;
                                       }));
 
         int i = 0;

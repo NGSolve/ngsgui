@@ -219,10 +219,10 @@ MeshScene::MeshScene(shared_ptr<ngcomp::MeshAccess> ma_)
         check_gl_error();
         Shader vshader{shaders::vertex_mesh, GL_VERTEX_SHADER};
         Shader fshader{shaders::fragment_mesh, GL_FRAGMENT_SHADER};
-        Shader gshader{shaders::geometry_copy, GL_GEOMETRY_SHADER};
+//         Shader gshader{shaders::geometry_copy, GL_GEOMETRY_SHADER};
         check_gl_error();
 
-        shaderProgram = Program{vshader, fshader, gshader};
+//         shaderProgram = Program{vshader, fshader/*, gshader*/};
         check_gl_error();
         ngstd::Array<GLfloat> coordinates;
         ngstd::Array<GLbyte> trig_indices;
@@ -245,9 +245,9 @@ MeshScene::MeshScene(shared_ptr<ngcomp::MeshAccess> ma_)
                     coordinates.Append(v[1]);
                     coordinates.Append(v[2]);
                 }
-                trig_indices.Append(unsorted_vertices[0]);
-                trig_indices.Append(unsorted_vertices[1]);
-                trig_indices.Append(unsorted_vertices[2]);
+                trig_indices.Append(sorted_vertices[0]);
+                trig_indices.Append(sorted_vertices[1]);
+                trig_indices.Append(sorted_vertices[2]);
             }
         }
         else
@@ -266,9 +266,10 @@ MeshScene::MeshScene(shared_ptr<ngcomp::MeshAccess> ma_)
                     coordinates.Append(v[0]);
                     coordinates.Append(v[1]);
                     coordinates.Append(v[2]);
-                    trig_indices.Append(0);
-                    trig_indices.Append(1);
-                    trig_indices.Append(2);
+                    // Todo: put numbers for tetrahedra
+                    trig_indices.Append(sorted_vertices[0]);
+                    trig_indices.Append(sorted_vertices[1]);
+                    trig_indices.Append(sorted_vertices[2]);
                 }
             }
         }
@@ -281,21 +282,21 @@ MeshScene::MeshScene(shared_ptr<ngcomp::MeshAccess> ma_)
         coordinates_buffer.Store(coordinates);
         trig_index_buffer.Store(trig_indices);
 
-        trig_index_location = glGetAttribLocation(shaderProgram.id, "vIndex");
-        check_gl_error();
-        vpos_location = glGetAttribLocation(shaderProgram.id, "vPos");
-        check_gl_error();
-        mv_location = glGetUniformLocation(shaderProgram.id, "MV");
-        check_gl_error();
-        p_location = glGetUniformLocation(shaderProgram.id, "P");
-        check_gl_error();
-        fcolor_location = glGetUniformLocation(shaderProgram.id, "fColor");
-        check_gl_error();
-
-        glEnableVertexAttribArray(vpos_location);
-        glVertexAttribPointer(vpos_location, 3, GL_FLOAT, GL_FALSE, 0, (void*) 0);
-        check_gl_error();
-
+//         trig_index_location = glGetAttribLocation(shaderProgram.id, "vIndex");
+//         check_gl_error();
+//         vpos_location = glGetAttribLocation(shaderProgram.id, "vPos");
+//         check_gl_error();
+//         mv_location = glGetUniformLocation(shaderProgram.id, "MV");
+//         check_gl_error();
+//         p_location = glGetUniformLocation(shaderProgram.id, "P");
+//         check_gl_error();
+//         fcolor_location = glGetUniformLocation(shaderProgram.id, "fColor");
+//         check_gl_error();
+// 
+//         glEnableVertexAttribArray(vpos_location);
+//         glVertexAttribPointer(vpos_location, 3, GL_FLOAT, GL_FALSE, 0, (void*) 0);
+//         check_gl_error();
+// 
 //         glEnableVertexAttribArray(trig_index_location);
 //         glVertexAttribIPointer(trig_index_location, 1, GL_BYTE, 0, (void*) 0);
 //         check_gl_error();
@@ -379,6 +380,10 @@ SolutionScene::SolutionScene(shared_ptr<ngcomp::GridFunction> gf_)
   vpos_location = glGetAttribLocation(solution_program.id, "vPos");
   trig_index_location = glGetAttribLocation(solution_program.id, "vIndex");
   check_gl_error();
+  mv_location = glGetUniformLocation(solution_program.id, "MV");
+  check_gl_error();
+  p_location = glGetUniformLocation(solution_program.id, "P");
+  check_gl_error();
 
   ////////////////////////////
   //// Create one OpenGL texture
@@ -411,10 +416,10 @@ SolutionScene::SolutionScene(shared_ptr<ngcomp::GridFunction> gf_)
   glTexBuffer    ( GL_TEXTURE_BUFFER, GL_R32F, buffer );
   check_gl_error();
 
-//   glEnableVertexAttribArray(trig_index_location);
-//   trig_index_buffer.Bind();
-//   glVertexAttribIPointer(trig_index_location, 1, GL_BYTE, 0, (void*) 0);
-//   check_gl_error();
+  glEnableVertexAttribArray(trig_index_location);
+  trig_index_buffer.Bind();
+  glVertexAttribIPointer(trig_index_location, 1, GL_BYTE, 0, (void*) 0);
+  check_gl_error();
 }
 
 void SolutionScene::Update(const GUI & gui)
@@ -427,7 +432,9 @@ void SolutionScene::Render()
   check_gl_error();
   auto mv = view*model;
   auto p = projection;
-  glUseProgram(shaderProgram.id);
+  check_gl_error();
+  glUseProgram(solution_program.id);
+  check_gl_error();
   glUniformMatrix4fv(mv_location, 1, TRANSPOSE, (const GLfloat*) &mv);
   glUniformMatrix4fv(p_location, 1, TRANSPOSE, (const GLfloat*) &p);
   check_gl_error();
@@ -448,7 +455,7 @@ void SolutionScene::Render()
   glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
   glDrawArrays(GL_TRIANGLES, 0, 3*ntrigs);
   check_gl_error();
-  RenderWireframe();
+//   RenderWireframe();
 }
 
 SolutionScene::~SolutionScene()

@@ -34,10 +34,12 @@ void main()
 #version 150
 uniform samplerBuffer coefficients;
 
-flat in int fElement;
-
-in vec3 posx;
-in vec3 fLam;
+in VertexData
+{
+  vec3 pos;
+  flat int element;
+  vec3 lam;
+} inData;
 
 vec3 hsv2rgb(vec3 c)
 {
@@ -59,10 +61,12 @@ vec3 hsv2rgb(vec3 c)
 string fragment_main = R"shader_string(
 void main()
 {
-  float x = fLam.x;
-  float y = fLam.y;
-  float z = fLam.z;
+  float x = inData.lam.x;
+  float y = inData.lam.y;
+  float z = inData.lam.z;
   gl_FragColor = vec4(hsv2rgb(vec3(Eval(x,y, z), 1.0, 1.0)), 1.0);
+//   gl_FragColor = vec4(hsv2rgb(vec3(x, 1.0, 1.0)), 1.0);
+  // gl_FragColor = vec4(1, 0,0,1);
 }
 )shader_string";
 
@@ -72,21 +76,24 @@ uniform mat4 MV;
 uniform mat4 P;
 
 in vec3 vPos;
-
-out vec3 posx;
-out vec3 coefs;
-flat out int fElement;
-out vec3 fLam;
 in int vIndex;
+
+out VertexData
+{
+  vec3 pos;
+  flat int element;
+  vec3 lam;
+} outData;
+
 void main()
 {
     gl_Position = P * MV * vec4(vPos, 1.0);
-    fLam = vec3(0.0, 0.0, 0.0);
-    posx = vPos; //0.5*vPos +0.5;
-    fElement = gl_VertexID/3; //vIndex/3;
-    if(vIndex==0) fLam.x = 1.0;
-    if(vIndex==1) fLam.y = 1.0;
-    if(vIndex==2) fLam.z = 1.0;
+    outData.lam = vec3(0.0, 0.0, 0.0);
+    outData.pos = vPos; //0.5*vPos +0.5;
+    outData.element = gl_VertexID/3; //vIndex/3;
+    if(vIndex==0) outData.lam.x = 1.0;
+    if(vIndex==1) outData.lam.y = 1.0;
+    if(vIndex==2) outData.lam.z = 1.0;
 }
 )shader_string";
 
@@ -96,24 +103,35 @@ string geometry_copy = R"shader_string(
 layout(triangles) in;
 layout(triangle_strip, max_vertices=6) out;
  
-in vec3 gPos[];
-in int gIndex[];
- 
-out vec3 fPos;
-out float fBrightness;
- 
+in VertexData
+{
+  vec3 pos;
+  flat int element;
+  vec3 lam;
+} inData[];
+
+out VertexData
+{
+  vec3 pos;
+  flat int element;
+  vec3 lam;
+} outData;
+
 uniform mat4 MV;
 uniform mat4 P;
  
 void main() {
-    vec3 normal = cross(gPos[1]-gPos[0], gPos[2]-gPos[0]);
-    normal = normal/sqrt(dot(normal,normal));
+    // vec3 normal = cross(inData[1].pos-inData[0].pos, inData[2].pos-inData[0].pos);
+    // normal = normal/sqrt(dot(normal,normal));
 
-    fBrightness = 0.3+0.7*clamp(dot(normal,vec3(1,1,1)/sqrt(3)), 0.0, 1.0);
+    // fBrightness = 0.3+0.7*clamp(dot(normal,vec3(1,1,1)/sqrt(3)), 0.0, 1.0);
+
+    outData.element = inData[0].element;
 
     for (int i=0; i<3; ++i) {
-      gl_Position = P * MV * vec4(gPos[i],1);
-      fPos = gPos[i];
+      gl_Position = P * MV * vec4(inData[i].pos,1);
+      outData.pos = inData[i].pos;
+      outData.lam = inData[i].lam;
       EmitVertex();
     }
     EndPrimitive();
