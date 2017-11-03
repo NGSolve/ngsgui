@@ -8,6 +8,8 @@ mesh = Mesh(unit_square.GenerateMesh(maxh=0.2))
 import ngui
 gui = ngui.GUI()
 gui.AddScene(ngui.MeshScene(mesh))
+gui.Update()
+gui.Render()
 while 1:
     gui.Update()
     gui.Render()

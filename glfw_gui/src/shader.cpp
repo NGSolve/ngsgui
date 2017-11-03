@@ -6,21 +6,27 @@ namespace shaders {
 #version 150
 uniform vec4 fColor;
 in vec3 fPos;
+in float fBrightness;
 void main()
 {
-  gl_FragColor = fColor; //vec4(0.0, 1.0, 0.0, 1.0);
+  gl_FragColor = fColor*fBrightness; //vec4(0.0, 1.0, 0.0, 1.0);
 }
 )shader_string";
 
     string vertex_mesh = R"shader_string(
 #version 150
-uniform mat4 MVP;
+uniform mat4 MV;
+uniform mat4 P;
 in vec3 vPos;
+in int vIndex;
 out vec3 gPos;
+out int gIndex;
+
 void main()
 {
-    gl_Position = MVP * vec4(vPos, 1.0);
+    gl_Position = P * MV * vec4(vPos, 1.0);
     gPos = vPos;
+    gIndex = vIndex;
 }
 )shader_string";
 
@@ -62,7 +68,8 @@ void main()
 
 string vertex_simple = R"shader_string(
 #version 150
-uniform mat4 MVP;
+uniform mat4 MV;
+uniform mat4 P;
 
 in vec3 vPos;
 
@@ -70,16 +77,16 @@ out vec3 posx;
 out vec3 coefs;
 flat out int fElement;
 out vec3 fLam;
+in int vIndex;
 void main()
 {
-    gl_Position = MVP * vec4(vPos, 1.0);
+    gl_Position = P * MV * vec4(vPos, 1.0);
     fLam = vec3(0.0, 0.0, 0.0);
     posx = vPos; //0.5*vPos +0.5;
     fElement = gl_VertexID/3; //vIndex/3;
-    int index = gl_VertexID - 3*fElement;
-    if(index==0) fLam.x = 1.0;
-    if(index==1) fLam.y = 1.0;
-    if(index==2) fLam.z = 1.0;
+    if(vIndex==0) fLam.x = 1.0;
+    if(vIndex==1) fLam.y = 1.0;
+    if(vIndex==2) fLam.z = 1.0;
 }
 )shader_string";
 
@@ -90,20 +97,22 @@ layout(triangles) in;
 layout(triangle_strip, max_vertices=6) out;
  
 in vec3 gPos[];
+in int gIndex[];
  
 out vec3 fPos;
+out float fBrightness;
  
-uniform mat4 MVP;
+uniform mat4 MV;
+uniform mat4 P;
  
- void main() {
+void main() {
+    vec3 normal = cross(gPos[1]-gPos[0], gPos[2]-gPos[0]);
+    normal = normal/sqrt(dot(normal,normal));
+
+    fBrightness = 0.3+0.7*clamp(dot(normal,vec3(1,1,1)/sqrt(3)), 0.0, 1.0);
+
     for (int i=0; i<3; ++i) {
-      gl_Position = MVP * vec4(gPos[i],1);
-      fPos = gPos[i];
-      EmitVertex();
-    }
-    EndPrimitive();
-    for (int i=0; i<3; ++i) {
-      gl_Position = MVP * vec4(gPos[i]+vec3(0,0,1),1);
+      gl_Position = P * MV * vec4(gPos[i],1);
       fPos = gPos[i];
       EmitVertex();
     }

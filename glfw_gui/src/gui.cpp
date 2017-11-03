@@ -225,6 +225,7 @@ MeshScene::MeshScene(shared_ptr<ngcomp::MeshAccess> ma_)
         shaderProgram = Program{vshader, fshader, gshader};
         check_gl_error();
         ngstd::Array<GLfloat> coordinates;
+        ngstd::Array<GLbyte> trig_indices;
 
         check_gl_error();
 
@@ -239,11 +240,14 @@ MeshScene::MeshScene(shared_ptr<ngcomp::MeshAccess> ma_)
 
                 BubbleSort (unsorted_vertices, sorted_vertices);
                 for (auto j : ngcomp::Range(3)) {
-                    auto v = ma->GetPoint<3>(unsorted_vertices[j]);
+                    auto v = ma->GetPoint<3>(verts[j]);
                     coordinates.Append(v[0]);
                     coordinates.Append(v[1]);
                     coordinates.Append(v[2]);
                 }
+                trig_indices.Append(unsorted_vertices[0]);
+                trig_indices.Append(unsorted_vertices[1]);
+                trig_indices.Append(unsorted_vertices[2]);
             }
         }
         else
@@ -262,6 +266,9 @@ MeshScene::MeshScene(shared_ptr<ngcomp::MeshAccess> ma_)
                     coordinates.Append(v[0]);
                     coordinates.Append(v[1]);
                     coordinates.Append(v[2]);
+                    trig_indices.Append(0);
+                    trig_indices.Append(1);
+                    trig_indices.Append(2);
                 }
             }
         }
@@ -272,10 +279,15 @@ MeshScene::MeshScene(shared_ptr<ngcomp::MeshAccess> ma_)
         check_gl_error();
 
         coordinates_buffer.Store(coordinates);
+        trig_index_buffer.Store(trig_indices);
 
+        trig_index_location = glGetAttribLocation(shaderProgram.id, "vIndex");
+        check_gl_error();
         vpos_location = glGetAttribLocation(shaderProgram.id, "vPos");
         check_gl_error();
-        mvp_location = glGetUniformLocation(shaderProgram.id, "MVP");
+        mv_location = glGetUniformLocation(shaderProgram.id, "MV");
+        check_gl_error();
+        p_location = glGetUniformLocation(shaderProgram.id, "P");
         check_gl_error();
         fcolor_location = glGetUniformLocation(shaderProgram.id, "fColor");
         check_gl_error();
@@ -283,6 +295,11 @@ MeshScene::MeshScene(shared_ptr<ngcomp::MeshAccess> ma_)
         glEnableVertexAttribArray(vpos_location);
         glVertexAttribPointer(vpos_location, 3, GL_FLOAT, GL_FALSE, 0, (void*) 0);
         check_gl_error();
+
+//         glEnableVertexAttribArray(trig_index_location);
+//         glVertexAttribIPointer(trig_index_location, 1, GL_BYTE, 0, (void*) 0);
+//         check_gl_error();
+
     }
 
 void MeshScene::Update(const GUI &gui)
@@ -306,14 +323,8 @@ void MeshScene::Render()
 
 void MeshScene::RenderWireframe()
 {
-  check_gl_error();
-  auto mvp = projection*view*model;
-  glUseProgram(shaderProgram.id);
-  glUniformMatrix4fv(mvp_location, 1, TRANSPOSE, (const GLfloat*) &mvp);
+  SetupRender();
   glUniform4f(fcolor_location, 0.0f, 0.0f ,0.0f, 1.0f);
-  glEnableVertexAttribArray(vpos_location);
-  coordinates_buffer.Bind();
-  glVertexAttribPointer(vpos_location, 3, GL_FLOAT, GL_FALSE, 0, (void*) 0);
   glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
   glDrawArrays(GL_TRIANGLES, 0, 3*ntrigs);
   check_gl_error();
@@ -321,17 +332,29 @@ void MeshScene::RenderWireframe()
 
 void MeshScene::RenderSurface()
 {
-  check_gl_error();
-  auto mvp = projection*view*model;
-  glUseProgram(shaderProgram.id);
-  glUniformMatrix4fv(mvp_location, 1, TRANSPOSE, (const GLfloat*) &mvp);
+  SetupRender();
   glUniform4f(fcolor_location, 0.0f, 1.0f ,0.0f, 1.0f);
-  glEnableVertexAttribArray(vpos_location);
-  coordinates_buffer.Bind();
-  glVertexAttribPointer(vpos_location, 3, GL_FLOAT, GL_FALSE, 0, (void*) 0);
   glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
   glDrawArrays(GL_TRIANGLES, 0, 3*ntrigs);
   check_gl_error();
+}
+
+void MeshScene::SetupRender()
+{
+  check_gl_error();
+  auto mv = view*model;
+  auto p = projection;
+  glUseProgram(shaderProgram.id);
+  glUniformMatrix4fv(mv_location, 1, TRANSPOSE, (const GLfloat*) &mv);
+  glUniformMatrix4fv(p_location, 1, TRANSPOSE, (const GLfloat*) &p);
+
+  glEnableVertexAttribArray(vpos_location);
+  coordinates_buffer.Bind();
+  glVertexAttribPointer(vpos_location, 3, GL_FLOAT, GL_FALSE, 0, (void*) 0);
+
+//   glEnableVertexAttribArray(trig_index_location);
+//   trig_index_buffer.Bind();
+//   glVertexAttribIPointer(trig_index_location, 1, GL_BYTE, 0, (void*) 0);
 }
 
 MeshScene::~MeshScene() {
@@ -354,6 +377,7 @@ SolutionScene::SolutionScene(shared_ptr<ngcomp::GridFunction> gf_)
 
   tbo_tex_location = glGetUniformLocation(solution_program.id, "coefficients");
   vpos_location = glGetAttribLocation(solution_program.id, "vPos");
+  trig_index_location = glGetAttribLocation(solution_program.id, "vIndex");
   check_gl_error();
 
   ////////////////////////////
@@ -387,6 +411,10 @@ SolutionScene::SolutionScene(shared_ptr<ngcomp::GridFunction> gf_)
   glTexBuffer    ( GL_TEXTURE_BUFFER, GL_R32F, buffer );
   check_gl_error();
 
+//   glEnableVertexAttribArray(trig_index_location);
+//   trig_index_buffer.Bind();
+//   glVertexAttribIPointer(trig_index_location, 1, GL_BYTE, 0, (void*) 0);
+//   check_gl_error();
 }
 
 void SolutionScene::Update(const GUI & gui)
@@ -397,10 +425,11 @@ void SolutionScene::Update(const GUI & gui)
 void SolutionScene::Render()
 {
   check_gl_error();
-  auto mvp = projection*view*model;
-  glUseProgram(solution_program.id);
-  check_gl_error();
-  glUniformMatrix4fv(mvp_location, 1, TRANSPOSE, (const GLfloat*) &mvp);
+  auto mv = view*model;
+  auto p = projection;
+  glUseProgram(shaderProgram.id);
+  glUniformMatrix4fv(mv_location, 1, TRANSPOSE, (const GLfloat*) &mv);
+  glUniformMatrix4fv(p_location, 1, TRANSPOSE, (const GLfloat*) &p);
   check_gl_error();
 
   // Set vPos input
@@ -409,6 +438,11 @@ void SolutionScene::Render()
   coordinates_buffer.Bind();
   check_gl_error();
   glVertexAttribPointer(vpos_location, 3, GL_FLOAT, GL_FALSE, 0, (void*) 0);
+  check_gl_error();
+
+  glEnableVertexAttribArray(trig_index_location);
+  trig_index_buffer.Bind();
+  glVertexAttribIPointer(trig_index_location, 1, GL_BYTE, 0, (void*) 0);
   check_gl_error();
 
   glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );

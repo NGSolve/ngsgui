@@ -183,9 +183,9 @@ protected:
   Program shaderProgram;
 
   GLuint vao;
-  GLint vpos_location, mvp_location, fcolor_location;
+  GLint vpos_location, mv_location, p_location, fcolor_location, trig_index_location;
   ArrayBuffer<GLfloat> coordinates_buffer;
-  ArrayBuffer<GLuint> trig_index_buffer, line_index_buffer;
+  ArrayBuffer<GLbyte> trig_index_buffer;
   size_t nvertices, nlines, ntrigs;
 
 public:
@@ -196,6 +196,7 @@ public:
   virtual void Render() override;
   virtual void RenderWireframe();
   virtual void RenderSurface();
+  virtual void SetupRender();
 
   virtual ~MeshScene();
 };
