@@ -224,13 +224,17 @@ class SolutionScene : public Scene
   Program solution_program;
   GLint vpos_location, mv_location, p_location, fcolor_location, trig_index_location;
 
-  GLint tbo_tex_location;
+  GLint tbo_tex_location, colormap_min_location, colormap_max_location, colormap_linear_location;
   GLuint textureID;
 
   GLuint buffer;
   GLuint tex;
 
+
 public:
+  float colormap_min = -1.0;
+  float colormap_max =  1.0;
+  bool colormap_linear = true;
 
   SolutionScene(shared_ptr<ngcomp::GridFunction> gf_); 
 

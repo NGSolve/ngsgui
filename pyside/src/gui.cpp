@@ -1,6 +1,8 @@
 #include <gui.hpp>
 #include <generate_shader.hpp>
 #include <pybind11/pybind11.h>
+#include <pybind11/stl_bind.h>
+#include <pybind11/numpy.h>
 
 namespace py = pybind11;
 
@@ -127,6 +129,7 @@ void GUI::GetMatrices(Mat4 &model, Mat4 &view, Mat4 &projection) const {
     model = Translate(dx, -dy, -0 )*model;
     model = Scale(exp(-zoom/100))*model;
     model = Translate(0, -0, -5 )*model;
+
 }
 
 MeshScene::MeshScene(shared_ptr<ngcomp::MeshAccess> ma_)
@@ -268,6 +271,8 @@ void MeshScene::SetupRender()
   auto mv = view*model;
   auto p = projection;
   glUseProgram(shaderProgram.id);
+  cout << "mv" << mv << endl;
+  cout << "p" << p << endl;
   glUniformMatrix4fv(mv_location, 1, TRANSPOSE, (const GLfloat*) &mv);
   glUniformMatrix4fv(p_location, 1, TRANSPOSE, (const GLfloat*) &p);
 
@@ -300,6 +305,12 @@ SolutionScene::SolutionScene(shared_ptr<ngcomp::GridFunction> gf_)
   solution_program = Program{ vertex_shader, fragment_shader};
   check_gl_error();
 
+  colormap_min_location = glGetUniformLocation(solution_program.id, "colormap_min");
+  check_gl_error();
+  colormap_max_location = glGetUniformLocation(solution_program.id, "colormap_max");
+  check_gl_error();
+  colormap_linear_location = glGetUniformLocation(solution_program.id, "colormap_linear");
+  check_gl_error();
   tbo_tex_location = glGetUniformLocation(solution_program.id, "coefficients");
   check_gl_error();
   vpos_location = glGetAttribLocation(solution_program.id, "vPos");
@@ -366,6 +377,10 @@ void SolutionScene::Render()
   glUniformMatrix4fv(mv_location, 1, TRANSPOSE, (const GLfloat*) &mv);
   glUniformMatrix4fv(p_location, 1, TRANSPOSE, (const GLfloat*) &p);
   check_gl_error();
+  glUniform1f(colormap_min_location, colormap_min);
+  glUniform1f(colormap_max_location,  colormap_max);
+  glUniform1i(colormap_linear_location,  colormap_linear);
+  check_gl_error();
 
   // Set vPos input
   glEnableVertexAttribArray(vpos_location);
@@ -395,6 +410,15 @@ typedef void (*__GLXextFuncPtr)(void);
 extern "C" __GLXextFuncPtr glXGetProcAddressARB (const GLubyte *);
 extern "C" void (*glXGetProcAddress(const GLubyte *procname))( void );
 
+template<typename T>
+auto MoveToNumpyArray( ngstd::Array<T> &a )
+{
+  py::capsule free_when_done(&a[0], [](void *f) {
+      delete [] reinterpret_cast<T *>(f);
+  });
+  a.NothingToDelete();
+  return py::array_t<T>(a.Size(), &a[0], free_when_done);
+}
 
 PYBIND11_MODULE(ngui, m) {
     py::class_<GUI>(m, "GUI")
@@ -423,6 +447,10 @@ PYBIND11_MODULE(ngui, m) {
           });
     py::class_<Scene, shared_ptr<Scene>>(m, "Scene");
 
+    m.def("GenerateShader", [](int order) {
+          return genshader::GenerateCode<ET_TRIG>(order);
+          });
+
     py::class_<MeshScene, Scene, shared_ptr<MeshScene>>(m, "MeshScene")
       .def(py::init<shared_ptr<ngcomp::MeshAccess>>())
       .def("Update", &MeshScene::Update)
@@ -431,5 +459,82 @@ PYBIND11_MODULE(ngui, m) {
 
     py::class_<SolutionScene, Scene, shared_ptr<SolutionScene>>(m, "SolutionScene")
       .def(py::init<shared_ptr<ngcomp::GridFunction>>())
+      .def_readwrite("colormap_min", &SolutionScene::colormap_min)
+      .def_readwrite("colormap_max", &SolutionScene::colormap_max)
+      .def_readwrite("colormap_linear", &SolutionScene::colormap_linear)
       ;
+
+    m.def("GetVisData", [] (shared_ptr<ngcomp::MeshAccess> ma) {
+        ngstd::Array<GLfloat> coordinates;
+        ngstd::Array<GLbyte> trig_indices;
+//         std::vector<GLfloat> coordinates;
+//         std::vector<GLbyte> trig_indices;
+        if(ma->GetDimension()==2)
+        {
+            auto ntrigs = ma->GetNE();
+            for (auto i : ngcomp::Range(ntrigs)) {
+                auto verts = ma->GetElement(ElementId( VOL, i)).Vertices();
+
+                ArrayMem<int,3> sorted_vertices{0,1,2};
+                ArrayMem<int,3> unsorted_vertices{verts[0], verts[1], verts[2]};
+
+                BubbleSort (unsorted_vertices, sorted_vertices);
+                for (auto j : ngcomp::Range(3)) {
+                    auto v = ma->GetPoint<3>(verts[j]);
+                    coordinates.Append(v[0]);
+                    coordinates.Append(v[1]);
+                    coordinates.Append(v[2]);
+                }
+                trig_indices.Append(sorted_vertices[0]);
+                trig_indices.Append(sorted_vertices[1]);
+                trig_indices.Append(sorted_vertices[2]);
+            }
+      }
+      return py::make_tuple(
+            MoveToNumpyArray(coordinates), 
+            MoveToNumpyArray(trig_indices) 
+
+      );
+//       return py::make_tuple(
+//             coordinates, 
+//             trig_indices 
+//       );
+
+    });
+
+
+//     m.def("PrintPointer", [] (py::capsule p) {
+//           cout << "got pointer " << p << endl;
+//           cout << p[0] << endl;
+//           });
+// 
+    py::bind_vector<std::vector<float>>(m, "VectorFloat");
+    m.def("PrintPointer", [] ( std::vector<float> &v) {
+          cout << "pointer: " << &v[0] << endl;
+          });
+    m.def("GetPointer", [] () {
+          size_t N = 10000000;
+//           float *p = new float[N];
+//           std::vector<float> v(100000000);
+          auto v = make_unique<std::vector<float>> (N);
+          cout << "pointer: " << &(*v)[0] << endl;
+//           cout << "got pointer " << p << endl;
+//           py::capsule free_when_done(p, [](void *f) {
+//             float *p = reinterpret_cast<float *>(f);
+//             std::cerr << "Element [0] = " << p[0] << "\n";
+//             std::cerr << "freeing memory @ " << f << "\n";
+//             delete[] p;
+//           });
+//           for (auto i : Range(N))
+//             p[i] = i+1;
+//           cout << p[0] << endl;
+//           int i;
+//           cin >> i;
+//           auto res = py::array_t<float>(N, p, free_when_done);
+//           auto res = py::cast(std::move(v));
+//           cin >> i;
+//           return free_when_done;
+          return v;
+          });
+
 }

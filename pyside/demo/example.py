@@ -3,6 +3,7 @@ from netgen.geom2d import unit_square
 import ngui
 import gui_pyside
 import threading
+import gl
 
 try:
     from PySide2 import QtCore, QtGui, QtWidgets, QtOpenGL
@@ -23,5 +24,9 @@ with TaskManager():
 
 
 gui = gui_pyside.GUI()
-gui.draw(gf)
+scene = gl.SolutionScene(gf)
+# scene.colormap_min = -5
+# scene.colormap_max = 10
+# scene.colormap_linear = False
+gui.draw(scene)
 gui.run()

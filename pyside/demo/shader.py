@@ -1,8 +1,4 @@
-// #include <gui.hpp>
-#include <string>
-using std::string;
-namespace shaders {
-    string fragment_mesh = R"shader_string(
+fragment_mesh = """
 #version 150
 uniform vec4 fColor;
 // in vec3 fPos;
@@ -11,9 +7,9 @@ void main()
 {
   gl_FragColor = fColor; //*fBrightness; vec4(0.0, 1.0, 0.0, 1.0);
 }
-)shader_string";
+"""
 
-    string vertex_mesh = R"shader_string(
+vertex_mesh = """
 #version 150
 uniform mat4 MV;
 uniform mat4 P;
@@ -28,11 +24,11 @@ void main()
 //    fPos = vPos;
 //    gIndex = vIndex;
 }
-)shader_string";
+"""
 
-    string fragment_header = R"shader_string(
+fragment_header = """
 #version 150
-// uniform samplerBuffer coefficients;
+uniform samplerBuffer coefficients;
 uniform float colormap_min, colormap_max;
 uniform bool colormap_linear;
 
@@ -63,9 +59,9 @@ vec3 hsv2rgb(vec3 c)
 float zahn(float x, float y) {
   return atan(1000*x*y*y - floor(1000*x*y*y));
 }
-)shader_string";
+"""
 
-string fragment_main = R"shader_string(
+fragment_main = """
 void main()
 {
   float x = inData.lam.x;
@@ -76,9 +72,9 @@ void main()
 //   gl_FragColor = vec4(hsv2rgb(vec3(x, 1.0, 1.0)), 1.0);
   // gl_FragColor = vec4(1, 0,0,1);
 }
-)shader_string";
+"""
 
-string vertex_simple = R"shader_string(
+vertex_simple = """
 #version 150
 uniform mat4 MV;
 uniform mat4 P;
@@ -103,14 +99,14 @@ void main()
     if(vIndex==1) outData.lam.y = 1.0;
     if(vIndex==2) outData.lam.z = 1.0;
 }
-)shader_string";
+"""
 
-string geometry_copy = R"shader_string(
+geometry_copy = """
 #version 420
- 
+
 layout(triangles) in;
 layout(triangle_strip, max_vertices=6) out;
- 
+
 in VertexData
 {
   vec3 pos;
@@ -127,7 +123,7 @@ out VertexData
 
 uniform mat4 MV;
 uniform mat4 P;
- 
+
 void main() {
     // vec3 normal = cross(inData[1].pos-inData[0].pos, inData[2].pos-inData[0].pos);
     // normal = normal/sqrt(dot(normal,normal));
@@ -145,5 +141,4 @@ void main() {
     EndPrimitive();
 }
 
-)shader_string";
-}
+"""
