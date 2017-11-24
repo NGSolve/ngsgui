@@ -121,9 +121,8 @@ class SolutionScene(SceneObject):
 
         self.mesh = gf.space.mesh
         self.gf = gf
-#         self.meshscene = MeshScene(gf.space.mesh)
 
-        fragment_shader = GenerateShader(gf.space.globalorder)
+        fragment_shader = shader.fragment_header + GenerateShader(gf.space.globalorder) + shader.fragment_main
 
         shaders = [
             Shader(shader.vertex_simple, GL_VERTEX_SHADER),
