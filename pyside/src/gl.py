@@ -52,6 +52,9 @@ class ArrayBuffer(GLObject):
 class SceneObject():
     timestamp = -1
 
+    def getQtWidget(self, updateGL):
+        return None
+
 class MeshScene(SceneObject):
     uniform_names = [b"fColor", b"MV", b"P"]
     attribute_names = [b"vPos"]
@@ -80,6 +83,7 @@ class MeshScene(SceneObject):
 
 
     def update(self):
+        glBindVertexArray(self.vao)
         coordinates_data, trig_indices_data = GetVisData(self.mesh)
         self.coordinates.store(coordinates_data)
 
@@ -87,7 +91,7 @@ class MeshScene(SceneObject):
         glVertexAttribPointer(self.attributes[b'vPos'], 3, GL_FLOAT, GL_FALSE, 0, 0);
 
 
-    def render(self, model, view, projection):
+    def setupRender(self, model, view, projection):
         modelview = view*model*glmath.Translate(-0.5, -0.5,0) #move to center
         mv = [modelview[i,j] for i in range(4) for j in range(4)]
         p = [projection[i,j] for i in range(4) for j in range(4)]
@@ -99,10 +103,18 @@ class MeshScene(SceneObject):
         self.coordinates.bind();
         glVertexAttribPointer(self.attributes[b'vPos'], 3, GL_FLOAT, GL_FALSE, 0, ctypes.c_void_p());
 
+    def render(self, model, view, projection):
+        glBindVertexArray(self.vao)
+        self.setupRender(model, view, projection)
         glUniform4f(self.uniforms[b'fColor'], 0.0,1.0,0.0,1.0)
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh.ne)
 
+        self.renderWireframe(model,view,projection)
+
+    def renderWireframe(self, model, view, projection):
+        glBindVertexArray(self.vao)
+        self.setupRender(model, view, projection)
         glUniform4f(self.uniforms[b'fColor'], 0.0,0.0,0.0,1.0)
         glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
         glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh.ne)
@@ -112,6 +124,7 @@ class SolutionScene(SceneObject):
     attribute_names = [b"vPos", b"vIndex"]
     uniforms = {}
     attributes = {}
+    qtWidget = None
 
     def __init__(self, gf, colormap_min=-1.0, colormap_max=1.0, colormap_linear=False):
         super(SolutionScene, self).__init__()
@@ -120,6 +133,7 @@ class SolutionScene(SceneObject):
         self.colormap_linear = colormap_linear
 
         self.mesh = gf.space.mesh
+        self.mesh_scene = MeshScene(self.mesh)
         self.gf = gf
 
         fragment_shader = shader.fragment_header + GenerateShader(gf.space.globalorder) + shader.fragment_main
@@ -163,6 +177,8 @@ class SolutionScene(SceneObject):
 
 
     def update(self):
+        self.mesh_scene.update()
+        glBindVertexArray(self.vao)
         coordinates_data, trig_indices_data = GetVisData(self.mesh)
 
         self.coordinates.store(coordinates_data)
@@ -206,4 +222,40 @@ class SolutionScene(SceneObject):
 
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh.ne);
+
+        self.mesh_scene.renderWireframe(model,view,projection)
+
+    def setColorMapMin(self, value):
+        self.colormap_min = value
+
+    def setColorMapMax(self, value):
+        self.colormap_max = value
+
+    def setColorMapLinear(self, value):
+        self.colormap_linear = value
+
+
+    def getQtWidget(self, updateGL):
+        if self.qtWidget!=None:
+            print("return old widget")
+            return self.qtWidget
+        print("return new widget")
+
+        from .gui import ColorMapSettings, Qt
+
+        settings = ColorMapSettings(min=-2, max=2, min_value=self.colormap_min, max_value=self.colormap_max)
+        settings.layout().setAlignment(Qt.AlignTop)
+
+        settings.minChanged.connect(self.setColorMapMin)
+        settings.minChanged.connect(updateGL)
+
+        settings.maxChanged.connect(self.setColorMapMax)
+        settings.maxChanged.connect(updateGL)
+
+        settings.linearChanged.connect(self.setColorMapLinear)
+        settings.linearChanged.connect(updateGL)
+
+        self.qtWidget = settings
+        return self.qtWidget
+
 

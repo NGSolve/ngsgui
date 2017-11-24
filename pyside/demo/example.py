@@ -13,8 +13,5 @@ with TaskManager():
 
 gui = GUI.GUI()
 scene = GUI.SolutionScene(gf)
-scene.colormap_min = -1
-scene.colormap_max = 1
-scene.colormap_linear = True
 gui.draw(scene)
 gui.run()

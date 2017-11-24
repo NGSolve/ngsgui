@@ -65,7 +65,6 @@ class RangeGroup(QtWidgets.QWidget):
         self.label = QtWidgets.QLabel(name)
         
         self.setLayout(ArrangeV(ArrangeH(self.label, self.valueBox), self.scroll))
-        self.scroll.setValue(100)
 
     def setIntValue(self, int_value, emit=True):
         float_value = int_value*1.0/self.scalingFactor
@@ -75,29 +74,31 @@ class RangeGroup(QtWidgets.QWidget):
 
     def setValue(self, float_value, emit=True):
         int_value = round(self.scalingFactor*float_value)
-#         print('setvalue', float_value, int_value)
         self.scroll.setValue(int_value)
+        self.valueChanged.emit(float_value)
         if emit:
             self.setIntValue(int_value, False)
 
+class ColorMapSettings(QtWidgets.QWidget):
+    linearChanged = QtCore.Signal(bool)
+
+    def __init__(self, min=-1, max=1, min_value=0, max_value=1, direction=Qt.Horizontal):
+        super(ColorMapSettings, self).__init__()
+
+        self.rangeMin = RangeGroup("Min", min, max, min_value, direction)
+        self.minChanged = self.rangeMin.valueChanged
+        self.rangeMax = RangeGroup("Max", min, max, max_value, direction)
+        self.maxChanged = self.rangeMax.valueChanged
+
+        self.linear = QtWidgets.QCheckBox('Linear', self)
+        self.linear.stateChanged.connect( lambda state: self.linearChanged.emit(state==Qt.Checked))
+
+        self.setLayout( ArrangeV( self.rangeMin, self.rangeMax, self.linear ))
+
+        self.rangeMin.setValue(min_value)
+        self.rangeMax.setValue(max_value)
+
 class MainWindow(QtWidgets.QMainWindow):
-
-    cmMinChanged = QtCore.Signal(int)
-    cmMaxChanged = QtCore.Signal(int)
-
-    def onMinChanged(self,value):
-        try:
-            self.glWidget.scene.colormap_min = value
-            self.glWidget.updateGL()
-        except:
-            pass
-
-    def onMaxChanged(self,value):
-        try:
-            self.glWidget.scene.colormap_max = value
-            self.glWidget.updateGL()
-        except:
-            pass
 
     def __init__(self):
         super(MainWindow, self).__init__()
@@ -119,17 +120,18 @@ class MainWindow(QtWidgets.QMainWindow):
         btnQuit = QtWidgets.QPushButton("Quit", self)
         btnQuit.clicked.connect(self.close)
         
-        colormapSettings = ArrangeV(
-            RangeGroup("Min", min=-2, max=2, value=-1),
-            RangeGroup("Max", min=-2, max=2, value= 1)
-        )
-        colormapSettings.setAlignment(Qt.AlignTop)
+        self.colormapSettings = ColorMapSettings(min=-2, max=2, min_value=-1, max_value=1)
+        self.colormapSettings.layout().setAlignment(Qt.AlignTop)
 
         buttons.addWidget(btnZoomReset)
         buttons.addWidget(btnQuit)
 
+#         self.settings = QtWidgets.QVBoxLayout()
+        self.settings = QtWidgets.QToolBox()
+#         self.settings.addLayout(buttons)
+
         mainLayout = QtWidgets.QHBoxLayout()
-        mainLayout.addLayout(ArrangeV(colormapSettings, buttons),1)
+        mainLayout.addLayout( ArrangeV(self.settings, buttons),1)
         mainLayout.addWidget(self.glWidget, 3)
         mainWidget.setLayout(mainLayout)
 
@@ -147,8 +149,6 @@ class GLWidget(QtOpenGL.QGLWidget):
     do_translate = False
     do_zoom = False
     zoom = 0.0
-    translate_x=0.0
-    translate_y=0.0
     dx = 0.0
     dy = 0.0
     ratio = 1.0
@@ -244,6 +244,7 @@ class GUI():
     def draw(self, scene):
         scene.update()
         self.window.glWidget.scenes.append(scene)
+        self.window.settings.addItem(scene.getQtWidget(self.window.glWidget.updateGL),"Colormap")
 
     def run(self):
         self.window.show()

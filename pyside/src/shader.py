@@ -1,11 +1,9 @@
 fragment_mesh = """
 #version 150
 uniform vec4 fColor;
-// in vec3 fPos;
-// in float fBrightness;
 void main()
 {
-  gl_FragColor = fColor; //*fBrightness; vec4(0.0, 1.0, 0.0, 1.0);
+  gl_FragColor = fColor;
 }
 """
 
@@ -14,15 +12,10 @@ vertex_mesh = """
 uniform mat4 MV;
 uniform mat4 P;
 in vec3 vPos;
-// in int vIndex;
-// out vec3 fPos;
-// out int gIndex;
 
 void main()
 {
     gl_Position = P * MV * vec4(vPos, 1.0);
-//    fPos = vPos;
-//    gIndex = vIndex;
 }
 """
 
