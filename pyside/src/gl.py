@@ -1,9 +1,9 @@
 from OpenGL.GL import *
-import shader
 from ngui import *
 import array
 import ctypes
-import glmath
+
+from . import glmath, shader
 
 class GLObject:
     @property

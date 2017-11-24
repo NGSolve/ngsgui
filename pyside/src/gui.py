@@ -2,8 +2,9 @@
 import sys
 import math
 import OpenGL.GL as GL
-import glmath
 from math import exp
+
+from . import glmath
 
 try:
     from PySide2 import QtCore, QtGui, QtWidgets, QtOpenGL
@@ -11,7 +12,6 @@ try:
 except:
     from PyQt5 import QtCore, QtGui, QtWidgets, QtOpenGL
     from PyQt5.QtCore import Qt
-# import ngui
 
 try:
     from OpenGL import GL
