@@ -113,8 +113,12 @@ class SolutionScene(SceneObject):
     uniforms = {}
     attributes = {}
 
-    def __init__(self, gf):
+    def __init__(self, gf, colormap_min=-1.0, colormap_max=1.0, colormap_linear=False):
         super(SolutionScene, self).__init__()
+        self.colormap_min = colormap_min
+        self.colormap_max = colormap_max
+        self.colormap_linear = colormap_linear
+
         self.mesh = gf.space.mesh
         self.gf = gf
 #         self.meshscene = MeshScene(gf.space.mesh)
@@ -137,13 +141,13 @@ class SolutionScene(SceneObject):
         self.vao = glGenVertexArrays(1)
         glBindVertexArray(self.vao)
 
-#         self.coefficients = glGenBuffers(1)
-#         glBindBuffer   ( GL_TEXTURE_BUFFER, self.coefficients );
-# 
-#         tex = glGenTextures  (1)
-#         glActiveTexture( GL_TEXTURE0 );
-#         glBindTexture  ( GL_TEXTURE_BUFFER, tex )
-#         glTexBuffer    ( GL_TEXTURE_BUFFER, GL_R32F, self.coefficients );
+        self.coefficients = glGenBuffers(1)
+        glBindBuffer   ( GL_TEXTURE_BUFFER, self.coefficients );
+
+        tex = glGenTextures  (1)
+        glActiveTexture( GL_TEXTURE0 );
+        glBindTexture  ( GL_TEXTURE_BUFFER, tex )
+        glTexBuffer    ( GL_TEXTURE_BUFFER, GL_R32F, self.coefficients );
 
         self.coordinates = ArrayBuffer()
         self.trig_indices = ArrayBuffer()
@@ -170,11 +174,13 @@ class SolutionScene(SceneObject):
         glEnableVertexAttribArray(self.attributes[b'vIndex'])
         glVertexAttribIPointer(self.attributes[b'vIndex'], 1, GL_BYTE, 0, ctypes.c_void_p());
 
-#         self.meshscene.update()
-#         glBindBuffer   ( GL_TEXTURE_BUFFER, self.coefficients );
-        # todo
-#         glBufferData   ( GL_TEXTURE_BUFFER, sizeof(GLfloat)*coefficients_float.Size(), NULL, GL_STATIC_DRAW );  // Alloc
-#         glBufferSubData( GL_TEXTURE_BUFFER, 0, sizeof(GLfloat)*coefficients_float.Size(), &coefficients_float[0]); // Fill
+        glBindBuffer   ( GL_TEXTURE_BUFFER, self.coefficients );
+        vec = self.gf.vec
+        ncoefs = len(vec)
+        size_float=ctypes.sizeof(ctypes.c_float)
+
+        glBufferData   ( GL_TEXTURE_BUFFER, size_float*ncoefs, ctypes.c_void_p(), GL_STATIC_DRAW ) # alloc
+        glBufferSubData( GL_TEXTURE_BUFFER, 0, size_float*ncoefs, (ctypes.c_float*ncoefs)(*vec)) # fill
 
 
     def render(self, model, view, projection):
@@ -186,6 +192,10 @@ class SolutionScene(SceneObject):
         glUseProgram(self.program.id)
         glUniformMatrix4fv(self.uniforms[b'MV'], 1, GL_TRUE, (ctypes.c_float*16)(*mv))
         glUniformMatrix4fv(self.uniforms[b'P'], 1, GL_TRUE, (ctypes.c_float*16)(*p))
+
+        glUniform1f(self.uniforms[b'colormap_min'], self.colormap_min);
+        glUniform1f(self.uniforms[b'colormap_max'],  self.colormap_max);
+        glUniform1i(self.uniforms[b'colormap_linear'],  self.colormap_linear);
 
         glEnableVertexAttribArray(self.attributes[b'vPos']);
         self.coordinates.bind();

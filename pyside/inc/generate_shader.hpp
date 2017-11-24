@@ -135,15 +135,14 @@ namespace genshader {
 
         stringstream ss;
         fel.MyCalcShape (ip, SBLambda([&] (int i, auto c) {
-//                                       ss << "result += texelFetch( coefficients, inData.element*"+ToString(fel.ndof) + "+"  + ToString(i) + ").r * " + c.s << ";" << endl;
-                                      ss << "result += " + c.s << ";" << endl;
+                                      ss << "result += texelFetch( coefficients, inData.element*"+ToString(fel.ndof) + "+"  + ToString(i) + ").r * " + c.s << ";" << endl;
                                       }));
 
         int i = 0;
         for(auto &s : expressions)
           f << "float var" << ToString(i++) << " = " <<  s << ";" << endl;
         f << ss.str() << endl;
-        f << "return 5.0;" << endl;
+        f << "return result;" << endl;
         f << "}" << endl;
         return shaders::fragment_header
                + f.str()

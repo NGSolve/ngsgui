@@ -32,7 +32,7 @@ void main()
 
     string fragment_header = R"shader_string(
 #version 150
-// uniform samplerBuffer coefficients;
+uniform samplerBuffer coefficients;
 uniform float colormap_min, colormap_max;
 uniform bool colormap_linear;
 

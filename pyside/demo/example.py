@@ -25,8 +25,8 @@ with TaskManager():
 
 gui = gui_pyside.GUI()
 scene = gl.SolutionScene(gf)
-# scene.colormap_min = -5
-# scene.colormap_max = 10
-# scene.colormap_linear = False
+scene.colormap_min = -1
+scene.colormap_max = 1
+scene.colormap_linear = True
 gui.draw(scene)
 gui.run()
