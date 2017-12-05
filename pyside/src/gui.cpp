@@ -171,7 +171,7 @@ namespace genshader {
 
         stringstream ss;
         fel.MyCalcShape (ip, SBLambda([&] (int i, auto c) {
-                                      ss << "result += texelFetch( coefficients, fElement*"+ToString(fel.ndof) + "+"  + ToString(i) + ").r * " + c.s << ";" << endl;
+                                      ss << "result += texelFetch( coefficients, inData.element*"+ToString(fel.ndof) + "+"  + ToString(i) + ").r * " + c.s << ";" << endl;
                                       }));
 
         int i = 0;
@@ -198,16 +198,17 @@ auto MoveToNumpyArray( ngstd::Array<T> &a )
 PYBIND11_MODULE(ngui, m) {
 
     m.def("GenerateShader", [](int order) {
-          return genshader::GenerateCode<ET_TRIG>(order);
+//           return genshader::GenerateCode<ET_TRIG>(order);
+          return genshader::GenerateCode<ET_TET>(order);
           });
     m.def("GetFaceData", [] (shared_ptr<ngcomp::MeshAccess> ma) {
         ngstd::Array<float> coordinates;
-        ngstd::Array<signed char> trig_indices;
+        ngstd::Array<float> bary_coordinates;
+        ngstd::Array<int> element_number;
         size_t ntrigs;
 
         Vector<> min(3);
         min = std::numeric_limits<double>::max();
-
         Vector<> max(3);
         max = std::numeric_limits<double>::lowest();
 
@@ -218,37 +219,66 @@ PYBIND11_MODULE(ngui, m) {
             BubbleSort (unsorted_vertices, sorted_vertices);
             for (auto j : ngcomp::Range(3)) {
                 auto v = ma->GetPoint<3>(verts[j]);
-                coordinates.Append(v[0]);
-                coordinates.Append(v[1]);
-                coordinates.Append(v[2]);
                 for (auto k : Range(3)) {
+                  coordinates.Append(v[k]);
+                  bary_coordinates.Append( sorted_vertices[j]==k ? 1.0 : 0.0 );
+
                   min[k] = min2(min[k], v[k]);
                   max[k] = max2(max[k], v[k]);
                 }
             }
-            trig_indices.Append(sorted_vertices[0]);
-            trig_indices.Append(sorted_vertices[1]);
-            trig_indices.Append(sorted_vertices[2]);
         };
 
         if(ma->GetDimension()==2)
         {
             ntrigs = ma->GetNE();
-            for (auto i : ngcomp::Range(ntrigs))
+            element_number.SetSize(3*ntrigs);
+            for (auto i : ngcomp::Range(ntrigs)) {
                 addVertices(ma->GetElement(ElementId( VOL, i)).Vertices());
+                element_number[3*i+0] = i;
+                element_number[3*i+1] = i;
+                element_number[3*i+2] = i;
+            }
         }
         else if(ma->GetDimension()==3)
         {
             ntrigs = ma->GetNSE();
-            for (auto i : ngcomp::Range(ntrigs))
-                addVertices(ma->GetElement(ElementId( BND, i)).Vertices());
+            element_number.SetSize(3*ntrigs);
+
+            for (auto sel : ma->Elements(BND)) {
+                auto sel_vertices = sel.Vertices();
+
+                ArrayMem<int,10> elnums;
+                ma->GetFacetElements (sel.Facets()[0], elnums);
+                auto el = ma->GetElement(ElementId(VOL, elnums[0]));
+
+                auto el_vertices = el.Vertices();
+                ArrayMem<int,4> sorted_vertices{0,1,2,3};
+                ArrayMem<int,4> unsorted_vertices{el_vertices[0], el_vertices[1], el_vertices[2], el_vertices[3]};
+                BubbleSort (unsorted_vertices, sorted_vertices);
+
+                for (auto j : ngcomp::Range(3)) {
+                  auto v = ma->GetPoint<3>(sel_vertices[j]);
+                  for (auto k : Range(3)) {
+                    coordinates.Append(v[k]);
+                    bary_coordinates.Append( unsorted_vertices[k]==sel_vertices[j] ? 1.0 : 0.0 );
+                    min[k] = min2(min[k], v[k]);
+                    max[k] = max2(max[k], v[k]);
+                  }
+                }
+                element_number[3*sel.Nr()+0] = elnums[0];
+                element_number[3*sel.Nr()+1] = elnums[0];
+                element_number[3*sel.Nr()+2] = elnums[0];
+            }
         }
         else
             throw runtime_error("Unsupported mesh dimension: "+ToString(ma->GetDimension()));
+
         return py::make_tuple(
             ntrigs,
             MoveToNumpyArray(coordinates),
-            MoveToNumpyArray(trig_indices),
+            MoveToNumpyArray(bary_coordinates),
+            MoveToNumpyArray(element_number),
             min, max
         );
     });

@@ -66,7 +66,8 @@ class MeshScene(SceneObject):
         self.vao = glGenVertexArrays(1)
         glBindVertexArray(self.vao)
         self.coordinates = ArrayBuffer()
-        self.trig_indices = ArrayBuffer()
+        self.bary_coordinates = ArrayBuffer()
+        self.element_number = ArrayBuffer()
 
         self.mesh = mesh
         shaders = [
@@ -84,8 +85,9 @@ class MeshScene(SceneObject):
 
     def update(self):
         glBindVertexArray(self.vao)
-        self.ntrigs, coordinates_data, trig_indices_data, self.min, self.max = GetFaceData(self.mesh)
+        self.ntrigs, coordinates_data, bary_coordinates_data, element_number_data, self.min, self.max = GetFaceData(self.mesh)
         self.coordinates.store(coordinates_data)
+        self.bary_coordinates.store(bary_coordinates_data)
 
         glEnableVertexAttribArray(self.attributes[b'vPos'])
         glVertexAttribPointer(self.attributes[b'vPos'], 3, GL_FLOAT, GL_FALSE, 0, 0);
@@ -122,7 +124,7 @@ class MeshScene(SceneObject):
 
 class SolutionScene(SceneObject):
     uniform_names = [b"MV", b"P", b"colormap_min", b"colormap_max", b"colormap_linear"]#, b"coefficients"]
-    attribute_names = [b"vPos", b"vIndex"]
+    attribute_names = [b"vPos", b"vLam", b"vElementNumber"]
     uniforms = {}
     attributes = {}
     qtWidget = None
@@ -164,31 +166,40 @@ class SolutionScene(SceneObject):
         glTexBuffer    ( GL_TEXTURE_BUFFER, GL_R32F, self.coefficients );
 
         self.coordinates = ArrayBuffer()
-        self.trig_indices = ArrayBuffer()
+        self.bary_coordinates = ArrayBuffer()
+        self.element_number = ArrayBuffer()
 
+
+        glEnableVertexAttribArray(self.attributes[b'vLam'])
+        self.bary_coordinates.bind();
+        glVertexAttribPointer(self.attributes[b'vLam'], 3, GL_FLOAT, GL_FALSE, 0, ctypes.c_void_p());
 
         glEnableVertexAttribArray(self.attributes[b'vPos'])
         self.coordinates.bind();
         glVertexAttribPointer(self.attributes[b'vPos'], 3, GL_FLOAT, GL_FALSE, 0, ctypes.c_void_p());
 
-        glEnableVertexAttribArray(self.attributes[b'vIndex'])
-        self.trig_indices.bind();
-        glVertexAttribIPointer(self.attributes[b'vIndex'], 1, GL_BYTE, 0, ctypes.c_void_p());
+        glEnableVertexAttribArray(self.attributes[b'vElementNumber'])
+        self.element_number.bind();
+        glVertexAttribIPointer(self.attributes[b'vElementNumber'], 1, GL_INT, 0, ctypes.c_void_p());
 
 
 
     def update(self):
         self.mesh_scene.update()
         glBindVertexArray(self.vao)
-        self.ntrigs, coordinates_data, trig_indices_data, self.min, self.max = GetFaceData(self.mesh)
+        self.ntrigs, coordinates_data, bary_coordinates_data, element_number_data, self.min, self.max = GetFaceData(self.mesh)
 
         self.coordinates.store(coordinates_data)
         glEnableVertexAttribArray(self.attributes[b'vPos'])
         glVertexAttribPointer(self.attributes[b'vPos'], 3, GL_FLOAT, GL_FALSE, 0, 0);
 
-        self.trig_indices.store(trig_indices_data)
-        glEnableVertexAttribArray(self.attributes[b'vIndex'])
-        glVertexAttribIPointer(self.attributes[b'vIndex'], 1, GL_BYTE, 0, ctypes.c_void_p());
+        self.bary_coordinates.store(bary_coordinates_data)
+        glEnableVertexAttribArray(self.attributes[b'vLam'])
+        glVertexAttribPointer(self.attributes[b'vLam'], 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+        self.element_number.store(element_number_data)
+        glEnableVertexAttribArray(self.attributes[b'vElementNumber'])
+        glVertexAttribIPointer(self.attributes[b'vElementNumber'], 1, GL_INT, 0, ctypes.c_void_p());
 
         glBindBuffer   ( GL_TEXTURE_BUFFER, self.coefficients );
         vec = self.gf.vec
@@ -201,7 +212,8 @@ class SolutionScene(SceneObject):
 
     def render(self, model, view, projection):
         glBindVertexArray(self.vao)
-        modelview = view*model*glmath.Translate(-0.5, -0.5,0) #move to center
+        center = 0.5*(self.max-self.min)
+        modelview = view*model*glmath.Translate(-center[0], -center[1], -center[2]) #move to center
         mv = [modelview[i,j] for i in range(4) for j in range(4)]
         p = [projection[i,j] for i in range(4) for j in range(4)]
 
@@ -217,9 +229,13 @@ class SolutionScene(SceneObject):
         self.coordinates.bind();
         glVertexAttribPointer(self.attributes[b'vPos'], 3, GL_FLOAT, GL_FALSE, 0, ctypes.c_void_p());
 
-        glEnableVertexAttribArray(self.attributes[b'vIndex']);
-        self.trig_indices.bind();
-        glVertexAttribIPointer(self.attributes[b'vIndex'], 1, GL_BYTE, 0, ctypes.c_void_p());
+        glEnableVertexAttribArray(self.attributes[b'vLam']);
+        self.bary_coordinates.bind();
+        glVertexAttribPointer(self.attributes[b'vLam'], 3, GL_FLOAT, GL_FALSE, 0, ctypes.c_void_p());
+
+        glEnableVertexAttribArray(self.attributes[b'vElementNumber']);
+        self.element_number.bind();
+        glVertexAttribIPointer(self.attributes[b'vElementNumber'], 1, GL_INT, 0, ctypes.c_void_p());
 
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         glDrawArrays(GL_TRIANGLES, 0, 3*self.ntrigs);

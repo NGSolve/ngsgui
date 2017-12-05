@@ -73,7 +73,8 @@ uniform mat4 MV;
 uniform mat4 P;
 
 in vec3 vPos;
-in int vIndex;
+in vec3 vLam;
+in int vElementNumber;
 
 out VertexData
 {
@@ -87,10 +88,8 @@ void main()
     gl_Position = P * MV * vec4(vPos, 1.0);
     outData.lam = vec3(0.0, 0.0, 0.0);
     outData.pos = vPos; //0.5*vPos +0.5;
-    outData.element = gl_VertexID/3; //vIndex/3;
-    if(vIndex==0) outData.lam.x = 1.0;
-    if(vIndex==1) outData.lam.y = 1.0;
-    if(vIndex==2) outData.lam.z = 1.0;
+    outData.element = vElementNumber; //gl_VertexID/3; //vIndex/3;
+    outData.lam = vLam;
 }
 """
 
