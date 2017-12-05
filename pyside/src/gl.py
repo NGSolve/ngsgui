@@ -84,7 +84,7 @@ class MeshScene(SceneObject):
 
     def update(self):
         glBindVertexArray(self.vao)
-        coordinates_data, trig_indices_data = GetVisData(self.mesh)
+        self.ntrigs, coordinates_data, trig_indices_data, self.min, self.max = GetFaceData(self.mesh)
         self.coordinates.store(coordinates_data)
 
         glEnableVertexAttribArray(self.attributes[b'vPos'])
@@ -92,7 +92,8 @@ class MeshScene(SceneObject):
 
 
     def setupRender(self, model, view, projection):
-        modelview = view*model*glmath.Translate(-0.5, -0.5,0) #move to center
+        center = 0.5*(self.max-self.min)
+        modelview = view*model*glmath.Translate(-center[0], -center[1], -center[2]) #move to center
         mv = [modelview[i,j] for i in range(4) for j in range(4)]
         p = [projection[i,j] for i in range(4) for j in range(4)]
 
@@ -108,7 +109,7 @@ class MeshScene(SceneObject):
         self.setupRender(model, view, projection)
         glUniform4f(self.uniforms[b'fColor'], 0.0,1.0,0.0,1.0)
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
-        glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh.ne)
+        glDrawArrays(GL_TRIANGLES, 0, 3*self.ntrigs)
 
         self.renderWireframe(model,view,projection)
 
@@ -117,7 +118,7 @@ class MeshScene(SceneObject):
         self.setupRender(model, view, projection)
         glUniform4f(self.uniforms[b'fColor'], 0.0,0.0,0.0,1.0)
         glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
-        glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh.ne)
+        glDrawArrays(GL_TRIANGLES, 0, 3*self.ntrigs)
 
 class SolutionScene(SceneObject):
     uniform_names = [b"MV", b"P", b"colormap_min", b"colormap_max", b"colormap_linear"]#, b"coefficients"]
@@ -179,7 +180,7 @@ class SolutionScene(SceneObject):
     def update(self):
         self.mesh_scene.update()
         glBindVertexArray(self.vao)
-        coordinates_data, trig_indices_data = GetVisData(self.mesh)
+        self.ntrigs, coordinates_data, trig_indices_data, self.min, self.max = GetFaceData(self.mesh)
 
         self.coordinates.store(coordinates_data)
         glEnableVertexAttribArray(self.attributes[b'vPos'])
@@ -221,7 +222,7 @@ class SolutionScene(SceneObject):
         glVertexAttribIPointer(self.attributes[b'vIndex'], 1, GL_BYTE, 0, ctypes.c_void_p());
 
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
-        glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh.ne);
+        glDrawArrays(GL_TRIANGLES, 0, 3*self.ntrigs);
 
         self.mesh_scene.renderWireframe(model,view,projection)
 

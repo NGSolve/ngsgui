@@ -200,35 +200,57 @@ PYBIND11_MODULE(ngui, m) {
     m.def("GenerateShader", [](int order) {
           return genshader::GenerateCode<ET_TRIG>(order);
           });
-    m.def("GetVisData", [] (shared_ptr<ngcomp::MeshAccess> ma) {
+    m.def("GetFaceData", [] (shared_ptr<ngcomp::MeshAccess> ma) {
         ngstd::Array<float> coordinates;
         ngstd::Array<signed char> trig_indices;
+        size_t ntrigs;
+
+        Vector<> min(3);
+        min = std::numeric_limits<double>::max();
+
+        Vector<> max(3);
+        max = std::numeric_limits<double>::lowest();
+
+        auto addVertices = [&] (auto verts) {
+            ArrayMem<int,3> sorted_vertices{0,1,2};
+            ArrayMem<int,3> unsorted_vertices{verts[0], verts[1], verts[2]};
+
+            BubbleSort (unsorted_vertices, sorted_vertices);
+            for (auto j : ngcomp::Range(3)) {
+                auto v = ma->GetPoint<3>(verts[j]);
+                coordinates.Append(v[0]);
+                coordinates.Append(v[1]);
+                coordinates.Append(v[2]);
+                for (auto k : Range(3)) {
+                  min[k] = min2(min[k], v[k]);
+                  max[k] = max2(max[k], v[k]);
+                }
+            }
+            trig_indices.Append(sorted_vertices[0]);
+            trig_indices.Append(sorted_vertices[1]);
+            trig_indices.Append(sorted_vertices[2]);
+        };
+
         if(ma->GetDimension()==2)
         {
-            auto ntrigs = ma->GetNE();
-            for (auto i : ngcomp::Range(ntrigs)) {
-                auto verts = ma->GetElement(ElementId( VOL, i)).Vertices();
-
-                ArrayMem<int,3> sorted_vertices{0,1,2};
-                ArrayMem<int,3> unsorted_vertices{verts[0], verts[1], verts[2]};
-
-                BubbleSort (unsorted_vertices, sorted_vertices);
-                for (auto j : ngcomp::Range(3)) {
-                    auto v = ma->GetPoint<3>(verts[j]);
-                    coordinates.Append(v[0]);
-                    coordinates.Append(v[1]);
-                    coordinates.Append(v[2]);
-                }
-                trig_indices.Append(sorted_vertices[0]);
-                trig_indices.Append(sorted_vertices[1]);
-                trig_indices.Append(sorted_vertices[2]);
-            }
-      }
-      return py::make_tuple(
-            MoveToNumpyArray(coordinates), 
-            MoveToNumpyArray(trig_indices) 
-
-      );
+            ntrigs = ma->GetNE();
+            for (auto i : ngcomp::Range(ntrigs))
+                addVertices(ma->GetElement(ElementId( VOL, i)).Vertices());
+        }
+        else if(ma->GetDimension()==3)
+        {
+            ntrigs = ma->GetNSE();
+            for (auto i : ngcomp::Range(ntrigs))
+                addVertices(ma->GetElement(ElementId( BND, i)).Vertices());
+        }
+        else
+            throw runtime_error("Unsupported mesh dimension: "+ToString(ma->GetDimension()));
+        return py::make_tuple(
+            ntrigs,
+            MoveToNumpyArray(coordinates),
+            MoveToNumpyArray(trig_indices),
+            min, max
+        );
     });
 
 
