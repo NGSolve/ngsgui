@@ -201,6 +201,42 @@ PYBIND11_MODULE(ngui, m) {
 //           return genshader::GenerateCode<ET_TRIG>(order);
           return genshader::GenerateCode<ET_TET>(order);
           });
+    m.def("GetTetData", [] (shared_ptr<ngcomp::MeshAccess> ma) {
+        ngstd::Array<float> coordinates;
+        ngstd::Array<float> bary_coordinates;
+        ngstd::Array<int> element_number;
+
+        size_t ntets = ma->GetNE();
+        element_number.SetSize(4*ntets);
+
+        for (auto i : ngcomp::Range(ntets)) {
+          auto el = ma->GetElement(ElementId(VOL, i));
+          auto verts = el.Vertices();
+
+          ArrayMem<int,4> sorted_vertices{verts[0], verts[1], verts[2], verts[3]};
+
+          BubbleSort (sorted_vertices);
+          for (auto ii : Range(sorted_vertices)) {
+            auto vnum = sorted_vertices[ii];
+            auto v = ma->GetPoint<3>(vnum);
+            for (auto k : Range(3)) {
+              coordinates.Append(v[k]);
+              bary_coordinates.Append( ii==k ? 1.0 : 0.0 );
+            }
+          }
+          element_number[4*i+0] = i;
+          element_number[4*i+1] = i;
+          element_number[4*i+2] = i;
+          element_number[4*i+3] = i;
+        }
+        return py::make_tuple(
+            ntets,
+            MoveToNumpyArray(coordinates),
+            MoveToNumpyArray(bary_coordinates),
+            MoveToNumpyArray(element_number)
+        );
+
+    });
     m.def("GetFaceData", [] (shared_ptr<ngcomp::MeshAccess> ma) {
         ngstd::Array<float> coordinates;
         ngstd::Array<float> bary_coordinates;

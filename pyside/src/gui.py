@@ -3,6 +3,7 @@ import sys
 import math
 import OpenGL.GL as GL
 from math import exp
+import time
 
 from . import glmath
 
@@ -153,6 +154,8 @@ class GLWidget(QtOpenGL.QGLWidget):
     dy = 0.0
     ratio = 1.0
 
+    old_time = time.time()
+
     def ZoomReset(self):
         self.rotmat = glmath.Identity()
         self.zoom = 0.0
@@ -176,6 +179,10 @@ class GLWidget(QtOpenGL.QGLWidget):
         pass
 
     def paintGL(self):
+        t = time.time() - self.old_time
+        print("frames per second: ", 1.0/t, end='\r')
+        self.old_time = time.time()
+
         model = glmath.Identity();
         model = self.rotmat*model;
         model = glmath.Translate(self.dx, -self.dy, -0 )*model;
@@ -191,8 +198,11 @@ class GLWidget(QtOpenGL.QGLWidget):
         GL.glDepthFunc(GL.GL_LEQUAL)
         GL.glPolygonOffset (-1, -1)
         GL.glEnable(GL.GL_POLYGON_OFFSET_LINE)
+        GL.glEnable(GL.GL_BLEND);
+        GL.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
         for scene in self.scenes:
             scene.render(model, view, projection)
+
 
     def resizeGL(self, width, height):
         GL.glViewport(0, 0, width, height)
