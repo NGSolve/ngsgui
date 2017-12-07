@@ -79,7 +79,6 @@ class ClippingPlaneScene(SceneObject):
     def __init__(self, gf, colormap_min=-1.0, colormap_max=1.0, colormap_linear=False):
         super(ClippingPlaneScene, self).__init__()
         from math import sqrt
-        self.clipping_plane = [1.0, 0.0, 0.0, -0.5]
 
         self.colormap_min = colormap_min
         self.colormap_max = colormap_max
