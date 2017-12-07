@@ -219,13 +219,13 @@ PYBIND11_MODULE(ngui, m) {
           auto el = ma->GetElement(ei);
 
           if(el.is_curved) {
+            ///////////////
+            // Handle curved elements
             auto verts = el.Vertices();
             ArrayMem<int,4> sorted_vertices{verts[0], verts[1], verts[2], verts[3]};
             ArrayMem<int,4> sorted_indices{0,1,2,3};
             ArrayMem<int,4> inverse_sorted_indices{0,1,2,3};
-//             cout << verts << endl;
             BubbleSort (sorted_vertices, sorted_indices);
-            // for curved elements
             Array<Vec<4,float>> ref_coords;
             Array<Vec<4,float>> ref_coords_sorted;
             int subdivision = 3;
@@ -242,11 +242,8 @@ PYBIND11_MODULE(ngui, m) {
                             for (auto n : Range(4))
                                 p1[sorted_indices[n]] = p[n];
                             ref_coords_sorted.Append(p1);
-//                             ref_coords.Append(Vec<4,float>(i*h,j*h,k*h, 1.0-i*h-j*h-k*h));
                         }
             }
-            ///////////////
-            // Handle curved elements
             {
                 ElementTransformation & eltrans = ma->GetTrafo (ei, lh);
 
@@ -273,9 +270,7 @@ PYBIND11_MODULE(ngui, m) {
                           coordinates.Append(points[pi[i]][k]);
                           bary_coordinates.Append(ref_coords_sorted[pi[i]][k]);
                       }
-//                       cout << '(' << ref_coords[pi[i]][inverse_sorted_indices[0]] << ',' << ref_coords[pi[i]][inverse_sorted_indices[1]] << ',' << ref_coords[pi[i]][inverse_sorted_indices[2]] << ")\t";
                     }
-//                     cout << endl;
                 };
 
                 int pidx = 0;
@@ -295,32 +290,19 @@ PYBIND11_MODULE(ngui, m) {
                             int pidx_incr_ki = pidx+(s-i)*(s+1-i)/2-j + 1;
                             int pidx_incr_kij = pidx+(s-i)*(s+1-i)/2-j + s-(i+1)-j + 1;
 
-//                             ref_elems.Append(INT<ELEMENT_MAXPOINTS+1>(4,pidx,pidx_incr_k,pidx_incr_j,pidx_incr_i));
                             EmitElement(pidx,pidx_incr_k,pidx_incr_j,pidx_incr_i);
                             if (i+j+k+1 == r)
                                 continue;
-
-//                             ref_elems.Append(INT<ELEMENT_MAXPOINTS+1>(4,pidx_incr_k,pidx_incr_kj,pidx_incr_j,pidx_incr_i));
-//                             ref_elems.Append(INT<ELEMENT_MAXPOINTS+1>(4,pidx_incr_k,pidx_incr_kj,pidx_incr_ki,pidx_incr_i));
-// 
-//                             ref_elems.Append(INT<ELEMENT_MAXPOINTS+1>(4,pidx_incr_j,pidx_incr_i,pidx_incr_kj,pidx_incr_ij));
-//                             ref_elems.Append(INT<ELEMENT_MAXPOINTS+1>(4,pidx_incr_i,pidx_incr_kj,pidx_incr_ij,pidx_incr_ki));
 
                             EmitElement(pidx_incr_k,pidx_incr_kj,pidx_incr_j,pidx_incr_i);
                             EmitElement(pidx_incr_k,pidx_incr_kj,pidx_incr_ki,pidx_incr_i);
 
                             EmitElement(pidx_incr_j,pidx_incr_i,pidx_incr_kj,pidx_incr_ij);
                             EmitElement(pidx_incr_i,pidx_incr_kj,pidx_incr_ij,pidx_incr_ki);
-//                             if (i+j+k+2 != r)
-//                                 ref_elems.Append(INT<ELEMENT_MAXPOINTS+1>(4,pidx_incr_kj,pidx_incr_ij,pidx_incr_ki,pidx_incr_kij));
                             if (i+j+k+2 != r)
                                 EmitElement(pidx_incr_kj,pidx_incr_ij,pidx_incr_ki,pidx_incr_kij);
                         }              
             }
-
-
-        ///////////////
-
 
           }
           else {
@@ -442,35 +424,5 @@ PYBIND11_MODULE(ngui, m) {
             min, max
         );
     });
-
-
-    py::bind_vector<std::vector<float>>(m, "VectorFloat");
-    m.def("PrintPointer", [] ( std::vector<float> &v) {
-          cout << "pointer: " << &v[0] << endl;
-          });
-    m.def("GetPointer", [] () {
-          size_t N = 10000000;
-//           float *p = new float[N];
-//           std::vector<float> v(100000000);
-          auto v = make_unique<std::vector<float>> (N);
-          cout << "pointer: " << &(*v)[0] << endl;
-//           cout << "got pointer " << p << endl;
-//           py::capsule free_when_done(p, [](void *f) {
-//             float *p = reinterpret_cast<float *>(f);
-//             std::cerr << "Element [0] = " << p[0] << "\n";
-//             std::cerr << "freeing memory @ " << f << "\n";
-//             delete[] p;
-//           });
-//           for (auto i : Range(N))
-//             p[i] = i+1;
-//           cout << p[0] << endl;
-//           int i;
-//           cin >> i;
-//           auto res = py::array_t<float>(N, p, free_when_done);
-//           auto res = py::cast(std::move(v));
-//           cin >> i;
-//           return free_when_done;
-          return v;
-          });
 
 }
