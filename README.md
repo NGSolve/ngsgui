@@ -6,7 +6,7 @@
 ```
 mkdir build && cd build
 cmake ..
-make -j4 
 make install
-make run
+cd ../demo
+python3 example.py
 ```

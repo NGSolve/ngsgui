@@ -68,9 +68,7 @@ class SceneObject():
         return None
 
 class ClippingPlaneScene(SceneObject):
-#     uniform_names = [b"fColor", b"MV", b"P", b"clipping_plane"]
     uniform_names = [b"MV", b"P", b"colormap_min", b"colormap_max", b"colormap_linear", b"clipping_plane"]
-#     attribute_names = [b"vPos"]
     attribute_names = [b"vPos", b"vLam", b"vElementNumber"]
     uniforms = {}
     attributes = {}
@@ -101,9 +99,6 @@ class ClippingPlaneScene(SceneObject):
 
         for name in self.attribute_names:
             self.attributes[name] = glGetAttribLocation(self.program.id, name)
-
-        print('uniforms', self.uniforms)
-        print('attributes', self.attributes)
 
         self.vao = glGenVertexArrays(1)
         glBindVertexArray(self.vao)
@@ -192,7 +187,6 @@ class ClippingPlaneScene(SceneObject):
 
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         glDrawArrays(GL_LINES_ADJACENCY, 0, 4*self.ntets)
-#         glDrawArrays(GL_TRIANGLES, 0, 3*self.ntrigs);
 
 
     def setColorMapMin(self, value):
@@ -205,22 +199,23 @@ class ClippingPlaneScene(SceneObject):
         self.colormap_linear = value
 
 
-    def setClippingPlaneDist(self,d):
-        self.clipping_plane[3] = -d
-
     def getQtWidget(self, updateGL):
         if self.qtWidget!=None:
-            print("return old widget")
             return self.qtWidget
-        print("return new widget")
 
         from .gui import ColorMapSettings, Qt
 
-        settings = ColorMapSettings(min=min(self.min), max=max(self.max), min_value=0, max_value=0)
+        settings = ColorMapSettings(min=-2, max=2, min_value=self.colormap_min, max_value=self.colormap_max)
         settings.layout().setAlignment(Qt.AlignTop)
 
-        settings.minChanged.connect(self.setClippingPlaneDist)
+        settings.minChanged.connect(self.setColorMapMin)
         settings.minChanged.connect(updateGL)
+
+        settings.maxChanged.connect(self.setColorMapMax)
+        settings.maxChanged.connect(updateGL)
+
+        settings.linearChanged.connect(self.setColorMapLinear)
+        settings.linearChanged.connect(updateGL)
 
         self.qtWidget = settings
         return self.qtWidget
@@ -244,18 +239,14 @@ class MeshScene(SceneObject):
         self.mesh = mesh
         shaders = [
             Shader(shader.mesh.vertex, GL_VERTEX_SHADER),
-#             Shader(shader.clipping.geometry, GL_GEOMETRY_SHADER),
             Shader(shader.mesh.fragment, GL_FRAGMENT_SHADER)
         ]
         self.program = Program(shaders)
-        print('active attributes', glGetProgramiv(self.program.id, GL_ACTIVE_ATTRIBUTES))
 
         for name in self.uniform_names:
             self.uniforms[name] = glGetUniformLocation(self.program.id, name)
-        print('uniforms', self.uniforms)
         for name in self.attribute_names:
             self.attributes[name] = glGetAttribLocation(self.program.id, name)
-        print('attributes', self.attributes)
 
 
     def update(self):
@@ -307,28 +298,6 @@ class MeshScene(SceneObject):
     def setClippingPlaneDist(self,d):
         self.clipping_plane[3] = -d
 
-    def getQtWidget(self, updateGL):
-        if self.qtWidget!=None:
-            print("return old widget")
-            return self.qtWidget
-        print("return new widget")
-
-        from .gui import ColorMapSettings, Qt
-
-        settings = ColorMapSettings(min=min(self.min)-0.1*abs(min(self.min)), max=max(self.max)+0.1*abs(max(self.max)), min_value=0, max_value=0)
-        settings.layout().setAlignment(Qt.AlignTop)
-
-        settings.minChanged.connect(self.setClippingPlaneDist)
-        settings.minChanged.connect(updateGL)
-
-#         settings.maxChanged.connect(self.setColorMapMax)
-#         settings.maxChanged.connect(updateGL)
-# 
-#         settings.linearChanged.connect(self.setColorMapLinear)
-#         settings.linearChanged.connect(updateGL)
-
-        self.qtWidget = settings
-        return self.qtWidget
 
 class SolutionScene(SceneObject):
     uniform_names = [b"MV", b"P", b"colormap_min", b"colormap_max", b"colormap_linear"]#, b"coefficients"]
@@ -463,9 +432,7 @@ class SolutionScene(SceneObject):
 
     def getQtWidget(self, updateGL):
         if self.qtWidget!=None:
-            print("return old widget")
             return self.qtWidget
-        print("return new widget")
 
         from .gui import ColorMapSettings, Qt
 
