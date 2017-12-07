@@ -162,7 +162,8 @@ class ClippingPlaneScene(SceneObject):
         glBufferSubData( GL_TEXTURE_BUFFER, 0, size_float*ncoefs, vec) # fill
 
 
-    def render(self, model, view, projection):
+    def render(self, settings):
+        model, view, projection = settings.model, settings.view, settings.projection
         glBindVertexArray(self.vao)
         center = 0.5*(self.max-self.min)
         modelview = view*model*glmath.Translate(-center[0], -center[1], -center[2]) #move to center
@@ -176,7 +177,7 @@ class ClippingPlaneScene(SceneObject):
         glUniform1f(self.uniforms[b'colormap_min'], self.colormap_min);
         glUniform1f(self.uniforms[b'colormap_max'],  self.colormap_max);
         glUniform1i(self.uniforms[b'colormap_linear'],  self.colormap_linear);
-        glUniform4f(self.uniforms[b'clipping_plane'], *self.clipping_plane)
+        glUniform4f(self.uniforms[b'clipping_plane'], *settings.clipping_plane(center))
 
         glEnableVertexAttribArray(self.attributes[b'vPos']);
         self.coordinates.bind();
@@ -350,7 +351,7 @@ class ClippingPlaneScene(SceneObject):
 #         return self.qtWidget
 
 class MeshScene(SceneObject):
-    uniform_names = [b"fColor", b"MV", b"P", b"clipping_plane"]
+    uniform_names = [b"fColor", b"fColor_clipped", b"MV", b"P", b"clipping_plane"]
     attribute_names = [b"vPos"]
     uniforms = {}
     attributes = {}
@@ -392,8 +393,10 @@ class MeshScene(SceneObject):
         glVertexAttribPointer(self.attributes[b'vPos'], 3, GL_FLOAT, GL_FALSE, 0, 0);
 
 
-    def setupRender(self, model, view, projection):
+    def setupRender(self, settings):
+        model, view, projection = settings.model, settings.view, settings.projection
         center = 0.5*(self.max-self.min)
+        self.center = center
         modelview = view*model*glmath.Translate(-center[0], -center[1], -center[2]) #move to center
         mv = [modelview[i,j] for i in range(4) for j in range(4)]
         p = [projection[i,j] for i in range(4) for j in range(4)]
@@ -405,21 +408,23 @@ class MeshScene(SceneObject):
         self.coordinates.bind();
         glVertexAttribPointer(self.attributes[b'vPos'], 3, GL_FLOAT, GL_FALSE, 0, ctypes.c_void_p());
 
-    def render(self, model, view, projection):
+    def render(self, settings):
         glBindVertexArray(self.vao)
-        self.setupRender(model, view, projection)
-        glUniform4f(self.uniforms[b'fColor'], 0.0,1.0,0.0,0.1)
-        glUniform4f(self.uniforms[b'clipping_plane'], *self.clipping_plane)
+        self.setupRender(settings)
+        glUniform4f(self.uniforms[b'fColor'], 0.0,1.0,0.0,1.0)
+        glUniform4f(self.uniforms[b'fColor_clipped'], 0.0,1.0,0.0,0.05)
+        glUniform4f(self.uniforms[b'clipping_plane'], *settings.clipping_plane(self.center))
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         glDrawArrays(GL_TRIANGLES, 0, 3*self.ntrigs)
 
-        self.renderWireframe(model,view,projection)
+        self.renderWireframe(settings)
 
-    def renderWireframe(self, model, view, projection):
+    def renderWireframe(self, settings):
         glBindVertexArray(self.vao)
-        self.setupRender(model, view, projection)
-        glUniform4f(self.uniforms[b'fColor'], 0.0,0.0,0.0,0.1)
-        glUniform4f(self.uniforms[b'clipping_plane'], *self.clipping_plane)
+        self.setupRender(settings)
+        glUniform4f(self.uniforms[b'fColor'], 0.0,0.0,0.0,1)
+        glUniform4f(self.uniforms[b'fColor_clipped'], 0.0,0.0,0.0,0.05)
+        glUniform4f(self.uniforms[b'clipping_plane'], *settings.clipping_plane(self.center))
         glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
         glDrawArrays(GL_TRIANGLES, 0, 3*self.ntrigs)
 
@@ -435,7 +440,7 @@ class MeshScene(SceneObject):
 
         from .gui import ColorMapSettings, Qt
 
-        settings = ColorMapSettings(min=min(self.min), max=max(self.max), min_value=0, max_value=0)
+        settings = ColorMapSettings(min=min(self.min)-0.1*abs(min(self.min)), max=max(self.max)+0.1*abs(max(self.max)), min_value=0, max_value=0)
         settings.layout().setAlignment(Qt.AlignTop)
 
         settings.minChanged.connect(self.setClippingPlaneDist)
@@ -538,7 +543,8 @@ class SolutionScene(SceneObject):
         glBufferSubData( GL_TEXTURE_BUFFER, 0, size_float*ncoefs, (ctypes.c_float*ncoefs)(*vec)) # fill
 
 
-    def render(self, model, view, projection):
+    def render(self, settings):
+        model, view, projection = settings.model, settings.view, settings.projection
         glBindVertexArray(self.vao)
         center = 0.5*(self.max-self.min)
         modelview = view*model*glmath.Translate(-center[0], -center[1], -center[2]) #move to center

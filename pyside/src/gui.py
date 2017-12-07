@@ -4,6 +4,7 @@ import math
 import OpenGL.GL as GL
 from math import exp
 import time
+from ngsolve.bla import Vector
 
 from . import glmath
 
@@ -99,6 +100,46 @@ class ColorMapSettings(QtWidgets.QWidget):
         self.rangeMin.setValue(min_value)
         self.rangeMax.setValue(max_value)
 
+class RenderingParameters:
+    view = glmath.Identity()
+    rotmat = glmath.Identity()
+    zoom = 0.0
+    ratio = 1.0
+    dx = 0.0
+    dy = 0.0
+
+    clipping_rotmat = glmath.Identity()
+    clipping_dist = 0.0
+
+    @property
+    def model(self):
+        mat = glmath.Identity();
+        mat = self.rotmat*mat;
+        mat = glmath.Translate(self.dx, -self.dy, -0 )*mat;
+        mat = glmath.Scale(exp(-self.zoom/100))*mat;
+        mat = glmath.Translate(0, -0, -5 )*mat;
+        return mat
+
+    @property
+    def view(self):
+        return glmath.LookAt()
+
+    @property
+    def projection(self):
+        return glmath.Perspective(0.8, self.ratio, .1, 20.);
+
+    def clipping_plane(self, center=None):
+        x = Vector(4);
+        x[:] = 0.0
+        x[2] = 1
+        x = self.clipping_rotmat * x
+        if center:
+            d = glmath.Dot(center,x[0:3])
+            x[3] = -d
+        x[3] = x[3]-self.clipping_dist
+        return x
+
+
 class MainWindow(QtWidgets.QMainWindow):
 
     def __init__(self):
@@ -144,23 +185,19 @@ class MainWindow(QtWidgets.QMainWindow):
 
 class GLWidget(QtOpenGL.QGLWidget):
     scenes = []
-    view = glmath.Identity()
-    rotmat = glmath.Identity()
     do_rotate = False
     do_translate = False
     do_zoom = False
-    zoom = 0.0
-    dx = 0.0
-    dy = 0.0
-    ratio = 1.0
-
+    do_move_clippingplane = False
+    do_rotate_clippingplane = False
     old_time = time.time()
+    rendering_parameters = RenderingParameters()
 
     def ZoomReset(self):
-        self.rotmat = glmath.Identity()
-        self.zoom = 0.0
-        self.dx = 0.0
-        self.dy = 0.0
+        self.rendering_parameters.rotmat = glmath.Identity()
+        self.rendering_parameters.zoom = 0.0
+        self.rendering_parameters.dx = 0.0
+        self.rendering_parameters.dy = 0.0
         self.updateGL()
 
     def __init__(self, parent=None):
@@ -183,14 +220,6 @@ class GLWidget(QtOpenGL.QGLWidget):
         print("frames per second: ", 1.0/t, end='\r')
         self.old_time = time.time()
 
-        model = glmath.Identity();
-        model = self.rotmat*model;
-        model = glmath.Translate(self.dx, -self.dy, -0 )*model;
-        model = glmath.Scale(exp(-self.zoom/100))*model;
-        model = glmath.Translate(0, -0, -5 )*model;
-
-        view = glmath.LookAt()
-        projection = glmath.Perspective(0.8, self.ratio, .1, 20.);
 
         GL.glClearColor( 1, 1, 1, 0)
         GL.glClear(GL.GL_COLOR_BUFFER_BIT|GL.GL_DEPTH_BUFFER_BIT)
@@ -201,44 +230,61 @@ class GLWidget(QtOpenGL.QGLWidget):
         GL.glEnable(GL.GL_BLEND);
         GL.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
         for scene in self.scenes:
-            scene.render(model, view, projection)
+            scene.render(self.rendering_parameters) #model, view, projection)
 
 
     def resizeGL(self, width, height):
         GL.glViewport(0, 0, width, height)
-        self.ratio = width/height
+        self.rendering_parameters.ratio = width/height
 
     def mousePressEvent(self, event):
         self.lastPos = QtCore.QPoint(event.pos())
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.do_rotate = True
-        if event.button() == Qt.MouseButton.MidButton:
-            self.do_translate = True
-        if event.button() == Qt.MouseButton.RightButton:
-            self.do_zoom = True
+        if event.modifiers() == QtCore.Qt.ControlModifier:
+            if event.button() == Qt.MouseButton.RightButton:
+                self.do_move_clippingplane = True
+            if event.button() == Qt.MouseButton.LeftButton:
+                self.do_rotate_clippingplane = True
+        else:
+            if event.button() == Qt.MouseButton.LeftButton:
+                self.do_rotate = True
+            if event.button() == Qt.MouseButton.MidButton:
+                self.do_translate = True
+            if event.button() == Qt.MouseButton.RightButton:
+                self.do_zoom = True
 
     def mouseReleaseEvent(self, event):
         self.do_rotate = False
         self.do_translate = False
         self.do_zoom = False
+        self.do_move_clippingplane = False
+        self.do_rotate_clippingplane = False
 
     def mouseMoveEvent(self, event):
         dx = event.x() - self.lastPos.x()
         dy = event.y() - self.lastPos.y()
+        param = self.rendering_parameters
         if self.do_rotate:
-            self.rotmat = glmath.RotateY(-dx/50.0)*self.rotmat
-            self.rotmat = glmath.RotateX(-dy/50.0)*self.rotmat
+            param.rotmat = glmath.RotateY(-dx/50.0)*param.rotmat
+            param.rotmat = glmath.RotateX(-dy/50.0)*param.rotmat
         if self.do_translate:
-            s = 200.0*exp(-self.zoom/100)
-            self.dx += dx/s
-            self.dy += dy/s
+            s = 200.0*exp(-param.zoom/100)
+            param.dx += dx/s
+            param.dy += dy/s
         if self.do_zoom:
-            self.zoom += dy
+            param.zoom += dy
+        if self.do_move_clippingplane:
+            s = 200.0*exp(-param.zoom/100)
+            param.clipping_dist += dy/s
+        if self.do_rotate_clippingplane:
+            # rotation of clipping plane is view-dependent
+            r = param.rotmat
+            param.clipping_rotmat = r.T*glmath.RotateY(-dx/50.0)*r*param.clipping_rotmat
+            param.clipping_rotmat = r.T*glmath.RotateX(-dy/50.0)*r*param.clipping_rotmat
         self.lastPos = QtCore.QPoint(event.pos())
         self.updateGL()
 
     def wheelEvent(self, event):
-        self.zoom -= event.angleDelta().y()/10
+        self.rendering_parameters.zoom -= event.angleDelta().y()/10
         self.updateGL()
 
     def freeResources(self):

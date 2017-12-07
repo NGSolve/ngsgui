@@ -11,6 +11,12 @@ _up_default = Vector(3)
 _up_default[:] = 0
 _up_default[1] = 1
 
+def Dot(a,b):
+    res = 0.0
+    for i in range(len(a)):
+        res += a[i]*b[i]
+    return res
+
 def Cross(a,b):
     res = Vector(3)
     res[0] = a[1]*b[2]-a[2]*b[1]

@@ -2,6 +2,9 @@ class clipping:
     fragment =  """
 #version 150
 uniform vec4 fColor;
+uniform vec4 fColor_clipped;
+
+uniform vec4 clipping_plane;
 
 in VertexData
 {
@@ -250,6 +253,8 @@ class mesh:
     fragment =  """
 #version 150
 uniform vec4 fColor;
+uniform vec4 fColor_clipped;
+uniform vec4 clipping_plane;
 
 in VertexData
 {
@@ -258,7 +263,10 @@ in VertexData
 
 void main()
 {
-  gl_FragColor = fColor;
+  if(dot(vec4(inData.pos,1.0),clipping_plane)<0)
+    gl_FragColor = fColor;
+  else
+    gl_FragColor = fColor_clipped;
 }
 """
 
