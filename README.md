@@ -2,9 +2,8 @@
 
 ## GLFW gui
  - Install NGSolve
- - Install GLFW (libglfw-dev on Ubuntu)
+ - Install Pyside2
 ```
-cd glfw-gui
 mkdir build && cd build
 cmake ..
 make -j4 

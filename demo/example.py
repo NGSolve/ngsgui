@@ -4,7 +4,7 @@ from netgen.csg import unit_cube
 import ngsolve.gui as GUI
 
 ngsglobals.msg_level = 0
-nrefinements = 3
+nrefinements = 2
 mesh_file = "/tmp/mesh_{}.vol".format(nrefinements)
 
 try:
@@ -25,7 +25,7 @@ except:
 
 fes = L2(mesh, order=4, all_dofs_together=True)
 gf = GridFunction(fes)
-n = 10
+n = 40
 
 print(fes.ndof,'ndofs')
 
