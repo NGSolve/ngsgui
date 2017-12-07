@@ -154,12 +154,12 @@ class ClippingPlaneScene(SceneObject):
         glVertexAttribIPointer(self.attributes[b'vElementNumber'], 1, GL_INT, 0, ctypes.c_void_p());
 
         glBindBuffer   ( GL_TEXTURE_BUFFER, self.coefficients );
-        vec = self.gf.vec
+        vec = ConvertCoefficients(self.gf)
         ncoefs = len(vec)
         size_float=ctypes.sizeof(ctypes.c_float)
 
         glBufferData   ( GL_TEXTURE_BUFFER, size_float*ncoefs, ctypes.c_void_p(), GL_STATIC_DRAW ) # alloc
-        glBufferSubData( GL_TEXTURE_BUFFER, 0, size_float*ncoefs, (ctypes.c_float*ncoefs)(*vec)) # fill
+        glBufferSubData( GL_TEXTURE_BUFFER, 0, size_float*ncoefs, vec) # fill
 
 
     def render(self, model, view, projection):
@@ -216,7 +216,7 @@ class ClippingPlaneScene(SceneObject):
 
         from .gui import ColorMapSettings, Qt
 
-        settings = ColorMapSettings(min=0, max=1, min_value=0, max_value=0)
+        settings = ColorMapSettings(min=min(self.min), max=max(self.max), min_value=0, max_value=0)
         settings.layout().setAlignment(Qt.AlignTop)
 
         settings.minChanged.connect(self.setClippingPlaneDist)
@@ -435,7 +435,7 @@ class MeshScene(SceneObject):
 
         from .gui import ColorMapSettings, Qt
 
-        settings = ColorMapSettings(min=0, max=1, min_value=0, max_value=0)
+        settings = ColorMapSettings(min=min(self.min), max=max(self.max), min_value=0, max_value=0)
         settings.layout().setAlignment(Qt.AlignTop)
 
         settings.minChanged.connect(self.setClippingPlaneDist)

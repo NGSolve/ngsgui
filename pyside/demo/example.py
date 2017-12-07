@@ -19,23 +19,24 @@ except:
         print('refine')
         mesh.Refine()
     print('save')
-    mesh.ngmesh.Save(mesh_file)
+#     mesh.ngmesh.Save(mesh_file)
     print('done', mesh.ne)
 # input()
 
 fes = L2(mesh, order=4, all_dofs_together=True)
 gf = GridFunction(fes)
-n = 5
+n = 10
+
+print(fes.ndof,'ndofs')
 
 with TaskManager():
     gf.Set(cos(n*x)*cos(n*y)*cos(n*z))
-#     gf.Set(x*y+z)
 
-# gui = GUI.GUI()
-# # scene = GUI.SolutionScene(gf)
-# scene = GUI.ClippingPlaneScene(gf)
-# gui.draw(scene)
-# scene1 = GUI.MeshScene(mesh)
-# gui.draw(scene1)
-# gui.run()
-Draw(gf)
+gui = GUI.GUI()
+# scene = GUI.SolutionScene(gf)
+scene = GUI.ClippingPlaneScene(gf)
+gui.draw(scene)
+scene1 = GUI.MeshScene(mesh)
+gui.draw(scene1)
+gui.run()
+# Draw(gf)

@@ -202,40 +202,164 @@ PYBIND11_MODULE(ngui, m) {
           return genshader::GenerateCode<ET_TET>(order);
           });
     m.def("GetTetData", [] (shared_ptr<ngcomp::MeshAccess> ma) {
+        LocalHeap lh(1000000, "gettetdata");
         ngstd::Array<float> coordinates;
         ngstd::Array<float> bary_coordinates;
         ngstd::Array<int> element_number;
 
         size_t ntets = ma->GetNE();
-        element_number.SetSize(4*ntets);
+
+
+        coordinates.SetAllocSize(4*ntets*3);
+        bary_coordinates.SetAllocSize(4*ntets*3);
+        element_number.SetAllocSize(4*ntets);
 
         for (auto i : ngcomp::Range(ntets)) {
-          auto el = ma->GetElement(ElementId(VOL, i));
-          auto verts = el.Vertices();
+          auto ei = ElementId(VOL, i);
+          auto el = ma->GetElement(ei);
 
-          ArrayMem<int,4> sorted_vertices{verts[0], verts[1], verts[2], verts[3]};
-
-          BubbleSort (sorted_vertices);
-          for (auto ii : Range(sorted_vertices)) {
-            auto vnum = sorted_vertices[ii];
-            auto v = ma->GetPoint<3>(vnum);
-            for (auto k : Range(3)) {
-              coordinates.Append(v[k]);
-              bary_coordinates.Append( ii==k ? 1.0 : 0.0 );
+          if(el.is_curved) {
+            auto verts = el.Vertices();
+            ArrayMem<int,4> sorted_vertices{verts[0], verts[1], verts[2], verts[3]};
+            ArrayMem<int,4> sorted_indices{0,1,2,3};
+            ArrayMem<int,4> inverse_sorted_indices{0,1,2,3};
+//             cout << verts << endl;
+            BubbleSort (sorted_vertices, sorted_indices);
+            // for curved elements
+            Array<Vec<4,float>> ref_coords;
+            Array<Vec<4,float>> ref_coords_sorted;
+            int subdivision = 3;
+            const int r = 1<<subdivision;
+            const int s = r + 1;
+            const double h = 1.0/r;
+            {
+                for (int i = 0; i <= r; ++i)
+                    for (int j = 0; i+j <= r; ++j)
+                        for (int k = 0; i+j+k <= r; ++k) {
+                            Vec<4,float> p{i*h,j*h,k*h, 1.0-i*h-j*h-k*h};
+                            Vec<4,float> p1;
+                            ref_coords.Append(p);
+                            for (auto n : Range(4))
+                                p1[sorted_indices[n]] = p[n];
+                            ref_coords_sorted.Append(p1);
+//                             ref_coords.Append(Vec<4,float>(i*h,j*h,k*h, 1.0-i*h-j*h-k*h));
+                        }
             }
+            ///////////////
+            // Handle curved elements
+            {
+                ElementTransformation & eltrans = ma->GetTrafo (ei, lh);
+
+                Array<Vec<3>> points;
+                for (auto i : Range(4))
+                    inverse_sorted_indices[sorted_indices[i]] = i;
+                for ( auto p : ref_coords) {
+                    IntegrationPoint ip(p[0], p[1], p[2]);
+                    MappedIntegrationPoint<3,3> mip(ip, eltrans);
+                    points.Append(mip.GetPoint());
+                }
+
+                auto EmitElement = [&] (int a, int b, int c, int d) {
+                    int pi[4];
+                    pi[0] = a;
+                    pi[1] = b;
+                    pi[2] = c;
+                    pi[3] = d;
+
+
+                    for (auto i : Range(4)) {
+                      element_number.Append(ei.Nr());
+                      for (auto k : Range(3)) {
+                          coordinates.Append(points[pi[i]][k]);
+                          bary_coordinates.Append(ref_coords_sorted[pi[i]][k]);
+                      }
+//                       cout << '(' << ref_coords[pi[i]][inverse_sorted_indices[0]] << ',' << ref_coords[pi[i]][inverse_sorted_indices[1]] << ',' << ref_coords[pi[i]][inverse_sorted_indices[2]] << ")\t";
+                    }
+//                     cout << endl;
+                };
+
+                int pidx = 0;
+                for (int i = 0; i <= r; ++i)
+                    for (int j = 0; i+j <= r; ++j)
+                        for (int k = 0; i+j+k <= r; ++k, pidx++)
+                        {
+                            if (i+j+k == r) continue;
+                            // int pidx_curr = pidx;
+                            int pidx_incr_k = pidx+1;
+                            int pidx_incr_j = pidx+s-i-j;
+                            int pidx_incr_i = pidx+(s-i)*(s+1-i)/2-j;
+
+                            int pidx_incr_kj = pidx_incr_j + 1;
+
+                            int pidx_incr_ij = pidx+(s-i)*(s+1-i)/2-j + s-(i+1)-j;
+                            int pidx_incr_ki = pidx+(s-i)*(s+1-i)/2-j + 1;
+                            int pidx_incr_kij = pidx+(s-i)*(s+1-i)/2-j + s-(i+1)-j + 1;
+
+//                             ref_elems.Append(INT<ELEMENT_MAXPOINTS+1>(4,pidx,pidx_incr_k,pidx_incr_j,pidx_incr_i));
+                            EmitElement(pidx,pidx_incr_k,pidx_incr_j,pidx_incr_i);
+                            if (i+j+k+1 == r)
+                                continue;
+
+//                             ref_elems.Append(INT<ELEMENT_MAXPOINTS+1>(4,pidx_incr_k,pidx_incr_kj,pidx_incr_j,pidx_incr_i));
+//                             ref_elems.Append(INT<ELEMENT_MAXPOINTS+1>(4,pidx_incr_k,pidx_incr_kj,pidx_incr_ki,pidx_incr_i));
+// 
+//                             ref_elems.Append(INT<ELEMENT_MAXPOINTS+1>(4,pidx_incr_j,pidx_incr_i,pidx_incr_kj,pidx_incr_ij));
+//                             ref_elems.Append(INT<ELEMENT_MAXPOINTS+1>(4,pidx_incr_i,pidx_incr_kj,pidx_incr_ij,pidx_incr_ki));
+
+                            EmitElement(pidx_incr_k,pidx_incr_kj,pidx_incr_j,pidx_incr_i);
+                            EmitElement(pidx_incr_k,pidx_incr_kj,pidx_incr_ki,pidx_incr_i);
+
+                            EmitElement(pidx_incr_j,pidx_incr_i,pidx_incr_kj,pidx_incr_ij);
+                            EmitElement(pidx_incr_i,pidx_incr_kj,pidx_incr_ij,pidx_incr_ki);
+//                             if (i+j+k+2 != r)
+//                                 ref_elems.Append(INT<ELEMENT_MAXPOINTS+1>(4,pidx_incr_kj,pidx_incr_ij,pidx_incr_ki,pidx_incr_kij));
+                            if (i+j+k+2 != r)
+                                EmitElement(pidx_incr_kj,pidx_incr_ij,pidx_incr_ki,pidx_incr_kij);
+                        }              
+            }
+
+
+        ///////////////
+
+
           }
-          element_number[4*i+0] = i;
-          element_number[4*i+1] = i;
-          element_number[4*i+2] = i;
-          element_number[4*i+3] = i;
+          else {
+            auto verts = el.Vertices();
+
+            ArrayMem<int,4> sorted_vertices{verts[0], verts[1], verts[2], verts[3]};
+
+            BubbleSort (sorted_vertices);
+            for (auto ii : Range(sorted_vertices)) {
+                auto vnum = sorted_vertices[ii];
+                auto v = ma->GetPoint<3>(vnum);
+                for (auto k : Range(3)) {
+                    coordinates.Append(v[k]);
+                    bary_coordinates.Append( ii==k ? 1.0 : 0.0 );
+                }
+            }
+            element_number.Append(i);
+            element_number.Append(i);
+            element_number.Append(i);
+            element_number.Append(i);
+          }
         }
+
+
         return py::make_tuple(
-            ntets,
+            element_number.Size()/4,
             MoveToNumpyArray(coordinates),
             MoveToNumpyArray(bary_coordinates),
             MoveToNumpyArray(element_number)
         );
 
+    });
+    m.def("ConvertCoefficients", [] (shared_ptr<ngcomp::GridFunction> gf) {
+          auto vec = gf->GetVector().FVDouble();
+          ngstd::Array<float> res;
+          res.SetSize(vec.Size());
+          for (auto i : Range(vec))
+                res[i] = vec[i];
+          return MoveToNumpyArray(res);
     });
     m.def("GetFaceData", [] (shared_ptr<ngcomp::MeshAccess> ma) {
         ngstd::Array<float> coordinates;
