@@ -97,7 +97,7 @@ namespace genshader {
             s = c.s;
             return *this;
         }
-//         virtual CCode operator /(const CCode &c) { return CCode(s+'/'+c.s); }
+        virtual CCode operator /(const CCode &c) { return CCode(s+'/'+c.s); }
 //         virtual void operator -=(const CCode &c) { *this = *this-c; }
 //         virtual void operator /=(const CCode &c) { *this = *this/c; }
     };
@@ -112,76 +112,56 @@ namespace genshader {
         return s;
     }
 
-    template<ELEMENT_TYPE type=ET_TRIG> string GenerateCode(int order);
+    string GenerateCode(int order) {
+        auto genCode = [&] (const auto &fel, auto ip, string elname) -> string
+        {
+            Array<CCode> shape(fel.ndof);
+            fel.MyCalcShape (ip, shape);
 
-    template<>
-    string GenerateCode<ET_TRIG>(int order) {
-        expressions.clear();
+            stringstream f;
+            f << 
+              "float Eval" << elname << "( float x, float y, float z )\n"
+              "{                             \n"
+              " float result = 0.0;" << endl;
 
-        CCode x("x");
-        CCode y("y");
+            stringstream ss;
+            fel.MyCalcShape (ip, SBLambda([&] (int i, auto c) {
+                                          ss << "result += texelFetch( coefficients, inData.element*"+ToString(fel.ndof) + "+"  + ToString(i) + ").r * " + c.s << ";" << endl;
+                                          }));
 
-        TIP<2,CCode> ip(x,y);
+            int i = 0;
+            for(auto &s : expressions)
+              f << "float var" << ToString(i++) << " = " <<  s << ";" << endl;
+            f << ss.str() << endl;
+            f << "return result;" << endl;
+            f << "}" << endl;
+            return f.str();
+        };
 
-        MyFEL<ET_TRIG, L2HighOrderFE<ET_TRIG>> fel(order);
+        string code;
 
-        Array<CCode> shape(fel.ndof);
-        fel.MyCalcShape (ip, shape);
-
-        stringstream f;
-        f << 
-          "float Eval( float x, float y, float z )\n"
-          "{                             \n"
-          " float result = 0.0;" << endl;
-
-        stringstream ss;
-        fel.MyCalcShape (ip, SBLambda([&] (int i, auto c) {
-                                      ss << "result += texelFetch( coefficients, inData.element*"+ToString(fel.ndof) + "+"  + ToString(i) + ").r * " + c.s << ";" << endl;
-                                      }));
-
-        int i = 0;
-        for(auto &s : expressions)
-          f << "float var" << ToString(i++) << " = " <<  s << ";" << endl;
-        f << ss.str() << endl;
-        f << "return result;" << endl;
-        f << "}" << endl;
-        return f.str();
+        {
+            expressions.clear(); CCode x("x"); CCode y("y"); TIP<2,CCode> ip(x,y);
+            code += genCode(MyFEL<ET_TRIG, L2HighOrderFE<ET_TRIG>>(order), ip, "TRIG");
+        } {
+            expressions.clear(); CCode x("x"); CCode y("y"); TIP<2,CCode> ip(x,y);
+            code += genCode(MyFEL<ET_QUAD, L2HighOrderFE<ET_QUAD>>(order), ip, "QUAD");
+        } {
+            expressions.clear(); CCode x("x"); CCode y("y"); CCode z("z"); TIP<3,CCode> ip(x,y,z);
+            code += genCode(MyFEL<ET_TET, L2HighOrderFE<ET_TET>>(order), ip, "TET");
+        } {
+            expressions.clear(); CCode x("x"); CCode y("y"); CCode z("z"); TIP<3,CCode> ip(x,y,z);
+            code += genCode(MyFEL<ET_HEX, L2HighOrderFE<ET_HEX>>(order), ip, "HEX");
+        } {
+            expressions.clear(); CCode x("x"); CCode y("y"); CCode z("z"); TIP<3,CCode> ip(x,y,z);
+            code += genCode(MyFEL<ET_PYRAMID, L2HighOrderFE<ET_PYRAMID>>(order), ip, "PYRAMID");
+        } {
+            expressions.clear(); CCode x("x"); CCode y("y"); CCode z("z"); TIP<3,CCode> ip(x,y,z);
+            code += genCode(MyFEL<ET_PRISM, L2HighOrderFE<ET_PRISM>>(order), ip, "PRISM");
+        }
+        return code;
     }
 
-    template<>
-    string GenerateCode<ET_TET>(int order) {
-        expressions.clear();
-
-        CCode x("x");
-        CCode y("y");
-        CCode z("z");
-
-        TIP<3,CCode> ip(x,y,z);
-
-        MyFEL<ET_TET, L2HighOrderFE<ET_TET>> fel(order);
-
-        Array<CCode> shape(fel.ndof);
-        fel.MyCalcShape (ip, shape);
-
-        stringstream f;
-        f << 
-          "float Eval( float x, float y, float z )\n"
-          "{                             \n"
-          " float result = 0.0;" << endl;
-
-        stringstream ss;
-        fel.MyCalcShape (ip, SBLambda([&] (int i, auto c) {
-                                      ss << "result += texelFetch( coefficients, inData.element*"+ToString(fel.ndof) + "+"  + ToString(i) + ").r * " + c.s << ";" << endl;
-                                      }));
-
-        int i = 0;
-        for(auto &s : expressions)
-          f << "float var" << ToString(i++) << " = " <<  s << ";" << endl;
-        f << ss.str() << endl;
-        f << "return result;" << endl;
-        f << "}" << endl;
-        return f.str();
-    }
 }
 namespace py = pybind11;
 
@@ -197,10 +177,7 @@ auto MoveToNumpyArray( ngstd::Array<T> &a )
 
 PYBIND11_MODULE(ngui, m) {
 
-    m.def("GenerateShader", [](int order) {
-//           return genshader::GenerateCode<ET_TRIG>(order);
-          return genshader::GenerateCode<ET_TET>(order);
-          });
+    m.def("GenerateShader", &genshader::GenerateCode);
     m.def("GetTetData", [] (shared_ptr<ngcomp::MeshAccess> ma) {
         LocalHeap lh(1000000, "gettetdata");
         ngstd::Array<float> coordinates;
@@ -363,7 +340,7 @@ PYBIND11_MODULE(ngui, m) {
                 auto v = ma->GetPoint<3>(verts[j]);
                 for (auto k : Range(3)) {
                   coordinates.Append(v[k]);
-                  bary_coordinates.Append( sorted_vertices[j]==k ? 1.0 : 0.0 );
+                  bary_coordinates.Append( unsorted_vertices[k]==verts[j] ? 1.0 : 0.0 );
 
                   min[k] = min2(min[k], v[k]);
                   max[k] = max2(max[k], v[k]);

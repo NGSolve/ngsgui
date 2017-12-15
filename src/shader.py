@@ -294,6 +294,9 @@ class solution:
 uniform samplerBuffer coefficients;
 uniform float colormap_min, colormap_max;
 uniform bool colormap_linear;
+uniform int element_type;
+uniform vec4 clipping_plane;
+uniform bool do_clipping;
 
 in VertexData
 {
@@ -327,13 +330,24 @@ float zahn(float x, float y) {
     fragment_main = """
 void main()
 {
-  float x = inData.lam.x;
-  float y = inData.lam.y;
-  float z = inData.lam.z;
-  gl_FragColor = vec4(hsv2rgb(vec3(Eval(x,y, z), 1.0, 1.0)), 1.0);
-//   gl_FragColor = vec4(hsv2rgb(vec3(zahn(inData.pos.x, inData.pos.y), 1.0, 1.0)), 1.0);
-//   gl_FragColor = vec4(hsv2rgb(vec3(x, 1.0, 1.0)), 1.0);
-  // gl_FragColor = vec4(1, 0,0,1);
+  if(!do_clipping || dot(vec4(inData.pos,1.0),clipping_plane)<0)
+  {
+      float x = inData.lam.x;
+      float y = inData.lam.y;
+      float z = inData.lam.z;
+      //  { ET_POINT = 0, ET_SEGM = 1,
+      //    ET_TRIG = 10, ET_QUAD = 11, 
+      //    ET_TET = 20, ET_PYRAMID = 21, ET_PRISM = 22, ET_HEX = 24 };
+      float value;
+      if(element_type == 10) value = EvalTRIG(x,y,z);
+      if(element_type == 20) value = EvalTET(x,y,z);
+      if(element_type == 21) value = EvalPYRAMID(x,y,z);
+      if(element_type == 22) value = EvalPRISM(x,y,z);
+      if(element_type == 24) value = EvalHEX(x,y,z);
+      gl_FragColor = vec4(hsv2rgb(vec3(value, 1.0, 1.0)), 1.0);
+  }
+  else
+    discard;
 }
 """
 

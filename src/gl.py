@@ -13,6 +13,8 @@ class GLObject:
 
 class Shader(GLObject):
     def __init__(self, code, shader_type):
+        with open('shader','w') as f:
+            f.write(code)
         self._code = code
         self._type = shader_type
         self._id = glCreateShader(self._type)
@@ -28,25 +30,28 @@ class Program(GLObject):
 
     def __init__(self, shaders):
         self._shaders = shaders
-        self._id = glCreateProgram()
 
         for shader in shaders:
-            glAttachShader(self.id, shader.id)
-            fname = 'shader.'
+            fname = 'shader'
             if shader._type == GL_VERTEX_SHADER:
-                fname += 'vert'
+                fname += '_{}.vert'.format(Program.counter)
             if shader._type == GL_FRAGMENT_SHADER:
-                fname += 'frag'
+                fname += '_{}.frag'.format(Program.counter)
             if shader._type == GL_GEOMETRY_SHADER:
-                fname += 'geom'
+                fname += '_{}.geom'.format(Program.counter)
             with open(fname,'w') as f:
                 f.write(shader._code)
 
+        Program.counter += 1
 
+        self._id = glCreateProgram()
+        for shader in shaders:
+            glAttachShader(self.id, shader.id)
 
         glLinkProgram(self.id)
         if glGetProgramiv(self.id, GL_LINK_STATUS) != GL_TRUE:
                 raise RuntimeError(glGetProgramInfoLog(self.id))
+Program.counter = 0
 
 class ArrayBuffer(GLObject):
     def __init__(self, buffer_type=GL_ARRAY_BUFFER, usage=GL_STATIC_DRAW):
@@ -68,7 +73,7 @@ class SceneObject():
         return None
 
 class ClippingPlaneScene(SceneObject):
-    uniform_names = [b"MV", b"P", b"colormap_min", b"colormap_max", b"colormap_linear", b"clipping_plane"]
+    uniform_names = [b"MV", b"P", b"colormap_min", b"colormap_max", b"colormap_linear", b"clipping_plane", b"do_clipping", b"element_type"]
     attribute_names = [b"vPos", b"vLam", b"vElementNumber"]
     uniforms = {}
     attributes = {}
@@ -128,9 +133,6 @@ class ClippingPlaneScene(SceneObject):
         self.element_number.bind();
         glVertexAttribIPointer(self.attributes[b'vElementNumber'], 1, GL_INT, 0, ctypes.c_void_p());
 
-
-
-    def update(self):
         glBindVertexArray(self.vao)
         self.ntrigs, coordinates_data, bary_coordinates_data, element_number_data, self.min, self.max = GetFaceData(self.mesh)
         self.ntets, coordinates_data, bary_coordinates_data, element_number_data = GetTetData(self.mesh)
@@ -147,6 +149,9 @@ class ClippingPlaneScene(SceneObject):
         glEnableVertexAttribArray(self.attributes[b'vElementNumber'])
         glVertexAttribIPointer(self.attributes[b'vElementNumber'], 1, GL_INT, 0, ctypes.c_void_p());
 
+
+    def update(self):
+        glBindVertexArray(self.vao)
         glBindBuffer   ( GL_TEXTURE_BUFFER, self.coefficients );
         vec = ConvertCoefficients(self.gf)
         ncoefs = len(vec)
@@ -172,6 +177,11 @@ class ClippingPlaneScene(SceneObject):
         glUniform1f(self.uniforms[b'colormap_max'],  self.colormap_max);
         glUniform1i(self.uniforms[b'colormap_linear'],  self.colormap_linear);
         glUniform4f(self.uniforms[b'clipping_plane'], *settings.clipping_plane(center))
+        glUniform1i(self.uniforms[b'do_clipping'],  False);
+        if(self.mesh.dim==2):
+            glUniform1i(self.uniforms[b'element_type'],  10);
+        if(self.mesh.dim==3):
+            glUniform1i(self.uniforms[b'element_type'],  20);
 
         glEnableVertexAttribArray(self.attributes[b'vPos']);
         self.coordinates.bind();
@@ -289,7 +299,7 @@ class MeshScene(SceneObject):
         glBindVertexArray(self.vao)
         self.setupRender(settings)
         glUniform4f(self.uniforms[b'fColor'], 0.0,0.0,0.0,1)
-        glUniform4f(self.uniforms[b'fColor_clipped'], 0.0,0.0,0.0,0.05)
+        glUniform4f(self.uniforms[b'fColor_clipped'], 0.0,0.0,0.0,0.1)
         glUniform4f(self.uniforms[b'clipping_plane'], *settings.clipping_plane(self.center))
         glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
         glDrawArrays(GL_TRIANGLES, 0, 3*self.ntrigs)
@@ -300,7 +310,7 @@ class MeshScene(SceneObject):
 
 
 class SolutionScene(SceneObject):
-    uniform_names = [b"MV", b"P", b"colormap_min", b"colormap_max", b"colormap_linear"]#, b"coefficients"]
+    uniform_names = [b"MV", b"P", b"element_type", b"colormap_min", b"colormap_max", b"colormap_linear", b"clipping_plane", b"do_clipping"]#, b"coefficients"]
     attribute_names = [b"vPos", b"vLam", b"vElementNumber"]
     uniforms = {}
     attributes = {}
@@ -316,10 +326,10 @@ class SolutionScene(SceneObject):
         self.mesh_scene = MeshScene(self.mesh)
         self.gf = gf
 
-        fragment_shader = shader.fragment_header + GenerateShader(gf.space.globalorder) + shader.fragment_main
+        fragment_shader = shader.solution.fragment_header + GenerateShader(gf.space.globalorder) + shader.solution.fragment_main
 
         shaders = [
-            Shader(shader.vertex_simple, GL_VERTEX_SHADER),
+            Shader(shader.solution.vertex, GL_VERTEX_SHADER),
             Shader(fragment_shader, GL_FRAGMENT_SHADER)
         ]
         self.program = Program(shaders)
@@ -402,6 +412,12 @@ class SolutionScene(SceneObject):
         glUniform1f(self.uniforms[b'colormap_min'], self.colormap_min);
         glUniform1f(self.uniforms[b'colormap_max'],  self.colormap_max);
         glUniform1i(self.uniforms[b'colormap_linear'],  self.colormap_linear);
+        if(self.mesh.dim==2):
+            glUniform1i(self.uniforms[b'element_type'],  10);
+        if(self.mesh.dim==3):
+            glUniform1i(self.uniforms[b'element_type'],  20);
+        glUniform4f(self.uniforms[b'clipping_plane'], *settings.clipping_plane(center))
+        glUniform1i(self.uniforms[b'do_clipping'], self.mesh.dim==3);
 
         glEnableVertexAttribArray(self.attributes[b'vPos']);
         self.coordinates.bind();
@@ -418,7 +434,7 @@ class SolutionScene(SceneObject):
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         glDrawArrays(GL_TRIANGLES, 0, 3*self.ntrigs);
 
-        self.mesh_scene.renderWireframe(model,view,projection)
+        self.mesh_scene.renderWireframe(settings)
 
     def setColorMapMin(self, value):
         self.colormap_min = value

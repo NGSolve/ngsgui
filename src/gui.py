@@ -26,6 +26,7 @@ except ImportError:
     messageBox.exec_()
     sys.exit(1)
 
+
 def ArrangeV(*args):
     layout = QtWidgets.QVBoxLayout()
     for w in args:
@@ -149,7 +150,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setCentralWidget(mainWidget)
 
         f = QtOpenGL.QGLFormat.defaultFormat()
-        f.setVersion(4,2)
+        f.setVersion(3,2)
         QtOpenGL.QGLFormat.setDefaultFormat(f)
 
 
@@ -193,6 +194,10 @@ class GLWidget(QtOpenGL.QGLWidget):
     old_time = time.time()
     rendering_parameters = RenderingParameters()
 
+    redraw_signal = QtCore.Signal()
+    redraw_update_done = QtCore.QWaitCondition()
+    redraw_mutex = QtCore.QMutex()
+
     def ZoomReset(self):
         self.rendering_parameters.rotmat = glmath.Identity()
         self.rendering_parameters.zoom = 0.0
@@ -203,7 +208,8 @@ class GLWidget(QtOpenGL.QGLWidget):
     def __init__(self, parent=None):
         QtOpenGL.QGLWidget.__init__(self, parent)
 
-#         self.setFocusPolicy(Qt.StrongFocus)
+        self.redraw_signal.connect(self.updateScenes)
+
         self.lastPos = QtCore.QPoint()
 
     def minimumSizeHint(self):
@@ -214,6 +220,14 @@ class GLWidget(QtOpenGL.QGLWidget):
 
     def initializeGL(self):
         pass
+
+    def updateScenes(self):
+        self.redraw_mutex.lock()
+        for scene in self.scenes:
+            scene.update()
+        self.redraw_update_done.wakeAll()
+        self.redraw_mutex.unlock()
+        self.repaint()
 
     def paintGL(self):
         t = time.time() - self.old_time
@@ -301,6 +315,15 @@ class GUI():
         scene.update()
         self.window.glWidget.scenes.append(scene)
         self.window.settings.addItem(scene.getQtWidget(self.window.glWidget.updateGL),"Colormap")
+
+    def redraw(self, blocking=True):
+        if blocking:
+            self.window.glWidget.redraw_mutex.lock()
+            self.window.glWidget.redraw_signal.emit()
+            self.window.glWidget.redraw_update_done.wait(self.window.glWidget.redraw_mutex)
+            self.window.glWidget.redraw_mutex.unlock()
+        else:
+            self.window.glWidget.redraw_signal.emit()
 
     def run(self):
         self.window.show()
