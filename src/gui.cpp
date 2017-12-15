@@ -318,8 +318,9 @@ PYBIND11_MODULE(ngui, m) {
           res.SetSize(vec.Size());
           for (auto i : Range(vec))
                 res[i] = vec[i];
+          py::gil_scoped_acquire ac;
           return MoveToNumpyArray(res);
-    });
+      },py::call_guard<py::gil_scoped_release>());
     m.def("GetFaceData", [] (shared_ptr<ngcomp::MeshAccess> ma) {
         ngstd::Array<float> coordinates;
         ngstd::Array<float> bary_coordinates;
@@ -392,7 +393,7 @@ PYBIND11_MODULE(ngui, m) {
         }
         else
             throw runtime_error("Unsupported mesh dimension: "+ToString(ma->GetDimension()));
-
+        py::gil_scoped_acquire ac;
         return py::make_tuple(
             ntrigs,
             MoveToNumpyArray(coordinates),
@@ -400,6 +401,6 @@ PYBIND11_MODULE(ngui, m) {
             MoveToNumpyArray(element_number),
             min, max
         );
-    });
+      },py::call_guard<py::gil_scoped_release>());
 
 }

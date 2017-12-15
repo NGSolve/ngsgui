@@ -310,6 +310,8 @@ class GUI():
         self.window = MainWindow()
         self.window.show()
         self.window.raise_()
+        self.last = time.time()
+
 
     def draw(self, scene):
         scene.update()
@@ -317,6 +319,8 @@ class GUI():
         self.window.settings.addItem(scene.getQtWidget(self.window.glWidget.updateGL),"Colormap")
 
     def redraw(self, blocking=True):
+        if time.time() - self.last < 0.02:
+            return
         if blocking:
             self.window.glWidget.redraw_mutex.lock()
             self.window.glWidget.redraw_signal.emit()
@@ -324,6 +328,8 @@ class GUI():
             self.window.glWidget.redraw_mutex.unlock()
         else:
             self.window.glWidget.redraw_signal.emit()
+        self.last = time.time()
+
 
     def run(self):
         self.window.show()
