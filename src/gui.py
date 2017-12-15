@@ -47,7 +47,6 @@ def ArrangeH(*args):
 
 class RangeGroup(QtWidgets.QWidget):
     valueChanged = QtCore.Signal(float)
-    intValueChanged = QtCore.Signal(int)
 
     scalingFactor = 1000 # scaling between integer widgets (scrollslider) and float values to get more resolution
 
@@ -69,18 +68,14 @@ class RangeGroup(QtWidgets.QWidget):
         
         self.setLayout(ArrangeV(ArrangeH(self.label, self.valueBox), self.scroll))
 
-    def setIntValue(self, int_value, emit=True):
+    def setIntValue(self, int_value):
         float_value = int_value*1.0/self.scalingFactor
         self.valueBox.setValue(float_value)
-        if emit:
-            self.setValue(float_value, False)
 
-    def setValue(self, float_value, emit=True):
+    def setValue(self, float_value):
         int_value = round(self.scalingFactor*float_value)
         self.scroll.setValue(int_value)
         self.valueChanged.emit(float_value)
-        if emit:
-            self.setIntValue(int_value, False)
 
 class ColorMapSettings(QtWidgets.QWidget):
     linearChanged = QtCore.Signal(bool)
@@ -227,7 +222,7 @@ class GLWidget(QtOpenGL.QGLWidget):
             scene.update()
         self.redraw_update_done.wakeAll()
         self.redraw_mutex.unlock()
-        self.repaint()
+        self.update()
 
     def paintGL(self):
         t = time.time() - self.old_time

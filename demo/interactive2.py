@@ -5,7 +5,7 @@ import ngsolve.gui as GUI
 import threading
 import time
 
-ngsglobals.msg_level = 8
+ngsglobals.msg_level = 0
 
 from netgen.geom2d import SplineGeometry
 geo = SplineGeometry()
@@ -20,6 +20,7 @@ gf_draw = GridFunction(fes)
 gf_draw.Set(CoefficientFunction(0.0))
 
 gui = GUI.GUI()
+# SetNumThreads(4)
 
 def work():
     nu = 0.001
@@ -82,16 +83,17 @@ def work():
 
     # implicit Euler/explicit Euler splitting method:
     t = 0
-    for i in range(100):
-            print ("t=", t, end="\r")
+    with TaskManager():
+        for i in range(1000):
+            for j in range(10):
+#                 print ("t=", t, end="\r")
+                conv.Apply (gfu.vec, res)
+                res.data += a.mat*gfu.vec
+                gfu.vec.data -= tau * inv * res    
 
-            conv.Apply (gfu.vec, res)
-            res.data += a.mat*gfu.vec
-            gfu.vec.data -= tau * inv * res    
-
-            t = t + tau
+                t = t + tau
             gf_draw.Set(Norm(velocity))
-            gui.redraw()
+            gui.redraw(blocking=False)
 
 # scene = GUI.ClippingPlaneScene(gf)
 # gui.draw(scene)
@@ -100,7 +102,7 @@ def work():
 
 # scene1 = GUI.ClippingPlaneScene(gf_draw)
 # gui.draw(scene1)
-scene = GUI.SolutionScene(gf_draw)
+scene = GUI.SolutionScene(gf_draw, colormap_min=0, colormap_max=2)
 gui.draw(scene)
 print(1)
 

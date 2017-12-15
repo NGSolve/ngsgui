@@ -149,6 +149,12 @@ class ClippingPlaneScene(SceneObject):
         glEnableVertexAttribArray(self.attributes[b'vElementNumber'])
         glVertexAttribIPointer(self.attributes[b'vElementNumber'], 1, GL_INT, 0, ctypes.c_void_p());
 
+        glBindBuffer   ( GL_TEXTURE_BUFFER, self.coefficients );
+        vec = ConvertCoefficients(self.gf)
+        ncoefs = len(vec)
+        size_float=ctypes.sizeof(ctypes.c_float)
+        glBufferData   ( GL_TEXTURE_BUFFER, size_float*ncoefs, ctypes.c_void_p(), GL_DYNAMIC_DRAW ) # alloc
+
 
     def update(self):
         glBindVertexArray(self.vao)
@@ -157,7 +163,6 @@ class ClippingPlaneScene(SceneObject):
         ncoefs = len(vec)
         size_float=ctypes.sizeof(ctypes.c_float)
 
-        glBufferData   ( GL_TEXTURE_BUFFER, size_float*ncoefs, ctypes.c_void_p(), GL_STATIC_DRAW ) # alloc
         glBufferSubData( GL_TEXTURE_BUFFER, 0, size_float*ncoefs, vec) # fill
 
 
@@ -369,9 +374,13 @@ class SolutionScene(SceneObject):
         self.element_number.bind();
         glVertexAttribIPointer(self.attributes[b'vElementNumber'], 1, GL_INT, 0, ctypes.c_void_p());
 
+        glBindBuffer   ( GL_TEXTURE_BUFFER, self.coefficients );
+        vec = self.gf.vec
+        ncoefs = len(vec)
+        size_float=ctypes.sizeof(ctypes.c_float)
 
+        glBufferData   ( GL_TEXTURE_BUFFER, size_float*ncoefs, ctypes.c_void_p(), GL_DYNAMIC_DRAW ) # alloc
 
-    def update(self):
         self.mesh_scene.update()
         glBindVertexArray(self.vao)
         self.ntrigs, coordinates_data, bary_coordinates_data, element_number_data, self.min, self.max = GetFaceData(self.mesh)
@@ -388,12 +397,15 @@ class SolutionScene(SceneObject):
         glEnableVertexAttribArray(self.attributes[b'vElementNumber'])
         glVertexAttribIPointer(self.attributes[b'vElementNumber'], 1, GL_INT, 0, ctypes.c_void_p());
 
+
+    def update(self):
+        # Todo: assumes the mesh is unchanged, also update mesh-related data if necessary (timestamps!)
+        glBindVertexArray(self.vao)
         glBindBuffer   ( GL_TEXTURE_BUFFER, self.coefficients );
         vec = self.gf.vec
         ncoefs = len(vec)
         size_float=ctypes.sizeof(ctypes.c_float)
 
-        glBufferData   ( GL_TEXTURE_BUFFER, size_float*ncoefs, ctypes.c_void_p(), GL_STATIC_DRAW ) # alloc
         glBufferSubData( GL_TEXTURE_BUFFER, 0, size_float*ncoefs, (ctypes.c_float*ncoefs)(*vec)) # fill
 
 
@@ -452,7 +464,7 @@ class SolutionScene(SceneObject):
 
         from .gui import ColorMapSettings, Qt
 
-        settings = ColorMapSettings(min=-2, max=2, min_value=self.colormap_min, max_value=self.colormap_max)
+        settings = ColorMapSettings(min=self.colormap_min, max=self.colormap_max, min_value=self.colormap_min, max_value=self.colormap_max)
         settings.layout().setAlignment(Qt.AlignTop)
 
         settings.minChanged.connect(self.setColorMapMin)
