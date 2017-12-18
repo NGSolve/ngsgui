@@ -1,11 +1,12 @@
+#include<pybind11/pybind11.h>
+#include<pybind11/stl_bind.h>
+#include<pybind11/numpy.h>
+
 #include<fem.hpp>
 #include<comp.hpp>
 #include<l2hofe_impl.hpp>
 #include<l2hofefo.hpp>
 
-#include<pybind11/pybind11.h>
-#include<pybind11/stl_bind.h>
-#include<pybind11/numpy.h>
 #include<regex>
 
 using namespace ngfem;
@@ -27,6 +28,9 @@ namespace genshader {
               {
                 BASE::T_CalcShape(ip, shape);
               }
+	void GetDiagMassMatrix(FlatVector<> mass) const {
+		throw Exception("GetDiagMassMatrix not implemented");
+	}
       };
 
     static std::vector<string> expressions;

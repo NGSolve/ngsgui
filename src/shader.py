@@ -6,6 +6,8 @@ uniform vec4 fColor_clipped;
 
 uniform vec4 clipping_plane;
 
+out vec4 FragColor;
+
 in VertexData
 {
   vec3 pos;
@@ -13,7 +15,7 @@ in VertexData
 
 void main()
 {
-  gl_FragColor = fColor;
+  FragColor = fColor;
 }
 """
 
@@ -36,7 +38,7 @@ void main()
 """
 
     geometry_solution = """
-#version 420
+#version 150
 
 layout(lines_adjacency) in;
 layout(triangle_strip, max_vertices=6) out;
@@ -134,7 +136,7 @@ void main() {
 
 """
     geometry = """
-#version 420
+#version 150
 
 layout(lines_adjacency) in;
 layout(triangle_strip, max_vertices=6) out;
@@ -256,6 +258,8 @@ uniform vec4 fColor;
 uniform vec4 fColor_clipped;
 uniform vec4 clipping_plane;
 
+out vec4 FragColor;
+
 in VertexData
 {
   vec3 pos;
@@ -264,9 +268,9 @@ in VertexData
 void main()
 {
   if(dot(vec4(inData.pos,1.0),clipping_plane)<0)
-    gl_FragColor = fColor;
+    FragColor = fColor;
   else
-    gl_FragColor = fColor_clipped;
+    FragColor = fColor_clipped;
 }
 """
 
@@ -304,6 +308,8 @@ in VertexData
   flat int element;
   vec3 lam;
 } inData;
+
+out vec4 FragColor;
 
 vec3 MapColor(float value)
 {
@@ -343,7 +349,7 @@ void main()
       if(element_type == 21) value = EvalPYRAMID(x,y,z);
       if(element_type == 22) value = EvalPRISM(x,y,z);
       if(element_type == 24) value = EvalHEX(x,y,z);
-      gl_FragColor = vec4(MapColor(value), 1.0);
+      FragColor = vec4(MapColor(value), 1.0);
   }
   else
     discard;

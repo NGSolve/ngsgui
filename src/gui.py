@@ -144,12 +144,15 @@ class MainWindow(QtWidgets.QMainWindow):
         mainWidget = QtWidgets.QWidget()
         self.setCentralWidget(mainWidget)
 
-        f = QtOpenGL.QGLFormat.defaultFormat()
+        f = QtOpenGL.QGLFormat()
         f.setVersion(3,2)
+        f.setProfile(QtOpenGL.QGLFormat.CoreProfile)
         QtOpenGL.QGLFormat.setDefaultFormat(f)
 
 
         self.glWidget = GLWidget()
+        self.glWidget.context().setFormat(f)
+        self.glWidget.context().create()
 
         buttons = QtWidgets.QVBoxLayout()
 
