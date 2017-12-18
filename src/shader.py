@@ -305,21 +305,20 @@ in VertexData
   vec3 lam;
 } inData;
 
-vec3 hsv2rgb(vec3 c)
+vec3 MapColor(float value)
 {
-    // TODO: min, max as uniform
-    float min = colormap_min;
-    float max = colormap_max;
-    c.x = (c.x-min)/(max-min);
-    c.x = clamp(c.x, 0.0, 1.0);
-    c.x = (1.0 - c.x);
+    value = (value-colormap_min)/(colormap_max-colormap_min);
+    value = clamp(value, 0.0, 1.0);
+    value = (1.0 - value);
     if(!colormap_linear)
-      c.x = floor(8*c.x)/7.0;
-    c.x = clamp(c.x, 0.0, 1.0);
-    c.x = c.x*240.0/360.0;
-    vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
-    vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
-    return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+      value = floor(8*value)/7.0;
+    value = clamp(value, 0.0, 1.0);
+    vec3 res;
+    res.r = 2-4*value;
+    res.g = 2-4*abs(0.5-value);
+    res.b = 4*value - 2;
+    res = clamp(res,0.0, 1.0);
+    return res;
 }
 
 float zahn(float x, float y) {
@@ -344,7 +343,7 @@ void main()
       if(element_type == 21) value = EvalPYRAMID(x,y,z);
       if(element_type == 22) value = EvalPRISM(x,y,z);
       if(element_type == 24) value = EvalHEX(x,y,z);
-      gl_FragColor = vec4(hsv2rgb(vec3(value, 1.0, 1.0)), 1.0);
+      gl_FragColor = vec4(MapColor(value), 1.0);
   }
   else
     discard;
