@@ -40,6 +40,8 @@ void main()
     geometry_solution = """
 #version 150
 
+uniform samplerBuffer coefficients;
+
 layout(lines_adjacency) in;
 layout(triangle_strip, max_vertices=6) out;
 
@@ -61,6 +63,8 @@ uniform mat4 MV;
 uniform mat4 P;
 uniform vec4 clipping_plane;
 
+{shader_functions}
+
 float cut(vec3 x, vec3 y) {
       float dx = dot(clipping_plane, vec4(x,1.0));
       float dy = dot(clipping_plane, vec4(y,1.0));
@@ -78,9 +82,15 @@ void emit(vec3 x, vec3 lam) {
 void doAll(int i, int j) {
     vec3 lam;
     float a = cut(inData[i].pos,inData[j].pos);
+
     vec3 pos = mix(inData[i].pos, inData[j].pos, a);
+    lam = mix(inData[i].lam, inData[j].lam, a);
+
+    // deformation
+    pos.z += 0.1*EvalTET(inData[0].element, lam.x, lam.y, lam.z);
     outData.pos = pos;
-    outData.lam = mix(inData[i].lam, inData[j].lam, a);
+    outData.lam = lam;
+
     gl_Position = P * MV *vec4(pos,1);
     EmitVertex();
 }
@@ -330,9 +340,9 @@ vec3 MapColor(float value)
 float zahn(float x, float y) {
   return atan(1000*x*y*y - floor(1000*x*y*y));
 }
-"""
 
-    fragment_main = """
+{shader_functions}
+
 void main()
 {
   if(!do_clipping || dot(vec4(inData.pos,1.0),clipping_plane)<0)
@@ -344,16 +354,19 @@ void main()
       //    ET_TRIG = 10, ET_QUAD = 11, 
       //    ET_TET = 20, ET_PYRAMID = 21, ET_PRISM = 22, ET_HEX = 24 };
       float value;
-      if(element_type == 10) value = EvalTRIG(x,y,z);
-      if(element_type == 20) value = EvalTET(x,y,z);
-      if(element_type == 21) value = EvalPYRAMID(x,y,z);
-      if(element_type == 22) value = EvalPRISM(x,y,z);
-      if(element_type == 24) value = EvalHEX(x,y,z);
+      if(element_type == 10) value = EvalTRIG(inData.element, x,y,z);
+      if(element_type == 20) value = EvalTET(inData.element, x,y,z);
+      if(element_type == 21) value = EvalPYRAMID(inData.element, x,y,z);
+      if(element_type == 22) value = EvalPRISM(inData.element, x,y,z);
+      if(element_type == 24) value = EvalHEX(inData.element, x,y,z);
       FragColor = vec4(MapColor(value), 1.0);
   }
   else
     discard;
 }
+"""
+
+    fragment_main = """
 """
 
     vertex = """

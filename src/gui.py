@@ -153,6 +153,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.glWidget = GLWidget()
         self.glWidget.context().setFormat(f)
         self.glWidget.context().create()
+        print(self.glWidget.context().format())
 
         buttons = QtWidgets.QVBoxLayout()
 
