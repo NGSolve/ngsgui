@@ -332,7 +332,7 @@ class SolutionScene(SceneObject):
         self.mesh_scene = MeshScene(self.mesh)
         self.gf = gf
 
-        fragment_shader = shader.solution.fragment_header + GenerateShader(gf.space.globalorder) + shader.solution.fragment_main
+        fragment_shader = shader.solution.fragment_header.replace('{shader_functions}',GenerateShader(gf.space.globalorder))
 
         shaders = [
             Shader(shader.solution.vertex, GL_VERTEX_SHADER),

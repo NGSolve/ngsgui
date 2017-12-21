@@ -87,7 +87,7 @@ void doAll(int i, int j) {
     lam = mix(inData[i].lam, inData[j].lam, a);
 
     // deformation
-    pos.z += 0.1*EvalTET(inData[0].element, lam.x, lam.y, lam.z);
+    // pos.z += 0.1*EvalTET(inData[0].element, lam.x, lam.y, lam.z);
     outData.pos = pos;
     outData.lam = lam;
 
@@ -358,7 +358,6 @@ void main()
       if(element_type == 21) value = EvalPYRAMID(inData.element, x,y,z);
       if(element_type == 22) value = EvalPRISM(inData.element, x,y,z);
       if(element_type == 24) value = EvalHEX(inData.element, x,y,z);
-      FragColor = vec4(MapColor(value), 1.0);
       FragColor.r = MapColor(value).r;
       FragColor.g = MapColor(value).g;
       FragColor.b = MapColor(value).b;
