@@ -320,10 +320,9 @@ vec3 MapColor(float value)
       value = floor(8*value)/7.0;
     value = clamp(value, 0.0, 1.0);
     vec3 res;
-    res.r = 2-4*value;
-    res.g = 2-4*abs(0.5-value);
-    res.b = 4*value - 2;
-    res = clamp(res,0.0, 1.0);
+    res.r = clamp(2.0-4.0*value, 0.0, 1.0);
+    res.g = clamp(2.0-4.0*abs(0.5-value), 0.0, 1.0);
+    res.b = clamp(4.0*value - 2.0, 0.0, 1.0);
     return res;
 }
 
@@ -349,7 +348,10 @@ void main()
       if(element_type == 21) value = EvalPYRAMID(x,y,z);
       if(element_type == 22) value = EvalPRISM(x,y,z);
       if(element_type == 24) value = EvalHEX(x,y,z);
-      FragColor = vec4(MapColor(value), 1.0);
+      FragColor.r = MapColor(value).r;
+      FragColor.g = MapColor(value).g;
+      FragColor.b = MapColor(value).b;
+      FragColor.a = 1.0;
   }
   else
     discard;
