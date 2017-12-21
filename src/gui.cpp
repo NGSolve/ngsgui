@@ -124,13 +124,13 @@ namespace genshader {
 
             stringstream f;
             f << 
-              "float Eval" << elname << "( float x, float y, float z )\n"
+              "float Eval" << elname << "(int element, float x, float y, float z )\n"
               "{                             \n"
               " float result = 0.0;" << endl;
 
             stringstream ss;
             fel.MyCalcShape (ip, SBLambda([&] (int i, auto c) {
-                                          ss << "result += texelFetch( coefficients, inData.element*"+ToString(fel.ndof) + "+"  + ToString(i) + ").r * " + c.s << ";" << endl;
+                                          ss << "result += texelFetch( coefficients, element*"+ToString(fel.ndof) + "+"  + ToString(i) + ").r * " + c.s << ";" << endl;
                                           }));
 
             int i = 0;

@@ -90,11 +90,12 @@ class ClippingPlaneScene(SceneObject):
         self.mesh = gf.space.mesh
         self.gf = gf
 
-        fragment_shader = shader.solution.fragment_header + GenerateShader(gf.space.globalorder) + shader.solution.fragment_main
+        fragment_shader = shader.solution.fragment_header.replace('{shader_functions}',GenerateShader(gf.space.globalorder))
+        geometry_shader = shader.clipping.geometry_solution.replace('{shader_functions}',GenerateShader(gf.space.globalorder))
 
         shaders = [
             Shader(shader.solution.vertex, GL_VERTEX_SHADER),
-            Shader(shader.clipping.geometry_solution, GL_GEOMETRY_SHADER),
+            Shader(geometry_shader, GL_GEOMETRY_SHADER),
             Shader(fragment_shader, GL_FRAGMENT_SHADER)
         ]
         self.program = Program(shaders)
