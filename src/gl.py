@@ -244,6 +244,8 @@ class MeshScene(SceneObject):
     qtWidget = None
 
     def __init__(self, mesh):
+        from . import shader
+        shader.printLimits()
         super(MeshScene, self).__init__()
         self.vao = glGenVertexArrays(1)
         glBindVertexArray(self.vao)

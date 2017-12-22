@@ -178,8 +178,6 @@ class MainWindow(QtWidgets.QMainWindow):
         mainWidget.setLayout(mainLayout)
 
         self.setWindowTitle(self.tr("Pyside2 GL"))
-        from . import shader
-        shader.printLimits()
 
     def keyPressEvent(self, event):
         if event.key() == 16777216:
