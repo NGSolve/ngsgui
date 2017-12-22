@@ -146,7 +146,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         f = QtOpenGL.QGLFormat()
         f.setVersion(3,2)
-#         f.setProfile(QtOpenGL.QGLFormat.CoreProfile)
+        f.setProfile(QtOpenGL.QGLFormat.CoreProfile)
         QtOpenGL.QGLFormat.setDefaultFormat(f)
 
 
