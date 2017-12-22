@@ -146,7 +146,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         f = QtOpenGL.QGLFormat()
         f.setVersion(3,2)
-        f.setProfile(QtOpenGL.QGLFormat.CoreProfile)
+#         f.setProfile(QtOpenGL.QGLFormat.CoreProfile)
         QtOpenGL.QGLFormat.setDefaultFormat(f)
 
 
@@ -178,6 +178,8 @@ class MainWindow(QtWidgets.QMainWindow):
         mainWidget.setLayout(mainLayout)
 
         self.setWindowTitle(self.tr("Pyside2 GL"))
+        from . import shader
+        shader.printLimits()
 
     def keyPressEvent(self, event):
         if event.key() == 16777216:
@@ -210,6 +212,19 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.redraw_signal.connect(self.updateScenes)
 
         self.lastPos = QtCore.QPoint()
+
+#         self.image = QtGui.QImage(200, 50, QtGui.QImage.Format_ARGB32_Premultiplied)
+#         self.image.fill(0)
+#         self.painter = QtGui.QPainter(self.image)
+#         painter.setRenderHints(QtGui.QPainter.TextAntialiasing | QtGui.QPainter.Antialiasing | QtGui.QPainter.SmoothPixmapTransform)
+#         painter.setPen(QtCore.Qt.NoPen)
+# 
+#         painter.setBrush(QtGui.QColor(0, 0, 0))
+#         painter.setFont(Colors.tickerFont())
+#         painter.setPen(QtGui.QColor(255, 255, 255))
+#         self.painter.drawText(0, 0, "h")
+#         self.painter.end()
+#         print(self.image)
 
     def minimumSizeHint(self):
         return QtCore.QSize(50, 50)
@@ -245,6 +260,29 @@ class GLWidget(QtOpenGL.QGLWidget):
         for scene in self.scenes:
             scene.render(self.rendering_parameters) #model, view, projection)
 
+
+########################
+# font 
+#         painter = QtGui.QPainter(self)
+#         painter.drawLine(0, 0, 1, 1);
+#         painter.end()
+
+# ########################
+#         GL.glUseProgram(0)
+#         GL.glDisable(GL.GL_DEPTH_TEST)
+#         GL.glMatrixMode(GL.GL_PROJECTION)
+#         GL.glOrtho( -.5, .5, .5, -.5, -1000, 1000)
+#         GL.glMatrixMode(GL.GL_MODELVIEW)
+#         GL.glLoadIdentity()
+# #         GL.glClearColor(1.0, 1.0, 1.0, 1.0)
+# 
+# 
+#         GL.glClear(GL.GL_COLOR_BUFFER_BIT)
+#       
+#         self.qglColor(QtCore.Qt.black)
+#         self.renderText(0.0, 0.0, 0.0, "Multisampling enabled")
+# #         self.renderText(0.15, 0.4, 0.0, "Multisampling disabled")
+########################
 
     def resizeGL(self, width, height):
         GL.glViewport(0, 0, width, height)
