@@ -73,7 +73,7 @@ class SceneObject():
         return None
 
 class ClippingPlaneScene(SceneObject):
-    uniform_names = [b"MV", b"P", b"colormap_min", b"colormap_max", b"colormap_linear", b"clipping_plane", b"do_clipping", b"element_type"]
+    uniform_names = [b"MV", b"P", b"colormap_min", b"colormap_max", b"colormap_linear", b"clipping_plane", b"do_clipping", b"clipping_plane_deformation", b"element_type"]
     attribute_names = [b"vPos", b"vLam", b"vElementNumber"]
     uniforms = {}
     attributes = {}
@@ -184,6 +184,7 @@ class ClippingPlaneScene(SceneObject):
         glUniform1i(self.uniforms[b'colormap_linear'],  self.colormap_linear);
         glUniform4f(self.uniforms[b'clipping_plane'], *settings.clipping_plane(center))
         glUniform1i(self.uniforms[b'do_clipping'],  False);
+        glUniform1i(self.uniforms[b'clipping_plane_deformation'],  False);
         if(self.mesh.dim==2):
             glUniform1i(self.uniforms[b'element_type'],  10);
         if(self.mesh.dim==3):
