@@ -46,14 +46,12 @@ def ArrangeH(*args):
     return layout
 
 class RangeGroup(QtWidgets.QWidget):
-    valueChanged = QtCore.Signal(float)
-
-    scalingFactor = 1000 # scaling between integer widgets (scrollslider) and float values to get more resolution
-
+    valueChanged = QtCore.Signal(float) # TODO: this shouldn't be static
     def __init__(self, name, min=-1, max=1, value=0, direction=Qt.Horizontal):
         super(RangeGroup, self).__init__()
 #         self.valueChanged.connect(onValueChanged)
 
+        self.scalingFactor = 1000 # scaling between integer widgets (scrollslider) and float values to get more resolution
         self.scroll = QtWidgets.QScrollBar(direction)
         self.scroll.setFocusPolicy(Qt.StrongFocus)
         self.scroll.valueChanged[int].connect(self.setIntValue)
@@ -78,8 +76,7 @@ class RangeGroup(QtWidgets.QWidget):
         self.valueChanged.emit(float_value)
 
 class ColorMapSettings(QtWidgets.QWidget):
-    linearChanged = QtCore.Signal(bool)
-
+    linearChanged = QtCore.Signal(bool) # TODO: this shouldn't be static
     def __init__(self, min=-1, max=1, min_value=0, max_value=1, direction=Qt.Horizontal):
         super(ColorMapSettings, self).__init__()
 
@@ -97,15 +94,15 @@ class ColorMapSettings(QtWidgets.QWidget):
         self.rangeMax.setValue(max_value)
 
 class RenderingParameters:
-    view = glmath.Identity()
-    rotmat = glmath.Identity()
-    zoom = 0.0
-    ratio = 1.0
-    dx = 0.0
-    dy = 0.0
+    def __init__(self):
+        self.rotmat = glmath.Identity()
+        self.zoom = 0.0
+        self.ratio = 1.0
+        self.dx = 0.0
+        self.dy = 0.0
 
-    clipping_rotmat = glmath.Identity()
-    clipping_dist = 0.0
+        self.clipping_rotmat = glmath.Identity()
+        self.clipping_dist = 0.0
 
     @property
     def model(self):
@@ -153,7 +150,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.glWidget = GLWidget()
         self.glWidget.context().setFormat(f)
         self.glWidget.context().create()
-        print(self.glWidget.context().format())
 
         buttons = QtWidgets.QVBoxLayout()
 
@@ -184,18 +180,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.close()
 
 class GLWidget(QtOpenGL.QGLWidget):
-    scenes = []
-    do_rotate = False
-    do_translate = False
-    do_zoom = False
-    do_move_clippingplane = False
-    do_rotate_clippingplane = False
-    old_time = time.time()
-    rendering_parameters = RenderingParameters()
-
-    redraw_signal = QtCore.Signal()
-    redraw_update_done = QtCore.QWaitCondition()
-    redraw_mutex = QtCore.QMutex()
+    redraw_signal = QtCore.Signal() # This shouldn't be static
 
     def ZoomReset(self):
         self.rendering_parameters.rotmat = glmath.Identity()
@@ -206,6 +191,18 @@ class GLWidget(QtOpenGL.QGLWidget):
 
     def __init__(self, parent=None):
         QtOpenGL.QGLWidget.__init__(self, parent)
+
+        self.scenes = []
+        self.do_rotate = False
+        self.do_translate = False
+        self.do_zoom = False
+        self.do_move_clippingplane = False
+        self.do_rotate_clippingplane = False
+        self.old_time = time.time()
+        self.rendering_parameters = RenderingParameters()
+
+        self.redraw_update_done = QtCore.QWaitCondition()
+        self.redraw_mutex = QtCore.QMutex()
 
         self.redraw_signal.connect(self.updateScenes)
 
@@ -231,10 +228,11 @@ class GLWidget(QtOpenGL.QGLWidget):
         return QtCore.QSize(400, 400)
 
     def initializeGL(self):
-        pass
+        self.updateScenes()
 
     def updateScenes(self):
         self.redraw_mutex.lock()
+        self.makeCurrent()
         for scene in self.scenes:
             scene.update()
         self.redraw_update_done.wakeAll()
@@ -341,33 +339,44 @@ class GLWidget(QtOpenGL.QGLWidget):
 
 class GUI():
     def __init__(self):
+        self.windows = []
         self.app = QtWidgets.QApplication(sys.argv)
-        self.window = MainWindow()
-        self.window.show()
-        self.window.raise_()
         self.last = time.time()
 
+    def draw(self, scene, separate_window=False):
 
-    def draw(self, scene):
+        if separate_window or len(self.windows)==0:
+            window = MainWindow()
+            window.show()
+            window.raise_()
+            self.windows.append(window)
+        else:
+            window = self.windows[-1]
+
+        window.glWidget.makeCurrent()
         scene.update()
-        self.window.glWidget.scenes.append(scene)
-        self.window.settings.addItem(scene.getQtWidget(self.window.glWidget.updateGL),"Colormap")
+        window.glWidget.scenes.append(scene)
+        window.settings.addItem(scene.getQtWidget(window.glWidget.updateGL),"Colormap")
 
     def redraw(self, blocking=True):
         if time.time() - self.last < 0.02:
             return
         if blocking:
-            self.window.glWidget.redraw_mutex.lock()
-            self.window.glWidget.redraw_signal.emit()
-            self.window.glWidget.redraw_update_done.wait(self.window.glWidget.redraw_mutex)
-            self.window.glWidget.redraw_mutex.unlock()
+            for window in self.windows:
+                window.glWidget.redraw_mutex.lock()
+                window.glWidget.redraw_signal.emit()
+                window.glWidget.redraw_update_done.wait(window.glWidget.redraw_mutex)
+                window.glWidget.redraw_mutex.unlock()
         else:
-            self.window.glWidget.redraw_signal.emit()
+            for window in self.windows:
+                window.glWidget.redraw_signal.emit()
         self.last = time.time()
 
 
     def run(self):
-        self.window.show()
+        for window in self.windows:
+            window.show()
         res = self.app.exec_()
-        self.window.glWidget.freeResources()
+        for window in self.windows:
+            window.glWidget.freeResources()
         sys.exit(res)

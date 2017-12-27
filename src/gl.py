@@ -26,9 +26,8 @@ class Shader(GLObject):
             raise RuntimeError(glGetShaderInfoLog(self.id))
 
 class Program(GLObject):
-    locations = {}
-
     def __init__(self, shaders):
+        self.locations = {}
         self._shaders = shaders
 
         for shader in shaders:
@@ -67,21 +66,22 @@ class ArrayBuffer(GLObject):
         glBufferData(self._type, data, self._usage)
 
 class SceneObject():
-    timestamp = -1
+    def __init__(self):
+        self.timestamp = -1
 
     def getQtWidget(self, updateGL):
         return None
 
 class ClippingPlaneScene(SceneObject):
-    uniform_names = [b"MV", b"P", b"colormap_min", b"colormap_max", b"colormap_linear", b"clipping_plane", b"do_clipping", b"clipping_plane_deformation", b"element_type"]
-    attribute_names = [b"vPos", b"vLam", b"vElementNumber"]
-    uniforms = {}
-    attributes = {}
-    qtWidget = None
-
     def __init__(self, gf, colormap_min=-1.0, colormap_max=1.0, colormap_linear=False):
         super(ClippingPlaneScene, self).__init__()
-        from math import sqrt
+
+        self.uniform_names = [b"MV", b"P", b"colormap_min", b"colormap_max", b"colormap_linear", b"clipping_plane", b"do_clipping", b"clipping_plane_deformation", b"element_type"]
+        self.attribute_names = [b"vPos", b"vLam", b"vElementNumber"]
+        self.uniforms = {}
+        self.attributes = {}
+        self.qtWidget = None
+        self.gl_initialized = False
 
         self.colormap_min = colormap_min
         self.colormap_max = colormap_max
@@ -90,8 +90,11 @@ class ClippingPlaneScene(SceneObject):
         self.mesh = gf.space.mesh
         self.gf = gf
 
-        fragment_shader = shader.solution.fragment_header.replace('{shader_functions}',GenerateShader(gf.space.globalorder))
-        geometry_shader = shader.clipping.geometry_solution.replace('{shader_functions}',GenerateShader(gf.space.globalorder))
+    def initGL(self):
+        if self.gl_initialized:
+            return
+        fragment_shader = shader.solution.fragment_header.replace('{shader_functions}',GenerateShader(self.gf.space.globalorder))
+        geometry_shader = shader.clipping.geometry_solution.replace('{shader_functions}',GenerateShader(self.gf.space.globalorder))
 
         shaders = [
             Shader(shader.solution.vertex, GL_VERTEX_SHADER),
@@ -156,8 +159,11 @@ class ClippingPlaneScene(SceneObject):
         size_float=ctypes.sizeof(ctypes.c_float)
         glBufferData   ( GL_TEXTURE_BUFFER, size_float*ncoefs, ctypes.c_void_p(), GL_DYNAMIC_DRAW ) # alloc
 
+        self.gl_initialized = True
+
 
     def update(self):
+        self.initGL()
         glBindVertexArray(self.vao)
         glBindBuffer   ( GL_TEXTURE_BUFFER, self.coefficients );
         vec = ConvertCoefficients(self.gf)
@@ -185,6 +191,7 @@ class ClippingPlaneScene(SceneObject):
         glUniform4f(self.uniforms[b'clipping_plane'], *settings.clipping_plane(center))
         glUniform1i(self.uniforms[b'do_clipping'],  False);
         glUniform1i(self.uniforms[b'clipping_plane_deformation'],  False);
+        # TODO: element_type should be an attribute!
         if(self.mesh.dim==2):
             glUniform1i(self.uniforms[b'element_type'],  10);
         if(self.mesh.dim==3):
@@ -238,23 +245,31 @@ class ClippingPlaneScene(SceneObject):
         return self.qtWidget
 
 class MeshScene(SceneObject):
-    uniform_names = [b"fColor", b"fColor_clipped", b"MV", b"P", b"clipping_plane"]
-    attribute_names = [b"vPos"]
-    uniforms = {}
-    attributes = {}
-    qtWidget = None
-
     def __init__(self, mesh):
         from . import shader
         super(MeshScene, self).__init__()
+
+        self.uniform_names = [b"fColor", b"fColor_clipped", b"MV", b"P", b"clipping_plane"]
+        self.attribute_names = [b"vPos"]
+        self.uniforms = {}
+        self.attributes = {}
+        self.qtWidget = None
+        self.gl_initialized = False
+
+        self.clipping_plane = [1.0, 0.0, 0.0, -0.5]
+
+        self.mesh = mesh
+
+    def initGL(self):
+        if self.gl_initialized:
+            return
+
         self.vao = glGenVertexArrays(1)
         glBindVertexArray(self.vao)
         self.coordinates = ArrayBuffer()
         self.bary_coordinates = ArrayBuffer()
         self.element_number = ArrayBuffer()
-        self.clipping_plane = [1.0, 0.0, 0.0, -0.5]
 
-        self.mesh = mesh
         shaders = [
             Shader(shader.mesh.vertex, GL_VERTEX_SHADER),
             Shader(shader.mesh.fragment, GL_FRAGMENT_SHADER)
@@ -266,8 +281,10 @@ class MeshScene(SceneObject):
         for name in self.attribute_names:
             self.attributes[name] = glGetAttribLocation(self.program.id, name)
 
+        self.gl_initialized = True
 
     def update(self):
+        self.initGL()
         glBindVertexArray(self.vao)
         self.ntrigs, coordinates_data, bary_coordinates_data, element_number_data, self.min, self.max = GetFaceData(self.mesh)
         self.coordinates.store(coordinates_data)
@@ -316,16 +333,27 @@ class MeshScene(SceneObject):
     def setClippingPlaneDist(self,d):
         self.clipping_plane[3] = -d
 
+    def getQtWidget(self, updateGL):
+        if self.qtWidget!=None:
+            return self.qtWidget
+
+        from .gui import ColorMapSettings, Qt
+
+        settings = ColorMapSettings(min=-2, max=2)
+        return settings
+
 
 class SolutionScene(SceneObject):
-    uniform_names = [b"MV", b"P", b"element_type", b"colormap_min", b"colormap_max", b"colormap_linear", b"clipping_plane", b"do_clipping"]#, b"coefficients"]
-    attribute_names = [b"vPos", b"vLam", b"vElementNumber"]
-    uniforms = {}
-    attributes = {}
-    qtWidget = None
-
     def __init__(self, gf, colormap_min=-1.0, colormap_max=1.0, colormap_linear=False):
         super(SolutionScene, self).__init__()
+
+        self.uniform_names = [b"MV", b"P", b"element_type", b"colormap_min", b"colormap_max", b"colormap_linear", b"clipping_plane", b"do_clipping"]#, b"coefficients"]
+        self.attribute_names = [b"vPos", b"vLam", b"vElementNumber"]
+        self.uniforms = {}
+        self.attributes = {}
+        self.qtWidget = None
+        self.gl_initialized = False
+
         self.colormap_min = colormap_min
         self.colormap_max = colormap_max
         self.colormap_linear = colormap_linear
@@ -334,7 +362,10 @@ class SolutionScene(SceneObject):
         self.mesh_scene = MeshScene(self.mesh)
         self.gf = gf
 
-        fragment_shader = shader.solution.fragment_header.replace('{shader_functions}',GenerateShader(gf.space.globalorder))
+    def initGL(self):
+        if self.gl_initialized:
+            return
+        fragment_shader = shader.solution.fragment_header.replace('{shader_functions}',GenerateShader(self.gf.space.globalorder))
 
         shaders = [
             Shader(shader.solution.vertex, GL_VERTEX_SHADER),
@@ -402,6 +433,7 @@ class SolutionScene(SceneObject):
 
 
     def update(self):
+        self.initGL()
         # Todo: assumes the mesh is unchanged, also update mesh-related data if necessary (timestamps!)
         glBindVertexArray(self.vao)
         glBindBuffer   ( GL_TEXTURE_BUFFER, self.coefficients );
