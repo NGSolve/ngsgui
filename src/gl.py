@@ -296,7 +296,7 @@ class MeshScene(SceneObject):
         glBindVertexArray(self.vao)
         self.setupRender(settings)
         glUniform4f(self.uniforms[b'fColor'], 0.0,1.0,0.0,1.0)
-        glUniform4f(self.uniforms[b'fColor_clipped'], 0.0,1.0,0.0,0.05)
+        glUniform4f(self.uniforms[b'fColor_clipped'], 0.0,1.0,0.0,0.00)
         glUniform4f(self.uniforms[b'clipping_plane'], *settings.clipping_plane(self.center))
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         glDrawArrays(GL_TRIANGLES, 0, 3*self.ntrigs)

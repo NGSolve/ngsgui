@@ -415,7 +415,8 @@ void main()
   if(dot(vec4(inData.pos,1.0),clipping_plane)<0)
     FragColor = fColor;
   else
-    FragColor = fColor_clipped;
+    discard;
+    // FragColor = fColor_clipped;
 }
 """
 
