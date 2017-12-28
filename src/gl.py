@@ -187,7 +187,7 @@ class ClippingPlaneScene(SceneObject):
     def render(self, settings):
         model, view, projection = settings.model, settings.view, settings.projection
         glBindVertexArray(self.vao)
-        center = 0.5*(self.max-self.min)
+        center = 0.5*(self.max+self.min)
         modelview = view*model*glmath.Translate(-center[0], -center[1], -center[2]) #move to center
         mv = [modelview[i,j] for i in range(4) for j in range(4)]
         p = [projection[i,j] for i in range(4) for j in range(4)]
@@ -327,7 +327,7 @@ class MeshScene(SceneObject):
 
     def setupRender(self, settings):
         model, view, projection = settings.model, settings.view, settings.projection
-        center = 0.5*(self.max-self.min)
+        center = 0.5*(self.max+self.min)
         self.center = center
         modelview = view*model*glmath.Translate(-center[0], -center[1], -center[2]) #move to center
         mv = [modelview[i,j] for i in range(4) for j in range(4)]
@@ -494,7 +494,7 @@ class SolutionScene(SceneObject):
     def render(self, settings):
         model, view, projection = settings.model, settings.view, settings.projection
         glBindVertexArray(self.vao)
-        center = 0.5*(self.max-self.min)
+        center = 0.5*(self.max+self.min)
         modelview = view*model*glmath.Translate(-center[0], -center[1], -center[2]) #move to center
         mv = [modelview[i,j] for i in range(4) for j in range(4)]
         p = [projection[i,j] for i in range(4) for j in range(4)]
