@@ -382,6 +382,7 @@ class MeshScene(SceneObject):
 
         self.bccolors = BCColors(self.mesh)
         self.bccolors.colors_changed.connect(self.updateIndexColors)
+        self.bccolors.colors_changed.connect(updateGL)
         self.updateIndexColors()
 
         return {"BCColors" : self.bccolors }
