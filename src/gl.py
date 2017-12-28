@@ -187,8 +187,7 @@ class ClippingPlaneScene(SceneObject):
     def render(self, settings):
         model, view, projection = settings.model, settings.view, settings.projection
         glBindVertexArray(self.vao)
-        center = 0.5*(self.max-self.min)
-        modelview = view*model*glmath.Translate(-center[0], -center[1], -center[2]) #move to center
+        modelview = view*model
         mv = [modelview[i,j] for i in range(4) for j in range(4)]
         p = [projection[i,j] for i in range(4) for j in range(4)]
 
@@ -199,7 +198,7 @@ class ClippingPlaneScene(SceneObject):
         glUniform1f(self.uniforms[b'colormap_min'], self.colormap_min);
         glUniform1f(self.uniforms[b'colormap_max'],  self.colormap_max);
         glUniform1i(self.uniforms[b'colormap_linear'],  self.colormap_linear);
-        glUniform4f(self.uniforms[b'clipping_plane'], *settings.clipping_plane(center))
+        glUniform4f(self.uniforms[b'clipping_plane'], *settings.clipping_plane)
         glUniform1i(self.uniforms[b'do_clipping'],  False);
         glUniform1i(self.uniforms[b'clipping_plane_deformation'],  False);
         # TODO: element_type should be an attribute!
@@ -327,9 +326,7 @@ class MeshScene(SceneObject):
 
     def setupRender(self, settings):
         model, view, projection = settings.model, settings.view, settings.projection
-        center = 0.5*(self.max-self.min)
-        self.center = center
-        modelview = view*model*glmath.Translate(-center[0], -center[1], -center[2]) #move to center
+        modelview = view*model
         mv = [modelview[i,j] for i in range(4) for j in range(4)]
         p = [projection[i,j] for i in range(4) for j in range(4)]
 
@@ -345,7 +342,7 @@ class MeshScene(SceneObject):
         self.setupRender(settings)
         glUniform4f(self.uniforms[b'fColor'], 0.0,1.0,0.0,1.0)
         glUniform4f(self.uniforms[b'fColor_clipped'], 0.0,1.0,0.0,0.00)
-        glUniform4f(self.uniforms[b'clipping_plane'], *settings.clipping_plane(self.center))
+        glUniform4f(self.uniforms[b'clipping_plane'], *settings.clipping_plane)
         glUniform1i(self.uniforms[b'use_index_color'], True)
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         glDrawArrays(GL_TRIANGLES, 0, 3*self.ntrigs)
@@ -357,7 +354,7 @@ class MeshScene(SceneObject):
         self.setupRender(settings)
         glUniform4f(self.uniforms[b'fColor'], 0.0,0.0,0.0,1)
         glUniform4f(self.uniforms[b'fColor_clipped'], 0.0,0.0,0.0,0.1)
-        glUniform4f(self.uniforms[b'clipping_plane'], *settings.clipping_plane(self.center))
+        glUniform4f(self.uniforms[b'clipping_plane'], *settings.clipping_plane)
         glUniform1i(self.uniforms[b'use_index_color'], False)
         glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
         glDrawArrays(GL_TRIANGLES, 0, 3*self.ntrigs)
@@ -495,8 +492,7 @@ class SolutionScene(SceneObject):
     def render(self, settings):
         model, view, projection = settings.model, settings.view, settings.projection
         glBindVertexArray(self.vao)
-        center = 0.5*(self.max-self.min)
-        modelview = view*model*glmath.Translate(-center[0], -center[1], -center[2]) #move to center
+        modelview = view*model
         mv = [modelview[i,j] for i in range(4) for j in range(4)]
         p = [projection[i,j] for i in range(4) for j in range(4)]
 
@@ -511,7 +507,7 @@ class SolutionScene(SceneObject):
             glUniform1i(self.uniforms[b'element_type'],  10);
         if(self.mesh.dim==3):
             glUniform1i(self.uniforms[b'element_type'],  20);
-        glUniform4f(self.uniforms[b'clipping_plane'], *settings.clipping_plane(center))
+        glUniform4f(self.uniforms[b'clipping_plane'], *settings.clipping_plane)
         glUniform1i(self.uniforms[b'do_clipping'], self.mesh.dim==3);
 
         glEnableVertexAttribArray(self.attributes[b'vPos']);

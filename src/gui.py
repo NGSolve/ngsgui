@@ -189,9 +189,17 @@ class RenderingParameters:
         self.ratio = 1.0
         self.dx = 0.0
         self.dy = 0.0
+        self.min = Vector(3)
+        self.min[:] = 0.0
+        self.max = Vector(3)
+        self.max[:] = 0.0
 
         self.clipping_rotmat = glmath.Identity()
         self.clipping_dist = 0.0
+
+    @property
+    def center(self):
+        return 0.5*(self.min+self.max)
 
     @property
     def model(self):
@@ -200,6 +208,7 @@ class RenderingParameters:
         mat = glmath.Translate(self.dx, -self.dy, -0 )*mat;
         mat = glmath.Scale(exp(-self.zoom/100))*mat;
         mat = glmath.Translate(0, -0, -5 )*mat;
+        mat = mat*glmath.Translate(-self.center[0], -self.center[1], -self.center[2]) #move to center
         return mat
 
     @property
@@ -210,14 +219,14 @@ class RenderingParameters:
     def projection(self):
         return glmath.Perspective(0.8, self.ratio, .1, 20.);
 
-    def clipping_plane(self, center=None):
+    @property
+    def clipping_plane(self):
         x = Vector(4);
         x[:] = 0.0
         x[2] = 1
         x = self.clipping_rotmat * x
-        if center:
-            d = glmath.Dot(center,x[0:3])
-            x[3] = -d
+        d = glmath.Dot(self.center,x[0:3])
+        x[3] = -d
         x[3] = x[3]-self.clipping_dist
         return x
 
@@ -345,6 +354,21 @@ class GLWidget(QtOpenGL.QGLWidget):
         for scene in self.scenes:
             scene.render(self.rendering_parameters) #model, view, projection)
 
+    def addScene(self, scene):
+        self.scenes.append(scene)
+        box_min = Vector(3)
+        box_max = Vector(3)
+        box_min[:] = 1e99
+        box_max[:] = -1e99
+        for scene in self.scenes:
+            for i in range(3):
+                box_min[i] = min(scene.min[i], box_min[i])
+                box_max[i] = max(scene.max[i], box_max[i])
+        self.rendering_parameters.min = box_min
+        self.rendering_parameters.max = box_max
+
+    def mouseDoubleClickEvent(self, event):
+        print('event', event.pos())
 
 ########################
 # font 
@@ -444,7 +468,7 @@ class GUI():
 
         window.glWidget.makeCurrent()
         scene.update()
-        window.glWidget.scenes.append(scene)
+        window.glWidget.addScene(scene)
         for description, item in scene.getQtWidget(window.glWidget.updateGL).items():
             window.settings.addItem(item,description)
 
