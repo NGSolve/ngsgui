@@ -368,7 +368,21 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.rendering_parameters.max = box_max
 
     def mouseDoubleClickEvent(self, event):
-        print('event', event.pos())
+        import OpenGL.GLU
+        viewport = GL.glGetIntegerv( GL.GL_VIEWPORT )
+        x = event.pos().x()
+        y = viewport[3]-event.pos().y()
+        GL.glReadBuffer(GL.GL_FRONT);
+        z = GL.glReadPixels(x, y, 1, 1, GL.GL_DEPTH_COMPONENT, GL.GL_FLOAT)
+        params = self.rendering_parameters
+        p = OpenGL.GLU.gluUnProject(
+                x,y,z,
+                (params.view*params.model).T.NumPy(),
+                params.projection.T.NumPy(),
+                viewport,
+                )
+        print('clicked coordinates', p)
+
 
 ########################
 # font 
