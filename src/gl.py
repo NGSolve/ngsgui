@@ -302,7 +302,7 @@ class MeshScene(SceneObject):
         self.coordinates.store(coordinates_data)
         self.bary_coordinates.store(bary_coordinates_data)
         self.element_index.store(element_index_data)
-        self.index_colors = [0, 255, 0] * (self.max_index+1)
+        self.index_colors = [0, 255, 0, 255] * (self.max_index+1)
 
         if self.attributes[b'pos']>-1:
             self.coordinates.bind();
@@ -320,7 +320,7 @@ class MeshScene(SceneObject):
         glBindTexture(GL_TEXTURE_1D, self.tex_index_color)
 
         # copy texture
-        glTexImage1D(GL_TEXTURE_1D, 0,GL_RGB, self.max_index+1, 0, GL_RGB, GL_UNSIGNED_BYTE, bytes(self.index_colors))
+        glTexImage1D(GL_TEXTURE_1D, 0,GL_RGBA, self.max_index+1, 0, GL_RGBA, GL_UNSIGNED_BYTE, bytes(self.index_colors))
 
         glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
         glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
@@ -372,9 +372,10 @@ class MeshScene(SceneObject):
             colors.append(c.red())
             colors.append(c.green())
             colors.append(c.blue())
+            colors.append(c.alpha())
         self.index_colors = colors
         glBindTexture(GL_TEXTURE_1D, self.tex_index_color)
-        glTexImage1D(GL_TEXTURE_1D, 0,GL_RGB, self.max_index+1, 0, GL_RGB, GL_UNSIGNED_BYTE, bytes(self.index_colors))
+        glTexImage1D(GL_TEXTURE_1D, 0,GL_RGBA, self.max_index+1, 0, GL_RGBA, GL_UNSIGNED_BYTE, bytes(self.index_colors))
 
     def getQtWidget(self, updateGL):
         if self.qtWidget!=None:

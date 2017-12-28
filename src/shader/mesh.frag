@@ -18,12 +18,12 @@ in VertexData
 void main()
 {
   if(dot(vec4(inData.pos,1.0),clipping_plane)<0) {
-    if(use_index_color) {
-      // FragColor = vec4(MapColor(val), 1.0);
-      FragColor = vec4(texelFetch(index_color, inData.index, 0));
-    } else {
-      FragColor = fColor;
+    FragColor = vec4(texelFetch(index_color, inData.index, 0));
+    if(!use_index_color) {
+      FragColor.rgb = fColor.rgb;
     }
+    if(FragColor.a==0.0)
+      discard;
   } else {
     discard;
     // FragColor = fColor_clipped;

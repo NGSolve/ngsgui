@@ -58,20 +58,16 @@ class QColorButton(QtWidgets.QPushButton):
     def __init__(self, *args, **kwargs):
         super(QColorButton, self).__init__(*args, **kwargs)
 
-        self._color = None
-        self.setColor(QtGui.QColor(0, 255, 0).name())
+        self.setColor(QtGui.QColor(0, 255, 0,255))
         self.setMaximumWidth(32)
         self.pressed.connect(self.onColorPicker)
 
     def setColor(self, color):
-        if color != self._color:
+        if color:
             self._color = color
             self.colorChanged.emit()
 
-        if self._color:
-            self.setStyleSheet("background-color: %s;" % self._color)
-        else:
-            self.setStyleSheet("")
+            self.setStyleSheet("background-color: %s;" % self._color.name())
 
     def color(self):
         return self._color
@@ -86,10 +82,10 @@ class QColorButton(QtWidgets.QPushButton):
         dlg = QtWidgets.QColorDialog()
         dlg.setStyleSheet("")
         if self._color:
-            dlg.setCurrentColor(QtGui.QColor(self._color))
+            dlg.setCurrentColor(self._color)
 
         if dlg.exec_():
-            self.setColor(dlg.currentColor().name())
+            self.setColor(dlg.currentColor())
 
     def mousePressEvent(self, e):
         if e.button() == Qt.RightButton:
@@ -157,13 +153,27 @@ class BCColors(QtWidgets.QWidget):
         layouts = []
         self.mesh = mesh
 
+        class btnholder:
+            def __init__(self,btn):
+                self.btn = btn
+
+            def __call__(self,state):
+                color = self.btn._color
+                if state:
+                    color.setAlpha(255)
+                else:
+                    color.setAlpha(0)
+                self.btn.setColor(color)
+
         for bc in mesh.GetBoundaries():
             if not bc in self.colorbtns:
                 btn = QColorButton()
                 btn.colorChanged.connect(self.colors_changed.emit)
-
+                cb_visible = QtWidgets.QCheckBox('visible',self)
+                cb_visible.setCheckState(QtCore.Qt.Checked)
+                cb_visible.stateChanged.connect(btnholder(btn))
                 self.colorbtns[bc] = btn
-                layouts.append(ArrangeH(btn,QtWidgets.QLabel(bc)))
+                layouts.append(ArrangeH(btn,QtWidgets.QLabel(bc),cb_visible))
 
         colors = ArrangeV(*layouts)
         colors.layout().setAlignment(Qt.AlignTop)
