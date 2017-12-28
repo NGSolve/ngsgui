@@ -29,7 +29,6 @@ class Shader(GLObject):
         for incfile in glob.glob(os.path.join(shaderpath, '*.inc')):
             Shader.includes[os.path.basename(incfile)] = open(incfile,'r').read()
 
-        print('shader includes', Shader.includes)
         for token in Shader.includes:
             self._code = self._code.replace('{include '+token+'}', Shader.includes[token])
 
@@ -261,7 +260,7 @@ class MeshScene(SceneObject):
         from . import shader
         super(MeshScene, self).__init__()
 
-        self.uniform_names = [b"fColor", b"fColor_clipped", b"MV", b"P", b"clipping_plane", b"use_index_color", b"max_index"]
+        self.uniform_names = [b"fColor", b"fColor_clipped", b"MV", b"P", b"clipping_plane", b"use_index_color"]
         self.attribute_names = [b"pos", b"index"]
         self.uniforms = {}
         self.attributes = {}
@@ -302,9 +301,8 @@ class MeshScene(SceneObject):
         self.ntrigs, coordinates_data, bary_coordinates_data, element_number_data, element_index_data, self.max_index, self.min, self.max = GetFaceData(self.mesh)
         self.coordinates.store(coordinates_data)
         self.bary_coordinates.store(bary_coordinates_data)
-        print(len(element_index_data))
-        print(self.ntrigs)
         self.element_index.store(element_index_data)
+        self.index_colors = [0, 255, 0] * (self.max_index+1)
 
         if self.attributes[b'pos']>-1:
             self.coordinates.bind();
@@ -317,6 +315,16 @@ class MeshScene(SceneObject):
             glVertexAttribIPointer(self.attributes[b'index'], 1, GL_INT, 0, ctypes.c_void_p())
 
 
+        self.tex_index_color = glGenTextures(1)
+
+        glBindTexture(GL_TEXTURE_1D, self.tex_index_color)
+
+        # copy texture
+        glTexImage1D(GL_TEXTURE_1D, 0,GL_RGB, self.max_index+1, 0, GL_RGB, GL_UNSIGNED_BYTE, bytes(self.index_colors))
+
+        glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+        glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+
     def setupRender(self, settings):
         model, view, projection = settings.model, settings.view, settings.projection
         center = 0.5*(self.max-self.min)
@@ -325,10 +333,10 @@ class MeshScene(SceneObject):
         mv = [modelview[i,j] for i in range(4) for j in range(4)]
         p = [projection[i,j] for i in range(4) for j in range(4)]
 
+        glBindTexture(GL_TEXTURE_1D, self.tex_index_color)
         glUseProgram(self.program.id)
         glUniformMatrix4fv(self.uniforms[b'MV'], 1, GL_TRUE, (ctypes.c_float*16)(*mv))
         glUniformMatrix4fv(self.uniforms[b'P'], 1, GL_TRUE, (ctypes.c_float*16)(*p))
-        glUniform1i(self.uniforms[b'max_index'], self.max_index)
 
 
 
@@ -358,13 +366,27 @@ class MeshScene(SceneObject):
     def setClippingPlaneDist(self,d):
         self.clipping_plane[3] = -d
 
+    def updateIndexColors(self):
+        colors = []
+        for c in self.bccolors.getColors():
+            colors.append(c.red())
+            colors.append(c.green())
+            colors.append(c.blue())
+        self.index_colors = colors
+        glBindTexture(GL_TEXTURE_1D, self.tex_index_color)
+        glTexImage1D(GL_TEXTURE_1D, 0,GL_RGB, self.max_index+1, 0, GL_RGB, GL_UNSIGNED_BYTE, bytes(self.index_colors))
+
     def getQtWidget(self, updateGL):
         if self.qtWidget!=None:
             return self.qtWidget
 
         from .gui import ColorMapSettings, Qt, BCColors
 
-        return {"BCColors" : BCColors(self.mesh) }
+        self.bccolors = BCColors(self.mesh)
+        self.bccolors.colors_changed.connect(self.updateIndexColors)
+        self.updateIndexColors()
+
+        return {"BCColors" : self.bccolors }
 
 
 class SolutionScene(SceneObject):

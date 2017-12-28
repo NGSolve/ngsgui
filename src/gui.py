@@ -59,6 +59,7 @@ class QColorButton(QtWidgets.QPushButton):
         super(QColorButton, self).__init__(*args, **kwargs)
 
         self._color = None
+        self.setColor(QtGui.QColor(0, 255, 0).name())
         self.setMaximumWidth(32)
         self.pressed.connect(self.onColorPicker)
 
@@ -82,7 +83,8 @@ class QColorButton(QtWidgets.QPushButton):
         Qt will use the native dialog by default.
 
         '''
-        dlg = QtWidgets.QColorDialog(self)
+        dlg = QtWidgets.QColorDialog()
+        dlg.setStyleSheet("")
         if self._color:
             dlg.setCurrentColor(QtGui.QColor(self._color))
 
@@ -144,12 +146,31 @@ class ColorMapSettings(QtWidgets.QWidget):
         self.rangeMax.setValue(max_value)
 
 class BCColors(QtWidgets.QWidget):
+    colors_changed = QtCore.Signal()
+
     def __init__(self,mesh):
         super().__init__()
-        colorbtns = []
+
+        self.colors = {}
+
+        self.colorbtns = {}
+        layouts = []
+        self.mesh = mesh
+
         for bc in mesh.GetBoundaries():
-            colorbtns.append(ArrangeH(QColorButton(),QtWidgets.QLabel(bc)))
-        self.setLayout(ArrangeV(*colorbtns))
+            if not bc in self.colorbtns:
+                btn = QColorButton()
+                btn.colorChanged.connect(self.colors_changed.emit)
+
+                self.colorbtns[bc] = btn
+                layouts.append(ArrangeH(btn,QtWidgets.QLabel(bc)))
+
+        colors = ArrangeV(*layouts)
+        colors.layout().setAlignment(Qt.AlignTop)
+        self.setLayout(colors)
+
+    def getColors(self):
+        return [QtGui.QColor(self.colorbtns[bc]._color) for bc in self.mesh.GetBoundaries()]
 
 class RenderingParameters:
     def __init__(self):
