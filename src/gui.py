@@ -45,6 +45,56 @@ def ArrangeH(*args):
             layout.addLayout(w)
     return layout
 
+class QColorButton(QtWidgets.QPushButton):
+    '''
+    Custom Qt Widget to show a chosen color.
+
+    Left-clicking the button shows the color-chooser, while
+    right-clicking resets the color to None (no-color).
+    '''
+
+    colorChanged = QtCore.Signal()
+
+    def __init__(self, *args, **kwargs):
+        super(QColorButton, self).__init__(*args, **kwargs)
+
+        self._color = None
+        self.setMaximumWidth(32)
+        self.pressed.connect(self.onColorPicker)
+
+    def setColor(self, color):
+        if color != self._color:
+            self._color = color
+            self.colorChanged.emit()
+
+        if self._color:
+            self.setStyleSheet("background-color: %s;" % self._color)
+        else:
+            self.setStyleSheet("")
+
+    def color(self):
+        return self._color
+
+    def onColorPicker(self):
+        '''
+        Show color-picker dialog to select color.
+
+        Qt will use the native dialog by default.
+
+        '''
+        dlg = QtWidgets.QColorDialog(self)
+        if self._color:
+            dlg.setCurrentColor(QtGui.QColor(self._color))
+
+        if dlg.exec_():
+            self.setColor(dlg.currentColor().name())
+
+    def mousePressEvent(self, e):
+        if e.button() == Qt.RightButton:
+            self.setColor(None)
+
+        return super(QColorButton, self).mousePressEvent(e)
+
 class RangeGroup(QtWidgets.QWidget):
     valueChanged = QtCore.Signal(float) # TODO: this shouldn't be static
     def __init__(self, name, min=-1, max=1, value=0, direction=Qt.Horizontal):
@@ -92,6 +142,14 @@ class ColorMapSettings(QtWidgets.QWidget):
 
         self.rangeMin.setValue(min_value)
         self.rangeMax.setValue(max_value)
+
+class BCColors(QtWidgets.QWidget):
+    def __init__(self,mesh):
+        super().__init__()
+        colorbtns = []
+        for bc in mesh.GetBoundaries():
+            colorbtns.append(ArrangeH(QColorButton(),QtWidgets.QLabel(bc)))
+        self.setLayout(ArrangeV(*colorbtns))
 
 class RenderingParameters:
     def __init__(self):
@@ -356,7 +414,8 @@ class GUI():
         window.glWidget.makeCurrent()
         scene.update()
         window.glWidget.scenes.append(scene)
-        window.settings.addItem(scene.getQtWidget(window.glWidget.updateGL),"Colormap")
+        for description, item in scene.getQtWidget(window.glWidget.updateGL).items():
+            window.settings.addItem(item,description)
 
     def redraw(self, blocking=True):
         if time.time() - self.last < 0.02:
