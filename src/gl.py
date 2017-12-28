@@ -3,6 +3,7 @@ from ngui import *
 import array
 import ctypes
 import time
+import os
 
 from . import glmath, shader
 
@@ -12,36 +13,43 @@ class GLObject:
         return self._id
 
 class Shader(GLObject):
-    def __init__(self, code, shader_type):
-        with open('shader','w') as f:
-            f.write(code)
-        self._code = code
-        self._type = shader_type
+    # map to fake 'include' directives like in C
+    # Used for instance for generated code to evaluate shape functions:
+    # {include shader_functions}
+    # to make this work, set Shader.includes['shader_functions'] to the desired code before creating the Shader object
+
+    includes = {}
+
+    def __init__(self, filename, shader_type=None):
+        d = os.path.dirname(__file__)
+        fullpath = os.path.join(d, 'shader', filename)
+        self._code = open(fullpath,'r').read()
+
+        for token in Shader.includes:
+            self._code = self._code.replace('{include '+token+'}', Shader.includes[token])
+
+        shader_types = {
+                'vert': GL_VERTEX_SHADER,
+                'frag': GL_FRAGMENT_SHADER,
+                'geom': GL_GEOMETRY_SHADER
+                }
+        if shader_type == None:
+            ext = filename.split('.')[-1]
+            if not ext in shader_types:
+                raise RuntimeError('Unknown shader file extension: '+ext)
+            self._type = shader_types[ext]
         self._id = glCreateShader(self._type)
 
-        glShaderSource(self.id, code)
+        glShaderSource(self.id, self._code)
         glCompileShader(self.id)
 
         if glGetShaderiv(self.id, GL_COMPILE_STATUS) != GL_TRUE:
-            raise RuntimeError(glGetShaderInfoLog(self.id))
+            raise RuntimeError('Error when compiling ' + fullpath + ': '+glGetShaderInfoLog(self.id).decode()+'\ncompiled code:\n'+self._code)
 
 class Program(GLObject):
     def __init__(self, shaders):
         self.locations = {}
         self._shaders = shaders
-
-        for shader in shaders:
-            fname = 'shader'
-            if shader._type == GL_VERTEX_SHADER:
-                fname += '_{}.vert'.format(Program.counter)
-            if shader._type == GL_FRAGMENT_SHADER:
-                fname += '_{}.frag'.format(Program.counter)
-            if shader._type == GL_GEOMETRY_SHADER:
-                fname += '_{}.geom'.format(Program.counter)
-            with open(fname,'w') as f:
-                f.write(shader._code)
-
-        Program.counter += 1
 
         self._id = glCreateProgram()
         for shader in shaders:
@@ -50,7 +58,6 @@ class Program(GLObject):
         glLinkProgram(self.id)
         if glGetProgramiv(self.id, GL_LINK_STATUS) != GL_TRUE:
                 raise RuntimeError(glGetProgramInfoLog(self.id))
-Program.counter = 0
 
 class ArrayBuffer(GLObject):
     def __init__(self, buffer_type=GL_ARRAY_BUFFER, usage=GL_STATIC_DRAW):
@@ -93,13 +100,13 @@ class ClippingPlaneScene(SceneObject):
     def initGL(self):
         if self.gl_initialized:
             return
-        fragment_shader = shader.solution.fragment_header.replace('{shader_functions}',GenerateShader(self.gf.space.globalorder))
-        geometry_shader = shader.clipping.geometry_solution.replace('{shader_functions}',GenerateShader(self.gf.space.globalorder))
+
+        Shader.includes['shader_functions'] = GenerateShader(self.gf.space.globalorder)
 
         shaders = [
-            Shader(shader.solution.vertex, GL_VERTEX_SHADER),
-            Shader(geometry_shader, GL_GEOMETRY_SHADER),
-            Shader(fragment_shader, GL_FRAGMENT_SHADER)
+            Shader('solution.vert'),
+            Shader('clipping.geom'),
+            Shader('solution.frag')
         ]
         self.program = Program(shaders)
 
@@ -271,8 +278,8 @@ class MeshScene(SceneObject):
         self.element_number = ArrayBuffer()
 
         shaders = [
-            Shader(shader.mesh.vertex, GL_VERTEX_SHADER),
-            Shader(shader.mesh.fragment, GL_FRAGMENT_SHADER)
+            Shader('mesh.vert'),
+            Shader('mesh.frag')
         ]
         self.program = Program(shaders)
 
@@ -364,11 +371,12 @@ class SolutionScene(SceneObject):
     def initGL(self):
         if self.gl_initialized:
             return
-        fragment_shader = shader.solution.fragment_header.replace('{shader_functions}',GenerateShader(self.gf.space.globalorder))
+
+        Shader.includes['shader_functions'] = GenerateShader(self.gf.space.globalorder)
 
         shaders = [
-            Shader(shader.solution.vertex, GL_VERTEX_SHADER),
-            Shader(fragment_shader, GL_FRAGMENT_SHADER)
+            Shader('solution.vert'),
+            Shader('solution.frag')
         ]
         self.program = Program(shaders)
 
