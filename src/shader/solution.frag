@@ -15,26 +15,8 @@ in VertexData
 
 out vec4 FragColor;
 
-vec3 MapColor(float value)
-{
-    value = (value-colormap_min)/(colormap_max-colormap_min);
-    value = clamp(value, 0.0, 1.0);
-    value = (1.0 - value);
-    if(!colormap_linear)
-      value = floor(8*value)/7.0;
-    value = clamp(value, 0.0, 1.0);
-    vec3 res;
-    res.r = clamp(2.0-4.0*value, 0.0, 1.0);
-    res.g = clamp(2.0-4.0*abs(0.5-value), 0.0, 1.0);
-    res.b = clamp(4.0*value - 2.0, 0.0, 1.0);
-    return res;
-}
-
-float zahn(float x, float y) {
-  return atan(1000*x*y*y - floor(1000*x*y*y));
-}
-
 {include shader_functions}
+{include utils.inc}
 
 void main()
 {
@@ -52,6 +34,11 @@ void main()
       if(element_type == 21) value = EvalPYRAMID(inData.element, x,y,z);
       if(element_type == 22) value = EvalPRISM(inData.element, x,y,z);
       if(element_type == 24) value = EvalHEX(inData.element, x,y,z);
+      value = (value-colormap_min)/(colormap_max-colormap_min);
+      value = clamp(value, 0.0, 1.0);
+      value = (1.0 - value);
+      if(!colormap_linear)
+        value = floor(8*value)/7.0;
       FragColor.r = MapColor(value).r;
       FragColor.g = MapColor(value).g;
       FragColor.b = MapColor(value).b;

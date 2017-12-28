@@ -329,7 +329,9 @@ PYBIND11_MODULE(ngui, m) {
         ngstd::Array<float> coordinates;
         ngstd::Array<float> bary_coordinates;
         ngstd::Array<int> element_number;
+        ngstd::Array<int> element_index;
         size_t ntrigs;
+        int max_index=0;
 
         Vector<> min(3);
         min = std::numeric_limits<double>::max();
@@ -357,17 +359,22 @@ PYBIND11_MODULE(ngui, m) {
         {
             ntrigs = ma->GetNE();
             element_number.SetSize(3*ntrigs);
+            element_index.SetSize(3*ntrigs);
             for (auto i : ngcomp::Range(ntrigs)) {
-                addVertices(ma->GetElement(ElementId( VOL, i)).Vertices());
-                element_number[3*i+0] = i;
-                element_number[3*i+1] = i;
-                element_number[3*i+2] = i;
+                auto el = ma->GetElement(ElementId( VOL, i));
+                addVertices(el.Vertices());
+                for (auto k : Range(3)) {
+                  element_number[3*i+k] = i;
+                  element_index[3*i+k] = el.GetIndex();
+                  max_index = max2(max_index, el.GetIndex());
+                }
             }
         }
         else if(ma->GetDimension()==3)
         {
             ntrigs = ma->GetNSE();
             element_number.SetSize(3*ntrigs);
+            element_index.SetSize(3*ntrigs);
 
             for (auto sel : ma->Elements(BND)) {
                 auto sel_vertices = sel.Vertices();
@@ -390,9 +397,11 @@ PYBIND11_MODULE(ngui, m) {
                     max[k] = max2(max[k], v[k]);
                   }
                 }
-                element_number[3*sel.Nr()+0] = elnums[0];
-                element_number[3*sel.Nr()+1] = elnums[0];
-                element_number[3*sel.Nr()+2] = elnums[0];
+                for (auto k : Range(3)) {
+                    element_number[3*sel.Nr()+k] = elnums[0];
+                    element_index[3*sel.Nr()+k] = sel.GetIndex();
+                    max_index = max2(max_index, sel.GetIndex());
+                }
             }
         }
         else
@@ -403,6 +412,8 @@ PYBIND11_MODULE(ngui, m) {
             MoveToNumpyArray(coordinates),
             MoveToNumpyArray(bary_coordinates),
             MoveToNumpyArray(element_number),
+            MoveToNumpyArray(element_index),
+            max_index,
             min, max
         );
       },py::call_guard<py::gil_scoped_release>());

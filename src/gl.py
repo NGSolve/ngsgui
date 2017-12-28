@@ -3,7 +3,6 @@ from ngui import *
 import array
 import ctypes
 import time
-import os
 
 from . import glmath, shader
 
@@ -21,10 +20,16 @@ class Shader(GLObject):
     includes = {}
 
     def __init__(self, filename, shader_type=None):
-        d = os.path.dirname(__file__)
-        fullpath = os.path.join(d, 'shader', filename)
+        import os, glob
+
+        shaderpath = os.path.join(os.path.dirname(__file__), 'shader')
+        fullpath = os.path.join(shaderpath, filename)
         self._code = open(fullpath,'r').read()
 
+        for incfile in glob.glob(os.path.join(shaderpath, '*.inc')):
+            Shader.includes[os.path.basename(incfile)] = open(incfile,'r').read()
+
+        print('shader includes', Shader.includes)
         for token in Shader.includes:
             self._code = self._code.replace('{include '+token+'}', Shader.includes[token])
 
@@ -145,7 +150,7 @@ class ClippingPlaneScene(SceneObject):
         glVertexAttribIPointer(self.attributes[b'vElementNumber'], 1, GL_INT, 0, ctypes.c_void_p());
 
         glBindVertexArray(self.vao)
-        self.ntrigs, coordinates_data, bary_coordinates_data, element_number_data, self.min, self.max = GetFaceData(self.mesh)
+        self.ntrigs, coordinates_data, bary_coordinates_data, element_number_data, element_index_data, max_index, self.min, self.max = GetFaceData(self.mesh)
         self.ntets, coordinates_data, bary_coordinates_data, element_number_data = GetTetData(self.mesh)
 
         self.coordinates.store(coordinates_data)
@@ -256,8 +261,8 @@ class MeshScene(SceneObject):
         from . import shader
         super(MeshScene, self).__init__()
 
-        self.uniform_names = [b"fColor", b"fColor_clipped", b"MV", b"P", b"clipping_plane"]
-        self.attribute_names = [b"vPos"]
+        self.uniform_names = [b"fColor", b"fColor_clipped", b"MV", b"P", b"clipping_plane", b"use_index_color", b"max_index"]
+        self.attribute_names = [b"pos", b"index"]
         self.uniforms = {}
         self.attributes = {}
         self.qtWidget = None
@@ -276,6 +281,7 @@ class MeshScene(SceneObject):
         self.coordinates = ArrayBuffer()
         self.bary_coordinates = ArrayBuffer()
         self.element_number = ArrayBuffer()
+        self.element_index = ArrayBuffer()
 
         shaders = [
             Shader('mesh.vert'),
@@ -293,12 +299,22 @@ class MeshScene(SceneObject):
     def update(self):
         self.initGL()
         glBindVertexArray(self.vao)
-        self.ntrigs, coordinates_data, bary_coordinates_data, element_number_data, self.min, self.max = GetFaceData(self.mesh)
+        self.ntrigs, coordinates_data, bary_coordinates_data, element_number_data, element_index_data, self.max_index, self.min, self.max = GetFaceData(self.mesh)
         self.coordinates.store(coordinates_data)
         self.bary_coordinates.store(bary_coordinates_data)
+        print(len(element_index_data))
+        print(self.ntrigs)
+        self.element_index.store(element_index_data)
 
-        glEnableVertexAttribArray(self.attributes[b'vPos'])
-        glVertexAttribPointer(self.attributes[b'vPos'], 3, GL_FLOAT, GL_FALSE, 0, 0);
+        if self.attributes[b'pos']>-1:
+            self.coordinates.bind();
+            glEnableVertexAttribArray(self.attributes[b'pos'])
+            glVertexAttribPointer(self.attributes[b'pos'], 3, GL_FLOAT, GL_FALSE, 0, ctypes.c_void_p())
+
+        if self.attributes[b'index']>-1:
+            self.element_index.bind()
+            glEnableVertexAttribArray(self.attributes[b'index'])
+            glVertexAttribIPointer(self.attributes[b'index'], 1, GL_INT, 0, ctypes.c_void_p())
 
 
     def setupRender(self, settings):
@@ -312,9 +328,9 @@ class MeshScene(SceneObject):
         glUseProgram(self.program.id)
         glUniformMatrix4fv(self.uniforms[b'MV'], 1, GL_TRUE, (ctypes.c_float*16)(*mv))
         glUniformMatrix4fv(self.uniforms[b'P'], 1, GL_TRUE, (ctypes.c_float*16)(*p))
+        glUniform1i(self.uniforms[b'max_index'], self.max_index)
 
-        self.coordinates.bind();
-        glVertexAttribPointer(self.attributes[b'vPos'], 3, GL_FLOAT, GL_FALSE, 0, ctypes.c_void_p());
+
 
     def render(self, settings):
         glBindVertexArray(self.vao)
@@ -322,6 +338,7 @@ class MeshScene(SceneObject):
         glUniform4f(self.uniforms[b'fColor'], 0.0,1.0,0.0,1.0)
         glUniform4f(self.uniforms[b'fColor_clipped'], 0.0,1.0,0.0,0.00)
         glUniform4f(self.uniforms[b'clipping_plane'], *settings.clipping_plane(self.center))
+        glUniform1i(self.uniforms[b'use_index_color'], True)
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         glDrawArrays(GL_TRIANGLES, 0, 3*self.ntrigs)
 
@@ -333,6 +350,7 @@ class MeshScene(SceneObject):
         glUniform4f(self.uniforms[b'fColor'], 0.0,0.0,0.0,1)
         glUniform4f(self.uniforms[b'fColor_clipped'], 0.0,0.0,0.0,0.1)
         glUniform4f(self.uniforms[b'clipping_plane'], *settings.clipping_plane(self.center))
+        glUniform1i(self.uniforms[b'use_index_color'], False)
         glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
         glDrawArrays(GL_TRIANGLES, 0, 3*self.ntrigs)
 
@@ -425,7 +443,7 @@ class SolutionScene(SceneObject):
 
         self.mesh_scene.update()
         glBindVertexArray(self.vao)
-        self.ntrigs, coordinates_data, bary_coordinates_data, element_number_data, self.min, self.max = GetFaceData(self.mesh)
+        self.ntrigs, coordinates_data, bary_coordinates_data, element_number_data, element_index_data, max_index, self.min, self.max = GetFaceData(self.mesh)
 
         self.coordinates.store(coordinates_data)
         glEnableVertexAttribArray(self.attributes[b'vPos'])
