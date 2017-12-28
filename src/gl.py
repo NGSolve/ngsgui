@@ -254,7 +254,7 @@ class ClippingPlaneScene(SceneObject):
         settings.linearChanged.connect(updateGL)
 
         self.qtWidget = settings
-        return self.qtWidget
+        return {"Colormap" : self.qtWidget}
 
 class MeshScene(SceneObject):
     def __init__(self, mesh):
@@ -362,10 +362,9 @@ class MeshScene(SceneObject):
         if self.qtWidget!=None:
             return self.qtWidget
 
-        from .gui import ColorMapSettings, Qt
+        from .gui import ColorMapSettings, Qt, BCColors
 
-        settings = ColorMapSettings(min=-2, max=2)
-        return settings
+        return {"BCColors" : BCColors(self.mesh) }
 
 
 class SolutionScene(SceneObject):
@@ -538,6 +537,6 @@ class SolutionScene(SceneObject):
         settings.linearChanged.connect(updateGL)
 
         self.qtWidget = settings
-        return self.qtWidget
+        return {"Colormap" : self.qtWidget}
 
 
