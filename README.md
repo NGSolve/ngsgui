@@ -1,8 +1,7 @@
 # Getting started
 
-## GLFW gui
- - Install NGSolve
- - Install Pyside2
+ - Install NGSolve (`conda install -c mhochsteger ngsolve`)
+ - Install Pyside2 (`conda install -c conda-forge pyside2`)
 ```
 mkdir build && cd build
 cmake ..
