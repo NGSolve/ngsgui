@@ -147,8 +147,6 @@ class BCColors(QtWidgets.QWidget):
     def __init__(self,mesh):
         super().__init__()
 
-        self.colors = {}
-
         self.colorbtns = {}
         layouts = []
         self.mesh = mesh
@@ -469,9 +467,12 @@ class GUI():
         self.windows = []
         self.app = QtWidgets.QApplication(sys.argv)
         self.last = time.time()
+        self._sceneindex = 1
 
-    def draw(self, scene, separate_window=False):
-
+    def draw(self, scene, name=None, separate_window=False):
+        if name is None:
+            name = "Scene" + str(self._sceneindex)
+        self._sceneindex += 1
         if separate_window or len(self.windows)==0:
             window = MainWindow()
             window.show()
@@ -483,8 +484,14 @@ class GUI():
         window.glWidget.makeCurrent()
         scene.update()
         window.glWidget.addScene(scene)
+        group = QtWidgets.QGroupBox()
+        layout = QtWidgets.QVBoxLayout()
+        toolbox = QtWidgets.QToolBox()
         for description, item in scene.getQtWidget(window.glWidget.updateGL).items():
-            window.settings.addItem(item,description)
+            toolbox.addItem(item,description)
+        layout.addWidget(toolbox)
+        group.setLayout(layout)
+        window.settings.addItem(group,name)
 
     def redraw(self, blocking=True):
         if time.time() - self.last < 0.02:
