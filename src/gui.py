@@ -5,6 +5,7 @@ import OpenGL.GL as GL
 from math import exp
 import time
 from ngsolve.bla import Vector
+from ngsolve.comp import BND, VOL
 
 from . import glmath
 
@@ -378,7 +379,14 @@ class GLWidget(QtOpenGL.QGLWidget):
                 params.projection.T.NumPy(),
                 viewport,
                 )
-        print('clicked coordinates', p)
+        for scene in self.scenes:
+            try:
+                mp = scene.mesh(p[0], p[1], p[2], VOL)
+                print('Element ', mp.elementid.nr)
+                print('clicked coordinates', p)
+                break
+            except:
+                pass
 
 
 ########################
