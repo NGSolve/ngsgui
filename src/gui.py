@@ -483,14 +483,15 @@ class GUI():
         window.glWidget.makeCurrent()
         scene.update()
         window.glWidget.addScene(scene)
-        group = QtWidgets.QGroupBox()
         layout = QtWidgets.QVBoxLayout()
-        toolbox = QtWidgets.QToolBox()
+        layout.setAlignment(Qt.AlignTop)
+        widget = QtWidgets.QWidget()
         for description, item in scene.getQtWidget(window.glWidget.updateGL).items():
-            toolbox.addItem(item,description)
-        layout.addWidget(toolbox)
-        group.setLayout(layout)
-        window.settings.addItem(group,name)
+            group = QtWidgets.QGroupBox(description)
+            group.setLayout(ArrangeV(item))
+            layout.addWidget(group)
+        widget.setLayout(layout)
+        window.settings.addItem(widget, name)
 
     def redraw(self, blocking=True):
         if time.time() - self.last < 0.02:
