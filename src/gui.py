@@ -234,9 +234,6 @@ class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
 
-        mainWidget = QtWidgets.QWidget()
-        self.setCentralWidget(mainWidget)
-
         f = QtOpenGL.QGLFormat()
         f.setVersion(3,2)
         f.setProfile(QtOpenGL.QGLFormat.CoreProfile)
@@ -264,10 +261,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.settings = QtWidgets.QToolBox()
 #         self.settings.addLayout(buttons)
 
-        mainLayout = QtWidgets.QHBoxLayout()
-        mainLayout.addLayout( ArrangeV(self.settings, buttons),1)
-        mainLayout.addWidget(self.glWidget, 3)
-        mainWidget.setLayout(mainLayout)
+        mainWidget = QtWidgets.QSplitter()
+        settings = QtWidgets.QWidget()
+        settings.setLayout( ArrangeV(self.settings, buttons))
+        mainWidget.addWidget(settings)
+        mainWidget.addWidget(self.glWidget)
+        self.setCentralWidget(mainWidget)
 
         self.setWindowTitle(self.tr("Pyside2 GL"))
 
