@@ -114,6 +114,7 @@ class RangeGroup(QtWidgets.QWidget):
         self.label = QtWidgets.QLabel(name)
         
         self.setLayout(ArrangeV(ArrangeH(self.label, self.valueBox), self.scroll))
+        self.setValue(value)
 
     def setIntValue(self, int_value):
         float_value = int_value*1.0/self.scalingFactor

@@ -5,6 +5,7 @@ import ctypes
 import time
 
 from . import glmath, shader
+from .gui import ColorMapSettings, Qt, RangeGroup, BCColors
 
 class GLObject:
     @property
@@ -242,8 +243,6 @@ class ClippingPlaneScene(SceneObject):
         if self.qtWidget!=None:
             return self.qtWidget
 
-        from .gui import ColorMapSettings, Qt
-
         settings = ColorMapSettings(min=-2, max=2, min_value=self.colormap_min, max_value=self.colormap_max)
         settings.layout().setAlignment(Qt.AlignTop)
 
@@ -261,7 +260,6 @@ class ClippingPlaneScene(SceneObject):
 
 class MeshScene(SceneObject):
     def __init__(self, mesh):
-        from . import shader
         super(MeshScene, self).__init__()
 
         self.uniform_names = [b"fColor", b"fColor_clipped", b"MV", b"P", b"clipping_plane", b"use_index_color"]
@@ -270,8 +268,6 @@ class MeshScene(SceneObject):
         self.attributes = {}
         self.qtWidget = None
         self.gl_initialized = False
-
-        self.clipping_plane = [1.0, 0.0, 0.0, -0.5]
 
         self.mesh = mesh
 
@@ -371,9 +367,6 @@ class MeshScene(SceneObject):
         glDrawArrays(GL_TRIANGLES, 0, 3*self.ntrigs)
 
 
-    def setClippingPlaneDist(self,d):
-        self.clipping_plane[3] = -d
-
     def updateIndexColors(self):
         colors = []
         for c in self.bccolors.getColors():
@@ -389,14 +382,97 @@ class MeshScene(SceneObject):
         if self.qtWidget!=None:
             return self.qtWidget
 
-        from .gui import ColorMapSettings, Qt, BCColors
-
         self.bccolors = BCColors(self.mesh)
         self.bccolors.colors_changed.connect(self.updateIndexColors)
         self.bccolors.colors_changed.connect(updateGL)
         self.updateIndexColors()
 
         return {"BCColors" : self.bccolors }
+
+
+class MeshElementsScene(SceneObject):
+    def __init__(self, mesh):
+        super(MeshElementsScene, self).__init__()
+
+        self.uniform_names = [b"MV", b"P", b"clipping_plane", b'shrink_elements']
+        self.attribute_names = [b"pos", b"index"]
+        self.uniforms = {}
+        self.attributes = {}
+        self.qtWidget = None
+        self.gl_initialized = False
+        self.shrink = 1.0
+
+        self.mesh = mesh
+
+    def initGL(self):
+        if self.gl_initialized:
+            return
+
+        self.vao = glGenVertexArrays(1)
+        glBindVertexArray(self.vao)
+        self.coordinates = ArrayBuffer()
+        self.element_number = ArrayBuffer()
+        self.element_index = ArrayBuffer()
+
+        shaders = [
+            Shader('elements.vert'),
+            Shader('elements.geom'),
+            Shader('elements.frag')
+        ]
+        self.program = Program(shaders)
+
+        for name in self.uniform_names:
+            self.uniforms[name] = glGetUniformLocation(self.program.id, name)
+        for name in self.attribute_names:
+            self.attributes[name] = glGetAttribLocation(self.program.id, name)
+
+        self.gl_initialized = True
+        glBindVertexArray(0)
+
+    def update(self):
+        self.initGL()
+        glBindVertexArray(self.vao)
+        md = MeshData(self.mesh)
+        self.ntets = md.ntets
+        self.min = md.min
+        self.max = md.max
+        self.coordinates.store(md.tet_coordinates_data)
+
+        if self.attributes[b'pos']>-1:
+            self.coordinates.bind();
+            glEnableVertexAttribArray(self.attributes[b'pos'])
+            glVertexAttribPointer(self.attributes[b'pos'], 3, GL_FLOAT, GL_FALSE, 0, ctypes.c_void_p())
+
+        glBindVertexArray(0)
+
+    def render(self, settings):
+        glBindVertexArray(self.vao)
+        model, view, projection = settings.model, settings.view, settings.projection
+        modelview = view*model
+        mv = [modelview[i,j] for i in range(4) for j in range(4)]
+        p = [projection[i,j] for i in range(4) for j in range(4)]
+
+        glUseProgram(self.program.id)
+        glUniformMatrix4fv(self.uniforms[b'MV'], 1, GL_TRUE, (ctypes.c_float*16)(*mv))
+        glUniformMatrix4fv(self.uniforms[b'P'], 1, GL_TRUE, (ctypes.c_float*16)(*p))
+        glUniform1f(self.uniforms[b'shrink_elements'], self.shrink)
+
+        glUniform4f(self.uniforms[b'clipping_plane'], *settings.clipping_plane)
+        glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
+        glDrawArrays(GL_LINES_ADJACENCY, 0, 4*self.ntets)
+
+    def setShrink(self, value):
+        self.shrink = value
+
+    def getQtWidget(self, updateGL):
+        if self.qtWidget!=None:
+            return self.qtWidget
+
+
+        shrink = RangeGroup("Shrink", min=0.0, max=1.0, value=1.0)
+        shrink.valueChanged.connect(self.setShrink)
+        shrink.valueChanged.connect(updateGL)
+        return {"Shrink": shrink}
 
 
 class SolutionScene(SceneObject):
@@ -532,8 +608,6 @@ class SolutionScene(SceneObject):
     def getQtWidget(self, updateGL):
         if self.qtWidget!=None:
             return self.qtWidget
-
-        from .gui import ColorMapSettings, Qt
 
         settings = ColorMapSettings(min=self.colormap_min, max=self.colormap_max, min_value=self.colormap_min, max_value=self.colormap_max)
         settings.layout().setAlignment(Qt.AlignTop)
