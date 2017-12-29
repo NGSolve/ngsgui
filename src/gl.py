@@ -63,6 +63,23 @@ class Program(GLObject):
         if glGetProgramiv(self.id, GL_LINK_STATUS) != GL_TRUE:
                 raise RuntimeError(glGetProgramInfoLog(self.id))
 
+class CMeshData:
+    def __init__(self, mesh):
+        import weakref
+        print("generate mesh data")
+        self.mesh = weakref.ref(mesh)
+        self.ntrigs, self.trig_coordinates_data, self.trig_bary_coordinates_data, self.trig_element_number_data, self.trig_element_index_data, self.trig_max_index, self.min, self.max = GetFaceData(mesh)
+        self.ntets, self.tet_coordinates_data, self.tet_bary_coordinates_data, self.tet_element_number_data = GetTetData(mesh)
+        mesh._opengl_data = self
+
+def MeshData(mesh):
+    try:
+        return mesh._opengl_data
+    except:
+        return CMeshData(mesh)
+
+
+
 class ArrayBuffer(GLObject):
     def __init__(self, buffer_type=GL_ARRAY_BUFFER, usage=GL_STATIC_DRAW):
         self._type = buffer_type
@@ -105,6 +122,9 @@ class ClippingPlaneScene(SceneObject):
         if self.gl_initialized:
             return
 
+        self.vao = glGenVertexArrays(1)
+        glBindVertexArray(self.vao)
+
         Shader.includes['shader_functions'] = GenerateShader(self.gf.space.globalorder)
 
         shaders = [
@@ -113,6 +133,7 @@ class ClippingPlaneScene(SceneObject):
             Shader('solution.frag')
         ]
         self.program = Program(shaders)
+        glUseProgram(self.program.id)
 
         for name in self.uniform_names:
             self.uniforms[name] = glGetUniformLocation(self.program.id, name)
@@ -120,8 +141,6 @@ class ClippingPlaneScene(SceneObject):
         for name in self.attribute_names:
             self.attributes[name] = glGetAttribLocation(self.program.id, name)
 
-        self.vao = glGenVertexArrays(1)
-        glBindVertexArray(self.vao)
 
         self.coefficients = glGenBuffers(1)
         glBindBuffer   ( GL_TEXTURE_BUFFER, self.coefficients );
@@ -136,33 +155,28 @@ class ClippingPlaneScene(SceneObject):
         self.element_number = ArrayBuffer()
 
 
-        glEnableVertexAttribArray(self.attributes[b'vLam'])
-        self.bary_coordinates.bind();
-        glVertexAttribPointer(self.attributes[b'vLam'], 3, GL_FLOAT, GL_FALSE, 0, ctypes.c_void_p());
+        md = MeshData(self.mesh)
+        self.ntrigs = md.ntrigs
+        self.ntets = md.ntets
+        self.min = md.min
+        self.max = md.max
 
-        glEnableVertexAttribArray(self.attributes[b'vPos'])
-        self.coordinates.bind();
-        glVertexAttribPointer(self.attributes[b'vPos'], 3, GL_FLOAT, GL_FALSE, 0, ctypes.c_void_p());
+        if(self.attributes[b'vPos']>-1):
+            self.coordinates.store(md.tet_coordinates_data)
+            glEnableVertexAttribArray(self.attributes[b'vPos'])
+            glVertexAttribPointer(self.attributes[b'vPos'], 3, GL_FLOAT, GL_FALSE, 0, ctypes.c_void_p());
 
-        glEnableVertexAttribArray(self.attributes[b'vElementNumber'])
-        self.element_number.bind();
-        glVertexAttribIPointer(self.attributes[b'vElementNumber'], 1, GL_INT, 0, ctypes.c_void_p());
+        if(self.attributes[b'vLam']>-1):
+            self.bary_coordinates.store(md.tet_bary_coordinates_data)
+            glEnableVertexAttribArray(self.attributes[b'vLam'])
+            glVertexAttribPointer(self.attributes[b'vLam'], 3, GL_FLOAT, GL_FALSE, 0, ctypes.c_void_p());
+            glEnableVertexAttribArray(0)
 
-        glBindVertexArray(self.vao)
-        self.ntrigs, coordinates_data, bary_coordinates_data, element_number_data, element_index_data, max_index, self.min, self.max = GetFaceData(self.mesh)
-        self.ntets, coordinates_data, bary_coordinates_data, element_number_data = GetTetData(self.mesh)
-
-        self.coordinates.store(coordinates_data)
-        glEnableVertexAttribArray(self.attributes[b'vPos'])
-        glVertexAttribPointer(self.attributes[b'vPos'], 3, GL_FLOAT, GL_FALSE, 0, 0);
-
-        self.bary_coordinates.store(bary_coordinates_data)
-        glEnableVertexAttribArray(self.attributes[b'vLam'])
-        glVertexAttribPointer(self.attributes[b'vLam'], 3, GL_FLOAT, GL_FALSE, 0, 0);
-
-        self.element_number.store(element_number_data)
-        glEnableVertexAttribArray(self.attributes[b'vElementNumber'])
-        glVertexAttribIPointer(self.attributes[b'vElementNumber'], 1, GL_INT, 0, ctypes.c_void_p());
+        if(self.attributes[b'vElementNumber']>-1):
+            self.element_number.store(md.tet_element_number_data)
+            glEnableVertexAttribArray(self.attributes[b'vElementNumber'])
+            glVertexAttribIPointer(self.attributes[b'vElementNumber'], 1, GL_INT, 0, ctypes.c_void_p());
+            glEnableVertexAttribArray(0)
 
         glBindBuffer   ( GL_TEXTURE_BUFFER, self.coefficients );
         vec = ConvertCoefficients(self.gf)
@@ -171,6 +185,7 @@ class ClippingPlaneScene(SceneObject):
         glBufferData   ( GL_TEXTURE_BUFFER, size_float*ncoefs, ctypes.c_void_p(), GL_DYNAMIC_DRAW ) # alloc
 
         self.gl_initialized = True
+        glBindVertexArray(0)
 
 
     def update(self):
@@ -182,16 +197,17 @@ class ClippingPlaneScene(SceneObject):
         size_float=ctypes.sizeof(ctypes.c_float)
 
         glBufferSubData( GL_TEXTURE_BUFFER, 0, size_float*ncoefs, vec) # fill
+        glBindVertexArray(0)
 
 
     def render(self, settings):
         model, view, projection = settings.model, settings.view, settings.projection
+        glUseProgram(self.program.id)
         glBindVertexArray(self.vao)
         modelview = view*model
         mv = [modelview[i,j] for i in range(4) for j in range(4)]
         p = [projection[i,j] for i in range(4) for j in range(4)]
 
-        glUseProgram(self.program.id)
         glUniformMatrix4fv(self.uniforms[b'MV'], 1, GL_TRUE, (ctypes.c_float*16)(*mv))
         glUniformMatrix4fv(self.uniforms[b'P'], 1, GL_TRUE, (ctypes.c_float*16)(*p))
 
@@ -207,20 +223,9 @@ class ClippingPlaneScene(SceneObject):
         if(self.mesh.dim==3):
             glUniform1i(self.uniforms[b'element_type'],  20);
 
-        glEnableVertexAttribArray(self.attributes[b'vPos']);
-        self.coordinates.bind();
-        glVertexAttribPointer(self.attributes[b'vPos'], 3, GL_FLOAT, GL_FALSE, 0, ctypes.c_void_p());
-
-        glEnableVertexAttribArray(self.attributes[b'vLam']);
-        self.bary_coordinates.bind();
-        glVertexAttribPointer(self.attributes[b'vLam'], 3, GL_FLOAT, GL_FALSE, 0, ctypes.c_void_p());
-
-        glEnableVertexAttribArray(self.attributes[b'vElementNumber']);
-        self.element_number.bind();
-        glVertexAttribIPointer(self.attributes[b'vElementNumber'], 1, GL_INT, 0, ctypes.c_void_p());
-
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         glDrawArrays(GL_LINES_ADJACENCY, 0, 4*self.ntets)
+        glBindVertexArray(0)
 
 
     def setColorMapMin(self, value):
@@ -293,14 +298,19 @@ class MeshScene(SceneObject):
             self.attributes[name] = glGetAttribLocation(self.program.id, name)
 
         self.gl_initialized = True
+        glBindVertexArray(0)
 
     def update(self):
         self.initGL()
         glBindVertexArray(self.vao)
-        self.ntrigs, coordinates_data, bary_coordinates_data, element_number_data, element_index_data, self.max_index, self.min, self.max = GetFaceData(self.mesh)
-        self.coordinates.store(coordinates_data)
-        self.bary_coordinates.store(bary_coordinates_data)
-        self.element_index.store(element_index_data)
+        md = MeshData(self.mesh)
+        self.ntrigs = md.ntrigs
+        self.min = md.min
+        self.max = md.max
+        self.max_index = md.trig_max_index
+        self.coordinates.store(md.trig_coordinates_data)
+        self.bary_coordinates.store(md.trig_bary_coordinates_data)
+        self.element_index.store(md.trig_element_index_data)
         self.index_colors = [0, 255, 0, 255] * (self.max_index+1)
 
         if self.attributes[b'pos']>-1:
@@ -323,6 +333,7 @@ class MeshScene(SceneObject):
 
         glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
         glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+        glBindVertexArray(0)
 
     def setupRender(self, settings):
         model, view, projection = settings.model, settings.view, settings.projection
@@ -411,6 +422,9 @@ class SolutionScene(SceneObject):
         if self.gl_initialized:
             return
 
+        self.vao = glGenVertexArrays(1)
+        glBindVertexArray(self.vao)
+
         Shader.includes['shader_functions'] = GenerateShader(self.gf.space.globalorder)
 
         shaders = [
@@ -426,9 +440,6 @@ class SolutionScene(SceneObject):
             self.attributes[name] = glGetAttribLocation(self.program.id, name)
 
 
-        self.vao = glGenVertexArrays(1)
-        glBindVertexArray(self.vao)
-
         self.coefficients = glGenBuffers(1)
         glBindBuffer   ( GL_TEXTURE_BUFFER, self.coefficients );
 
@@ -441,19 +452,6 @@ class SolutionScene(SceneObject):
         self.bary_coordinates = ArrayBuffer()
         self.element_number = ArrayBuffer()
 
-
-        glEnableVertexAttribArray(self.attributes[b'vLam'])
-        self.bary_coordinates.bind();
-        glVertexAttribPointer(self.attributes[b'vLam'], 3, GL_FLOAT, GL_FALSE, 0, ctypes.c_void_p());
-
-        glEnableVertexAttribArray(self.attributes[b'vPos'])
-        self.coordinates.bind();
-        glVertexAttribPointer(self.attributes[b'vPos'], 3, GL_FLOAT, GL_FALSE, 0, ctypes.c_void_p());
-
-        glEnableVertexAttribArray(self.attributes[b'vElementNumber'])
-        self.element_number.bind();
-        glVertexAttribIPointer(self.attributes[b'vElementNumber'], 1, GL_INT, 0, ctypes.c_void_p());
-
         glBindBuffer   ( GL_TEXTURE_BUFFER, self.coefficients );
         vec = self.gf.vec
         ncoefs = len(vec)
@@ -463,19 +461,23 @@ class SolutionScene(SceneObject):
 
         self.mesh_scene.update()
         glBindVertexArray(self.vao)
-        self.ntrigs, coordinates_data, bary_coordinates_data, element_number_data, element_index_data, max_index, self.min, self.max = GetFaceData(self.mesh)
+        md = MeshData(self.mesh)
+        self.ntrigs = md.ntrigs
+        self.min = md.min
+        self.max = md.max
 
-        self.coordinates.store(coordinates_data)
+        self.coordinates.store(md.trig_coordinates_data)
         glEnableVertexAttribArray(self.attributes[b'vPos'])
-        glVertexAttribPointer(self.attributes[b'vPos'], 3, GL_FLOAT, GL_FALSE, 0, 0);
+        glVertexAttribPointer(self.attributes[b'vPos'], 3, GL_FLOAT, GL_FALSE, 0, ctypes.c_void_p());
 
-        self.bary_coordinates.store(bary_coordinates_data)
+        self.bary_coordinates.store(md.trig_bary_coordinates_data)
         glEnableVertexAttribArray(self.attributes[b'vLam'])
-        glVertexAttribPointer(self.attributes[b'vLam'], 3, GL_FLOAT, GL_FALSE, 0, 0);
+        glVertexAttribPointer(self.attributes[b'vLam'], 3, GL_FLOAT, GL_FALSE, 0, ctypes.c_void_p());
 
-        self.element_number.store(element_number_data)
+        self.element_number.store(md.trig_element_number_data)
         glEnableVertexAttribArray(self.attributes[b'vElementNumber'])
         glVertexAttribIPointer(self.attributes[b'vElementNumber'], 1, GL_INT, 0, ctypes.c_void_p());
+        glBindVertexArray(0)
 
 
     def update(self):
@@ -488,6 +490,7 @@ class SolutionScene(SceneObject):
         size_float=ctypes.sizeof(ctypes.c_float)
 
         glBufferSubData( GL_TEXTURE_BUFFER, 0, size_float*ncoefs, (ctypes.c_float*ncoefs)(*vec)) # fill
+        glBindVertexArray(0)
 
 
     def render(self, settings):
@@ -510,18 +513,6 @@ class SolutionScene(SceneObject):
             glUniform1i(self.uniforms[b'element_type'],  20);
         glUniform4f(self.uniforms[b'clipping_plane'], *settings.clipping_plane)
         glUniform1i(self.uniforms[b'do_clipping'], self.mesh.dim==3);
-
-        glEnableVertexAttribArray(self.attributes[b'vPos']);
-        self.coordinates.bind();
-        glVertexAttribPointer(self.attributes[b'vPos'], 3, GL_FLOAT, GL_FALSE, 0, ctypes.c_void_p());
-
-        glEnableVertexAttribArray(self.attributes[b'vLam']);
-        self.bary_coordinates.bind();
-        glVertexAttribPointer(self.attributes[b'vLam'], 3, GL_FLOAT, GL_FALSE, 0, ctypes.c_void_p());
-
-        glEnableVertexAttribArray(self.attributes[b'vElementNumber']);
-        self.element_number.bind();
-        glVertexAttribIPointer(self.attributes[b'vElementNumber'], 1, GL_INT, 0, ctypes.c_void_p());
 
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         glDrawArrays(GL_TRIANGLES, 0, 3*self.ntrigs);
