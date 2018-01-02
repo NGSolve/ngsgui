@@ -381,13 +381,7 @@ class GLWidget(QtOpenGL.QGLWidget):
                 viewport,
                 )
         for scene in self.scenes:
-            try:
-                mp = scene.mesh(p[0], p[1], p[2], VOL)
-                print('Element ', mp.elementid.nr)
-                print('clicked coordinates', p)
-                break
-            except:
-                pass
+            scene.doubleClickAction(p)
 
 
 ########################

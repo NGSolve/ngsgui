@@ -7,6 +7,13 @@ import time
 from . import glmath, shader
 from .gui import ColorMapSettings, Qt, RangeGroup, BCColors
 
+try:
+    from PySide2 import QtCore, QtGui, QtWidgets, QtOpenGL
+    from PySide2.QtCore import Qt
+except:
+    from PyQt5 import QtCore, QtGui, QtWidgets, QtOpenGL
+    from PyQt5.QtCore import Qt
+
 class GLObject:
     @property
     def id(self):
@@ -95,11 +102,57 @@ class ArrayBuffer(GLObject):
         glBufferData(self._type, data, self._usage)
 
 class SceneObject():
+    action_counter = 1
     def __init__(self):
+        self.actions = {}
+        self.active_action = None
         self.timestamp = -1
 
     def getQtWidget(self, updateGL):
-        return None
+        widgets = {}
+        self.actionCheckboxes = []
+
+        class cbHolder:
+            def __init__(self,cb,scene,name):
+                self.scene = scene
+                self.name = name
+                self.cb = cb
+
+            def __call__(self,state):
+                if state:
+                    self.scene.active_action = self.name
+                    for cb in self.scene.actionCheckboxes:
+                        if cb is not self.cb:
+                            cb.setCheckState(QtCore.Qt.UnChecked)
+                else:
+                    if self.scene.active_action == self.name:
+                        self.scene.active_action = None
+
+        if self.actions:
+            layout = QtWidgets.QVBoxLayout()
+            for name,action in self.actions.items():
+                cb = QtWidgets.QCheckBox(name)
+                if self.active_action == name:
+                    cb.setCheckState(QtCore.Qt.Checked)
+                cb.stateChanged.connect(cbHolder(cb,self,name))
+                self.actionCheckboxes.append(cb)
+                layout.addWidget(cb)
+            widget = QtWidgets.QWidget()
+            widget.setLayout(layout)
+            widgets["Actions"] = widget
+
+        return widgets
+
+    def addAction(self,action,name=None):
+        if name is None:
+            name = "Action" + str(action_counter)
+            action_counter += 1
+        self.actions[name] = action
+        self.active_action = name
+
+    def doubleClickAction(self,point):
+        if self.active_action:
+            self.actions[self.active_action](point)
 
 class ClippingPlaneScene(SceneObject):
     def __init__(self, gf, colormap_min=-1.0, colormap_max=1.0, colormap_linear=False):
@@ -109,7 +162,6 @@ class ClippingPlaneScene(SceneObject):
         self.attribute_names = [b"vPos", b"vLam", b"vElementNumber"]
         self.uniforms = {}
         self.attributes = {}
-        self.qtWidget = None
         self.gl_initialized = False
 
         self.colormap_min = colormap_min
@@ -240,8 +292,6 @@ class ClippingPlaneScene(SceneObject):
 
 
     def getQtWidget(self, updateGL):
-        if self.qtWidget!=None:
-            return self.qtWidget
 
         settings = ColorMapSettings(min=-2, max=2, min_value=self.colormap_min, max_value=self.colormap_max)
         settings.layout().setAlignment(Qt.AlignTop)
@@ -255,8 +305,9 @@ class ClippingPlaneScene(SceneObject):
         settings.linearChanged.connect(self.setColorMapLinear)
         settings.linearChanged.connect(updateGL)
 
-        self.qtWidget = settings
-        return {"Colormap" : self.qtWidget}
+        widgets = super().getQtWidget(updateGL)
+        widgets["Colormap"] = settings
+        return widgets
 
 class MeshScene(SceneObject):
     def __init__(self, mesh):
@@ -387,7 +438,9 @@ class MeshScene(SceneObject):
         self.bccolors.colors_changed.connect(updateGL)
         self.updateIndexColors()
 
-        return {"BCColors" : self.bccolors }
+        widgets = super().getQtWidget(updateGL)
+        widgets["BCColors"] = self.bccolors
+        return widgets
 
 
 class MeshElementsScene(SceneObject):
@@ -465,14 +518,13 @@ class MeshElementsScene(SceneObject):
         self.shrink = value
 
     def getQtWidget(self, updateGL):
-        if self.qtWidget!=None:
-            return self.qtWidget
-
-
         shrink = RangeGroup("Shrink", min=0.0, max=1.0, value=1.0)
         shrink.valueChanged.connect(self.setShrink)
         shrink.valueChanged.connect(updateGL)
-        return {"Shrink": shrink}
+        widgets = super().getQtWidget(updateGL)
+        print("widgets from super = ", widgets)
+        widgets["Shrink"] = shrink
+        return widgets
 
 
 class SolutionScene(SceneObject):
@@ -606,8 +658,6 @@ class SolutionScene(SceneObject):
 
 
     def getQtWidget(self, updateGL):
-        if self.qtWidget!=None:
-            return self.qtWidget
 
         settings = ColorMapSettings(min=self.colormap_min, max=self.colormap_max, min_value=self.colormap_min, max_value=self.colormap_max)
         settings.layout().setAlignment(Qt.AlignTop)
@@ -621,7 +671,8 @@ class SolutionScene(SceneObject):
         settings.linearChanged.connect(self.setColorMapLinear)
         settings.linearChanged.connect(updateGL)
 
-        self.qtWidget = settings
-        return {"Colormap" : self.qtWidget}
+        widgets = super().getQtWidget(updateGL)
+        widgets["Colormap"] = settings
+        return widgets
 
 
