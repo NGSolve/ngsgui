@@ -123,7 +123,7 @@ class SceneObject():
                     self.scene.active_action = self.name
                     for cb in self.scene.actionCheckboxes:
                         if cb is not self.cb:
-                            cb.setCheckState(QtCore.Qt.UnChecked)
+                            cb.setCheckState(QtCore.Qt.Unchecked)
                 else:
                     if self.scene.active_action == self.name:
                         self.scene.active_action = None
