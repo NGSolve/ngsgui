@@ -522,7 +522,6 @@ class MeshElementsScene(SceneObject):
         shrink.valueChanged.connect(self.setShrink)
         shrink.valueChanged.connect(updateGL)
         widgets = super().getQtWidget(updateGL)
-        print("widgets from super = ", widgets)
         widgets["Shrink"] = shrink
         return widgets
 
