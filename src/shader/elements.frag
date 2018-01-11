@@ -1,9 +1,12 @@
 #version 150
 uniform mat4 MV;
+uniform sampler1D mat_color;
+
 in VertexData
 {
   vec3 pos;
   vec3 normal;
+  flat int index;
 } inData;
 
 out vec4 FragColor;
@@ -12,7 +15,8 @@ void main()
 {
   vec3 lightVector = normalize(vec3(-1,-3,-3)).xyz;
   vec3 normal = normalize(inverse(transpose(mat3(MV)))*inData.normal).xyz;
-  vec3 color = vec3(0,0,0.4);
-  color.b += 0.7*clamp(dot(normal, lightVector), 0,1);
-  FragColor = vec4(color, 1);
+  FragColor = vec4(texelFetch(mat_color,inData.index,0));
+  if(FragColor.a==0.0)
+    discard;
+  FragColor.rgb += 0.7*clamp(dot(normal, lightVector), 0,1);
 }

@@ -5,7 +5,7 @@ import ctypes
 import time
 
 from . import glmath, shader
-from .gui import ColorMapSettings, Qt, RangeGroup, BCColors
+from .gui import ColorMapSettings, Qt, RangeGroup, CollColors
 
 try:
     from PySide2 import QtCore, QtGui, QtWidgets, QtOpenGL
@@ -77,7 +77,7 @@ class CMeshData:
         print("generate mesh data")
         self.mesh = weakref.ref(mesh)
         self.ntrigs, self.trig_coordinates_data, self.trig_bary_coordinates_data, self.trig_element_number_data, self.trig_element_index_data, self.trig_max_index, self.min, self.max = GetFaceData(mesh)
-        self.ntets, self.tet_coordinates_data, self.tet_bary_coordinates_data, self.tet_element_number_data = GetTetData(mesh)
+        self.ntets, self.max_tet_index, self.tet_coordinates_data, self.tet_bary_coordinates_data, self.tet_element_number_data, self.tet_element_index_data = GetTetData(mesh)
         mesh._opengl_data = self
 
 def MeshData(mesh):
@@ -433,7 +433,7 @@ class MeshScene(SceneObject):
         if self.qtWidget!=None:
             return self.qtWidget
 
-        self.bccolors = BCColors(self.mesh)
+        self.bccolors = CollColors(self.mesh.GetBoundaries())
         self.bccolors.colors_changed.connect(self.updateIndexColors)
         self.bccolors.colors_changed.connect(updateGL)
         self.updateIndexColors()
@@ -489,12 +489,30 @@ class MeshElementsScene(SceneObject):
         self.ntets = md.ntets
         self.min = md.min
         self.max = md.max
+        self.max_index = md.max_tet_index
         self.coordinates.store(md.tet_coordinates_data)
+        self.element_index.store(md.tet_element_index_data)
+        self.mat_colors = [0,0,255,255] * (self.max_index+1)
 
         if self.attributes[b'pos']>-1:
             self.coordinates.bind();
             glEnableVertexAttribArray(self.attributes[b'pos'])
             glVertexAttribPointer(self.attributes[b'pos'], 3, GL_FLOAT, GL_FALSE, 0, ctypes.c_void_p())
+
+        if self.attributes[b'index'] > -1:
+            self.element_index.bind()
+            glEnableVertexAttribArray(self.attributes[b'index'])
+            glVertexAttribIPointer(self.attributes[b'index'],1,GL_INT,0,ctypes.c_void_p())
+            glEnableVertexAttribArray(0)
+
+        self.tex_mat_color = glGenTextures(1)
+        glBindTexture(GL_TEXTURE_1D,self.tex_mat_color)
+
+        # copy texture
+        glTexImage1D(GL_TEXTURE_1D, 0,GL_RGBA, (self.max_index+1), 0, GL_RGBA, GL_UNSIGNED_BYTE, bytes(self.mat_colors))
+
+        glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+        glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
 
         glBindVertexArray(0)
 
@@ -505,6 +523,7 @@ class MeshElementsScene(SceneObject):
         mv = [modelview[i,j] for i in range(4) for j in range(4)]
         p = [projection[i,j] for i in range(4) for j in range(4)]
 
+        glBindTexture(GL_TEXTURE_1D,self.tex_mat_color)
         glUseProgram(self.program.id)
         glUniformMatrix4fv(self.uniforms[b'MV'], 1, GL_TRUE, (ctypes.c_float*16)(*mv))
         glUniformMatrix4fv(self.uniforms[b'P'], 1, GL_TRUE, (ctypes.c_float*16)(*p))
@@ -517,12 +536,29 @@ class MeshElementsScene(SceneObject):
     def setShrink(self, value):
         self.shrink = value
 
+    def updateMatColors(self):
+        colors = []
+        for c in self.matcolors.getColors():
+            colors.append(c.red())
+            colors.append(c.green())
+            colors.append(c.blue())
+            colors.append(c.alpha())
+        self.mat_colors = colors
+        glBindTexture(GL_TEXTURE_1D, self.tex_mat_color)
+        glTexImage1D(GL_TEXTURE_1D,0,GL_RGBA, (self.max_index + 1), 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                     bytes(self.mat_colors))
+
     def getQtWidget(self, updateGL):
         shrink = RangeGroup("Shrink", min=0.0, max=1.0, value=1.0)
         shrink.valueChanged.connect(self.setShrink)
         shrink.valueChanged.connect(updateGL)
+        self.matcolors = CollColors(self.mesh.GetMaterials(),initial_color=(0,0,255,255))
+        self.matcolors.colors_changed.connect(self.updateMatColors)
+        self.matcolors.colors_changed.connect(updateGL)
+        self.updateMatColors()
         widgets = super().getQtWidget(updateGL)
         widgets["Shrink"] = shrink
+        widgets["MatColors"] = self.matcolors
         return widgets
 
 

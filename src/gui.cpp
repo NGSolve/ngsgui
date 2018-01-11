@@ -187,6 +187,8 @@ PYBIND11_MODULE(ngui, m) {
         ngstd::Array<float> coordinates;
         ngstd::Array<float> bary_coordinates;
         ngstd::Array<int> element_number;
+        ngstd::Array<int> element_index;
+        int max_index = 0;
 
         size_t ntets = ma->GetNE();
 
@@ -194,10 +196,12 @@ PYBIND11_MODULE(ngui, m) {
         coordinates.SetAllocSize(4*ntets*3);
         bary_coordinates.SetAllocSize(4*ntets*3);
         element_number.SetAllocSize(4*ntets);
+        element_index.SetAllocSize(4*ntets);
 
         for (auto i : ngcomp::Range(ntets)) {
           auto ei = ElementId(VOL, i);
           auto el = ma->GetElement(ei);
+          max_index = max2(el.GetIndex(),max_index);
 
           if(el.is_curved) {
             ///////////////
@@ -247,6 +251,7 @@ PYBIND11_MODULE(ngui, m) {
 
                     for (auto i : Range(4)) {
                       element_number.Append(ei.Nr());
+                      element_index.Append(el.GetIndex());
                       for (auto k : Range(3)) {
                           coordinates.Append(points[pi[i]][k]);
                           bary_coordinates.Append(ref_coords_sorted[pi[i]][k]);
@@ -300,19 +305,21 @@ PYBIND11_MODULE(ngui, m) {
                     bary_coordinates.Append( ii==k ? 1.0 : 0.0 );
                 }
             }
-            element_number.Append(i);
-            element_number.Append(i);
-            element_number.Append(i);
-            element_number.Append(i);
+            for (auto k : Range(4)){
+              element_number.Append(i);
+              element_index.Append(el.GetIndex());
+            }
           }
         }
 
 
         return py::make_tuple(
             element_number.Size()/4,
+            max_index,
             MoveToNumpyArray(coordinates),
             MoveToNumpyArray(bary_coordinates),
-            MoveToNumpyArray(element_number)
+            MoveToNumpyArray(element_number),
+            MoveToNumpyArray(element_index)
         );
 
     });

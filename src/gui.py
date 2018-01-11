@@ -56,10 +56,10 @@ class QColorButton(QtWidgets.QPushButton):
 
     colorChanged = QtCore.Signal()
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, initial_color,*args, **kwargs):
         super(QColorButton, self).__init__(*args, **kwargs)
 
-        self.setColor(QtGui.QColor(0, 255, 0,255))
+        self.setColor(QtGui.QColor(*initial_color))
         self.setMaximumWidth(32)
         self.pressed.connect(self.onColorPicker)
 
@@ -143,15 +143,15 @@ class ColorMapSettings(QtWidgets.QWidget):
         self.rangeMin.setValue(min_value)
         self.rangeMax.setValue(max_value)
 
-class BCColors(QtWidgets.QWidget):
+class CollColors(QtWidgets.QWidget):
     colors_changed = QtCore.Signal()
 
-    def __init__(self,mesh):
+    def __init__(self,coll,initial_color=(0,255,0,255)):
         super().__init__()
 
         self.colorbtns = {}
         layouts = []
-        self.mesh = mesh
+        self.coll = coll
 
         class btnholder:
             def __init__(self,btn):
@@ -165,22 +165,22 @@ class BCColors(QtWidgets.QWidget):
                     color.setAlpha(0)
                 self.btn.setColor(color)
 
-        for bc in mesh.GetBoundaries():
-            if not bc in self.colorbtns:
-                btn = QColorButton()
+        for item in coll:
+            if not item in self.colorbtns:
+                btn = QColorButton(initial_color=initial_color)
                 btn.colorChanged.connect(self.colors_changed.emit)
                 cb_visible = QtWidgets.QCheckBox('visible',self)
                 cb_visible.setCheckState(QtCore.Qt.Checked)
                 cb_visible.stateChanged.connect(btnholder(btn))
-                self.colorbtns[bc] = btn
-                layouts.append(ArrangeH(btn,QtWidgets.QLabel(bc),cb_visible))
+                self.colorbtns[item] = btn
+                layouts.append(ArrangeH(btn,QtWidgets.QLabel(item),cb_visible))
 
         colors = ArrangeV(*layouts)
         colors.layout().setAlignment(Qt.AlignTop)
         self.setLayout(colors)
 
     def getColors(self):
-        return [QtGui.QColor(self.colorbtns[bc]._color) for bc in self.mesh.GetBoundaries()]
+        return [QtGui.QColor(self.colorbtns[item]._color) for item in self.coll]
 
 class RenderingParameters:
     def __init__(self):

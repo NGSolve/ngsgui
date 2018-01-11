@@ -12,12 +12,14 @@ layout(triangle_strip, max_vertices=12) out;
 in VertexData
 {
   vec3 pos;
+  flat int index;
 } inData[];
 
 out VertexData
 {
   vec3 pos;
   vec3 normal;
+  flat int index;
 } outData;
 
 void main() {
@@ -42,6 +44,7 @@ void main() {
           }
 
           outData.normal = normalize(cross(inData[ids[1]].pos-inData[ids[0]].pos, inData[ids[2]].pos-inData[ids[0]].pos));
+          outData.index = inData[0].index;
           if(dot(center - inData[ids[0]].pos, outData.normal)<0.0)
               outData.normal = -outData.normal;
 
