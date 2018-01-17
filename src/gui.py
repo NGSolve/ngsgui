@@ -19,7 +19,7 @@ except:
 try:
     from OpenGL import GL
 except ImportError:
-    app = QtWidgets.QApplication(sys.argv)
+    app = QtWidgets.QApplication([])
     messageBox = QtWidgets.QMessageBox(QtWidgets.QMessageBox.Critical, "OpenGL hellogl",
                                        "PyOpenGL must be installed to run this example.",
                                        QtWidgets.QMessageBox.Close)
@@ -467,7 +467,7 @@ class GLWidget(QtOpenGL.QGLWidget):
 class GUI():
     def __init__(self):
         self.windows = []
-        self.app = QtWidgets.QApplication(sys.argv)
+        self.app = QtWidgets.QApplication([])
         self.last = time.time()
         self._sceneindex = 1
 
@@ -517,4 +517,3 @@ class GUI():
         res = self.app.exec_()
         for window in self.windows:
             window.glWidget.freeResources()
-        sys.exit(res)
