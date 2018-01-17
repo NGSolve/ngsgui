@@ -149,6 +149,8 @@ class CollColors(QtWidgets.QWidget):
     def __init__(self,coll,initial_color=(0,255,0,255)):
         super().__init__()
 
+        self.initial_color = initial_color
+
         self.colorbtns = {}
         layouts = []
         self.coll = coll
@@ -177,7 +179,30 @@ class CollColors(QtWidgets.QWidget):
 
         colors = ArrangeV(*layouts)
         colors.layout().setAlignment(Qt.AlignTop)
-        self.setLayout(colors)
+        btn_random = QtWidgets.QPushButton("Random",self)
+        def SetRandom():
+            import itertools
+            import random
+            n = 2
+            while n**3+1 < len(self.colorbtns):
+                n += 1
+            vals = [int(255*i/(n-1)) for i in range(n)]
+            colors = [(vals[colr],vals[colg],vals[colb]) for colr, colg, colb in
+                      itertools.product(range(n),range(n),range(n))][:-1]
+            random.shuffle(colors)
+            for i,(name,btn) in enumerate(self.colorbtns.items()):
+                btn.setColor(QtGui.QColor(*colors[i],btn._color.alpha()))
+            self.colors_changed.emit()
+
+        btn_random.clicked.connect(SetRandom)
+        btn_reset = QtWidgets.QPushButton("Reset", self)
+        def Reset():
+            for name, btn in self.colorbtns.items():
+                btn.setColor(QtGui.QColor(*self.initial_color))
+            self.colors_changed.emit()
+        btn_reset.clicked.connect(Reset)
+        layout = ArrangeV(colors,ArrangeH(btn_random,btn_reset))
+        self.setLayout(layout)
 
     def getColors(self):
         return [QtGui.QColor(self.colorbtns[item]._color) for item in self.coll]
