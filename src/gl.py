@@ -3,6 +3,7 @@ from ngui import *
 import array
 import ctypes
 import time
+import ngsolve
 
 from . import glmath, shader
 from .gui import ColorMapSettings, Qt, RangeGroup, CollColors
@@ -178,7 +179,7 @@ class ClippingPlaneScene(SceneObject):
         self.vao = glGenVertexArrays(1)
         glBindVertexArray(self.vao)
 
-        Shader.includes['shader_functions'] = GenerateShader(self.gf.space.globalorder)
+        Shader.includes['shader_functions'] = ngsolve.fem.GenerateShader(self.gf.space.globalorder)
 
         shaders = [
             Shader('solution.vert'),
@@ -588,7 +589,7 @@ class SolutionScene(SceneObject):
         self.vao = glGenVertexArrays(1)
         glBindVertexArray(self.vao)
 
-        Shader.includes['shader_functions'] = GenerateShader(self.gf.space.globalorder)
+        Shader.includes['shader_functions'] = ngsolve.fem.GenerateShader(self.gf.space.globalorder)
 
         shaders = [
             Shader('solution.vert'),

@@ -171,6 +171,7 @@ class TextRenderer:
         GL.glVertexAttribIPointer(char_id, 1, GL.GL_UNSIGNED_BYTE, 0, ctypes.c_void_p());
         GL.glEnableVertexAttribArray( char_id )
 
+        GL.glPolygonMode( GL.GL_FRONT_AND_BACK, GL.GL_FILL );
         GL.glDrawArrays(GL.GL_POINTS, 0, len(s))
 
 
@@ -495,7 +496,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         GL.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
         for scene in self.scenes:
             scene.render(self.rendering_parameters) #model, view, projection)
-        self.text_renderer.draw(self.rendering_parameters, "NGSolve " + ngsolve.__version__, [0.97,-1.00,0], font_size=16, alignment=Qt.AlignRight|Qt.AlignBottom)
+        self.text_renderer.draw(self.rendering_parameters, "NGSolve " + ngsolve.__version__, [0.99,-0.99,0], font_size=16, alignment=Qt.AlignRight|Qt.AlignBottom)
         # draw numbers at corners of unit cube
 #         for i in range(8):
 #             self.text_renderer.draw(self.rendering_parameters, str(i), [i&1,(i&2)/2,(i&4)/4], use_absolute_pos=False)

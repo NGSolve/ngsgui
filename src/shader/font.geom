@@ -25,19 +25,19 @@ void main() {
     vec2 tex_center = vec2(font_width_in_texture*(inData[0].character-32),0);
 
     gl_Position =                center + vec4(0*font_width_on_screen,  0*font_height_on_screen, 0, 0);
-    outData.tex_coordinate = tex_center + vec2(0*font_width_in_texture, 1-0*font_height_in_texture);
+    outData.tex_coordinate = tex_center + vec2(0*font_width_in_texture, 0*font_height_in_texture);
     EmitVertex();
 
-    gl_Position =                center + vec4(0*font_width_on_screen,  1*font_height_on_screen, 0, 0);
-    outData.tex_coordinate = tex_center + vec2(0*font_width_in_texture, 1-1*font_height_in_texture);
+    gl_Position =                center + vec4(0*font_width_on_screen, -1*font_height_on_screen, 0, 0);
+    outData.tex_coordinate = tex_center + vec2(0*font_width_in_texture, 1*font_height_in_texture);
     EmitVertex();
 
     gl_Position =                center + vec4(1*font_width_on_screen,  0*font_height_on_screen, 0, 0);
-    outData.tex_coordinate = tex_center + vec2(1*font_width_in_texture, 1-0*font_height_in_texture);
+    outData.tex_coordinate = tex_center + vec2(1*font_width_in_texture, 0*font_height_in_texture);
     EmitVertex();
 
-    gl_Position =                center + vec4(1*font_width_on_screen,  1*font_height_on_screen, 0, 0);
-    outData.tex_coordinate = tex_center + vec2(1*font_width_in_texture, 1-1*font_height_in_texture);
+    gl_Position =                center + vec4(1*font_width_on_screen, -1*font_height_on_screen, 0, 0);
+    outData.tex_coordinate = tex_center + vec2(1*font_width_in_texture, 1*font_height_in_texture);
     EmitVertex();
 
     EndPrimitive();
