@@ -319,8 +319,18 @@ class CollColors(QtWidgets.QWidget):
             colors = [(vals[colr],vals[colg],vals[colb]) for colr, colg, colb in
                       itertools.product(range(n),range(n),range(n))][:-1]
             random.shuffle(colors)
+
+
+            gr = 0.618033988749895
+            h = random.uniform(0,1)
             for i,(name,btn) in enumerate(self.colorbtns.items()):
-                btn.setColor(QtGui.QColor(*colors[i],btn._color.alpha()))
+                h += gr
+                h %= 1
+                s = [1.0,0.4][i%2]
+                v = [1.0,0.8][i%2]
+                color = QtGui.QColor()
+                color.setHsvF(h,s,v)
+                btn.setColor(color)
             self.colors_changed.emit()
 
         btn_random.clicked.connect(SetRandom)
