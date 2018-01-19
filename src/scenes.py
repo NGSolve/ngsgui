@@ -99,12 +99,8 @@ class TextRenderer:
         painter.end()
         Z = numpy.array(image.bits()).reshape(font.tex_height, font.tex_width)
 
-        font.texid = glGenTextures(1)
-
-        glActiveTexture( GL_TEXTURE0 );
-        glBindTexture( GL_TEXTURE_2D, font.texid )
-
-        glTexImage2D( GL_TEXTURE_2D, 0, GL_RED, Z.shape[1], Z.shape[0], 0, GL_RED, GL_UNSIGNED_BYTE, Z )
+        font.tex = Texture(GL_TEXTURE_2D, GL_RED)
+        font.tex.store(Z, GL_UNSIGNED_BYTE, Z.shape[1], Z.shape[0] )
         glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST )
         glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST )
 
@@ -123,6 +119,8 @@ class TextRenderer:
         screen_height = viewport[3]-viewport[1]
 
         font = self.fonts[font_size]
+        font.tex.bind()
+
         uniforms = self.program.uniforms
         uniforms.set('font_width_in_texture', font.width/font.tex_width)
         uniforms.set('font_height_in_texture', font.height/font.tex_height)
@@ -145,9 +143,6 @@ class TextRenderer:
         if alignment&Qt.AlignBottom:
             pos[1] += 2*font.height/screen_height
         uniforms.set('start_pos', pos)
-
-        glActiveTexture( GL_TEXTURE0 );
-        glBindTexture( GL_TEXTURE_2D, font.texid )
 
         s = numpy.array(list(text.encode('ascii', 'ignore')), dtype=numpy.uint8)
         self.characters.store(s)
@@ -300,24 +295,12 @@ class ClippingPlaneScene(BaseFunctionSceneObject):
         self.program = Program(shaders)
         glUseProgram(self.program.id)
 
-        self.coefficients = glGenBuffers(1)
-        glBindBuffer   ( GL_TEXTURE_BUFFER, self.coefficients );
-
-        tex = glGenTextures  (1)
-        glActiveTexture( GL_TEXTURE0 );
-        glBindTexture  ( GL_TEXTURE_BUFFER, tex )
-        glTexBuffer    ( GL_TEXTURE_BUFFER, GL_R32F, self.coefficients );
+        self.coefficients = Texture(GL_TEXTURE_BUFFER, GL_R32F)
 
         attributes = self.program.attributes
         attributes.bind('vPos', self.mesh_data.tet_coordinates)
         attributes.bind('vLam', self.mesh_data.tet_bary_coordinates)
         attributes.bind('vElementNumber', self.mesh_data.tet_element_number)
-
-        glBindBuffer   ( GL_TEXTURE_BUFFER, self.coefficients );
-        vec = ConvertCoefficients(self.gf)
-        ncoefs = len(vec)
-        size_float=ctypes.sizeof(ctypes.c_float)
-        glBufferData   ( GL_TEXTURE_BUFFER, size_float*ncoefs, ctypes.c_void_p(), GL_DYNAMIC_DRAW ) # alloc
 
         self.gl_initialized = True
         glBindVertexArray(0)
@@ -326,12 +309,8 @@ class ClippingPlaneScene(BaseFunctionSceneObject):
     def update(self):
         self.initGL()
         glBindVertexArray(self.vao)
-        glBindBuffer   ( GL_TEXTURE_BUFFER, self.coefficients );
         vec = ConvertCoefficients(self.gf)
-        ncoefs = len(vec)
-        size_float=ctypes.sizeof(ctypes.c_float)
-
-        glBufferSubData( GL_TEXTURE_BUFFER, 0, size_float*ncoefs, vec) # fill
+        self.coefficients.store(vec)
         glBindVertexArray(0)
 
 
@@ -505,14 +484,8 @@ class MeshElementsScene(BaseMeshSceneObject):
         attributes.bind('pos', self.mesh_data.tet_coordinates)
         attributes.bind('index', self.mesh_data.tet_element_index)
 
-        self.tex_mat_color = glGenTextures(1)
-        glBindTexture(GL_TEXTURE_1D,self.tex_mat_color)
-
-        # copy texture
-        glTexImage1D(GL_TEXTURE_1D, 0,GL_RGBA, (self.mesh_data.tet_max_index+1), 0, GL_RGBA, GL_UNSIGNED_BYTE, bytes(self.mat_colors))
-
-        glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
-        glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+        self.tex_mat_color = Texture(GL_TEXTURE_1D, GL_RGBA)
+        self.tex_mat_color.store(self.mat_colors, GL_UNSIGNED_BYTE, self.mesh_data.tet_max_index+1)
 
         glBindVertexArray(0)
 
@@ -528,7 +501,7 @@ class MeshElementsScene(BaseMeshSceneObject):
         uniforms.set('shrink_elements', self.shrink)
         uniforms.set('clipping_plane', settings.clipping_plane)
 
-        glBindTexture(GL_TEXTURE_1D,self.tex_mat_color)
+        self.tex_mat_color.bind()
 
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         glDrawArrays(GL_LINES_ADJACENCY, 0, 4*self.mesh_data.ntets)
@@ -544,8 +517,7 @@ class MeshElementsScene(BaseMeshSceneObject):
             colors.append(c.blue())
             colors.append(c.alpha())
         self.mat_colors = colors
-        glBindTexture(GL_TEXTURE_1D, self.tex_mat_color)
-        glTexImage1D(GL_TEXTURE_1D,0,GL_RGBA, (self.mesh_data.tet_max_index + 1), 0, GL_RGBA, GL_UNSIGNED_BYTE, bytes(self.mat_colors))
+        self.tex_mat_color.store(self.mat_colors, GL_UNSIGNED_BYTE, self.mesh_data.tet_max_index+1)
 
     def getQtWidget(self, updateGL):
         shrink = RangeGroup("Shrink", min=0.0, max=1.0, value=1.0)
@@ -587,22 +559,7 @@ class SolutionScene(BaseFunctionSceneObject):
         ]
         self.program = Program(shaders)
 
-        self.coefficients = glGenBuffers(1)
-        glBindBuffer   ( GL_TEXTURE_BUFFER, self.coefficients );
-
-        tex = glGenTextures  (1)
-        glActiveTexture( GL_TEXTURE0 );
-        glBindTexture  ( GL_TEXTURE_BUFFER, tex )
-        glTexBuffer    ( GL_TEXTURE_BUFFER, GL_R32F, self.coefficients );
-
-        glBindBuffer   ( GL_TEXTURE_BUFFER, self.coefficients );
-        vec = self.gf.vec
-        ncoefs = len(vec)
-        size_float=ctypes.sizeof(ctypes.c_float)
-
-        glBufferData   ( GL_TEXTURE_BUFFER, size_float*ncoefs, ctypes.c_void_p(), GL_DYNAMIC_DRAW ) # alloc
-
-        glBindVertexArray(self.vao)
+        self.coefficients = Texture(GL_TEXTURE_BUFFER, GL_R32F)
 
         attributes = self.program.attributes
         attributes.bind('vPos', self.mesh_data.trig_coordinates)
@@ -619,14 +576,9 @@ class SolutionScene(BaseFunctionSceneObject):
         self.initGL()
         # Todo: assumes the mesh is unchanged, also update mesh-related data if necessary (timestamps!)
         glBindVertexArray(self.vao)
-        glBindBuffer   ( GL_TEXTURE_BUFFER, self.coefficients );
-        vec = self.gf.vec
-        ncoefs = len(vec)
-        size_float=ctypes.sizeof(ctypes.c_float)
-
-        glBufferSubData( GL_TEXTURE_BUFFER, 0, size_float*ncoefs, (ctypes.c_float*ncoefs)(*vec)) # fill
+        vec = ConvertCoefficients(self.gf)
+        self.coefficients.store(vec)
         glBindVertexArray(0)
-
 
     def render(self, settings):
         model, view, projection = settings.model, settings.view, settings.projection
