@@ -518,9 +518,10 @@ class GLWidget(QtOpenGL.QGLWidget):
         box_min[:] = 1e99
         box_max[:] = -1e99
         for scene in self.scenes:
+            s_min, s_max = scene.getBoundingBox()
             for i in range(3):
-                box_min[i] = min(scene.min[i], box_min[i])
-                box_max[i] = max(scene.max[i], box_max[i])
+                box_min[i] = min(s_min[i], box_min[i])
+                box_max[i] = max(s_max[i], box_max[i])
         self.rendering_parameters.min = box_min
         self.rendering_parameters.max = box_max
 

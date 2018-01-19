@@ -200,10 +200,27 @@ class Program(GLObject):
 class CMeshData:
     def __init__(self, mesh):
         import weakref
-        print("generate mesh data")
         self.mesh = weakref.ref(mesh)
-        self.ntrigs, self.trig_coordinates_data, self.trig_bary_coordinates_data, self.trig_element_number_data, self.trig_element_index_data, self.trig_max_index, self.min, self.max = GetFaceData(mesh)
-        self.ntets, self.max_tet_index, self.tet_coordinates_data, self.tet_bary_coordinates_data, self.tet_element_number_data, self.tet_element_index_data = GetTetData(mesh)
+        self.ntrigs, trig_coordinates_data, trig_bary_coordinates_data, trig_element_number_data, trig_element_index_data, self.trig_max_index, self.min, self.max = GetFaceData(mesh)
+        self.ntets, self.tet_max_index, tet_coordinates_data, tet_bary_coordinates_data, tet_element_number_data, tet_element_index_data = GetTetData(mesh)
+
+        self.tet_bary_coordinates = ArrayBuffer()
+        self.tet_bary_coordinates.store(tet_bary_coordinates_data)
+        self.tet_coordinates = ArrayBuffer()
+        self.tet_coordinates.store(tet_coordinates_data)
+        self.tet_element_index = ArrayBuffer()
+        self.tet_element_index.store(tet_element_index_data)
+        self.tet_element_number = ArrayBuffer()
+        self.tet_element_number.store(tet_element_number_data)
+        self.trig_bary_coordinates = ArrayBuffer()
+        self.trig_bary_coordinates.store(trig_bary_coordinates_data)
+        self.trig_coordinates = ArrayBuffer()
+        self.trig_coordinates.store(trig_coordinates_data)
+        self.trig_element_index = ArrayBuffer()
+        self.trig_element_index.store(trig_element_index_data)
+        self.trig_element_number = ArrayBuffer()
+        self.trig_element_number.store(trig_element_number_data)
+
         mesh._opengl_data = self
 
 def MeshData(mesh):
@@ -233,6 +250,9 @@ class SceneObject():
         self.actions = {}
         self.active_action = None
         self.timestamp = -1
+
+    def getBoundingBox(self):
+        raise RuntimeError("getBoundingBox not implemented for {}".format(type(self)))
 
     def getQtWidget(self, updateGL):
         widgets = {}
@@ -280,9 +300,21 @@ class SceneObject():
         if self.active_action:
             self.actions[self.active_action](point)
 
-class ClippingPlaneScene(SceneObject):
+class BaseMeshSceneObject(SceneObject):
+    """Base class for all scenes that depend on a mesh"""
+    def __init__(self, mesh):
+        super().__init__()
+        self.mesh = mesh
+
+    def initGL(self):
+        self.mesh_data = MeshData(self.mesh)
+
+    def getBoundingBox(self):
+        return self.mesh_data.min, self.mesh_data.max
+
+class ClippingPlaneScene(BaseMeshSceneObject):
     def __init__(self, gf, colormap_min=-1.0, colormap_max=1.0, colormap_linear=False):
-        super(ClippingPlaneScene, self).__init__()
+        super().__init__(gf.space.mesh)
 
         self.gl_initialized = False
 
@@ -290,12 +322,13 @@ class ClippingPlaneScene(SceneObject):
         self.colormap_max = colormap_max
         self.colormap_linear = colormap_linear
 
-        self.mesh = gf.space.mesh
         self.gf = gf
 
     def initGL(self):
         if self.gl_initialized:
             return
+
+        super().initGL()
 
         self.vao = glGenVertexArrays(1)
         glBindVertexArray(self.vao)
@@ -318,24 +351,10 @@ class ClippingPlaneScene(SceneObject):
         glBindTexture  ( GL_TEXTURE_BUFFER, tex )
         glTexBuffer    ( GL_TEXTURE_BUFFER, GL_R32F, self.coefficients );
 
-        self.coordinates = ArrayBuffer()
-        self.bary_coordinates = ArrayBuffer()
-        self.element_number = ArrayBuffer()
-
-
-        md = MeshData(self.mesh)
-        self.ntrigs = md.ntrigs
-        self.ntets = md.ntets
-        self.min = md.min
-        self.max = md.max
-        self.coordinates.store(md.tet_coordinates_data)
-        self.bary_coordinates.store(md.tet_bary_coordinates_data)
-        self.element_number.store(md.tet_element_number_data)
-
         attributes = self.program.attributes
-        attributes.bind('vPos', self.coordinates)
-        attributes.bind('vLam', self.bary_coordinates)
-        attributes.bind('vElementNumber', self.element_number)
+        attributes.bind('vPos', self.mesh_data.tet_coordinates)
+        attributes.bind('vLam', self.mesh_data.tet_bary_coordinates)
+        attributes.bind('vElementNumber', self.mesh_data.tet_element_number)
 
         glBindBuffer   ( GL_TEXTURE_BUFFER, self.coefficients );
         vec = ConvertCoefficients(self.gf)
@@ -380,7 +399,7 @@ class ClippingPlaneScene(SceneObject):
             uniforms.set('element_type', 20)
 
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
-        glDrawArrays(GL_LINES_ADJACENCY, 0, 4*self.ntets)
+        glDrawArrays(GL_LINES_ADJACENCY, 0, 4*self.mesh_data.ntets)
         glBindVertexArray(0)
 
 
@@ -412,25 +431,21 @@ class ClippingPlaneScene(SceneObject):
         widgets["Colormap"] = settings
         return widgets
 
-class MeshScene(SceneObject):
+class MeshScene(BaseMeshSceneObject):
     def __init__(self, mesh):
-        super(MeshScene, self).__init__()
+        super().__init__(mesh)
 
         self.qtWidget = None
         self.gl_initialized = False
-
-        self.mesh = mesh
 
     def initGL(self):
         if self.gl_initialized:
             return
 
+        super().initGL()
+
         self.vao = glGenVertexArrays(1)
         glBindVertexArray(self.vao)
-        self.coordinates = ArrayBuffer()
-        self.bary_coordinates = ArrayBuffer()
-        self.element_number = ArrayBuffer()
-        self.element_index = ArrayBuffer()
 
         shaders = [
             Shader('mesh.vert'),
@@ -444,26 +459,18 @@ class MeshScene(SceneObject):
     def update(self):
         self.initGL()
         glBindVertexArray(self.vao)
-        md = MeshData(self.mesh)
-        self.ntrigs = md.ntrigs
-        self.min = md.min
-        self.max = md.max
-        self.max_index = md.trig_max_index
-        self.coordinates.store(md.trig_coordinates_data)
-        self.bary_coordinates.store(md.trig_bary_coordinates_data)
-        self.element_index.store(md.trig_element_index_data)
-        self.index_colors = [0, 255, 0, 255] * (self.max_index+1)
+        self.index_colors = [0, 255, 0, 255] * (self.mesh_data.trig_max_index+1)
 
         attributes = self.program.attributes
-        attributes.bind('pos', self.coordinates)
-        attributes.bind('index', self.element_index)
+        attributes.bind('pos', self.mesh_data.trig_coordinates)
+        attributes.bind('index', self.mesh_data.trig_element_index)
 
         self.tex_index_color = glGenTextures(1)
 
         glBindTexture(GL_TEXTURE_1D, self.tex_index_color)
 
         # copy texture
-        glTexImage1D(GL_TEXTURE_1D, 0,GL_RGBA, self.max_index+1, 0, GL_RGBA, GL_UNSIGNED_BYTE, bytes(self.index_colors))
+        glTexImage1D(GL_TEXTURE_1D, 0,GL_RGBA, self.mesh_data.trig_max_index+1, 0, GL_RGBA, GL_UNSIGNED_BYTE, bytes(self.index_colors))
 
         glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
         glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
@@ -490,7 +497,7 @@ class MeshScene(SceneObject):
         uniforms.set('do_clipping', self.mesh.dim==3);
 
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
-        glDrawArrays(GL_TRIANGLES, 0, 3*self.ntrigs)
+        glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh_data.ntrigs)
 
         self.renderWireframe(settings)
 
@@ -504,7 +511,7 @@ class MeshScene(SceneObject):
         uniforms.set('use_index_color', False)
         uniforms.set('do_clipping', self.mesh.dim==3);
         glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
-        glDrawArrays(GL_TRIANGLES, 0, 3*self.ntrigs)
+        glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh_data.ntrigs)
 
 
     def updateIndexColors(self):
@@ -516,7 +523,7 @@ class MeshScene(SceneObject):
             colors.append(c.alpha())
         self.index_colors = colors
         glBindTexture(GL_TEXTURE_1D, self.tex_index_color)
-        glTexImage1D(GL_TEXTURE_1D, 0,GL_RGBA, self.max_index+1, 0, GL_RGBA, GL_UNSIGNED_BYTE, bytes(self.index_colors))
+        glTexImage1D(GL_TEXTURE_1D, 0,GL_RGBA, self.mesh_data.trig_max_index+1, 0, GL_RGBA, GL_UNSIGNED_BYTE, bytes(self.index_colors))
 
     def getQtWidget(self, updateGL):
         if self.qtWidget!=None:
@@ -532,25 +539,22 @@ class MeshScene(SceneObject):
         return widgets
 
 
-class MeshElementsScene(SceneObject):
+class MeshElementsScene(BaseMeshSceneObject):
     def __init__(self, mesh):
-        super(MeshElementsScene, self).__init__()
+        super().__init__(mesh)
 
         self.qtWidget = None
         self.gl_initialized = False
         self.shrink = 1.0
 
-        self.mesh = mesh
-
     def initGL(self):
         if self.gl_initialized:
             return
 
+        super().initGL()
+
         self.vao = glGenVertexArrays(1)
         glBindVertexArray(self.vao)
-        self.coordinates = ArrayBuffer()
-        self.element_number = ArrayBuffer()
-        self.element_index = ArrayBuffer()
 
         shaders = [
             Shader('elements.vert'),
@@ -565,24 +569,17 @@ class MeshElementsScene(SceneObject):
     def update(self):
         self.initGL()
         glBindVertexArray(self.vao)
-        md = MeshData(self.mesh)
-        self.ntets = md.ntets
-        self.min = md.min
-        self.max = md.max
-        self.max_index = md.max_tet_index
-        self.coordinates.store(md.tet_coordinates_data)
-        self.element_index.store(md.tet_element_index_data)
-        self.mat_colors = [0,0,255,255] * (self.max_index+1)
+        self.mat_colors = [0,0,255,255] * (self.mesh_data.tet_max_index+1)
 
         attributes = self.program.attributes
-        attributes.bind('pos', self.coordinates)
-        attributes.bind('index', self.element_index)
+        attributes.bind('pos', self.mesh_data.tet_coordinates)
+        attributes.bind('index', self.mesh_data.tet_element_index)
 
         self.tex_mat_color = glGenTextures(1)
         glBindTexture(GL_TEXTURE_1D,self.tex_mat_color)
 
         # copy texture
-        glTexImage1D(GL_TEXTURE_1D, 0,GL_RGBA, (self.max_index+1), 0, GL_RGBA, GL_UNSIGNED_BYTE, bytes(self.mat_colors))
+        glTexImage1D(GL_TEXTURE_1D, 0,GL_RGBA, (self.mesh_data.tet_max_index+1), 0, GL_RGBA, GL_UNSIGNED_BYTE, bytes(self.mat_colors))
 
         glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
         glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
@@ -604,7 +601,7 @@ class MeshElementsScene(SceneObject):
         glBindTexture(GL_TEXTURE_1D,self.tex_mat_color)
 
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
-        glDrawArrays(GL_LINES_ADJACENCY, 0, 4*self.ntets)
+        glDrawArrays(GL_LINES_ADJACENCY, 0, 4*self.mesh_data.ntets)
 
     def setShrink(self, value):
         self.shrink = value
@@ -618,8 +615,7 @@ class MeshElementsScene(SceneObject):
             colors.append(c.alpha())
         self.mat_colors = colors
         glBindTexture(GL_TEXTURE_1D, self.tex_mat_color)
-        glTexImage1D(GL_TEXTURE_1D,0,GL_RGBA, (self.max_index + 1), 0, GL_RGBA, GL_UNSIGNED_BYTE,
-                     bytes(self.mat_colors))
+        glTexImage1D(GL_TEXTURE_1D,0,GL_RGBA, (self.mesh_data.tet_max_index + 1), 0, GL_RGBA, GL_UNSIGNED_BYTE, bytes(self.mat_colors))
 
     def getQtWidget(self, updateGL):
         shrink = RangeGroup("Shrink", min=0.0, max=1.0, value=1.0)
@@ -635,9 +631,9 @@ class MeshElementsScene(SceneObject):
         return widgets
 
 
-class SolutionScene(SceneObject):
+class SolutionScene(BaseMeshSceneObject):
     def __init__(self, gf, colormap_min=-1.0, colormap_max=1.0, colormap_linear=False):
-        super(SolutionScene, self).__init__()
+        super().__init__(gf.space.mesh)
 
         self.qtWidget = None
         self.gl_initialized = False
@@ -646,13 +642,13 @@ class SolutionScene(SceneObject):
         self.colormap_max = colormap_max
         self.colormap_linear = colormap_linear
 
-        self.mesh = gf.space.mesh
-        self.mesh_scene = MeshScene(self.mesh)
         self.gf = gf
 
     def initGL(self):
         if self.gl_initialized:
             return
+
+        super().initGL()
 
         self.vao = glGenVertexArrays(1)
         glBindVertexArray(self.vao)
@@ -673,10 +669,6 @@ class SolutionScene(SceneObject):
         glBindTexture  ( GL_TEXTURE_BUFFER, tex )
         glTexBuffer    ( GL_TEXTURE_BUFFER, GL_R32F, self.coefficients );
 
-        self.coordinates = ArrayBuffer()
-        self.bary_coordinates = ArrayBuffer()
-        self.element_number = ArrayBuffer()
-
         glBindBuffer   ( GL_TEXTURE_BUFFER, self.coefficients );
         vec = self.gf.vec
         ncoefs = len(vec)
@@ -684,23 +676,17 @@ class SolutionScene(SceneObject):
 
         glBufferData   ( GL_TEXTURE_BUFFER, size_float*ncoefs, ctypes.c_void_p(), GL_DYNAMIC_DRAW ) # alloc
 
-        self.mesh_scene.update()
         glBindVertexArray(self.vao)
-        md = MeshData(self.mesh)
-        self.ntrigs = md.ntrigs
-        self.min = md.min
-        self.max = md.max
-
-        self.coordinates.store(md.trig_coordinates_data)
-        self.bary_coordinates.store(md.trig_bary_coordinates_data)
-        self.element_number.store(md.trig_element_number_data)
 
         attributes = self.program.attributes
-        attributes.bind('vPos', self.coordinates)
-        attributes.bind('vLam', self.bary_coordinates)
-        attributes.bind('vElementNumber', self.element_number)
+        attributes.bind('vPos', self.mesh_data.trig_coordinates)
+        attributes.bind('vLam', self.mesh_data.trig_bary_coordinates)
+        attributes.bind('vElementNumber', self.mesh_data.trig_element_number)
 
         glBindVertexArray(0)
+
+        self.mesh_scene = MeshScene(self.mesh)
+        self.mesh_scene.update()
 
 
     def update(self):
@@ -737,7 +723,7 @@ class SolutionScene(SceneObject):
             uniforms.set('element_type', 20)
 
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
-        glDrawArrays(GL_TRIANGLES, 0, 3*self.ntrigs);
+        glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh_data.ntrigs);
 
         self.mesh_scene.renderWireframe(settings)
 
