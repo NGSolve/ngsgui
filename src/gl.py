@@ -60,6 +60,128 @@ class Shader(GLObject):
             raise RuntimeError('Error when compiling ' + fullpath + ': '+glGetShaderInfoLog(self.id).decode()+'\ncompiled code:\n'+self._code)
 
 class Program(GLObject):
+    class Uniforms:
+        def __init__(self, pid):
+            self.__dict__['id'] = pid
+            num_uniforms = glGetProgramiv(self.id, GL_ACTIVE_UNIFORMS);
+            uniforms = {}
+            for i in range(num_uniforms):
+                name,dummy,type_ = glGetActiveUniform(self.id, i)
+                loc = glGetUniformLocation(self.id, name)
+                uniforms[name] = (loc,type_)
+            self.__dict__['uniforms'] = uniforms
+
+        def check(self, name):
+            name = name.encode('ascii','ignore')
+            if not name in self.uniforms:
+                raise RuntimeError("Unknown uniform name {}, allowed values:".format(name)+str(list(self.uniforms.keys())))
+            return name
+
+        def __getitem__(self, name):
+            name = self.check(name)
+            return self.uniforms[name][0]
+
+        def set(self, name, value):
+            name = self.check(name)
+            loc, type_ = self.uniforms[name]
+            convert_matrix = lambda m,size: (ctypes.c_float*(size**2))(*[m[j,i] for i in range(size) for j in range(size)])
+            functions = {
+                    GL_BOOL:              lambda v: glUniform1i(loc, v),
+                    GL_BOOL_VEC2:         lambda v: glUniform2i(loc, *v),
+                    GL_BOOL_VEC3:         lambda v: glUniform3i(loc, *v),
+                    GL_BOOL_VEC4:         lambda v: glUniform4i(loc, *v),
+                    GL_INT:               lambda v: glUniform1i(loc, v),
+                    GL_INT_VEC2:          lambda v: glUniform2i(loc, *v),
+                    GL_INT_VEC3:          lambda v: glUniform3i(loc, *v),
+                    GL_INT_VEC4:          lambda v: glUniform4i(loc, *v),
+                    GL_UNSIGNED_INT:      lambda v: glUniform1ui(loc, v),
+                    GL_UNSIGNED_INT_VEC2: lambda v: glUniform2ui(loc, *v),
+                    GL_UNSIGNED_INT_VEC3: lambda v: glUniform3ui(loc, *v),
+                    GL_UNSIGNED_INT_VEC4: lambda v: glUniform4ui(loc, *v),
+                    GL_FLOAT:             lambda v: glUniform1f(loc, v),
+                    GL_FLOAT_VEC2:        lambda v: glUniform2f(loc, *v),
+                    GL_FLOAT_VEC3:        lambda v: glUniform3f(loc, *v),
+                    GL_FLOAT_VEC4:        lambda v: glUniform4f(loc, *v),
+                    GL_FLOAT_MAT2:        lambda v: glUniformMatrix2fv(loc, 1, GL_FALSE, convert_matrix(v,2)),
+                    GL_FLOAT_MAT3:        lambda v: glUniformMatrix3fv(loc, 1, GL_FALSE, convert_matrix(v,3)),
+                    GL_FLOAT_MAT4:        lambda v: glUniformMatrix4fv(loc, 1, GL_FALSE, convert_matrix(v,4)),
+                    }
+            if type_ not in functions:
+                raise RuntimeError("Unknown type " + str(type_)+'=hex({})'.format(hex(type_)))
+            return functions[type_](value)
+
+        def __contains__(self, name):
+            return name.encode('ascii', 'ignore') in self.uniforms
+
+    class Attributes:
+        def __init__(self, pid):
+            self.id = pid
+            attributes = {}
+            num_attributes = glGetProgramiv(self.id, GL_ACTIVE_ATTRIBUTES);
+
+            for i in range(num_attributes):
+                bufSize = glGetProgramiv(self.id, GL_ACTIVE_ATTRIBUTE_MAX_LENGTH)
+                length = GLsizei()
+                size = GLint()
+                type_ = GLenum()
+                name = (GLchar * bufSize)()
+                glGetActiveAttrib(self.id, i, bufSize, length, size, type_, name)
+                loc = glGetAttribLocation(self.id, name.value)
+                attributes[name.value] = (loc, type_.value, size.value)
+
+            self.attributes = attributes
+
+        def check(self, name):
+            name = name.encode('ascii','ignore')
+            if not name in self.attributes:
+                raise RuntimeError("Unknown attribute name {}, allowed values:".format(name)+str(list(self.attributes.keys())))
+            return name
+
+        def bind(self, name, vbo, size=None, stride=0):
+            name = self.check(name)
+
+            loc, type_, size_ = self.attributes[name]
+
+            if size==None:
+                size = size_
+
+            vbo.bind()
+            glEnableVertexAttribArray(loc)
+            null = ctypes.c_void_p()
+            if type_ == GL_INT:
+                glVertexAttribIPointer(loc,1,GL_INT,stride,null)
+            if type_ == GL_INT_VEC2:
+                glVertexAttribIPointer(loc,2,GL_INT,stride,null)
+            if type_ == GL_INT_VEC3:
+                glVertexAttribIPointer(loc,3,GL_INT,stride,null)
+            if type_ == GL_INT_VEC4:
+                glVertexAttribIPointer(loc,4,GL_INT,stride,null)
+            if type_ == GL_UNSIGNED_INT:
+                glVertexAttribIPointer(loc,1,GL_UNSIGNED_INT,stride,null)
+            if type_ == GL_UNSIGNED_INT_VEC2:
+                glVertexAttribIPointer(loc,2,GL_UNSIGNED_INT,stride,null)
+            if type_ == GL_UNSIGNED_INT_VEC3:
+                glVertexAttribIPointer(loc,3,GL_UNSIGNED_INT,stride,null)
+            if type_ == GL_UNSIGNED_INT_VEC4:
+                glVertexAttribIPointer(loc,4,GL_UNSIGNED_INT,stride,null)
+            if type_ == GL_FLOAT:
+                glVertexAttribPointer(loc,1,GL_FLOAT,GL_FALSE,stride,null)
+            if type_ == GL_FLOAT_VEC2:
+                glVertexAttribPointer(loc,2,GL_FLOAT,GL_FALSE,stride,null)
+            if type_ == GL_FLOAT_VEC3:
+                glVertexAttribPointer(loc,3,GL_FLOAT,GL_FALSE,stride,null)
+            if type_ == GL_FLOAT_VEC4:
+                glVertexAttribPointer(loc,4,GL_FLOAT,GL_FALSE,stride,null)
+
+            glEnableVertexAttribArray(0)
+
+        def __getitem__(self, name):
+            name = self.check(name)
+            return self.attributes[name][0]
+
+        def __contains__(self, name):
+            return name.encode('ascii', 'ignore') in self.attributes
+
     def __init__(self, shaders):
         self.locations = {}
         self._shaders = shaders
@@ -71,6 +193,9 @@ class Program(GLObject):
         glLinkProgram(self.id)
         if glGetProgramiv(self.id, GL_LINK_STATUS) != GL_TRUE:
                 raise RuntimeError(glGetProgramInfoLog(self.id))
+
+        self.uniforms = Program.Uniforms(self.id)
+        self.attributes = Program.Attributes(self.id)
 
 class CMeshData:
     def __init__(self, mesh):
@@ -159,10 +284,6 @@ class ClippingPlaneScene(SceneObject):
     def __init__(self, gf, colormap_min=-1.0, colormap_max=1.0, colormap_linear=False):
         super(ClippingPlaneScene, self).__init__()
 
-        self.uniform_names = [b"MV", b"P", b"colormap_min", b"colormap_max", b"colormap_linear", b"clipping_plane", b"do_clipping", b"clipping_plane_deformation", b"element_type"]
-        self.attribute_names = [b"vPos", b"vLam", b"vElementNumber"]
-        self.uniforms = {}
-        self.attributes = {}
         self.gl_initialized = False
 
         self.colormap_min = colormap_min
@@ -189,13 +310,6 @@ class ClippingPlaneScene(SceneObject):
         self.program = Program(shaders)
         glUseProgram(self.program.id)
 
-        for name in self.uniform_names:
-            self.uniforms[name] = glGetUniformLocation(self.program.id, name)
-
-        for name in self.attribute_names:
-            self.attributes[name] = glGetAttribLocation(self.program.id, name)
-
-
         self.coefficients = glGenBuffers(1)
         glBindBuffer   ( GL_TEXTURE_BUFFER, self.coefficients );
 
@@ -214,23 +328,14 @@ class ClippingPlaneScene(SceneObject):
         self.ntets = md.ntets
         self.min = md.min
         self.max = md.max
+        self.coordinates.store(md.tet_coordinates_data)
+        self.bary_coordinates.store(md.tet_bary_coordinates_data)
+        self.element_number.store(md.tet_element_number_data)
 
-        if(self.attributes[b'vPos']>-1):
-            self.coordinates.store(md.tet_coordinates_data)
-            glEnableVertexAttribArray(self.attributes[b'vPos'])
-            glVertexAttribPointer(self.attributes[b'vPos'], 3, GL_FLOAT, GL_FALSE, 0, ctypes.c_void_p());
-
-        if(self.attributes[b'vLam']>-1):
-            self.bary_coordinates.store(md.tet_bary_coordinates_data)
-            glEnableVertexAttribArray(self.attributes[b'vLam'])
-            glVertexAttribPointer(self.attributes[b'vLam'], 3, GL_FLOAT, GL_FALSE, 0, ctypes.c_void_p());
-            glEnableVertexAttribArray(0)
-
-        if(self.attributes[b'vElementNumber']>-1):
-            self.element_number.store(md.tet_element_number_data)
-            glEnableVertexAttribArray(self.attributes[b'vElementNumber'])
-            glVertexAttribIPointer(self.attributes[b'vElementNumber'], 1, GL_INT, 0, ctypes.c_void_p());
-            glEnableVertexAttribArray(0)
+        attributes = self.program.attributes
+        attributes.bind('vPos', self.coordinates)
+        attributes.bind('vLam', self.bary_coordinates)
+        attributes.bind('vElementNumber', self.element_number)
 
         glBindBuffer   ( GL_TEXTURE_BUFFER, self.coefficients );
         vec = ConvertCoefficients(self.gf)
@@ -258,24 +363,21 @@ class ClippingPlaneScene(SceneObject):
         model, view, projection = settings.model, settings.view, settings.projection
         glUseProgram(self.program.id)
         glBindVertexArray(self.vao)
-        modelview = view*model
-        mv = [modelview[i,j] for i in range(4) for j in range(4)]
-        p = [projection[i,j] for i in range(4) for j in range(4)]
 
-        glUniformMatrix4fv(self.uniforms[b'MV'], 1, GL_TRUE, (ctypes.c_float*16)(*mv))
-        glUniformMatrix4fv(self.uniforms[b'P'], 1, GL_TRUE, (ctypes.c_float*16)(*p))
+        uniforms = self.program.uniforms
+        uniforms.set('P',projection)
+        uniforms.set('MV',view*model)
+        uniforms.set('colormap_min', self.colormap_min)
+        uniforms.set('colormap_max', self.colormap_max)
+        uniforms.set('colormap_linear', self.colormap_linear)
+        uniforms.set('clipping_plane_deformation', False)
+        uniforms.set('clipping_plane', settings.clipping_plane)
+        uniforms.set('do_clipping', False);
 
-        glUniform1f(self.uniforms[b'colormap_min'], self.colormap_min);
-        glUniform1f(self.uniforms[b'colormap_max'],  self.colormap_max);
-        glUniform1i(self.uniforms[b'colormap_linear'],  self.colormap_linear);
-        glUniform4f(self.uniforms[b'clipping_plane'], *settings.clipping_plane)
-        glUniform1i(self.uniforms[b'do_clipping'],  False);
-        glUniform1i(self.uniforms[b'clipping_plane_deformation'],  False);
-        # TODO: element_type should be an attribute!
         if(self.mesh.dim==2):
-            glUniform1i(self.uniforms[b'element_type'],  10);
+            uniforms.set('element_type', 10)
         if(self.mesh.dim==3):
-            glUniform1i(self.uniforms[b'element_type'],  20);
+            uniforms.set('element_type', 20)
 
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         glDrawArrays(GL_LINES_ADJACENCY, 0, 4*self.ntets)
@@ -314,10 +416,6 @@ class MeshScene(SceneObject):
     def __init__(self, mesh):
         super(MeshScene, self).__init__()
 
-        self.uniform_names = [b"fColor", b"fColor_clipped", b"MV", b"P", b"clipping_plane", b"use_index_color"]
-        self.attribute_names = [b"pos", b"index"]
-        self.uniforms = {}
-        self.attributes = {}
         self.qtWidget = None
         self.gl_initialized = False
 
@@ -340,11 +438,6 @@ class MeshScene(SceneObject):
         ]
         self.program = Program(shaders)
 
-        for name in self.uniform_names:
-            self.uniforms[name] = glGetUniformLocation(self.program.id, name)
-        for name in self.attribute_names:
-            self.attributes[name] = glGetAttribLocation(self.program.id, name)
-
         self.gl_initialized = True
         glBindVertexArray(0)
 
@@ -361,16 +454,9 @@ class MeshScene(SceneObject):
         self.element_index.store(md.trig_element_index_data)
         self.index_colors = [0, 255, 0, 255] * (self.max_index+1)
 
-        if self.attributes[b'pos']>-1:
-            self.coordinates.bind();
-            glEnableVertexAttribArray(self.attributes[b'pos'])
-            glVertexAttribPointer(self.attributes[b'pos'], 3, GL_FLOAT, GL_FALSE, 0, ctypes.c_void_p())
-
-        if self.attributes[b'index']>-1:
-            self.element_index.bind()
-            glEnableVertexAttribArray(self.attributes[b'index'])
-            glVertexAttribIPointer(self.attributes[b'index'], 1, GL_INT, 0, ctypes.c_void_p())
-
+        attributes = self.program.attributes
+        attributes.bind('pos', self.coordinates)
+        attributes.bind('index', self.element_index)
 
         self.tex_index_color = glGenTextures(1)
 
@@ -384,25 +470,25 @@ class MeshScene(SceneObject):
         glBindVertexArray(0)
 
     def setupRender(self, settings):
+        glUseProgram(self.program.id)
+
         model, view, projection = settings.model, settings.view, settings.projection
-        modelview = view*model
-        mv = [modelview[i,j] for i in range(4) for j in range(4)]
-        p = [projection[i,j] for i in range(4) for j in range(4)]
+        uniforms = self.program.uniforms
+        uniforms.set('P',projection)
+        uniforms.set('MV',view*model)
 
         glBindTexture(GL_TEXTURE_1D, self.tex_index_color)
-        glUseProgram(self.program.id)
-        glUniformMatrix4fv(self.uniforms[b'MV'], 1, GL_TRUE, (ctypes.c_float*16)(*mv))
-        glUniformMatrix4fv(self.uniforms[b'P'], 1, GL_TRUE, (ctypes.c_float*16)(*p))
-
-
 
     def render(self, settings):
         glBindVertexArray(self.vao)
         self.setupRender(settings)
-        glUniform4f(self.uniforms[b'fColor'], 0.0,1.0,0.0,1.0)
-        glUniform4f(self.uniforms[b'fColor_clipped'], 0.0,1.0,0.0,0.00)
-        glUniform4f(self.uniforms[b'clipping_plane'], *settings.clipping_plane)
-        glUniform1i(self.uniforms[b'use_index_color'], True)
+
+        uniforms = self.program.uniforms
+        uniforms.set('fColor', [0,1,0,0] )
+        uniforms.set('clipping_plane', settings.clipping_plane)
+        uniforms.set('use_index_color', True)
+        uniforms.set('do_clipping', self.mesh.dim==3);
+
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         glDrawArrays(GL_TRIANGLES, 0, 3*self.ntrigs)
 
@@ -411,10 +497,12 @@ class MeshScene(SceneObject):
     def renderWireframe(self, settings):
         glBindVertexArray(self.vao)
         self.setupRender(settings)
-        glUniform4f(self.uniforms[b'fColor'], 0.0,0.0,0.0,1)
-        glUniform4f(self.uniforms[b'fColor_clipped'], 0.0,0.0,0.0,0.1)
-        glUniform4f(self.uniforms[b'clipping_plane'], *settings.clipping_plane)
-        glUniform1i(self.uniforms[b'use_index_color'], False)
+
+        uniforms = self.program.uniforms
+        uniforms.set('fColor', [0,0,0,1] )
+        uniforms.set('clipping_plane', settings.clipping_plane)
+        uniforms.set('use_index_color', False)
+        uniforms.set('do_clipping', self.mesh.dim==3);
         glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
         glDrawArrays(GL_TRIANGLES, 0, 3*self.ntrigs)
 
@@ -448,10 +536,6 @@ class MeshElementsScene(SceneObject):
     def __init__(self, mesh):
         super(MeshElementsScene, self).__init__()
 
-        self.uniform_names = [b"MV", b"P", b"clipping_plane", b'shrink_elements']
-        self.attribute_names = [b"pos", b"index"]
-        self.uniforms = {}
-        self.attributes = {}
         self.qtWidget = None
         self.gl_initialized = False
         self.shrink = 1.0
@@ -475,11 +559,6 @@ class MeshElementsScene(SceneObject):
         ]
         self.program = Program(shaders)
 
-        for name in self.uniform_names:
-            self.uniforms[name] = glGetUniformLocation(self.program.id, name)
-        for name in self.attribute_names:
-            self.attributes[name] = glGetAttribLocation(self.program.id, name)
-
         self.gl_initialized = True
         glBindVertexArray(0)
 
@@ -495,16 +574,9 @@ class MeshElementsScene(SceneObject):
         self.element_index.store(md.tet_element_index_data)
         self.mat_colors = [0,0,255,255] * (self.max_index+1)
 
-        if self.attributes[b'pos']>-1:
-            self.coordinates.bind();
-            glEnableVertexAttribArray(self.attributes[b'pos'])
-            glVertexAttribPointer(self.attributes[b'pos'], 3, GL_FLOAT, GL_FALSE, 0, ctypes.c_void_p())
-
-        if self.attributes[b'index'] > -1:
-            self.element_index.bind()
-            glEnableVertexAttribArray(self.attributes[b'index'])
-            glVertexAttribIPointer(self.attributes[b'index'],1,GL_INT,0,ctypes.c_void_p())
-            glEnableVertexAttribArray(0)
+        attributes = self.program.attributes
+        attributes.bind('pos', self.coordinates)
+        attributes.bind('index', self.element_index)
 
         self.tex_mat_color = glGenTextures(1)
         glBindTexture(GL_TEXTURE_1D,self.tex_mat_color)
@@ -519,18 +591,18 @@ class MeshElementsScene(SceneObject):
 
     def render(self, settings):
         glBindVertexArray(self.vao)
+        glUseProgram(self.program.id)
+
         model, view, projection = settings.model, settings.view, settings.projection
-        modelview = view*model
-        mv = [modelview[i,j] for i in range(4) for j in range(4)]
-        p = [projection[i,j] for i in range(4) for j in range(4)]
+
+        uniforms = self.program.uniforms
+        uniforms.set('P',projection)
+        uniforms.set('MV',view*model)
+        uniforms.set('shrink_elements', self.shrink)
+        uniforms.set('clipping_plane', settings.clipping_plane)
 
         glBindTexture(GL_TEXTURE_1D,self.tex_mat_color)
-        glUseProgram(self.program.id)
-        glUniformMatrix4fv(self.uniforms[b'MV'], 1, GL_TRUE, (ctypes.c_float*16)(*mv))
-        glUniformMatrix4fv(self.uniforms[b'P'], 1, GL_TRUE, (ctypes.c_float*16)(*p))
-        glUniform1f(self.uniforms[b'shrink_elements'], self.shrink)
 
-        glUniform4f(self.uniforms[b'clipping_plane'], *settings.clipping_plane)
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         glDrawArrays(GL_LINES_ADJACENCY, 0, 4*self.ntets)
 
@@ -567,10 +639,6 @@ class SolutionScene(SceneObject):
     def __init__(self, gf, colormap_min=-1.0, colormap_max=1.0, colormap_linear=False):
         super(SolutionScene, self).__init__()
 
-        self.uniform_names = [b"MV", b"P", b"element_type", b"colormap_min", b"colormap_max", b"colormap_linear", b"clipping_plane", b"do_clipping"]#, b"coefficients"]
-        self.attribute_names = [b"vPos", b"vLam", b"vElementNumber"]
-        self.uniforms = {}
-        self.attributes = {}
         self.qtWidget = None
         self.gl_initialized = False
 
@@ -596,13 +664,6 @@ class SolutionScene(SceneObject):
             Shader('solution.frag')
         ]
         self.program = Program(shaders)
-
-        for name in self.uniform_names:
-            self.uniforms[name] = glGetUniformLocation(self.program.id, name)
-
-        for name in self.attribute_names:
-            self.attributes[name] = glGetAttribLocation(self.program.id, name)
-
 
         self.coefficients = glGenBuffers(1)
         glBindBuffer   ( GL_TEXTURE_BUFFER, self.coefficients );
@@ -631,16 +692,14 @@ class SolutionScene(SceneObject):
         self.max = md.max
 
         self.coordinates.store(md.trig_coordinates_data)
-        glEnableVertexAttribArray(self.attributes[b'vPos'])
-        glVertexAttribPointer(self.attributes[b'vPos'], 3, GL_FLOAT, GL_FALSE, 0, ctypes.c_void_p());
-
         self.bary_coordinates.store(md.trig_bary_coordinates_data)
-        glEnableVertexAttribArray(self.attributes[b'vLam'])
-        glVertexAttribPointer(self.attributes[b'vLam'], 3, GL_FLOAT, GL_FALSE, 0, ctypes.c_void_p());
-
         self.element_number.store(md.trig_element_number_data)
-        glEnableVertexAttribArray(self.attributes[b'vElementNumber'])
-        glVertexAttribIPointer(self.attributes[b'vElementNumber'], 1, GL_INT, 0, ctypes.c_void_p());
+
+        attributes = self.program.attributes
+        attributes.bind('vPos', self.coordinates)
+        attributes.bind('vLam', self.bary_coordinates)
+        attributes.bind('vElementNumber', self.element_number)
+
         glBindVertexArray(0)
 
 
@@ -660,23 +719,22 @@ class SolutionScene(SceneObject):
     def render(self, settings):
         model, view, projection = settings.model, settings.view, settings.projection
         glBindVertexArray(self.vao)
-        modelview = view*model
-        mv = [modelview[i,j] for i in range(4) for j in range(4)]
-        p = [projection[i,j] for i in range(4) for j in range(4)]
-
         glUseProgram(self.program.id)
-        glUniformMatrix4fv(self.uniforms[b'MV'], 1, GL_TRUE, (ctypes.c_float*16)(*mv))
-        glUniformMatrix4fv(self.uniforms[b'P'], 1, GL_TRUE, (ctypes.c_float*16)(*p))
 
-        glUniform1f(self.uniforms[b'colormap_min'], self.colormap_min);
-        glUniform1f(self.uniforms[b'colormap_max'],  self.colormap_max);
-        glUniform1i(self.uniforms[b'colormap_linear'],  self.colormap_linear);
+        uniforms = self.program.uniforms
+        uniforms.set('P',projection)
+        uniforms.set('MV',view*model)
+
+        uniforms.set('colormap_min', self.colormap_min)
+        uniforms.set('colormap_max', self.colormap_max)
+        uniforms.set('colormap_linear', self.colormap_linear)
+        uniforms.set('clipping_plane', settings.clipping_plane)
+        uniforms.set('do_clipping', self.mesh.dim==3);
+
         if(self.mesh.dim==2):
-            glUniform1i(self.uniforms[b'element_type'],  10);
+            uniforms.set('element_type', 10)
         if(self.mesh.dim==3):
-            glUniform1i(self.uniforms[b'element_type'],  20);
-        glUniform4f(self.uniforms[b'clipping_plane'], *settings.clipping_plane)
-        glUniform1i(self.uniforms[b'do_clipping'], self.mesh.dim==3);
+            uniforms.set('element_type', 20)
 
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         glDrawArrays(GL_TRIANGLES, 0, 3*self.ntrigs);

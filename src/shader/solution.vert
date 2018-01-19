@@ -16,8 +16,7 @@ out VertexData
 void main()
 {
     gl_Position = P * MV * vec4(vPos, 1.0);
-//    outData.lam = vec3(0.0, 0.0, 0.0);
-    outData.pos = vPos; //0.5*vPos +0.5;
-    outData.element = vElementNumber; //gl_VertexID/3; //vIndex/3;
+    outData.pos = vPos;
+    outData.element = vElementNumber;
     outData.lam = vLam;
 }

@@ -4,6 +4,7 @@ uniform vec4 fColor_clipped;
 uniform vec4 clipping_plane;
 uniform bool use_index_color;
 uniform sampler1D index_color;
+uniform bool do_clipping;
 
 out vec4 FragColor;
 
@@ -17,7 +18,7 @@ in VertexData
 
 void main()
 {
-  if(dot(vec4(inData.pos,1.0),clipping_plane)<0) {
+  if(!do_clipping || dot(vec4(inData.pos,1.0),clipping_plane)<0) {
     FragColor = vec4(texelFetch(index_color, inData.index, 0));
     if(!use_index_color) {
       FragColor.rgb = fColor.rgb;
