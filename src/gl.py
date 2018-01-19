@@ -23,12 +23,16 @@ class Shader(GLObject):
 
     includes = {}
 
-    def __init__(self, filename, shader_type=None):
+    def __init__(self, filename=None, string=None, shader_type=None):
         import os, glob
 
         shaderpath = os.path.join(os.path.dirname(__file__), 'shader')
-        fullpath = os.path.join(shaderpath, filename)
-        self._code = open(fullpath,'r').read()
+        if filename:
+            fullpath = os.path.join(shaderpath, filename)
+            self._code = open(fullpath,'r').read()
+        if string:
+            fullpath = ""
+            self._code = string
 
         for incfile in glob.glob(os.path.join(shaderpath, '*.inc')):
             Shader.includes[os.path.basename(incfile)] = open(incfile,'r').read()
@@ -45,7 +49,8 @@ class Shader(GLObject):
             ext = filename.split('.')[-1]
             if not ext in shader_types:
                 raise RuntimeError('Unknown shader file extension: '+ext)
-            self._type = shader_types[ext]
+            shader_type = shader_types[ext]
+        self._type = shader_type
         self._id = glCreateShader(self._type)
 
         glShaderSource(self.id, self._code)

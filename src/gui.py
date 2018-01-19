@@ -340,9 +340,6 @@ class GLWidget(QtOpenGL.QGLWidget):
     def initializeGL(self):
         self.updateScenes()
 
-        # initialize font rendering
-        self.text_renderer = scenes.TextRenderer()
-
     def updateScenes(self):
         self.redraw_mutex.lock()
         self.makeCurrent()
@@ -368,13 +365,10 @@ class GLWidget(QtOpenGL.QGLWidget):
         GL.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
         for scene in self.scenes:
             scene.render(self.rendering_parameters) #model, view, projection)
-        self.text_renderer.draw(self.rendering_parameters, "NGSolve " + ngsolve.__version__, [0.99,-0.99,0], font_size=16, alignment=Qt.AlignRight|Qt.AlignBottom)
-        # draw numbers at corners of unit cube
-#         for i in range(8):
-#             self.text_renderer.draw(self.rendering_parameters, str(i), [i&1,(i&2)/2,(i&4)/4], use_absolute_pos=False)
 
     def addScene(self, scene):
         self.scenes.append(scene)
+        self.scenes.sort(key=lambda x: x.deferRendering())
         box_min = Vector(3)
         box_max = Vector(3)
         box_min[:] = 1e99
@@ -491,6 +485,7 @@ class GUI():
         self.app = QtWidgets.QApplication([])
         self.last = time.time()
         self._sceneindex = 1
+        self.draw(scenes.OverlayScene(), "Global options")
 
     def draw(self, scene, name=None, separate_window=False):
         if name is None:

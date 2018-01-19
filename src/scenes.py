@@ -1,10 +1,11 @@
 from PySide2 import QtCore, QtGui, QtWidgets, QtOpenGL
 from PySide2.QtCore import Qt
 from OpenGL.GL import *
-from .gui import ColorMapSettings, Qt, RangeGroup, CollColors
+from .gui import ColorMapSettings, Qt, RangeGroup, CollColors, ArrangeV
 import ngsolve
 from .gl import *
 import numpy
+from . import glmath
 
 class CMeshData:
     """Helper class to avoid redundant copies of the same mesh on the GPU."""
@@ -128,7 +129,7 @@ class TextRenderer:
         uniforms.set('font_height_on_screen', 2*font.height/screen_height)
 
         if not use_absolute_pos:
-            x = Vector(4)
+            x = ngsolve.bla.Vector(4)
             for i in range(3):
                 x[i] = pos[i]
             x[3] = 1.0
@@ -138,10 +139,19 @@ class TextRenderer:
                 pos[i] = x[i]/x[3]
 
 
+        text_width = len(text)*2*font.width/screen_width
+        text_height = 2*font.height/screen_height
+
         if alignment&Qt.AlignRight:
-            pos[0] -= len(text)*2*font.width/screen_width
+            pos[0] -= text_width
         if alignment&Qt.AlignBottom:
-            pos[1] += 2*font.height/screen_height
+            pos[1] += text_height
+
+        if alignment&Qt.AlignCenter:
+            pos[0] -= 0.5*text_width
+        if alignment&Qt.AlignVCenter:
+            pos[1] += 0.5*text_height
+
         uniforms.set('start_pos', pos)
 
         s = numpy.array(list(text.encode('ascii', 'ignore')), dtype=numpy.uint8)
@@ -161,8 +171,17 @@ class SceneObject():
         self.active_action = None
         self.timestamp = -1
 
+    def deferRendering(self):
+        """used to render some scenes later (eg. overlays, transparency)
+        the higher the return value, the later it will be rendered"""
+        return 0
+
     def getBoundingBox(self):
-        raise RuntimeError("getBoundingBox not implemented for {}".format(type(self)))
+        box_min = ngsolve.bla.Vector(3)
+        box_max = ngsolve.bla.Vector(3)
+        box_min[:] = 1e99
+        box_max[:] = -1e99
+        return box_min,box_max
 
     def getQtWidget(self, updateGL):
         widgets = {}
@@ -268,6 +287,100 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
         widgets["Colormap"] = settings
         return widgets
 
+class OverlayScene(SceneObject):
+    """Class  for overlay objects (Colormap, coordinate system, logo)"""
+    def __init__(self):
+        super().__init__()
+        self.gl_initialized = False
+        self.show_logo = True
+        self.show_cross = True
+        self.cross_scale = 0.3
+
+    def deferRendering(self):
+        return 99
+
+    def initGL(self):
+        if self.gl_initialized:
+            return
+
+        self.text_renderer = TextRenderer()
+
+        self.vao = glGenVertexArrays(1)
+        glBindVertexArray(self.vao)
+        self.cross_points = ArrayBuffer()
+        points = [self.cross_scale if i%7==3 else 0 for i in range(24)]
+        self.cross_points.store(numpy.array(points, dtype=numpy.float32))
+
+        vert = Shader(shader_type=GL_VERTEX_SHADER, string="""
+#version 150
+in vec3 pos;
+uniform mat4 MVP;
+void main() { gl_Position = MVP*vec4(pos, 1.0); }""")
+        frag = Shader(shader_type=GL_FRAGMENT_SHADER, string="""
+#version 150
+out vec4 color;
+void main() { color = vec4(0,0,0,1);}""")
+        self.program = Program([vert, frag])
+
+        self.program.attributes.bind('pos', self.cross_points)
+
+        self.gl_initialized = True
+        glBindVertexArray(0)
+
+    def render(self, settings):
+        self.update()
+
+        glUseProgram(self.program.id)
+        glBindVertexArray(self.vao)
+
+        glDisable(GL_DEPTH_TEST)
+        if self.show_cross:
+            model, view, projection = settings.model, settings.view, settings.projection
+            mvp = glmath.Translate(-0.8,-0.8,0)*projection*view*glmath.Translate(0,0,-5)*settings.rotmat
+
+            self.program.uniforms.set('MVP',mvp)
+            coords = self.cross_scale*1.2*glmath.Identity()
+            coords[3,:] = 1.0
+            coords = mvp*coords
+            for i in range(4):
+                for j in range(4):
+                    coords[i,j] = coords[i,j]/coords[3,j]
+
+            glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
+            glDrawArrays(GL_LINES, 0, 6)
+            for i in range(3):
+                self.text_renderer.draw(settings, "xyz"[i], coords[0:3,i], alignment=Qt.AlignCenter|Qt.AlignVCenter)
+        if self.show_logo:
+            self.text_renderer.draw(settings, "NGSolve " + ngsolve.__version__, [0.99,-0.99,0], font_size=16, alignment=Qt.AlignRight|Qt.AlignBottom)
+
+        glEnable(GL_DEPTH_TEST)
+        glBindVertexArray(0)
+
+    def showLogo(self, show):
+        self.show_logo = show
+
+    def showCross(self, show):
+        self.show_cross = show
+
+    def update(self):
+        self.initGL()
+
+    def getQtWidget(self, updateGL):
+
+        widgets = super().getQtWidget(updateGL)
+
+        logo = QtWidgets.QCheckBox('Show version number')
+        logo.setChecked(True)
+        logo.stateChanged.connect( self.showLogo )
+        logo.stateChanged.connect( updateGL )
+        cross = QtWidgets.QCheckBox('Show coordinate cross')
+        cross.setChecked(True)
+        cross.stateChanged.connect( self.showCross )
+        cross.stateChanged.connect( updateGL )
+        widgets["Overlay"] = ArrangeV(logo, cross)
+        return widgets
+
+    
 class ClippingPlaneScene(BaseFunctionSceneObject):
     def __init__(self, gf):
         super().__init__(gf)
