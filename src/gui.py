@@ -12,25 +12,10 @@ import numpy
 from . import glmath
 from . import gl as mygl
 import ctypes
+from . import scenes
 
-try:
-    from PySide2 import QtCore, QtGui, QtWidgets, QtOpenGL
-    from PySide2.QtCore import Qt
-except:
-    from PyQt5 import QtCore, QtGui, QtWidgets, QtOpenGL
-    from PyQt5.QtCore import Qt
-
-try:
-    from OpenGL import GL
-except ImportError:
-    app = QtWidgets.QApplication([])
-    messageBox = QtWidgets.QMessageBox(QtWidgets.QMessageBox.Critical, "OpenGL hellogl",
-                                       "PyOpenGL must be installed to run this example.",
-                                       QtWidgets.QMessageBox.Close)
-    messageBox.setDetailedText("Run:\npip install PyOpenGL PyOpenGL_accelerate")
-    messageBox.exec_()
-    sys.exit(1)
-
+from PySide2 import QtCore, QtGui, QtWidgets, QtOpenGL
+from PySide2.QtCore import Qt
 
 def ArrangeV(*args):
     layout = QtWidgets.QVBoxLayout()
@@ -50,129 +35,6 @@ def ArrangeH(*args):
             layout.addLayout(w)
     return layout
 
-class TextRenderer:
-    class Font:
-        pass
-
-    def __init__(self):
-        self.fonts = {}
-
-        self.vao = GL.glGenVertexArrays(1)
-        GL.glBindVertexArray(self.vao)
-        self.addFont(0)
-
-        shaders = [
-            mygl.Shader('font.vert'),
-            mygl.Shader('font.geom'),
-            mygl.Shader('font.frag')
-        ]
-        self.program = mygl.Program(shaders)
-        self.characters = mygl.ArrayBuffer(usage=GL.GL_DYNAMIC_DRAW)
-
-    def addFont(self, font_size):
-        font = TextRenderer.Font()
-        font.size = font_size
-
-        db = QtGui.QFontDatabase()
-        qfont = db.systemFont(db.FixedFont)
-        if font_size>0:
-            qfont.setPointSize(font_size)
-        else:
-            self.fonts[0] = font
-
-        self.fonts[qfont.pointSize()] = font
-
-        metrics = QtGui.QFontMetrics(qfont)
-
-        font.width = metrics.maxWidth()
-        font.height = metrics.height()
-
-        font.tex_width = (1+128-32)*metrics.maxWidth()
-        font.tex_width = (font.tex_width+3)//4*4 # should be multiple of 4
-        font.tex_height = metrics.height()
-        for i in range(32,128):
-            c = bytes([i]).decode()
-
-        image = QtGui.QImage(font.tex_width, font.tex_height, QtGui.QImage.Format_Grayscale8)
-        image.fill(QtCore.Qt.black)
-
-        painter = QtGui.QPainter()
-        painter.begin(image)
-        painter.setFont(qfont)
-        painter.setPen(QtCore.Qt.white)
-        for i in range(32,128):
-            w = metrics.maxWidth()
-            text = bytes([i]).decode()
-            painter.drawText((i-32)*w,0, (i+1-32)*w, font.height, QtCore.Qt.AlignTop | Qt.AlignLeft, text)
-        painter.end()
-        Z = numpy.array(image.bits()).reshape(font.tex_height, font.tex_width)
-
-        font.texid = GL.glGenTextures(1)
-
-        GL.glActiveTexture( GL.GL_TEXTURE0 );
-        GL.glBindTexture( GL.GL_TEXTURE_2D, font.texid )
-
-        GL.glTexImage2D( GL.GL_TEXTURE_2D, 0, GL.GL_RED, Z.shape[1], Z.shape[0], 0, GL.GL_RED, GL.GL_UNSIGNED_BYTE, Z )
-        GL.glTexParameteri( GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST )
-        GL.glTexParameteri( GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST )
-
-        GL.glBindVertexArray(0)
-
-    def draw(self, rendering_params, text, pos, font_size=0, use_absolute_pos=True, alignment=Qt.AlignTop|Qt.AlignLeft):
-
-        if not font_size in self.fonts:
-            self.addFont(font_size)
-
-        GL.glBindVertexArray(self.vao)
-        GL.glUseProgram(self.program.id)
-
-        viewport = GL.glGetIntegerv( GL.GL_VIEWPORT )
-        screen_width = viewport[2]-viewport[0]
-        screen_height = viewport[3]-viewport[1]
-
-        font = self.fonts[font_size]
-        font_width_in_texture = font.width/font.tex_width
-        font_height_in_texture = font.height/font.tex_height
-
-        font_width_on_screen = 2*font.width/screen_width
-        font_height_on_screen = 2*font.height/screen_height
-
-        uniform = lambda name: GL.glGetUniformLocation(self.program.id, name)
-        GL.glUniform1f(uniform(b'font_width_in_texture'), font_width_in_texture)
-        GL.glUniform1f(uniform(b'font_height_in_texture'), font_height_in_texture)
-
-        GL.glUniform1f(uniform(b'font_width_on_screen'), font_width_on_screen)
-        GL.glUniform1f(uniform(b'font_height_on_screen'), font_height_on_screen)
-
-        if not use_absolute_pos:
-            x = Vector(4)
-            for i in range(3):
-                x[i] = pos[i]
-            x[3] = 1.0
-            model, view, projection = rendering_params.model, rendering_params.view, rendering_params.projection
-            x = projection*view*model*x
-            for i in range(3):
-                pos[i] = x[i]/x[3]
-
-
-        if alignment&Qt.AlignRight:
-            pos[0] -= len(text)*font_width_on_screen
-        if alignment&Qt.AlignBottom:
-            pos[1] += font_height_on_screen
-        GL.glUniform3f(uniform(b'start_pos'), *pos)
-
-        GL.glActiveTexture( GL.GL_TEXTURE0 );
-        GL.glBindTexture( GL.GL_TEXTURE_2D, font.texid )
-
-        s = numpy.array(list(text.encode('ascii', 'ignore')), dtype=numpy.uint8)
-        self.characters.store(s)
-
-        char_id = GL.glGetAttribLocation(self.program.id, b'char_')
-        GL.glVertexAttribIPointer(char_id, 1, GL.GL_UNSIGNED_BYTE, 0, ctypes.c_void_p());
-        GL.glEnableVertexAttribArray( char_id )
-
-        GL.glPolygonMode( GL.GL_FRONT_AND_BACK, GL.GL_FILL );
-        GL.glDrawArrays(GL.GL_POINTS, 0, len(s))
 
 
 class QColorButton(QtWidgets.QPushButton):
@@ -479,7 +341,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.updateScenes()
 
         # initialize font rendering
-        self.text_renderer = TextRenderer()
+        self.text_renderer = scenes.TextRenderer()
 
     def updateScenes(self):
         self.redraw_mutex.lock()

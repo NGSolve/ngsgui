@@ -1,2 +1,2 @@
-from .gl import MeshScene, SolutionScene, ClippingPlaneScene, MeshElementsScene
+from .scenes import *
 from .gui import GUI 
