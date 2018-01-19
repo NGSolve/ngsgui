@@ -312,15 +312,57 @@ class BaseMeshSceneObject(SceneObject):
     def getBoundingBox(self):
         return self.mesh_data.min, self.mesh_data.max
 
-class ClippingPlaneScene(BaseMeshSceneObject):
-    def __init__(self, gf, colormap_min=-1.0, colormap_max=1.0, colormap_linear=False):
-        super().__init__(gf.space.mesh)
+class BaseFunctionSceneObject(BaseMeshSceneObject):
+    """Base class for all scenes that depend on a coefficient function and a mesh"""
+    def __init__(self, cf, mesh=None):
+        if mesh==None:
+            if not isinstance(cf, ngsolve.comp.GridFunction):
+                raise RuntimeError("A mesh is needed if the given function is no GridFunction")
+            mesh = cf.space.mesh
+
+        super().__init__(mesh)
+
+        self.colormap_min = -1
+        self.colormap_max = 1
+        self.colormap_linear = False
+
+
+    def initGL(self):
+        super().initGL()
+
+    def setColorMapMin(self, value):
+        self.colormap_min = value
+
+    def setColorMapMax(self, value):
+        self.colormap_max = value
+
+    def setColorMapLinear(self, value):
+        self.colormap_linear = value
+
+
+    def getQtWidget(self, updateGL):
+
+        settings = ColorMapSettings(min=-2, max=2, min_value=self.colormap_min, max_value=self.colormap_max)
+        settings.layout().setAlignment(Qt.AlignTop)
+
+        settings.minChanged.connect(self.setColorMapMin)
+        settings.minChanged.connect(updateGL)
+
+        settings.maxChanged.connect(self.setColorMapMax)
+        settings.maxChanged.connect(updateGL)
+
+        settings.linearChanged.connect(self.setColorMapLinear)
+        settings.linearChanged.connect(updateGL)
+
+        widgets = super().getQtWidget(updateGL)
+        widgets["Colormap"] = settings
+        return widgets
+
+class ClippingPlaneScene(BaseFunctionSceneObject):
+    def __init__(self, gf):
+        super().__init__(gf)
 
         self.gl_initialized = False
-
-        self.colormap_min = colormap_min
-        self.colormap_max = colormap_max
-        self.colormap_linear = colormap_linear
 
         self.gf = gf
 
@@ -403,33 +445,6 @@ class ClippingPlaneScene(BaseMeshSceneObject):
         glBindVertexArray(0)
 
 
-    def setColorMapMin(self, value):
-        self.colormap_min = value
-
-    def setColorMapMax(self, value):
-        self.colormap_max = value
-
-    def setColorMapLinear(self, value):
-        self.colormap_linear = value
-
-
-    def getQtWidget(self, updateGL):
-
-        settings = ColorMapSettings(min=-2, max=2, min_value=self.colormap_min, max_value=self.colormap_max)
-        settings.layout().setAlignment(Qt.AlignTop)
-
-        settings.minChanged.connect(self.setColorMapMin)
-        settings.minChanged.connect(updateGL)
-
-        settings.maxChanged.connect(self.setColorMapMax)
-        settings.maxChanged.connect(updateGL)
-
-        settings.linearChanged.connect(self.setColorMapLinear)
-        settings.linearChanged.connect(updateGL)
-
-        widgets = super().getQtWidget(updateGL)
-        widgets["Colormap"] = settings
-        return widgets
 
 class MeshScene(BaseMeshSceneObject):
     def __init__(self, mesh):
@@ -631,16 +646,12 @@ class MeshElementsScene(BaseMeshSceneObject):
         return widgets
 
 
-class SolutionScene(BaseMeshSceneObject):
-    def __init__(self, gf, colormap_min=-1.0, colormap_max=1.0, colormap_linear=False):
-        super().__init__(gf.space.mesh)
+class SolutionScene(BaseFunctionSceneObject):
+    def __init__(self, gf):
+        super().__init__(gf)
 
         self.qtWidget = None
         self.gl_initialized = False
-
-        self.colormap_min = colormap_min
-        self.colormap_max = colormap_max
-        self.colormap_linear = colormap_linear
 
         self.gf = gf
 
@@ -726,33 +737,4 @@ class SolutionScene(BaseMeshSceneObject):
         glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh_data.ntrigs);
 
         self.mesh_scene.renderWireframe(settings)
-
-    def setColorMapMin(self, value):
-        self.colormap_min = value
-
-    def setColorMapMax(self, value):
-        self.colormap_max = value
-
-    def setColorMapLinear(self, value):
-        self.colormap_linear = value
-
-
-    def getQtWidget(self, updateGL):
-
-        settings = ColorMapSettings(min=self.colormap_min, max=self.colormap_max, min_value=self.colormap_min, max_value=self.colormap_max)
-        settings.layout().setAlignment(Qt.AlignTop)
-
-        settings.minChanged.connect(self.setColorMapMin)
-        settings.minChanged.connect(updateGL)
-
-        settings.maxChanged.connect(self.setColorMapMax)
-        settings.maxChanged.connect(updateGL)
-
-        settings.linearChanged.connect(self.setColorMapLinear)
-        settings.linearChanged.connect(updateGL)
-
-        widgets = super().getQtWidget(updateGL)
-        widgets["Colormap"] = settings
-        return widgets
-
 
