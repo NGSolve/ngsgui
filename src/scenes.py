@@ -295,6 +295,7 @@ class OverlayScene(SceneObject):
         self.show_logo = True
         self.show_cross = True
         self.cross_scale = 0.3
+        self.cross_shift = -0.10
 
     def deferRendering(self):
         return 99
@@ -308,7 +309,7 @@ class OverlayScene(SceneObject):
         self.vao = glGenVertexArrays(1)
         glBindVertexArray(self.vao)
         self.cross_points = ArrayBuffer()
-        points = [self.cross_scale if i%7==3 else 0 for i in range(24)]
+        points = [self.cross_shift + (self.cross_scale if i%7==3 else 0) for i in range(24)]
         self.cross_points.store(numpy.array(points, dtype=numpy.float32))
 
         vert = Shader(shader_type=GL_VERTEX_SHADER, string="""
@@ -336,10 +337,13 @@ void main() { color = vec4(0,0,0,1);}""")
         glDisable(GL_DEPTH_TEST)
         if self.show_cross:
             model, view, projection = settings.model, settings.view, settings.projection
-            mvp = glmath.Translate(-0.8,-0.8,0)*projection*view*glmath.Translate(0,0,-5)*settings.rotmat
+            mvp = glmath.Translate(-1+0.15/settings.ratio,-0.85,0)*projection*view*glmath.Translate(0,0,-5)*settings.rotmat
 
             self.program.uniforms.set('MVP',mvp)
-            coords = self.cross_scale*1.2*glmath.Identity()
+            coords = glmath.Identity()
+            for i in range(3):
+                for j in range(3):
+                    coords[i,j] = self.cross_shift+int(i==j)*self.cross_scale*1.2
             coords[3,:] = 1.0
             coords = mvp*coords
             for i in range(4):
