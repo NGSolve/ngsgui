@@ -18,5 +18,7 @@ void main()
   FragColor = vec4(texelFetch(mat_color,inData.index,0));
   if(FragColor.a==0.0)
     discard;
-  FragColor.rgb += 0.7*clamp(dot(normal, lightVector), 0,1);
+  float ambient = 0.3;
+  float diffuse = 0.7;
+  FragColor.rgb *= ambient+diffuse*clamp(dot(normal, lightVector), 0, 1.0);
 }
