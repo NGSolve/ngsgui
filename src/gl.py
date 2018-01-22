@@ -10,6 +10,8 @@ from . import glmath, shader
 from PySide2 import QtCore, QtGui, QtWidgets, QtOpenGL
 from PySide2.QtCore import Qt
 
+# _DEVELOP=True
+
 class GLObject:
     @property
     def id(self):
@@ -82,10 +84,19 @@ class Program(GLObject):
             return self.uniforms[name][0]
 
         def set(self, name, value):
-            name = self.check(name)
+            try:
+                name = self.check(name)
+            except Exception as e:
+                if _DEVELOP:
+                    # skip error on undefined (or optimized out) uniforms in develop mode
+                    return
+                else:
+                    raise e
+
             loc, type_ = self.uniforms[name]
             convert_matrix = lambda m,size: (ctypes.c_float*(size**2))(*[m[j,i] for i in range(size) for j in range(size)])
             functions = {
+                    GL_SAMPLER_1D:        lambda v: glUniform1i(loc, v),
                     GL_BOOL:              lambda v: glUniform1i(loc, v),
                     GL_BOOL_VEC2:         lambda v: glUniform2i(loc, *v),
                     GL_BOOL_VEC3:         lambda v: glUniform3i(loc, *v),
@@ -138,7 +149,14 @@ class Program(GLObject):
             return name
 
         def bind(self, name, vbo, size=None, stride=0):
-            name = self.check(name)
+            try:
+                name = self.check(name)
+            except Exception as e:
+                if _DEVELOP:
+                    # skip error on undefined (or optimized out) uniforms in develop mode
+                    return
+                else:
+                    raise e
 
             loc, type_, size_ = self.attributes[name]
 
