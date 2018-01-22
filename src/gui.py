@@ -221,6 +221,9 @@ class RenderingParameters:
         self.max[:] = 0.0
 
         self.clipping_rotmat = glmath.Identity()
+        self.clipping_normal = Vector(4)
+        self.clipping_normal[0] = 1.0
+        self.clipping_point = Vector(3)
         self.clipping_dist = 0.0
 
     @property
@@ -247,15 +250,27 @@ class RenderingParameters:
 
     @property
     def clipping_plane(self):
-        x = Vector(4);
-        x[:] = 0.0
-        x[2] = 1
-        x = self.clipping_rotmat * x
-        d = glmath.Dot(self.center,x[0:3])
+        x = self.clipping_rotmat * self.clipping_normal
+        d = glmath.Dot(self.clipping_point,x[0:3])
         x[3] = -d
         x[3] = x[3]-self.clipping_dist
         return x
 
+    def getClippingPlaneNormal(self):
+        x = self.clipping_rotmat * self.clipping_normal
+        return x[0:3]
+
+    def getClippingPlanePoint(self):
+        return self.clipping_point
+
+    def setClippingPlaneNormal(self, normal):
+        for i in range(3):
+            self.clipping_normal[i] = normal[i]
+        self.clipping_rotmat = glmath.Identity()
+
+    def setClippingPlanePoint(self, point):
+        for i in range(3):
+            self.clipping_point[i] = point[i]
 
 class MainWindow(QtWidgets.QMainWindow):
 
@@ -463,7 +478,9 @@ class GLWidget(QtOpenGL.QGLWidget):
             param.zoom += dy
         if self.do_move_clippingplane:
             s = 200.0*exp(-param.zoom/100)
-            param.clipping_dist += dy/s
+            shift = dy/s*param.getClippingPlaneNormal()
+            p = param.getClippingPlanePoint()
+            param.setClippingPlanePoint(p+shift)
         if self.do_rotate_clippingplane:
             # rotation of clipping plane is view-dependent
             r = param.rotmat
@@ -505,7 +522,7 @@ class GUI():
         layout = QtWidgets.QVBoxLayout()
         layout.setAlignment(Qt.AlignTop)
         widget = QtWidgets.QWidget()
-        for description, item in scene.getQtWidget(window.glWidget.updateGL).items():
+        for description, item in scene.getQtWidget(window.glWidget.updateGL, window.glWidget.rendering_parameters).items():
             group = QtWidgets.QGroupBox(description)
             group.setLayout(ArrangeV(item))
             layout.addWidget(group)

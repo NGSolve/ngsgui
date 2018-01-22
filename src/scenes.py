@@ -1,7 +1,7 @@
 from PySide2 import QtCore, QtGui, QtWidgets, QtOpenGL
 from PySide2.QtCore import Qt
 from OpenGL.GL import *
-from .gui import ColorMapSettings, Qt, RangeGroup, CollColors, ArrangeV
+from .gui import ColorMapSettings, Qt, RangeGroup, CollColors, ArrangeV, ArrangeH
 import ngsolve
 from .gl import *
 import numpy
@@ -183,7 +183,7 @@ class SceneObject():
         box_max[:] = -1e99
         return box_min,box_max
 
-    def getQtWidget(self, updateGL):
+    def getQtWidget(self, updateGL, params):
         widgets = {}
         self.actionCheckboxes = []
 
@@ -269,7 +269,7 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
         self.colormap_linear = value
 
 
-    def getQtWidget(self, updateGL):
+    def getQtWidget(self, updateGL, params):
 
         settings = ColorMapSettings(min=-2, max=2, min_value=self.colormap_min, max_value=self.colormap_max)
         settings.layout().setAlignment(Qt.AlignTop)
@@ -283,7 +283,7 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
         settings.linearChanged.connect(self.setColorMapLinear)
         settings.linearChanged.connect(updateGL)
 
-        widgets = super().getQtWidget(updateGL)
+        widgets = super().getQtWidget(updateGL, params)
         widgets["Colormap"] = settings
         return widgets
 
@@ -365,9 +365,9 @@ void main() { color = vec4(0,0,0,1);}""")
     def update(self):
         self.initGL()
 
-    def getQtWidget(self, updateGL):
+    def getQtWidget(self, updateGL, params):
 
-        widgets = super().getQtWidget(updateGL)
+        widgets = super().getQtWidget(updateGL, params)
 
         logo = QtWidgets.QCheckBox('Show version number')
         logo.setChecked(True)
@@ -378,6 +378,19 @@ void main() { color = vec4(0,0,0,1);}""")
         cross.stateChanged.connect( self.showCross )
         cross.stateChanged.connect( updateGL )
         widgets["Overlay"] = ArrangeV(logo, cross)
+        clipx = QtWidgets.QPushButton("X")
+        clipx.clicked.connect(lambda : params.setClippingPlaneNormal([1,0,0]))
+        clipx.clicked.connect(updateGL)
+        clipy = QtWidgets.QPushButton("Y")
+        clipy.clicked.connect(lambda : params.setClippingPlaneNormal([0,1,0]))
+        clipy.clicked.connect(updateGL)
+        clipz = QtWidgets.QPushButton("Z")
+        clipz.clicked.connect(lambda : params.setClippingPlaneNormal([0,0,1]))
+        clipz.clicked.connect(updateGL)
+        clip_flip = QtWidgets.QPushButton("flip")
+        clip_flip.clicked.connect(lambda : params.setClippingPlaneNormal(-1.0*params.getClippingPlaneNormal()))
+        clip_flip.clicked.connect(updateGL)
+        widgets["Clipping plane"] = ArrangeH(clipx, clipy, clipz, clip_flip)
         return widgets
 
     
@@ -547,7 +560,7 @@ class MeshScene(BaseMeshSceneObject):
         glBindTexture(GL_TEXTURE_1D, self.tex_index_color)
         glTexImage1D(GL_TEXTURE_1D, 0,GL_RGBA, self.mesh_data.trig_max_index+1, 0, GL_RGBA, GL_UNSIGNED_BYTE, bytes(self.index_colors))
 
-    def getQtWidget(self, updateGL):
+    def getQtWidget(self, updateGL, params):
         if self.qtWidget!=None:
             return self.qtWidget
 
@@ -556,7 +569,7 @@ class MeshScene(BaseMeshSceneObject):
         self.bccolors.colors_changed.connect(updateGL)
         self.updateIndexColors()
 
-        widgets = super().getQtWidget(updateGL)
+        widgets = super().getQtWidget(updateGL, params)
         widgets["BCColors"] = self.bccolors
         return widgets
 
@@ -632,7 +645,7 @@ class MeshElementsScene(BaseMeshSceneObject):
         self.mat_colors = colors
         self.tex_mat_color.store(self.mat_colors, GL_UNSIGNED_BYTE, self.mesh_data.tet_max_index+1)
 
-    def getQtWidget(self, updateGL):
+    def getQtWidget(self, updateGL, params):
         shrink = RangeGroup("Shrink", min=0.0, max=1.0, value=1.0)
         shrink.valueChanged.connect(self.setShrink)
         shrink.valueChanged.connect(updateGL)
@@ -640,7 +653,7 @@ class MeshElementsScene(BaseMeshSceneObject):
         self.matcolors.colors_changed.connect(self.updateMatColors)
         self.matcolors.colors_changed.connect(updateGL)
         self.updateMatColors()
-        widgets = super().getQtWidget(updateGL)
+        widgets = super().getQtWidget(updateGL, params)
         widgets["Shrink"] = shrink
         widgets["MatColors"] = self.matcolors
         return widgets
