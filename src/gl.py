@@ -223,6 +223,10 @@ class Texture(GLObject):
             self.bind()
             glTexBuffer ( GL_TEXTURE_BUFFER, GL_R32F, self._buffer.id );
 
+        self.bind()
+        glTexParameteri( self._type, GL_TEXTURE_MAG_FILTER, GL_NEAREST )
+        glTexParameteri( self._type, GL_TEXTURE_MIN_FILTER, GL_NEAREST )
+
     def bind(self):
         glActiveTexture( self._unit );
         glBindTexture( self._type, self.id )
