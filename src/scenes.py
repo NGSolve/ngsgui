@@ -535,8 +535,11 @@ class MeshScene(BaseMeshSceneObject):
         uniforms.set('use_index_color', True)
         uniforms.set('do_clipping', self.mesh.dim==3);
 
+        glPolygonOffset (2,2)
+        glEnable(GL_POLYGON_OFFSET_FILL)
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh_data.ntrigs)
+        glDisable(GL_POLYGON_OFFSET_FILL)
 
         self.renderWireframe(settings)
 
@@ -550,7 +553,10 @@ class MeshScene(BaseMeshSceneObject):
         uniforms.set('use_index_color', False)
         uniforms.set('do_clipping', self.mesh.dim==3);
         glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
+        glPolygonOffset (1, 1)
+        glEnable(GL_POLYGON_OFFSET_LINE)
         glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh_data.ntrigs)
+        glDisable(GL_POLYGON_OFFSET_LINE)
 
 
     def updateIndexColors(self):
