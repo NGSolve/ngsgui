@@ -243,11 +243,17 @@ class BaseMeshSceneObject(SceneObject):
 
 class BaseFunctionSceneObject(BaseMeshSceneObject):
     """Base class for all scenes that depend on a coefficient function and a mesh"""
-    def __init__(self, cf, mesh=None):
-        if mesh==None:
-            if not isinstance(cf, ngsolve.comp.GridFunction):
-                raise RuntimeError("A mesh is needed if the given function is no GridFunction")
+    def __init__(self, cf, mesh=None, order=3):
+        if isinstance(cf, ngsolve.comp.GridFunction):
+            self.gf = cf
             mesh = cf.space.mesh
+            self.is_gridfunction = True
+        else:
+            self.is_gridfunction = False
+            if mesh==None:
+                raise RuntimeError("A mesh is needed if the given function is no GridFunction")
+            self.cf = cf
+            self.gf = ngsolve.GridFunction(ngsolve.L2(mesh, order=order, all_dofs_together=True))
 
         super().__init__(mesh)
 
@@ -258,6 +264,15 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
 
     def initGL(self):
         super().initGL()
+        self.coefficients = Texture(GL_TEXTURE_BUFFER, GL_R32F)
+
+    def update(self):
+        self.initGL()
+        if not self.is_gridfunction:
+            self.gf.Set(self.cf)
+        vec = ConvertCoefficients(self.gf)
+        self.coefficients.store(vec)
+
 
     def setColorMapMin(self, value):
         self.colormap_min = value
@@ -399,12 +414,11 @@ void main() { color = vec4(0,0,0,1);}""")
 
     
 class ClippingPlaneScene(BaseFunctionSceneObject):
-    def __init__(self, gf):
-        super().__init__(gf)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self.gl_initialized = False
-
-        self.gf = gf
+        self.vao = None
 
     def initGL(self):
         if self.gl_initialized:
@@ -424,8 +438,6 @@ class ClippingPlaneScene(BaseFunctionSceneObject):
         ]
         self.program = Program(shaders)
         glUseProgram(self.program.id)
-
-        self.coefficients = Texture(GL_TEXTURE_BUFFER, GL_R32F)
 
         attributes = self.program.attributes
         attributes.bind('vPos', self.mesh_data.tet_coordinates)
@@ -670,16 +682,14 @@ class MeshElementsScene(BaseMeshSceneObject):
 
 
 class SolutionScene(BaseFunctionSceneObject):
-    def __init__(self, gf):
-        super().__init__(gf)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self.qtWidget = None
-        self.gl_initialized = False
-
-        self.gf = gf
+        self.vao = None
 
     def initGL(self):
-        if self.gl_initialized:
+        if self.vao:
             return
 
         super().initGL()
@@ -695,7 +705,6 @@ class SolutionScene(BaseFunctionSceneObject):
         ]
         self.program = Program(shaders)
 
-        self.coefficients = Texture(GL_TEXTURE_BUFFER, GL_R32F)
 
         attributes = self.program.attributes
         attributes.bind('vPos', self.mesh_data.trig_coordinates)
@@ -704,17 +713,6 @@ class SolutionScene(BaseFunctionSceneObject):
 
         glBindVertexArray(0)
 
-        self.mesh_scene = MeshScene(self.mesh)
-        self.mesh_scene.update()
-
-
-    def update(self):
-        self.initGL()
-        # Todo: assumes the mesh is unchanged, also update mesh-related data if necessary (timestamps!)
-        glBindVertexArray(self.vao)
-        vec = ConvertCoefficients(self.gf)
-        self.coefficients.store(vec)
-        glBindVertexArray(0)
 
     def render(self, settings):
         model, view, projection = settings.model, settings.view, settings.projection
@@ -738,6 +736,4 @@ class SolutionScene(BaseFunctionSceneObject):
 
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh_data.ntrigs);
-
-        self.mesh_scene.renderWireframe(settings)
 
