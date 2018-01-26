@@ -505,6 +505,8 @@ class MeshScene(BaseMeshSceneObject):
 
         self.qtWidget = None
         self.gl_initialized = False
+        self.show_wireframe = True
+        self.show_surface = True
 
     def initGL(self):
         if self.gl_initialized:
@@ -557,6 +559,14 @@ class MeshScene(BaseMeshSceneObject):
     def render(self, settings):
         if not self.active:
             return
+
+        if self.show_surface:
+            self.renderMesh(settings)
+
+        if self.show_wireframe:
+            self.renderWireframe(settings)
+
+    def renderMesh(self, settings):
         glBindVertexArray(self.vao)
         self.setupRender(settings)
 
@@ -571,8 +581,6 @@ class MeshScene(BaseMeshSceneObject):
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh_data.ntrigs)
         glDisable(GL_POLYGON_OFFSET_FILL)
-
-        self.renderWireframe(settings)
 
     def renderWireframe(self, settings):
         glBindVertexArray(self.vao)
@@ -601,6 +609,12 @@ class MeshScene(BaseMeshSceneObject):
         glBindTexture(GL_TEXTURE_1D, self.tex_index_color)
         glTexImage1D(GL_TEXTURE_1D, 0,GL_RGBA, self.mesh_data.trig_max_index+1, 0, GL_RGBA, GL_UNSIGNED_BYTE, bytes(self.index_colors))
 
+    def setShowWireframe(self, show_wireframe):
+        self.show_wireframe = show_wireframe
+
+    def setShowSurface(self, show_surface):
+        self.show_surface = show_surface
+
     def getQtWidget(self, updateGL, params):
         if self.qtWidget!=None:
             return self.qtWidget
@@ -612,6 +626,20 @@ class MeshScene(BaseMeshSceneObject):
 
         widgets = super().getQtWidget(updateGL, params)
         widgets["BCColors"] = self.bccolors
+
+        cb_mesh = QtWidgets.QCheckBox("Surface")
+        if self.show_surface:
+            cb_mesh.setCheckState(QtCore.Qt.Checked)
+        cb_mesh.stateChanged.connect(self.setShowSurface)
+        cb_mesh.stateChanged.connect(updateGL)
+
+        cb_wireframe = QtWidgets.QCheckBox("Wireframe")
+        if self.show_wireframe:
+            cb_wireframe.setCheckState(QtCore.Qt.Checked)
+        cb_wireframe.stateChanged.connect(self.setShowWireframe)
+        cb_wireframe.stateChanged.connect(updateGL)
+
+        widgets["Components"] = ArrangeV(cb_mesh, cb_wireframe)
         return widgets
 
 
@@ -759,6 +787,8 @@ class SolutionScene(BaseFunctionSceneObject):
         if(self.mesh.dim==3):
             uniforms.set('element_type', 20)
 
+        glPolygonOffset (2,2)
+        glEnable(GL_POLYGON_OFFSET_FILL)
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh_data.ntrigs);
 
