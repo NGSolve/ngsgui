@@ -15,7 +15,7 @@ class CMeshData:
         from . import ngui
         self.mesh = weakref.ref(mesh)
         self.ntrigs, trig_coordinates_data, trig_bary_coordinates_data, trig_element_number_data, trig_element_index_data, self.trig_max_index, self.min, self.max = ngui.GetFaceData(mesh)
-        self.ntets, self.tet_max_index, tet_coordinates_data, tet_bary_coordinates_data, tet_element_number_data, tet_element_index_data = ngui.GetTetData(mesh)
+        self.ntets, self.tet_max_index, tet_coordinates_data, tet_bary_coordinates_data, tet_element_number_data, tet_element_index_data, tet_element_coordinates_data = ngui.GetTetData(mesh)
 
         self.tet_bary_coordinates = ArrayBuffer()
         self.tet_bary_coordinates.store(tet_bary_coordinates_data)
@@ -25,6 +25,8 @@ class CMeshData:
         self.tet_element_index.store(tet_element_index_data)
         self.tet_element_number = ArrayBuffer()
         self.tet_element_number.store(tet_element_number_data)
+        self.tet_element_coordinates = ArrayBuffer()
+        self.tet_element_coordinates.store(tet_element_coordinates_data)
         self.trig_bary_coordinates = ArrayBuffer()
         self.trig_bary_coordinates.store(trig_bary_coordinates_data)
         self.trig_coordinates = ArrayBuffer()
@@ -630,6 +632,8 @@ class MeshElementsScene(BaseMeshSceneObject):
 
         attributes = self.program.attributes
         attributes.bind('pos', self.mesh_data.tet_coordinates)
+        # attributes.bind('bary_pos', self.mesh_data.tet_bary_coordinates)
+        attributes.bind('corners', self.mesh_data.tet_element_coordinates)
         attributes.bind('index', self.mesh_data.tet_element_index)
 
         self.tex_mat_color = Texture(GL_TEXTURE_1D, GL_RGBA)

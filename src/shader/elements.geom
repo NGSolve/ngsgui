@@ -12,6 +12,7 @@ layout(triangle_strip, max_vertices=12) out;
 in VertexData
 {
   vec3 pos;
+  vec3 corners;
   flat int index;
 } inData[];
 
@@ -25,16 +26,31 @@ out VertexData
 void main() {
     vec3 center = vec3(0.0,0.0,0.0);
     int nvertices_behind = 0;
+    // vec3[4] corners;
+    // mat4 bmat = mat4(vec4(inData[0].bary_pos,1.0),
+    //                  vec4(inData[1].bary_pos,1.0),
+    //                  vec4(inData[2].bary_pos,1.0),
+    //                  vec4(inData[3].bary_pos,1.0));
+    // mat4 inv = inverse(bmat);
+
+    // for(int i = 3; i>=0; --i)
+    //   {
+    //     corners[i] = inv[i].x * inData[0].pos +
+    //       inv[i].y * inData[1].pos +
+    //       inv[i].z * inData[2].pos +
+    //       inv[i].w * inData[3].pos;
+    //     if(i<3)
+    //       corners[i] += corners[3];
+    //   }
     for (int i=0; i<4; ++i) {
-      center += inData[i].pos;
-      float dist = dot(clipping_plane, vec4(inData[i].pos,1.0));
+      center += inData[i].corners;
+      float dist = dot(clipping_plane, vec4(inData[i].corners,1.0));
       if(dist>0)
           nvertices_behind++;
     }
-    // TODO: use barycentric coordinates of vertices to calculate the center (needed for prisms etc.)
     center *= 0.25;
 
-    if( nvertices_behind<4) {
+    if(nvertices_behind<4) {
         for (int i=0; i<4; i++) {
              int ids[3];
           for (int v=0; v<3; v++) {

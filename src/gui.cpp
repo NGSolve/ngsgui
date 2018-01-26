@@ -26,6 +26,7 @@ PYBIND11_MODULE(ngui, m) {
         ngstd::Array<float> bary_coordinates;
         ngstd::Array<int> element_number;
         ngstd::Array<int> element_index;
+        ngstd::Array<float> element_coordinates;
         int max_index = 0;
 
         size_t ntets = ma->GetNE();
@@ -33,6 +34,7 @@ PYBIND11_MODULE(ngui, m) {
 
         coordinates.SetAllocSize(4*ntets*3);
         bary_coordinates.SetAllocSize(4*ntets*3);
+        element_coordinates.SetAllocSize(4*ntets*3);
         element_number.SetAllocSize(4*ntets);
         element_index.SetAllocSize(4*ntets);
 
@@ -78,6 +80,13 @@ PYBIND11_MODULE(ngui, m) {
                     MappedIntegrationPoint<3,3> mip(ip, eltrans);
                     points.Append(mip.GetPoint());
                 }
+                ArrayMem<Vec<3,float>,4> element_points;
+                for(auto ip : {IntegrationPoint(1,0,0),IntegrationPoint(0,1,0),
+                      IntegrationPoint(0,0,1), IntegrationPoint(0,0,0)})
+                  {
+                    MappedIntegrationPoint<3,3> mip(ip,eltrans);
+                    element_points.Append(mip.GetPoint());
+                  }
 
                 auto EmitElement = [&] (int a, int b, int c, int d) {
                     int pi[4];
@@ -93,6 +102,7 @@ PYBIND11_MODULE(ngui, m) {
                       for (auto k : Range(3)) {
                           coordinates.Append(points[pi[i]][k]);
                           bary_coordinates.Append(ref_coords_sorted[pi[i]][k]);
+                          element_coordinates.Append(element_points[i][k]);
                       }
                     }
                 };
@@ -141,6 +151,7 @@ PYBIND11_MODULE(ngui, m) {
                 for (auto k : Range(3)) {
                     coordinates.Append(v[k]);
                     bary_coordinates.Append( ii==k ? 1.0 : 0.0 );
+                    element_coordinates.Append(v[k]);
                 }
             }
             for (auto k : Range(4)){
@@ -157,7 +168,8 @@ PYBIND11_MODULE(ngui, m) {
             MoveToNumpyArray(coordinates),
             MoveToNumpyArray(bary_coordinates),
             MoveToNumpyArray(element_number),
-            MoveToNumpyArray(element_index)
+            MoveToNumpyArray(element_index),
+            MoveToNumpyArray(element_coordinates)
         );
 
     });
