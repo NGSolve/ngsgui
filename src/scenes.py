@@ -444,7 +444,7 @@ class ClippingPlaneScene(BaseFunctionSceneObject):
         self.vao = glGenVertexArrays(1)
         glBindVertexArray(self.vao)
 
-        Shader.includes['shader_functions'] = ngsolve.fem.GenerateShader(self.gf.space.globalorder)
+        Shader.includes['shader_functions'] = ngsolve.fem.GenerateL2ElementCode(self.gf.space.globalorder)
 
         shaders = [
             Shader('solution.vert'),
@@ -720,7 +720,7 @@ class SolutionScene(BaseFunctionSceneObject):
         self.vao = glGenVertexArrays(1)
         glBindVertexArray(self.vao)
 
-        Shader.includes['shader_functions'] = ngsolve.fem.GenerateShader(self.gf.space.globalorder)
+        Shader.includes['shader_functions'] = ngsolve.fem.GenerateL2ElementCode(self.gf.space.globalorder)
 
         shaders = [
             Shader('solution.vert'),
