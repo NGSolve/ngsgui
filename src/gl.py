@@ -10,7 +10,7 @@ from . import glmath, shader
 from PySide2 import QtCore, QtGui, QtWidgets, QtOpenGL
 from PySide2.QtCore import Qt
 
-# _DEVELOP=True
+_DEVELOP=True
 
 class GLObject:
     @property
