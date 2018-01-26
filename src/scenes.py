@@ -168,10 +168,11 @@ class TextRenderer:
 
 class SceneObject():
     action_counter = 1
-    def __init__(self):
+    def __init__(self,active=True):
         self.actions = {}
         self.active_action = None
         self.timestamp = -1
+        self.active = active
 
     def deferRendering(self):
         """used to render some scenes later (eg. overlays, transparency)
@@ -187,6 +188,16 @@ class SceneObject():
 
     def getQtWidget(self, updateGL, params):
         widgets = {}
+        cb = QtWidgets.QCheckBox("active")
+        def changeActive(state):
+            self.active = state
+            updateGL()
+        if self.active:
+            cb.setCheckState(QtCore.Qt.Checked)
+        else:
+            cb.setCheckState(QtCore.Qt.Unchecked)
+        cb.stateChanged.connect(changeActive)
+        widgets["General"] = cb
         self.actionCheckboxes = []
 
         class cbHolder:
@@ -233,8 +244,8 @@ class SceneObject():
 
 class BaseMeshSceneObject(SceneObject):
     """Base class for all scenes that depend on a mesh"""
-    def __init__(self, mesh):
-        super().__init__()
+    def __init__(self, mesh,**kwargs):
+        super().__init__(**kwargs)
         self.mesh = mesh
 
     def initGL(self):
@@ -245,7 +256,7 @@ class BaseMeshSceneObject(SceneObject):
 
 class BaseFunctionSceneObject(BaseMeshSceneObject):
     """Base class for all scenes that depend on a coefficient function and a mesh"""
-    def __init__(self, cf, mesh=None, order=3):
+    def __init__(self, cf, mesh=None, order=3, **kwargs):
         if isinstance(cf, ngsolve.comp.GridFunction):
             self.gf = cf
             mesh = cf.space.mesh
@@ -257,7 +268,7 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
             self.cf = cf
             self.gf = ngsolve.GridFunction(ngsolve.L2(mesh, order=order, all_dofs_together=True))
 
-        super().__init__(mesh)
+        super().__init__(mesh,**kwargs)
 
         self.colormap_min = -1
         self.colormap_max = 1
@@ -306,8 +317,8 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
 
 class OverlayScene(SceneObject):
     """Class  for overlay objects (Colormap, coordinate system, logo)"""
-    def __init__(self):
-        super().__init__()
+    def __init__(self,**kwargs):
+        super().__init__(**kwargs)
         self.gl_initialized = False
         self.show_logo = True
         self.show_cross = True
@@ -346,8 +357,10 @@ void main() { color = vec4(0,0,0,1);}""")
         glBindVertexArray(0)
 
     def render(self, settings):
-        self.update()
+        if not self.active:
+            return
 
+        self.update()
         glUseProgram(self.program.id)
         glBindVertexArray(self.vao)
 
@@ -459,6 +472,8 @@ class ClippingPlaneScene(BaseFunctionSceneObject):
 
 
     def render(self, settings):
+        if not self.active:
+            return
         model, view, projection = settings.model, settings.view, settings.projection
         glUseProgram(self.program.id)
         glBindVertexArray(self.vao)
@@ -485,8 +500,8 @@ class ClippingPlaneScene(BaseFunctionSceneObject):
 
 
 class MeshScene(BaseMeshSceneObject):
-    def __init__(self, mesh):
-        super().__init__(mesh)
+    def __init__(self, mesh, **kwargs):
+        super().__init__(mesh, **kwargs)
 
         self.qtWidget = None
         self.gl_initialized = False
@@ -540,6 +555,8 @@ class MeshScene(BaseMeshSceneObject):
         glBindTexture(GL_TEXTURE_1D, self.tex_index_color)
 
     def render(self, settings):
+        if not self.active:
+            return
         glBindVertexArray(self.vao)
         self.setupRender(settings)
 
@@ -599,8 +616,8 @@ class MeshScene(BaseMeshSceneObject):
 
 
 class MeshElementsScene(BaseMeshSceneObject):
-    def __init__(self, mesh):
-        super().__init__(mesh)
+    def __init__(self, mesh, **kwargs):
+        super().__init__(mesh, **kwargs)
 
         self.qtWidget = None
         self.gl_initialized = False
@@ -642,6 +659,8 @@ class MeshElementsScene(BaseMeshSceneObject):
         glBindVertexArray(0)
 
     def render(self, settings):
+        if not self.active:
+            return
         glBindVertexArray(self.vao)
         glUseProgram(self.program.id)
 
@@ -719,6 +738,8 @@ class SolutionScene(BaseFunctionSceneObject):
 
 
     def render(self, settings):
+        if not self.active:
+            return
         model, view, projection = settings.model, settings.view, settings.projection
         glBindVertexArray(self.vao)
         glUseProgram(self.program.id)
