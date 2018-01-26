@@ -1,7 +1,7 @@
 from PySide2 import QtCore, QtGui, QtWidgets, QtOpenGL
 from PySide2.QtCore import Qt
 from OpenGL.GL import *
-from .gui import ColorMapSettings, Qt, RangeGroup, CollColors, ArrangeV, ArrangeH
+from .gui import ColorMapSettings, Qt, RangeGroup, CollColors, ArrangeV, ArrangeH, GUIHelper
 import ngsolve
 from .gl import *
 import numpy
@@ -186,17 +186,14 @@ class SceneObject():
         box_max[:] = -1e99
         return box_min,box_max
 
+    def setActive(self, active):
+        self.active = active
+
     def getQtWidget(self, updateGL, params):
         widgets = {}
-        cb = QtWidgets.QCheckBox("active")
-        def changeActive(state):
-            self.active = state
-            updateGL()
-        if self.active:
-            cb.setCheckState(QtCore.Qt.Checked)
-        else:
-            cb.setCheckState(QtCore.Qt.Unchecked)
-        cb.stateChanged.connect(changeActive)
+
+        helper = GUIHelper(updateGL)
+        cb = helper.CheckBox("active", self.setActive, self.active)
         widgets["General"] = cb
         self.actionCheckboxes = []
 
@@ -390,10 +387,10 @@ void main() { color = vec4(0,0,0,1);}""")
         glEnable(GL_DEPTH_TEST)
         glBindVertexArray(0)
 
-    def showLogo(self, show):
+    def setShowLogo(self, show):
         self.show_logo = show
 
-    def showCross(self, show):
+    def setShowCross(self, show):
         self.show_cross = show
 
     def update(self):
@@ -402,28 +399,15 @@ void main() { color = vec4(0,0,0,1);}""")
     def getQtWidget(self, updateGL, params):
 
         widgets = super().getQtWidget(updateGL, params)
+        helper = GUIHelper(updateGL)
 
-        logo = QtWidgets.QCheckBox('Show version number')
-        logo.setChecked(True)
-        logo.stateChanged.connect( self.showLogo )
-        logo.stateChanged.connect( updateGL )
-        cross = QtWidgets.QCheckBox('Show coordinate cross')
-        cross.setChecked(True)
-        cross.stateChanged.connect( self.showCross )
-        cross.stateChanged.connect( updateGL )
+        logo = helper.CheckBox("Show version number", self.setShowLogo, self.show_logo)
+        cross = helper.CheckBox("Show coordinate cross", self.setShowCross, self.show_cross)
         widgets["Overlay"] = ArrangeV(logo, cross)
-        clipx = QtWidgets.QPushButton("X")
-        clipx.clicked.connect(lambda : params.setClippingPlaneNormal([1,0,0]))
-        clipx.clicked.connect(updateGL)
-        clipy = QtWidgets.QPushButton("Y")
-        clipy.clicked.connect(lambda : params.setClippingPlaneNormal([0,1,0]))
-        clipy.clicked.connect(updateGL)
-        clipz = QtWidgets.QPushButton("Z")
-        clipz.clicked.connect(lambda : params.setClippingPlaneNormal([0,0,1]))
-        clipz.clicked.connect(updateGL)
-        clip_flip = QtWidgets.QPushButton("flip")
-        clip_flip.clicked.connect(lambda : params.setClippingPlaneNormal(-1.0*params.getClippingPlaneNormal()))
-        clip_flip.clicked.connect(updateGL)
+        clipx = helper.Button("X", lambda : params.setClippingPlaneNormal([1,0,0]))
+        clipy = helper.Button("Y", lambda : params.setClippingPlaneNormal([0,1,0]))
+        clipz = helper.Button("Z", lambda : params.setClippingPlaneNormal([0,0,1]))
+        clip_flip = helper.Button("flip", lambda : params.setClippingPlaneNormal(-1.0*params.getClippingPlaneNormal()))
         widgets["Clipping plane"] = ArrangeH(clipx, clipy, clipz, clip_flip)
         return widgets
 
@@ -627,17 +611,9 @@ class MeshScene(BaseMeshSceneObject):
         widgets = super().getQtWidget(updateGL, params)
         widgets["BCColors"] = self.bccolors
 
-        cb_mesh = QtWidgets.QCheckBox("Surface")
-        if self.show_surface:
-            cb_mesh.setCheckState(QtCore.Qt.Checked)
-        cb_mesh.stateChanged.connect(self.setShowSurface)
-        cb_mesh.stateChanged.connect(updateGL)
-
-        cb_wireframe = QtWidgets.QCheckBox("Wireframe")
-        if self.show_wireframe:
-            cb_wireframe.setCheckState(QtCore.Qt.Checked)
-        cb_wireframe.stateChanged.connect(self.setShowWireframe)
-        cb_wireframe.stateChanged.connect(updateGL)
+        helper = GUIHelper(updateGL)
+        cb_mesh = helper.CheckBox("Surface", self.setShowSurface, self.show_surface)
+        cb_wireframe = helper.CheckBox("Wireframe", self.setShowWireframe, self.show_wireframe)
 
         widgets["Components"] = ArrangeV(cb_mesh, cb_wireframe)
         return widgets

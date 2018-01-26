@@ -36,6 +36,26 @@ def ArrangeH(*args):
     return layout
 
 
+class GUIHelper():
+    def __init__(self, updateSlot):
+        self.updateSlot = updateSlot
+
+    def CheckBox(self, name, slot, checked=False):
+        cb = QtWidgets.QCheckBox(name)
+        if checked:
+            cb.setCheckState(QtCore.Qt.Checked)
+        else:
+            cb.setCheckState(QtCore.Qt.UnChecked)
+        cb.stateChanged.connect(slot)
+        cb.stateChanged.connect(self.updateSlot)
+        return cb
+
+    def Button(self, name, slot):
+        button = QtWidgets.QPushButton(name)
+        button.clicked.connect(slot)
+        button.clicked.connect(self.updateSlot)
+        return button
+
 
 class QColorButton(QtWidgets.QPushButton):
     '''
