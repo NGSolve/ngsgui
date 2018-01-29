@@ -56,6 +56,14 @@ class GUIHelper():
         button.clicked.connect(self.updateSlot)
         return button
 
+class ObjectHolder():
+    def __init__(self, obj, call_func):
+        self.obj = obj
+        self.call_func = call_func
+
+    def __call__(self, state):
+        self.call_func(self,state)
+
 
 class QColorButton(QtWidgets.QPushButton):
     '''
@@ -166,17 +174,13 @@ class CollColors(QtWidgets.QWidget):
         layouts = []
         self.coll = coll
 
-        class btnholder:
-            def __init__(self,btn):
-                self.btn = btn
-
-            def __call__(self,state):
-                color = self.btn._color
-                if state:
-                    color.setAlpha(255)
-                else:
-                    color.setAlpha(0)
-                self.btn.setColor(color)
+        def call_func(self,state):
+            color = self.obj._color
+            if state:
+                color.setAlpha(255)
+            else:
+                color.setAlpha(0)
+            self.obj.setColor(color)
 
         for item in coll:
             if not item in self.colorbtns:
@@ -184,7 +188,7 @@ class CollColors(QtWidgets.QWidget):
                 btn.colorChanged.connect(self.colors_changed.emit)
                 cb_visible = QtWidgets.QCheckBox('visible',self)
                 cb_visible.setCheckState(QtCore.Qt.Checked)
-                cb_visible.stateChanged.connect(btnholder(btn))
+                cb_visible.stateChanged.connect(ObjectHolder(btn,call_func))
                 self.colorbtns[item] = btn
                 layouts.append(ArrangeH(btn,QtWidgets.QLabel(item),cb_visible))
 
@@ -519,13 +523,13 @@ class GUI():
         self.windows = []
         self.app = QtWidgets.QApplication([])
         self.last = time.time()
-        self._sceneindex = 1
-        self.draw(scenes.OverlayScene(), "Global options")
+        self.scenes = []
 
-    def draw(self, scene, name=None, separate_window=False):
-        if name is None:
-            name = "Scene" + str(self._sceneindex)
-        self._sceneindex += 1
+    def draw(self, scene, separate_window=False,position=None):
+        if position is None:
+            self.scenes.append(scene)
+        else:
+            self.scenes.insert(position,scene)
         if separate_window or len(self.windows)==0:
             window = MainWindow()
             window.show()
@@ -545,7 +549,10 @@ class GUI():
             group.setLayout(ArrangeV(item))
             layout.addWidget(group)
         widget.setLayout(layout)
-        window.settings.addItem(widget, name)
+        if position is None:
+            window.settings.addItem(widget, scene.name)
+        else:
+            window.settings.insertItem(position,widget,scene.name)
 
     def redraw(self, blocking=True):
         if time.time() - self.last < 0.02:
@@ -563,6 +570,7 @@ class GUI():
 
 
     def run(self):
+        self.draw(scenes.OverlayScene(self.scenes, name="Global options"),position=0)
         for window in self.windows:
             window.show()
         res = self.app.exec_()

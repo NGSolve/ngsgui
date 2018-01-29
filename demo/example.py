@@ -23,10 +23,10 @@ with TaskManager():
 
 
 gui = GUI.GUI()
-scene = GUI.ClippingPlaneScene(gf)
-gui.draw(scene,name="Solution")
-scene1 = GUI.MeshScene(mesh)
-gui.draw(scene1,name="Mesh")
+scene = GUI.ClippingPlaneScene(gf,name="Solution")
+gui.draw(scene)
+scene1 = GUI.MeshScene(mesh,name="Mesh")
+gui.draw(scene1)
 gui.run()
 
 # def MakeGeometry():

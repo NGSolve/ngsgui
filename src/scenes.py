@@ -1,7 +1,7 @@
 from PySide2 import QtCore, QtGui, QtWidgets, QtOpenGL
 from PySide2.QtCore import Qt
 from OpenGL.GL import *
-from .gui import ColorMapSettings, Qt, RangeGroup, CollColors, ArrangeV, ArrangeH, GUIHelper
+from .gui import ColorMapSettings, Qt, RangeGroup, CollColors, ArrangeV, ArrangeH, GUIHelper, ObjectHolder
 import ngsolve
 from .gl import *
 import numpy
@@ -168,11 +168,17 @@ class TextRenderer:
 
 class SceneObject():
     action_counter = 1
-    def __init__(self,active=True):
+    scene_counter = 1
+    def __init__(self,active=True, name = None):
         self.actions = {}
         self.active_action = None
         self.timestamp = -1
         self.active = active
+        if name is None:
+            self.name = "Scene" + str(self.scene_counter)
+            self.scene_counter += 1
+        else:
+            self.name = name
 
     def deferRendering(self):
         """used to render some scenes later (eg. overlays, transparency)
@@ -186,15 +192,14 @@ class SceneObject():
         box_max[:] = -1e99
         return box_min,box_max
 
-    def setActive(self, active):
+    def setActive(self, active, updateGL):
         self.active = active
+        updateGL()
 
     def getQtWidget(self, updateGL, params):
         widgets = {}
 
         helper = GUIHelper(updateGL)
-        cb = helper.CheckBox("active", self.setActive, self.active)
-        widgets["General"] = cb
         self.actionCheckboxes = []
 
         class cbHolder:
@@ -314,13 +319,14 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
 
 class OverlayScene(SceneObject):
     """Class  for overlay objects (Colormap, coordinate system, logo)"""
-    def __init__(self,**kwargs):
+    def __init__(self,scenes,**kwargs):
         super().__init__(**kwargs)
         self.gl_initialized = False
         self.show_logo = True
         self.show_cross = True
         self.cross_scale = 0.3
         self.cross_shift = -0.10
+        self.scenes = scenes
 
     def deferRendering(self):
         return 99
@@ -400,6 +406,13 @@ void main() { color = vec4(0,0,0,1);}""")
 
         widgets = super().getQtWidget(updateGL, params)
         helper = GUIHelper(updateGL)
+
+        active_layout = QtWidgets.QVBoxLayout()
+        for scene in self.scenes:
+            active_layout.addWidget(helper.CheckBox(scene.name,
+                                                    ObjectHolder(scene, lambda self,state: self.obj.setActive(state,updateGL)),
+                                                    scene.active))
+        widgets["Active Scenes"] = active_layout
 
         logo = helper.CheckBox("Show version number", self.setShowLogo, self.show_logo)
         cross = helper.CheckBox("Show coordinate cross", self.setShowCross, self.show_cross)
