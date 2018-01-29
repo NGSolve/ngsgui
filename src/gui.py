@@ -7,6 +7,8 @@ import time
 import ngsolve
 from ngsolve.bla import Vector
 from ngsolve.comp import BND, VOL
+from qtconsole.rich_jupyter_widget import RichJupyterWidget
+from qtconsole.inprocess import QtInProcessKernelManager
 
 import numpy
 from . import glmath
@@ -298,7 +300,7 @@ class RenderingParameters:
 
 class MainWindow(QtWidgets.QMainWindow):
 
-    def __init__(self):
+    def __init__(self,variables):
         super(MainWindow, self).__init__()
 
         f = QtOpenGL.QGLFormat()
@@ -332,7 +334,29 @@ class MainWindow(QtWidgets.QMainWindow):
         settings = QtWidgets.QWidget()
         settings.setLayout( ArrangeV(self.settings, buttons))
         mainWidget.addWidget(settings)
-        mainWidget.addWidget(self.glWidget)
+        console_and_gl = QtWidgets.QSplitter()
+        console_and_gl.setOrientation(QtCore.Qt.Vertical)
+        console_and_gl.addWidget(self.glWidget)
+        kernel_manager = QtInProcessKernelManager()
+        kernel_manager.start_kernel(show_banner=False)
+        kernel = kernel_manager.kernel
+        kernel_client = kernel_manager.client()
+        kernel_client.start_channels()
+        kernel.shell.push(variables)
+        console = RichJupyterWidget()
+        console.kernel_manager = kernel_manager
+        console.kernel_client = kernel_client
+        class dummyioloop():
+            def call_later(self,a,b):
+                return
+            def stop(self):
+                return
+        kernel.io_loop = dummyioloop()
+        console.exit_requested.connect(self.close)
+        console_and_gl.addWidget(console)
+        console_and_gl.setStretchFactor(0,3)
+        console_and_gl.setStretchFactor(1,1)
+        mainWidget.addWidget(console_and_gl)
         self.setCentralWidget(mainWidget)
 
         self.setWindowTitle(self.tr("Pyside2 GL"))
@@ -525,13 +549,15 @@ class GUI():
         self.last = time.time()
         self.scenes = []
 
-    def draw(self, scene, separate_window=False,position=None):
+    def draw(self, scene, separate_window=False,position=None,variables=None):
+        if variables is None:
+            variables = {}
         if position is None:
             self.scenes.append(scene)
         else:
             self.scenes.insert(position,scene)
         if separate_window or len(self.windows)==0:
-            window = MainWindow()
+            window = MainWindow(variables)
             window.show()
             window.raise_()
             self.windows.append(window)

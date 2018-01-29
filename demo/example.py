@@ -24,7 +24,7 @@ with TaskManager():
 
 gui = GUI.GUI()
 scene = GUI.ClippingPlaneScene(gf,name="Solution")
-gui.draw(scene)
+gui.draw(scene,variables=locals())
 scene1 = GUI.MeshScene(mesh,name="Mesh")
 gui.draw(scene1)
 gui.run()
