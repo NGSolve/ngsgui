@@ -216,6 +216,7 @@ class CollColors(QtWidgets.QWidget):
                 v = [1.0,0.8][i%2]
                 color = QtGui.QColor()
                 color.setHsvF(h,s,v)
+                color.setAlpha(btn.color().alpha())
                 btn.setColor(color)
             self.colors_changed.emit()
 
@@ -223,7 +224,9 @@ class CollColors(QtWidgets.QWidget):
         btn_reset = QtWidgets.QPushButton("Reset", self)
         def Reset():
             for name, btn in self.colorbtns.items():
-                btn.setColor(QtGui.QColor(*self.initial_color))
+                col = QtGui.QColor(*self.initial_color)
+                col.setAlpha( btn.color().alpha() )
+                btn.setColor(col)
             self.colors_changed.emit()
         btn_reset.clicked.connect(Reset)
         layout = ArrangeV(colors,ArrangeH(btn_random,btn_reset))
