@@ -45,7 +45,7 @@ class GUIHelper():
         if checked:
             cb.setCheckState(QtCore.Qt.Checked)
         else:
-            cb.setCheckState(QtCore.Qt.UnChecked)
+            cb.setCheckState(QtCore.Qt.Unchecked)
         cb.stateChanged.connect(slot)
         cb.stateChanged.connect(self.updateSlot)
         return cb
