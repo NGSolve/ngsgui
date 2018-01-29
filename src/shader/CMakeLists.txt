@@ -1,6 +1,6 @@
 install(FILES
   mesh.frag mesh.vert solution.frag solution.vert
   clipping.geom elements.geom elements.frag elements.vert utils.inc
-  font.vert font.frag font.geom
+  font.vert font.frag font.geom tess.tesc tess.tese
   DESTINATION ngsolve/gui/shader
 )

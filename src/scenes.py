@@ -504,6 +504,8 @@ class MeshScene(BaseMeshSceneObject):
         self.gl_initialized = False
         self.show_wireframe = True
         self.show_surface = True
+        self.tesslevelinner = 8.0
+        self.tesslevelouter = 8.0
 
     def initGL(self):
         if self.gl_initialized:
@@ -516,6 +518,8 @@ class MeshScene(BaseMeshSceneObject):
 
         shaders = [
             Shader('mesh.vert'),
+            Shader('tess.tesc'),
+            Shader('tess.tese'),
             Shader('mesh.frag')
         ]
         self.program = Program(shaders)
@@ -563,6 +567,7 @@ class MeshScene(BaseMeshSceneObject):
         if self.show_wireframe:
             self.renderWireframe(settings)
 
+
     def renderMesh(self, settings):
         glBindVertexArray(self.vao)
         self.setupRender(settings)
@@ -572,11 +577,16 @@ class MeshScene(BaseMeshSceneObject):
         uniforms.set('clipping_plane', settings.clipping_plane)
         uniforms.set('use_index_color', True)
         uniforms.set('do_clipping', self.mesh.dim==3);
+        uniforms.set('TessLevelInner', self.tesslevelinner)
+        uniforms.set('TessLevelOuter', self.tesslevelouter)
+        uniforms.set('draw_edges', False)
 
         glPolygonOffset (2,2)
         glEnable(GL_POLYGON_OFFSET_FILL)
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
-        glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh_data.ntrigs)
+        glPatchParameteri(GL_PATCH_VERTICES, 3)
+        glDrawArrays(GL_PATCHES, 0, 3*self.mesh_data.ntrigs)
+#         glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh_data.ntrigs)
         glDisable(GL_POLYGON_OFFSET_FILL)
 
     def renderWireframe(self, settings):
@@ -588,10 +598,17 @@ class MeshScene(BaseMeshSceneObject):
         uniforms.set('clipping_plane', settings.clipping_plane)
         uniforms.set('use_index_color', False)
         uniforms.set('do_clipping', self.mesh.dim==3);
+        uniforms.set('TessLevelInner', self.tesslevelinner)
+        uniforms.set('TessLevelOuter', self.tesslevelouter)
+        uniforms.set('draw_edges', False) # set to true to draw only unrefined edges in wireframe
+
+
         glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
         glPolygonOffset (1, 1)
         glEnable(GL_POLYGON_OFFSET_LINE)
-        glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh_data.ntrigs)
+#         glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh_data.ntrigs)
+        glPatchParameteri(GL_PATCH_VERTICES, 3)
+        glDrawArrays(GL_PATCHES, 0, 3*self.mesh_data.ntrigs)
         glDisable(GL_POLYGON_OFFSET_LINE)
 
 
@@ -612,6 +629,12 @@ class MeshScene(BaseMeshSceneObject):
     def setShowSurface(self, show_surface):
         self.show_surface = show_surface
 
+    def setTessInner(self, value):
+        self.tesslevelinner = value
+
+    def setTessOuter(self, value):
+        self.tesslevelouter = value
+
     def getQtWidget(self, updateGL, params):
         if self.qtWidget!=None:
             return self.qtWidget
@@ -629,6 +652,18 @@ class MeshScene(BaseMeshSceneObject):
         cb_wireframe = helper.CheckBox("Wireframe", self.setShowWireframe, self.show_wireframe)
 
         widgets["Components"] = ArrangeV(cb_mesh, cb_wireframe)
+
+        inner = QtWidgets.QDoubleSpinBox()
+        inner.setRange(0, 20)
+        inner.valueChanged[float].connect(self.setTessInner)
+        inner.setSingleStep(1.0)
+        inner.valueChanged[float].connect(updateGL)
+        outer = QtWidgets.QDoubleSpinBox()
+        outer.setRange(0, 20)
+        outer.valueChanged[float].connect(self.setTessOuter)
+        outer.setSingleStep(1.0)
+        outer.valueChanged[float].connect(updateGL)
+        widgets["Tesselation"] = ArrangeV(inner,outer)
         return widgets
 
 

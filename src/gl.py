@@ -45,6 +45,8 @@ class Shader(GLObject):
         shader_types = {
                 'vert': GL_VERTEX_SHADER,
                 'frag': GL_FRAGMENT_SHADER,
+                'tese': GL_TESS_EVALUATION_SHADER,
+                'tesc': GL_TESS_CONTROL_SHADER,
                 'geom': GL_GEOMETRY_SHADER
                 }
         if shader_type == None:

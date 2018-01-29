@@ -23,6 +23,6 @@ with TaskManager():
     gf.Set(cos(n*x)*cos(n*y)*cos(n*z))
 
 gui = GUI.GUI()
-scene = GUI.SolutionScene(gf)
+scene = GUI.MeshScene(mesh)
 gui.draw(scene)
 gui.run()
