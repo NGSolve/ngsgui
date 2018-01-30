@@ -167,7 +167,6 @@ class TextRenderer:
         glDrawArrays(GL_POINTS, 0, len(s))
 
 class SceneObject():
-    action_counter = 1
     scene_counter = 1
     def __init__(self,active=True, name = None):
         self.actions = {}
@@ -175,8 +174,8 @@ class SceneObject():
         self.timestamp = -1
         self.active = active
         if name is None:
-            self.name = "Scene" + str(self.scene_counter)
-            self.scene_counter += 1
+            self.name = "Scene" + str(SceneObject.scene_counter)
+            SceneObject.scene_counter += 1
         else:
             self.name = name
 
@@ -235,8 +234,7 @@ class SceneObject():
 
     def addAction(self,action,name=None):
         if name is None:
-            name = "Action" + str(action_counter)
-            action_counter += 1
+            name = "Action" + str(len(self.actions)+1)
         self.actions[name] = action
         self.active_action = name
 
@@ -497,13 +495,13 @@ class ClippingPlaneScene(BaseFunctionSceneObject):
 
 
 class MeshScene(BaseMeshSceneObject):
-    def __init__(self, mesh, **kwargs):
+    def __init__(self, mesh, wireframe=True, surface=True, **kwargs):
         super().__init__(mesh, **kwargs)
 
         self.qtWidget = None
         self.gl_initialized = False
-        self.show_wireframe = True
-        self.show_surface = True
+        self.show_wireframe = wireframe
+        self.show_surface = surface
 
     def initGL(self):
         if self.gl_initialized:
@@ -597,7 +595,7 @@ class MeshScene(BaseMeshSceneObject):
 
     def updateIndexColors(self):
         colors = []
-        for c in self.bccolors.getColors():
+        for c in self.indexcolors.getColors():
             colors.append(c.red())
             colors.append(c.green())
             colors.append(c.blue())
@@ -616,13 +614,19 @@ class MeshScene(BaseMeshSceneObject):
         if self.qtWidget!=None:
             return self.qtWidget
 
-        self.bccolors = CollColors(self.mesh.GetBoundaries())
-        self.bccolors.colors_changed.connect(self.updateIndexColors)
-        self.bccolors.colors_changed.connect(updateGL)
-        self.updateIndexColors()
-
         widgets = super().getQtWidget(updateGL, params)
-        widgets["BCColors"] = self.bccolors
+        if self.mesh.dim == 3:
+            mats = self.mesh.GetBoundaries()
+            matsname = "Boundary Conditions"
+        else:
+            mats = self.mesh.GetMaterials()
+            matsname = "Materials"
+        if self.mesh.dim > 1:
+            self.indexcolors = CollColors(mats)
+            self.indexcolors.colors_changed.connect(self.updateIndexColors)
+            self.indexcolors.colors_changed.connect(updateGL)
+            self.updateIndexColors()
+            widgets[matsname] = self.indexcolors
 
         helper = GUIHelper(updateGL)
         cb_mesh = helper.CheckBox("Surface", self.setShowSurface, self.show_surface)

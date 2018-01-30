@@ -25,4 +25,6 @@ with TaskManager():
 gui = GUI.GUI()
 scene = GUI.SolutionScene(gf)
 gui.draw(scene)
+scene2 = GUI.MeshScene(mesh,surface=False)
+gui.draw(scene2)
 gui.run()
