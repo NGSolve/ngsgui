@@ -95,6 +95,18 @@ class GUIHelper():
         button.clicked.connect(self.updateSlot)
         return button
 
+    def DoubleSpinBox(self, step=1, slot=None, name=None):
+        box = QtWidgets.QDoubleSpinBox()
+        box.valueChanged[float].connect(slot)
+        box.valueChanged[float].connect(self.updateSlot)
+        box.setSingleStep(step)
+        if(name):
+            label = QtWidgets.QLabel(name)
+            return ArrangeH(label, box)
+        else:
+            return box
+
+
 class ObjectHolder():
     def __init__(self, obj, call_func):
         self.obj = obj
@@ -455,7 +467,7 @@ class GLWidget(QtOpenGL.QGLWidget):
 
     def paintGL(self):
         t = time.time() - self.old_time
-        print("frames per second: ", 1.0/t, end='\r')
+#         print("frames per second: ", 1.0/t, end='\r')
         self.old_time = time.time()
 
 

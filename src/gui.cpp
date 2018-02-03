@@ -182,6 +182,44 @@ PYBIND11_MODULE(ngui, m) {
           py::gil_scoped_acquire ac;
           return MoveToNumpyArray(res);
       },py::call_guard<py::gil_scoped_release>());
+    m.def("GetValues", [] (shared_ptr<ngfem::CoefficientFunction> cf, shared_ptr<ngcomp::MeshAccess> ma, int subdivision, int order) {
+            ngstd::Array<float> res;
+            LocalHeap lh(10000000, "GetValues");
+
+            if(ma->GetDimension()==2)
+            {
+                auto ntrigs = ma->GetNE();
+                const int npoints_trig = (order+1)*(order+2)/2;
+                const int n_subtrigs = (subdivision+1)*(subdivision+1);
+                int n = order*(subdivision+1)+1;
+                res.SetAllocSize(ntrigs*n_subtrigs*npoints_trig);
+
+                IntegrationRule ir;
+                const double h = 1.0/(n-1);
+                for (auto j : Range(n))
+                    for (auto i : Range(n-j))
+                        ir.Append(IntegrationPoint(i*h, j*h, 0.0));
+                SIMD_IntegrationRule sir(ir);
+                FlatMatrix<SIMD<double>> values(ir.Size(), 1, lh);
+
+                for (auto i : ngcomp::Range(ntrigs)) {
+                    auto ei = ElementId(VOL,i);
+                    auto el = ma->GetElement(ElementId( VOL, i));
+                    auto verts = el.Vertices();
+                    HeapReset hr(lh);
+                    ElementTransformation & eltrans = ma->GetTrafo (ei, lh);
+                    SIMD_MappedIntegrationRule<2,2> mir(ir, eltrans, lh);
+                    cf->Evaluate(mir, values);
+                    int k = 0;
+                    for (auto v : FlatVector<double>(ir.Size(), &values(0,0))) {
+                        if (k++<ir.Size())
+                          res.Append(v);
+                    }
+                }
+            }
+          py::gil_scoped_acquire ac;
+          return MoveToNumpyArray(res);
+      },py::call_guard<py::gil_scoped_release>());
     m.def("GetFaceData", [] (shared_ptr<ngcomp::MeshAccess> ma) {
         ngstd::Array<float> coordinates;
         ngstd::Array<float> bary_coordinates;
@@ -196,15 +234,16 @@ PYBIND11_MODULE(ngui, m) {
         max = std::numeric_limits<double>::lowest();
 
         auto addVertices = [&] (auto verts) {
-            ArrayMem<int,3> sorted_vertices{0,1,2};
-            ArrayMem<int,3> unsorted_vertices{verts[0], verts[1], verts[2]};
+//             ArrayMem<int,3> sorted_vertices{0,1,2};
+//             ArrayMem<int,3> unsorted_vertices{verts[0], verts[1], verts[2]};
 
-            BubbleSort (unsorted_vertices, sorted_vertices);
+//             BubbleSort (unsorted_vertices, sorted_vertices);
             for (auto j : ngcomp::Range(3)) {
                 auto v = ma->GetPoint<3>(verts[j]);
                 for (auto k : Range(3)) {
                   coordinates.Append(v[k]);
-                  bary_coordinates.Append( unsorted_vertices[k]==verts[j] ? 1.0 : 0.0 );
+//                   bary_coordinates.Append( unsorted_vertices[k]==verts[j] ? 1.0 : 0.0 );
+                  bary_coordinates.Append( k==j ? 1.0 : 0.0 );
 
                   min[k] = min2(min[k], v[k]);
                   max[k] = max2(max[k], v[k]);

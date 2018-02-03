@@ -259,8 +259,8 @@ class BaseMeshSceneObject(SceneObject):
 class BaseFunctionSceneObject(BaseMeshSceneObject):
     """Base class for all scenes that depend on a coefficient function and a mesh"""
     def __init__(self, cf, mesh=None, order=3, **kwargs):
+        self.cf = cf
         if isinstance(cf, ngsolve.comp.GridFunction):
-            self.gf = cf
             mesh = cf.space.mesh
             self.is_gridfunction = True
         else:
@@ -268,8 +268,10 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
             if mesh==None:
                 raise RuntimeError("A mesh is needed if the given function is no GridFunction")
             self.cf = cf
-            self.gf = ngsolve.GridFunction(ngsolve.L2(mesh, order=order, all_dofs_together=True))
 
+        self.subdivision = 4
+        self.order = 2
+        n = self.order*(2**self.subdivision)+1
         super().__init__(mesh,**kwargs)
 
         self.colormap_min = -1
@@ -283,9 +285,7 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
 
     def update(self):
         self.initGL()
-        if not self.is_gridfunction:
-            self.gf.Set(self.cf)
-        vec = ConvertCoefficients(self.gf)
+        vec = GetValues(self.cf, self.mesh, 2**self.subdivision-1, self.order)
         self.coefficients.store(vec)
 
 
@@ -298,6 +298,14 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
     def setColorMapLinear(self, value):
         self.colormap_linear = value
 
+
+    def setSubdivision(self, value):
+        self.subdivision = int(value)
+        self.update()
+
+    def setOrder(self, value):
+        self.order = int(value)
+        self.update()
 
     def getQtWidget(self, updateGL, params):
 
@@ -315,6 +323,12 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
 
         widgets = super().getQtWidget(updateGL, params)
         widgets["Colormap"] = settings
+
+        helper = GUIHelper(updateGL)
+        widgets["Subdivision"] = ArrangeV( 
+                helper.DoubleSpinBox(slot = self.setSubdivision, name="Subdivision"),
+                helper.DoubleSpinBox(slot = self.setOrder, name="Order")
+                )
         return widgets
 
 class OverlayScene(SceneObject):
@@ -441,7 +455,7 @@ class ClippingPlaneScene(BaseFunctionSceneObject):
         self.vao = glGenVertexArrays(1)
         glBindVertexArray(self.vao)
 
-        Shader.includes['shader_functions'] = ngsolve.fem.GenerateL2ElementCode(self.gf.space.globalorder)
+        Shader.includes['shader_functions'] = ngsolve.fem.GenerateL2ElementCode(3)
 
         shaders = [
             Shader('solution.vert'),
@@ -463,8 +477,8 @@ class ClippingPlaneScene(BaseFunctionSceneObject):
     def update(self):
         self.initGL()
         glBindVertexArray(self.vao)
-        vec = ConvertCoefficients(self.gf)
-        self.coefficients.store(vec)
+#         vec = ConvertCoefficients(self.gf)
+#         self.coefficients.store(vec)
         glBindVertexArray(0)
 
 
@@ -743,7 +757,7 @@ class SolutionScene(BaseFunctionSceneObject):
         self.vao = glGenVertexArrays(1)
         glBindVertexArray(self.vao)
 
-        Shader.includes['shader_functions'] = ngsolve.fem.GenerateL2ElementCode(self.gf.space.globalorder)
+        Shader.includes['shader_functions'] = ngsolve.fem.GenerateL2ElementCode(3)
 
         shaders = [
             Shader('solution.vert'),
@@ -776,6 +790,8 @@ class SolutionScene(BaseFunctionSceneObject):
         uniforms.set('colormap_linear', self.colormap_linear)
         uniforms.set('clipping_plane', settings.clipping_plane)
         uniforms.set('do_clipping', self.mesh.dim==3);
+        uniforms.set('subdivision', 2**self.subdivision-1)
+        uniforms.set('order', self.order)
 
         if(self.mesh.dim==2):
             uniforms.set('element_type', 10)
