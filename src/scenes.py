@@ -711,8 +711,11 @@ class MeshElementsScene(BaseMeshSceneObject):
 
         self.tex_mat_color.bind()
 
+        glPolygonOffset (2,2)
+        glEnable(GL_POLYGON_OFFSET_FILL)
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         glDrawArrays(GL_LINES_ADJACENCY, 0, 4*self.mesh_data.ntets)
+        glDisable(GL_POLYGON_OFFSET_FILL)
 
     def setShrink(self, value):
         self.shrink = value
