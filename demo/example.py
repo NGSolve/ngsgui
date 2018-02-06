@@ -23,10 +23,10 @@ with TaskManager():
 
 
 gui = GUI.GUI()
-gui.make_window(console=locals())
 scene = GUI.ClippingPlaneScene(gf,name="Solution")
-gui.draw(scene)
 scene1 = GUI.MeshScene(mesh,name="Mesh")
+gui.make_window(console=locals())
+gui.draw(scene)
 gui.draw(scene1)
 gui.run()
 

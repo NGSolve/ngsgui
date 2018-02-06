@@ -5,6 +5,7 @@ from .gui import ColorMapSettings, Qt, RangeGroup, CollColors, ArrangeV, Arrange
 import ngsolve
 from .gl import *
 import numpy
+import time
 from . import glmath
 
 class CMeshData:
@@ -171,13 +172,13 @@ class SceneObject():
     def __init__(self,active=True, name = None):
         self.actions = {}
         self.active_action = None
-        self.timestamp = -1
         self.active = active
         if name is None:
             self.name = "Scene" + str(SceneObject.scene_counter)
             SceneObject.scene_counter += 1
         else:
             self.name = name
+        self.toolboxupdate = lambda me: None
 
     def deferRendering(self):
         """used to render some scenes later (eg. overlays, transparency)
@@ -237,6 +238,7 @@ class SceneObject():
             name = "Action" + str(len(self.actions)+1)
         self.actions[name] = action
         self.active_action = name
+        self.toolboxupdate(self)
 
     def doubleClickAction(self,point):
         if self.active_action:

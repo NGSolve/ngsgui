@@ -37,6 +37,43 @@ def ArrangeH(*args):
             layout.addLayout(w)
     return layout
 
+class ToolBox(QtWidgets.QToolBox):
+    def __init__(self, window):
+        super().__init__()
+        self.window = window
+        self.scenes = []
+        self.is_drawn = []
+
+    def addScene(self, scene, position=-1):
+        self.scenes.insert(position,scene)
+        self.is_drawn.insert(position,False)
+        def tbupdate(me):
+            self.updateToolbox(me)
+        scene.toolboxupdate = tbupdate
+        scene.toolboxupdate(scene)
+
+    def drawWidgetForScene(self,scene):
+        return widget
+
+    def updateToolbox(self,scene):
+        i = self.scenes.index(scene)
+        if self.is_drawn[i]:
+            self.removeItem(i)
+        widget = QtWidgets.QWidget()
+        layout = QtWidgets.QVBoxLayout()
+        layout.setAlignment(Qt.AlignTop)
+        for description, item in scene.getQtWidget(self.window.glWidget.updateGL,
+                                                   self.window.glWidget.rendering_parameters).items():
+            group = QtWidgets.QGroupBox(description)
+            group.setLayout(ArrangeV(item))
+            layout.addWidget(group)
+        widget.setLayout(layout)
+        self.insertItem(i,widget,scene.name)
+        self.is_drawn[i] = True
+        # hack because later scenes are somehow deleted...
+        for j,scene in enumerate(self.scenes[i+1:]):
+            scene.toolboxupdate(scene)
+        self.setCurrentIndex(i)
 
 class GUIHelper():
     def __init__(self, updateSlot):
@@ -329,13 +366,11 @@ class MainWindow(QtWidgets.QMainWindow):
         buttons.addWidget(btnZoomReset)
         buttons.addWidget(btnQuit)
 
-#         self.settings = QtWidgets.QVBoxLayout()
-        self.settings = QtWidgets.QToolBox()
-#         self.settings.addLayout(buttons)
+        self.toolbox = ToolBox(self)
 
         mainWidget = QtWidgets.QSplitter()
         settings = QtWidgets.QWidget()
-        settings.setLayout( ArrangeV(self.settings, buttons))
+        settings.setLayout( ArrangeV(self.toolbox, buttons))
         mainWidget.addWidget(settings)
         if console is not None:
             console_and_gl = QtWidgets.QSplitter()
@@ -562,7 +597,7 @@ class GUI():
         self.windows.append(window)
         return len(self.windows)-1
 
-    def draw(self, scene, use_window=-1,position=None):
+    def draw(self, scene, use_window=-1,position=-1):
         if len(self.windows)==0  or len(self.windows) < use_window+1:
             self.make_window()
             while len(self.windows) < use_window+1:
@@ -575,18 +610,7 @@ class GUI():
         window.glWidget.makeCurrent()
         scene.update()
         window.glWidget.addScene(scene)
-        layout = QtWidgets.QVBoxLayout()
-        layout.setAlignment(Qt.AlignTop)
-        widget = QtWidgets.QWidget()
-        for description, item in scene.getQtWidget(window.glWidget.updateGL, window.glWidget.rendering_parameters).items():
-            group = QtWidgets.QGroupBox(description)
-            group.setLayout(ArrangeV(item))
-            layout.addWidget(group)
-        widget.setLayout(layout)
-        if position is None:
-            window.settings.addItem(widget, scene.name)
-        else:
-            window.settings.insertItem(position,widget,scene.name)
+        window.toolbox.addScene(scene,position)
 
     def redraw(self, blocking=True):
         if time.time() - self.last < 0.02:
@@ -604,8 +628,8 @@ class GUI():
 
 
     def run(self):
-        self.draw(scenes.OverlayScene(self.scenes, name="Global options"),position=0)
-        for window in self.windows:
+        for i,window in enumerate(self.windows):
+            self.draw(scenes.OverlayScene(self.scenes, name="Global options"),use_window=i,position=0)
             window.show()
         res = self.app.exec_()
         for window in self.windows:
