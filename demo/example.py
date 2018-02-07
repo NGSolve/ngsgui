@@ -11,19 +11,14 @@ for i in range(nrefinements):
     print('refine')
     mesh.Refine()
 
-fes = L2(mesh, order=4, all_dofs_together=True)
-gf = GridFunction(fes)
-n = 40
-
 print(mesh.ne,'elements')
 print(fes.ndof,'ndofs')
 
-with TaskManager():
-    gf.Set(cos(n*x)*cos(n*y)*cos(n*z))
-
+n = 40
+cf = cos(n*x)*cos(n*y)*cos(n*z)
 
 gui = GUI.GUI()
-scene = GUI.ClippingPlaneScene(gf,name="Solution")
+scene = GUI.ClippingPlaneScene(cf, mesh,name="Solution")
 scene1 = GUI.MeshScene(mesh,name="Mesh")
 gui.make_window(console=locals())
 gui.draw(scene)

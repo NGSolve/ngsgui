@@ -31,7 +31,7 @@ void main()
       //    ET_TET = 20, ET_PYRAMID = 21, ET_PRISM = 22, ET_HEX = 24 };
       float value;
       if(element_type == 10) value = InterpolateTrig(inData.element, coefficients, order, subdivision, inData.lam);
-      // if(element_type == 20) value = EvalTET(inData.element, x,y,z);
+      if(element_type == 20) value = InterpolateTet(inData.element, coefficients, order, subdivision, inData.lam);
       // if(element_type == 21) value = EvalPYRAMID(inData.element, x,y,z);
       // if(element_type == 22) value = EvalPRISM(inData.element, x,y,z);
       // if(element_type == 24) value = EvalHEX(inData.element, x,y,z);

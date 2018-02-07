@@ -269,8 +269,8 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
                 raise RuntimeError("A mesh is needed if the given function is no GridFunction")
             self.cf = cf
 
-        self.subdivision = 4
-        self.order = 2
+        self.subdivision = 0
+        self.order = 1
         n = self.order*(2**self.subdivision)+1
         super().__init__(mesh,**kwargs)
 
@@ -476,6 +476,7 @@ class ClippingPlaneScene(BaseFunctionSceneObject):
 
     def update(self):
         self.initGL()
+        super().update()
         glBindVertexArray(self.vao)
 #         vec = ConvertCoefficients(self.gf)
 #         self.coefficients.store(vec)
@@ -498,6 +499,8 @@ class ClippingPlaneScene(BaseFunctionSceneObject):
         uniforms.set('clipping_plane_deformation', False)
         uniforms.set('clipping_plane', settings.clipping_plane)
         uniforms.set('do_clipping', False);
+        uniforms.set('subdivision', 2**self.subdivision-1)
+        uniforms.set('order', self.order)
 
         if(self.mesh.dim==2):
             uniforms.set('element_type', 10)

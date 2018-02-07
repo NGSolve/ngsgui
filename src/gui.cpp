@@ -142,11 +142,8 @@ PYBIND11_MODULE(ngui, m) {
           else {
             auto verts = el.Vertices();
 
-            ArrayMem<int,4> sorted_vertices{verts[0], verts[1], verts[2], verts[3]};
-
-            BubbleSort (sorted_vertices);
-            for (auto ii : Range(sorted_vertices)) {
-                auto vnum = sorted_vertices[ii];
+            for (auto ii : Range(verts)) {
+                auto vnum = verts[ii];
                 auto v = ma->GetPoint<3>(vnum);
                 for (auto k : Range(3)) {
                     coordinates.Append(v[k]);
@@ -217,6 +214,39 @@ PYBIND11_MODULE(ngui, m) {
                     }
                 }
             }
+            if(ma->GetDimension()==3)
+            {
+                auto ntets = ma->GetNE();
+                const int npoints_tet = (order+1)*(order+2)*(order+3)/6;
+                const int n_subtets = (subdivision+1)*(subdivision+1)*(subdivision+1);
+                int n = order*(subdivision+1)+1;
+                res.SetAllocSize(ntets*n_subtets*npoints_tet);
+
+                IntegrationRule ir;
+                const double h = 1.0/(n-1);
+                for (auto i : Range(n))
+                    for (auto j : Range(n-i))
+                      for (auto k : Range(n-j-i))
+                        ir.Append(IntegrationPoint(k*h, j*h, i*h));
+                SIMD_IntegrationRule sir(ir);
+                FlatMatrix<SIMD<double>> values(sir.Size(), 1, lh);
+
+                for (auto i : ngcomp::Range(ntets)) {
+                    auto ei = ElementId(VOL,i);
+                    auto el = ma->GetElement(ElementId( VOL, i));
+                    auto verts = el.Vertices();
+                    HeapReset hr(lh);
+                    ElementTransformation & eltrans = ma->GetTrafo (ei, lh);
+                    SIMD_MappedIntegrationRule<3,3> mir(sir, eltrans, lh);
+                    cf->Evaluate(mir, values);
+                    int k = 0;
+                    for (auto v : FlatVector<double>(ir.Size(), &values(0,0))) {
+                        if (k++<ir.Size())
+                          res.Append(v);
+                    }
+                }
+            }
+
           py::gil_scoped_acquire ac;
           return MoveToNumpyArray(res);
       },py::call_guard<py::gil_scoped_release>());
