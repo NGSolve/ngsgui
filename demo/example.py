@@ -12,7 +12,6 @@ for i in range(nrefinements):
     mesh.Refine()
 
 print(mesh.ne,'elements')
-print(fes.ndof,'ndofs')
 
 n = 40
 cf = cos(n*x)*cos(n*y)*cos(n*z)
@@ -20,10 +19,14 @@ cf = cos(n*x)*cos(n*y)*cos(n*z)
 gui = GUI.GUI()
 scene = GUI.ClippingPlaneScene(cf, mesh,name="Solution")
 scene1 = GUI.MeshScene(mesh,name="Mesh")
-gui.make_window(console=locals())
-gui.draw(scene)
-gui.draw(scene1)
+scene2 = GUI.MeshElementsScene(mesh,name="Elements")
+win1 = gui.make_window(console=locals())
+win1.draw(scene)
+win2 = gui.make_window(console=locals())
+#win1.draw(scene1)
+win2.draw(scene2)
 gui.run()
+
 
 # def MakeGeometry():
 #     geometry = CSGeometry()

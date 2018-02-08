@@ -355,6 +355,8 @@ class MainWindow(QtWidgets.QMainWindow):
     def __init__(self,console):
         super(MainWindow, self).__init__()
 
+        self.scenes = []
+
         f = QtOpenGL.QGLFormat()
         f.setVersion(3,2)
         f.setProfile(QtOpenGL.QGLFormat.CoreProfile)
@@ -413,6 +415,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setCentralWidget(mainWidget)
 
         self.setWindowTitle(self.tr("Pyside2 GL"))
+
+    def draw(self, scene,position=-1):
+        self.scenes.insert(position,scene)
+        self.glWidget.makeCurrent()
+        scene.update()
+        self.glWidget.addScene(scene)
+        self.toolbox.addScene(scene,position)
 
     def keyPressEvent(self, event):
         if event.key() == 16777216:
@@ -600,29 +609,16 @@ class GUI():
         self.windows = []
         self.app = QtWidgets.QApplication([])
         self.last = time.time()
-        self.scenes = []
 
     def make_window(self, console=None):
         window = MainWindow(console)
         window.show()
         window.raise_()
         self.windows.append(window)
-        return len(self.windows)-1
+        return window
 
-    def draw(self, scene, use_window=-1,position=-1):
-        if len(self.windows)==0  or len(self.windows) < use_window+1:
-            self.make_window()
-            while len(self.windows) < use_window+1:
-                self.make_window()
-        window = self.windows[use_window]
-        if position is None:
-            self.scenes.append(scene)
-        else:
-            self.scenes.insert(position,scene)
-        window.glWidget.makeCurrent()
-        scene.update()
-        window.glWidget.addScene(scene)
-        window.toolbox.addScene(scene,position)
+    def getWindow(self,index=-1):
+        return self.windows[index]
 
     def redraw(self, blocking=True):
         if time.time() - self.last < 0.02:
@@ -641,8 +637,7 @@ class GUI():
 
     def run(self):
         for i,window in enumerate(self.windows):
-            self.draw(scenes.OverlayScene(self.scenes, name="Global options"),use_window=i,position=0)
-            window.show()
+            window.draw(scenes.OverlayScene(window.scenes, name="Global options"),position=0)
         res = self.app.exec_()
         for window in self.windows:
             window.glWidget.freeResources()
