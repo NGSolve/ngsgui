@@ -5,7 +5,7 @@ from netgen.csg import unit_cube
 ngsglobals.msg_level = 0
 nrefinements = 1
 
-mesh = Mesh(unit_square.GenerateMesh(maxh=1.3))
+mesh = Mesh(unit_square.GenerateMesh(maxh=0.1))
 # mesh = Mesh(unit_cube.GenerateMesh(maxh=0.3))
 for i in range(nrefinements):
     print('refine')
@@ -24,7 +24,8 @@ cf = cos(n*x)*cos(n*y)*cos(n*z)
 import ngsolve.gui as GUI
 gui = GUI.GUI()
 scene = GUI.SolutionScene(cf, mesh)
-gui.draw(scene)
+win = gui.make_window()
+win.draw(scene)
 scene2 = GUI.MeshScene(mesh,surface=False)
-gui.draw(scene2)
+win.draw(scene2)
 gui.run()
