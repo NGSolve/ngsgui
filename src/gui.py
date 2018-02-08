@@ -352,7 +352,7 @@ class RenderingParameters:
 
 class MainWindow(QtWidgets.QMainWindow):
 
-    def __init__(self,console):
+    def __init__(self,console,shared):
         super(MainWindow, self).__init__()
 
         self.scenes = []
@@ -362,10 +362,10 @@ class MainWindow(QtWidgets.QMainWindow):
         f.setProfile(QtOpenGL.QGLFormat.CoreProfile)
         QtOpenGL.QGLFormat.setDefaultFormat(f)
 
-
-        self.glWidget = GLWidget()
-        self.glWidget.context().setFormat(f)
-        self.glWidget.context().create()
+        self.glWidget = GLWidget(shared=shared)
+        if shared is None:
+            self.glWidget.context().setFormat(f)
+            self.glWidget.context().create()
 
         buttons = QtWidgets.QVBoxLayout()
 
@@ -428,7 +428,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.close()
 
 class GLWidget(QtOpenGL.QGLWidget):
-    redraw_signal = QtCore.Signal() # This shouldn't be static
+    redraw_signal = QtCore.Signal()
 
     def ZoomReset(self):
         self.rendering_parameters.rotmat = glmath.Identity()
@@ -437,9 +437,8 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.rendering_parameters.dy = 0.0
         self.updateGL()
 
-    def __init__(self, parent=None):
-        QtOpenGL.QGLWidget.__init__(self, parent)
-
+    def __init__(self, parent=None,shared=None):
+        QtOpenGL.QGLWidget.__init__(self, parent=parent,shareWidget=shared)
         self.scenes = []
         self.do_rotate = False
         self.do_translate = False
@@ -611,7 +610,10 @@ class GUI():
         self.last = time.time()
 
     def make_window(self, console=None):
-        window = MainWindow(console)
+        if len(self.windows):
+            window = MainWindow(console,shared=self.windows[0].glWidget)
+        else:
+            window = MainWindow(console,shared=None)
         window.show()
         window.raise_()
         self.windows.append(window)
