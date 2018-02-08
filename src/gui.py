@@ -52,9 +52,6 @@ class ToolBox(QtWidgets.QToolBox):
         scene.toolboxupdate = tbupdate
         scene.toolboxupdate(scene)
 
-    def drawWidgetForScene(self,scene):
-        return widget
-
     def updateToolbox(self,scene):
         i = self.scenes.index(scene)
         if self.is_drawn[i]:

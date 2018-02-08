@@ -29,7 +29,7 @@ def ShowMass(p):
     print(mass.CalcElementMatrix(element,trafo))
 
 gui = GUI.GUI()
-scene2 = GUI.MeshElementsScene(mesh,name="Mesh Elements")
+scene2 = GUI.MeshScene(mesh,elements=True,name="Mesh Elements")
 scene2.addAction(ShowLaplace,name="ShowLaplace")
 scene2.addAction(ShowMass,name="ShowMass")
 win = gui.make_window()

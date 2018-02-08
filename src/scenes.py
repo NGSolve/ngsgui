@@ -514,13 +514,15 @@ class ClippingPlaneScene(BaseFunctionSceneObject):
 
 
 class MeshScene(BaseMeshSceneObject):
-    def __init__(self, mesh, wireframe=True, surface=True, **kwargs):
+    def __init__(self, mesh, wireframe=True, surface=True, elements=False, shrink=1., **kwargs):
         super().__init__(mesh, **kwargs)
 
         self.qtWidget = None
         self.gl_initialized = False
         self.show_wireframe = wireframe
         self.show_surface = surface
+        self.show_elements = elements
+        self.shrink = shrink
 
     def initGL(self):
         if self.gl_initialized:
@@ -528,24 +530,33 @@ class MeshScene(BaseMeshSceneObject):
 
         super().initGL()
 
-        self.vao = glGenVertexArrays(1)
-        glBindVertexArray(self.vao)
+        self.surface_vao = glGenVertexArrays(1)
+        glBindVertexArray(self.surface_vao)
 
         shaders = [
             Shader('mesh.vert'),
             Shader('mesh.frag')
         ]
-        self.program = Program(shaders)
+        self.surface_program = Program(shaders)
 
+        self.elements_vao = glGenVertexArrays(1)
+        glBindVertexArray(self.elements_vao)
+
+        element_shaders = [
+            Shader('elements.vert'),
+            Shader('elements.geom'),
+            Shader('elements.frag')
+        ]
+        self.element_program = Program(element_shaders)
         self.gl_initialized = True
         glBindVertexArray(0)
 
     def update(self):
         self.initGL()
-        glBindVertexArray(self.vao)
+        glBindVertexArray(self.surface_vao)
         self.index_colors = [0, 255, 0, 255] * (self.mesh_data.trig_max_index+1)
 
-        attributes = self.program.attributes
+        attributes = self.surface_program.attributes
         attributes.bind('pos', self.mesh_data.trig_coordinates)
         attributes.bind('index', self.mesh_data.trig_element_index)
 
@@ -558,13 +569,25 @@ class MeshScene(BaseMeshSceneObject):
 
         glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
         glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+
+        glBindVertexArray(self.elements_vao)
+        self.mat_colors = [0,0,255,255] * (self.mesh_data.tet_max_index+1)
+
+        attributes = self.element_program.attributes
+        attributes.bind('pos', self.mesh_data.tet_coordinates)
+        attributes.bind('corners', self.mesh_data.tet_element_coordinates)
+        attributes.bind('index', self.mesh_data.tet_element_index)
+
+        self.tex_mat_color = Texture(GL_TEXTURE_1D, GL_RGBA)
+        self.tex_mat_color.store(self.mat_colors, GL_UNSIGNED_BYTE, self.mesh_data.tet_max_index+1)
+
         glBindVertexArray(0)
 
-    def setupRender(self, settings):
-        glUseProgram(self.program.id)
+    def setupSurfaceRender(self, settings):
+        glUseProgram(self.surface_program.id)
 
         model, view, projection = settings.model, settings.view, settings.projection
-        uniforms = self.program.uniforms
+        uniforms = self.surface_program.uniforms
         uniforms.set('P',projection)
         uniforms.set('MV',view*model)
 
@@ -580,11 +603,14 @@ class MeshScene(BaseMeshSceneObject):
         if self.show_wireframe:
             self.renderWireframe(settings)
 
-    def renderMesh(self, settings):
-        glBindVertexArray(self.vao)
-        self.setupRender(settings)
+        if self.show_elements:
+            self.renderElements(settings)
 
-        uniforms = self.program.uniforms
+    def renderMesh(self, settings):
+        glBindVertexArray(self.surface_vao)
+        self.setupSurfaceRender(settings)
+
+        uniforms = self.surface_program.uniforms
         uniforms.set('fColor', [0,1,0,0] )
         uniforms.set('clipping_plane', settings.clipping_plane)
         uniforms.set('use_index_color', True)
@@ -597,10 +623,10 @@ class MeshScene(BaseMeshSceneObject):
         glDisable(GL_POLYGON_OFFSET_FILL)
 
     def renderWireframe(self, settings):
-        glBindVertexArray(self.vao)
-        self.setupRender(settings)
+        glBindVertexArray(self.surface_vao)
+        self.setupSurfaceRender(settings)
 
-        uniforms = self.program.uniforms
+        uniforms = self.surface_program.uniforms
         uniforms.set('fColor', [0,0,0,1] )
         uniforms.set('clipping_plane', settings.clipping_plane)
         uniforms.set('use_index_color', False)
@@ -611,102 +637,13 @@ class MeshScene(BaseMeshSceneObject):
         glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh_data.ntrigs)
         glDisable(GL_POLYGON_OFFSET_LINE)
 
-
-    def updateIndexColors(self):
-        colors = []
-        for c in self.indexcolors.getColors():
-            colors.append(c.red())
-            colors.append(c.green())
-            colors.append(c.blue())
-            colors.append(c.alpha())
-        self.index_colors = colors
-        glBindTexture(GL_TEXTURE_1D, self.tex_index_color)
-        glTexImage1D(GL_TEXTURE_1D, 0,GL_RGBA, self.mesh_data.trig_max_index+1, 0, GL_RGBA, GL_UNSIGNED_BYTE, bytes(self.index_colors))
-
-    def setShowWireframe(self, show_wireframe):
-        self.show_wireframe = show_wireframe
-
-    def setShowSurface(self, show_surface):
-        self.show_surface = show_surface
-
-    def getQtWidget(self, updateGL, params):
-        if self.qtWidget!=None:
-            return self.qtWidget
-
-        widgets = super().getQtWidget(updateGL, params)
-        if self.mesh.dim == 3:
-            mats = self.mesh.GetBoundaries()
-            matsname = "Boundary Conditions"
-        else:
-            mats = self.mesh.GetMaterials()
-            matsname = "Materials"
-        if self.mesh.dim > 1:
-            self.indexcolors = CollColors(mats)
-            self.indexcolors.colors_changed.connect(self.updateIndexColors)
-            self.indexcolors.colors_changed.connect(updateGL)
-            self.updateIndexColors()
-            widgets[matsname] = self.indexcolors
-
-        helper = GUIHelper(updateGL)
-        cb_mesh = helper.CheckBox("Surface", self.setShowSurface, self.show_surface)
-        cb_wireframe = helper.CheckBox("Wireframe", self.setShowWireframe, self.show_wireframe)
-
-        widgets["Components"] = ArrangeV(cb_mesh, cb_wireframe)
-        return widgets
-
-
-class MeshElementsScene(BaseMeshSceneObject):
-    def __init__(self, mesh, **kwargs):
-        super().__init__(mesh, **kwargs)
-
-        self.qtWidget = None
-        self.gl_initialized = False
-        self.shrink = 1.0
-
-    def initGL(self):
-        if self.gl_initialized:
-            return
-
-        super().initGL()
-
-        self.vao = glGenVertexArrays(1)
-        glBindVertexArray(self.vao)
-
-        shaders = [
-            Shader('elements.vert'),
-            Shader('elements.geom'),
-            Shader('elements.frag')
-        ]
-        self.program = Program(shaders)
-
-        self.gl_initialized = True
-        glBindVertexArray(0)
-
-    def update(self):
-        self.initGL()
-        glBindVertexArray(self.vao)
-        self.mat_colors = [0,0,255,255] * (self.mesh_data.tet_max_index+1)
-
-        attributes = self.program.attributes
-        attributes.bind('pos', self.mesh_data.tet_coordinates)
-        # attributes.bind('bary_pos', self.mesh_data.tet_bary_coordinates)
-        attributes.bind('corners', self.mesh_data.tet_element_coordinates)
-        attributes.bind('index', self.mesh_data.tet_element_index)
-
-        self.tex_mat_color = Texture(GL_TEXTURE_1D, GL_RGBA)
-        self.tex_mat_color.store(self.mat_colors, GL_UNSIGNED_BYTE, self.mesh_data.tet_max_index+1)
-
-        glBindVertexArray(0)
-
-    def render(self, settings):
-        if not self.active:
-            return
-        glBindVertexArray(self.vao)
-        glUseProgram(self.program.id)
+    def renderElements(self, settings):
+        glBindVertexArray(self.elements_vao)
+        glUseProgram(self.element_program.id)
 
         model, view, projection = settings.model, settings.view, settings.projection
 
-        uniforms = self.program.uniforms
+        uniforms = self.element_program.uniforms
         uniforms.set('P',projection)
         uniforms.set('MV',view*model)
         uniforms.set('shrink_elements', self.shrink)
@@ -720,8 +657,16 @@ class MeshElementsScene(BaseMeshSceneObject):
         glDrawArrays(GL_LINES_ADJACENCY, 0, 4*self.mesh_data.ntets)
         glDisable(GL_POLYGON_OFFSET_FILL)
 
-    def setShrink(self, value):
-        self.shrink = value
+    def updateIndexColors(self):
+        colors = []
+        for c in self.indexcolors.getColors():
+            colors.append(c.red())
+            colors.append(c.green())
+            colors.append(c.blue())
+            colors.append(c.alpha())
+        self.index_colors = colors
+        glBindTexture(GL_TEXTURE_1D, self.tex_index_color)
+        glTexImage1D(GL_TEXTURE_1D, 0,GL_RGBA, self.mesh_data.trig_max_index+1, 0, GL_RGBA, GL_UNSIGNED_BYTE, bytes(self.index_colors))
 
     def updateMatColors(self):
         colors = []
@@ -733,18 +678,70 @@ class MeshElementsScene(BaseMeshSceneObject):
         self.mat_colors = colors
         self.tex_mat_color.store(self.mat_colors, GL_UNSIGNED_BYTE, self.mesh_data.tet_max_index+1)
 
+    def setShrink(self, value):
+        self.shrink = value
+
+    def setShowElements(self, value):
+        self.show_elements = value
+        self.toolboxupdate(self)
+
+    def setShowSurface(self, value):
+        self.show_surface = value
+        self.toolboxupdate(self)
+
+    def setShowWireframe(self, value):
+        self.show_wireframe = value
+
     def getQtWidget(self, updateGL, params):
-        shrink = RangeGroup("Shrink", min=0.0, max=1.0, value=1.0)
-        shrink.valueChanged.connect(self.setShrink)
-        shrink.valueChanged.connect(updateGL)
-        self.matcolors = CollColors(self.mesh.GetMaterials(),initial_color=(0,0,255,255))
-        self.matcolors.colors_changed.connect(self.updateMatColors)
-        self.matcolors.colors_changed.connect(updateGL)
-        self.updateMatColors()
         widgets = super().getQtWidget(updateGL, params)
-        widgets["Shrink"] = shrink
-        widgets["MatColors"] = self.matcolors
+
+        def setShowElements(value):
+            self.show_elements = value
+            self.toolboxupdate(self)
+            updateGL()
+        def setShowSurface(value):
+            self.show_surface = value
+            self.toolboxupdate(self)
+            updateGL()
+
+        def setShowWireframe(value):
+            self.show_wireframe = value
+            updateGL()
+        comps = []
+        helper = GUIHelper(updateGL)
+        comps.append(helper.CheckBox("Surface", setShowSurface, self.show_surface))
+        comps.append(helper.CheckBox("Wireframe", setShowWireframe, self.show_wireframe))
+        if self.mesh.dim == 3:
+            comps.append(helper.CheckBox("Elements", setShowElements, self.show_elements))
+        widgets["Components"] = ArrangeV(*comps)
+        if self.mesh.dim == 3:
+            mats = self.mesh.GetBoundaries()
+            matsname = "Boundary Conditions"
+        else:
+            mats = self.mesh.GetMaterials()
+            matsname = "Materials"
+        if self.mesh.dim > 1:
+            if self.show_surface:
+                self.indexcolors = CollColors(mats)
+                self.indexcolors.colors_changed.connect(self.updateIndexColors)
+                self.indexcolors.colors_changed.connect(updateGL)
+                self.updateIndexColors()
+                widgets[matsname] = self.indexcolors
+
+        if self.mesh.dim == 3:
+            if self.show_elements:
+                shrink = RangeGroup("Shrink", min=0.0, max=1.0, value=self.shrink)
+                shrink.valueChanged.connect(self.setShrink)
+                shrink.valueChanged.connect(updateGL)
+                self.matcolors = CollColors(self.mesh.GetMaterials(),initial_color=(0,0,255,255))
+                self.matcolors.colors_changed.connect(self.updateMatColors)
+                self.matcolors.colors_changed.connect(updateGL)
+                self.updateMatColors()
+                widgets["Shrink"] = shrink
+                widgets["MatColors"] = self.matcolors
+
         return widgets
+
 
 
 class SolutionScene(BaseFunctionSceneObject):
