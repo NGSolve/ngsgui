@@ -1,4 +1,5 @@
 #version 150
+uniform mat4 MV;
 uniform vec4 fColor;
 uniform vec4 fColor_clipped;
 uniform vec4 clipping_plane;
@@ -11,7 +12,11 @@ out vec4 FragColor;
 in VertexData
 {
   vec3 pos;
+  vec3 normal;
+  vec3 other_pos;
+  vec3 other_normal;
   flat int index;
+  flat int curved_index;
 } inData;
 
 {include utils.inc}
@@ -23,6 +28,12 @@ void main()
     if(!use_index_color) {
       FragColor.rgb = fColor.rgb;
     }
+    vec3 lightVector = normalize(vec3(-1,-3,-3)).xyz;
+    vec3 normal = -normalize(inverse(transpose(mat3(MV)))*inData.normal).xyz;
+    // vec3 normal = normalize(inData.normal);
+    float ambient = 0.3;
+    float diffuse = 0.7;
+    FragColor.rgb *= ambient+diffuse*clamp(dot(normal, lightVector), 0, 1.0);
     if(FragColor.a==0.0)
       discard;
   } else {

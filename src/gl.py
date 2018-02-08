@@ -148,7 +148,7 @@ class Program(GLObject):
                 raise RuntimeError("Unknown attribute name {}, allowed values:".format(name)+str(list(self.attributes.keys())))
             return name
 
-        def bind(self, name, vbo, size=None, stride=0):
+        def bind(self, name, vbo, size=None, stride=0, offset=ctypes.c_void_p()):
             try:
                 name = self.check(name)
             except Exception as e:
@@ -165,31 +165,34 @@ class Program(GLObject):
 
             vbo.bind()
             glEnableVertexAttribArray(loc)
-            null = ctypes.c_void_p()
             if type_ == GL_INT:
-                glVertexAttribIPointer(loc,1,GL_INT,stride,null)
+                glVertexAttribIPointer(loc,1,GL_INT,stride,offset)
             if type_ == GL_INT_VEC2:
-                glVertexAttribIPointer(loc,2,GL_INT,stride,null)
+                glVertexAttribIPointer(loc,2,GL_INT,stride,offset)
             if type_ == GL_INT_VEC3:
-                glVertexAttribIPointer(loc,3,GL_INT,stride,null)
+                glVertexAttribIPointer(loc,3,GL_INT,stride,offset)
             if type_ == GL_INT_VEC4:
-                glVertexAttribIPointer(loc,4,GL_INT,stride,null)
+                glVertexAttribIPointer(loc,4,GL_INT,stride,offset)
             if type_ == GL_UNSIGNED_INT:
-                glVertexAttribIPointer(loc,1,GL_UNSIGNED_INT,stride,null)
+                glVertexAttribIPointer(loc,1,GL_UNSIGNED_INT,stride,offset)
             if type_ == GL_UNSIGNED_INT_VEC2:
-                glVertexAttribIPointer(loc,2,GL_UNSIGNED_INT,stride,null)
+                glVertexAttribIPointer(loc,2,GL_UNSIGNED_INT,stride,offset)
             if type_ == GL_UNSIGNED_INT_VEC3:
-                glVertexAttribIPointer(loc,3,GL_UNSIGNED_INT,stride,null)
+                glVertexAttribIPointer(loc,3,GL_UNSIGNED_INT,stride,offset)
             if type_ == GL_UNSIGNED_INT_VEC4:
-                glVertexAttribIPointer(loc,4,GL_UNSIGNED_INT,stride,null)
+                glVertexAttribIPointer(loc,4,GL_UNSIGNED_INT,stride,offset)
             if type_ == GL_FLOAT:
-                glVertexAttribPointer(loc,1,GL_FLOAT,GL_FALSE,stride,null)
+                glVertexAttribPointer(loc,1,GL_FLOAT,GL_FALSE,stride,offset)
             if type_ == GL_FLOAT_VEC2:
-                glVertexAttribPointer(loc,2,GL_FLOAT,GL_FALSE,stride,null)
+                glVertexAttribPointer(loc,2,GL_FLOAT,GL_FALSE,stride,offset)
             if type_ == GL_FLOAT_VEC3:
-                glVertexAttribPointer(loc,3,GL_FLOAT,GL_FALSE,stride,null)
+                glVertexAttribPointer(loc,3,GL_FLOAT,GL_FALSE,stride,offset)
             if type_ == GL_FLOAT_VEC4:
-                glVertexAttribPointer(loc,4,GL_FLOAT,GL_FALSE,stride,null)
+                glVertexAttribPointer(loc,4,GL_FLOAT,GL_FALSE,stride,offset)
+            if type_ == GL_FLOAT_MAT3:
+                glVertexAttribPointer(loc,  3,GL_FLOAT,GL_FALSE,9,null)
+                glVertexAttribPointer(loc+1,3,GL_FLOAT,GL_FALSE,9,24)
+                glVertexAttribPointer(loc+2,3,GL_FLOAT,GL_FALSE,9,48)
 
             glEnableVertexAttribArray(0)
 

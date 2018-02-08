@@ -239,10 +239,13 @@ PYBIND11_MODULE(ngui, m) {
           return MoveToNumpyArray(res);
       },py::call_guard<py::gil_scoped_release>());
     m.def("GetFaceData", [] (shared_ptr<ngcomp::MeshAccess> ma) {
+        LocalHeap lh(10000000, "GetFaceData");
         ngstd::Array<float> coordinates;
         ngstd::Array<float> bary_coordinates;
         ngstd::Array<int> element_number;
         ngstd::Array<int> element_index;
+        ngstd::Array<int> element_curved_index;
+        ngstd::Array<float> element_curved_points_and_normals;
         size_t ntrigs;
         int max_index=0;
 
@@ -278,13 +281,17 @@ PYBIND11_MODULE(ngui, m) {
                   max_index = max2(max_index, el.GetIndex());
                 }
             }
+
         }
         else if(ma->GetDimension()==3)
         {
             ntrigs = ma->GetNSE();
             element_number.SetSize(3*ntrigs);
             element_index.SetSize(3*ntrigs);
+            element_curved_index.SetSize(3*ntrigs);
+            element_curved_points_and_normals.SetSize(3*3*3*ntrigs);
 
+            int curved_index=0;
             for (auto sel : ma->Elements(BND)) {
                 auto sel_vertices = sel.Vertices();
 
@@ -303,6 +310,40 @@ PYBIND11_MODULE(ngui, m) {
                     element_index[3*sel.Nr()+k] = sel.GetIndex();
                     max_index = max2(max_index, sel.GetIndex());
                 }
+                if(sel.is_curved) {
+                  HeapReset hr(lh);
+                  ElementTransformation & eltrans = ma->GetTrafo (sel, lh);
+                  auto addValues = [&](int offset, double x, double y, bool add_point) {
+                      IntegrationPoint ip(x,y,0);
+                      MappedIntegrationPoint<2,3> mip(ip, eltrans);
+                        auto n = mip.GetNV();
+                        for (auto k : Range(3))
+                            element_curved_points_and_normals[9*3*sel.Nr()+offset+k] = n[k];
+                        if(add_point) {
+                          auto p = mip.GetPoint();
+                          for (auto k : Range(3))
+                              element_curved_points_and_normals[9*3*sel.Nr()+offset+3+k] = p[k];
+                        }
+                  };
+                  addValues( 0, 1.0, 0.0, false);
+                  addValues( 3, 0.0, 0.5, true);
+
+                  addValues( 9, 0.0, 1.0, false);
+                  addValues(12, 0.5, 0.0, true);
+
+                  addValues(18, 0.0, 0.0, false);
+                  addValues(21, 0.5, 0.5, true);
+                  
+                  element_curved_index[3*sel.Nr()+0] = curved_index;
+                  element_curved_index[3*sel.Nr()+1] = curved_index;
+                  element_curved_index[3*sel.Nr()+2] = curved_index;
+                  curved_index++;
+                }
+                else {
+                  element_curved_index[3*sel.Nr()+0] = -1;
+                  element_curved_index[3*sel.Nr()+1] = -1;
+                  element_curved_index[3*sel.Nr()+2] = -1;
+                }
             }
         }
         else
@@ -315,7 +356,9 @@ PYBIND11_MODULE(ngui, m) {
             MoveToNumpyArray(element_number),
             MoveToNumpyArray(element_index),
             max_index,
-            min, max
+            min, max,
+            MoveToNumpyArray(element_curved_index),
+            MoveToNumpyArray(element_curved_points_and_normals)
         );
       },py::call_guard<py::gil_scoped_release>());
 

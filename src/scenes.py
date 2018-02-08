@@ -15,7 +15,7 @@ class CMeshData:
         import weakref
         from . import ngui
         self.mesh = weakref.ref(mesh)
-        self.ntrigs, trig_coordinates_data, trig_bary_coordinates_data, trig_element_number_data, trig_element_index_data, self.trig_max_index, self.min, self.max = ngui.GetFaceData(mesh)
+        self.ntrigs, trig_coordinates_data, trig_bary_coordinates_data, trig_element_number_data, trig_element_index_data, self.trig_max_index, self.min, self.max, trig_curved_index_data, trig_curved_normals_and_points_data = ngui.GetFaceData(mesh)
         self.ntets, self.tet_max_index, tet_coordinates_data, tet_bary_coordinates_data, tet_element_number_data, tet_element_index_data, tet_element_coordinates_data = ngui.GetTetData(mesh)
 
         self.tet_bary_coordinates = ArrayBuffer()
@@ -36,6 +36,10 @@ class CMeshData:
         self.trig_element_index.store(trig_element_index_data)
         self.trig_element_number = ArrayBuffer()
         self.trig_element_number.store(trig_element_number_data)
+        self.trig_curved_index = ArrayBuffer()
+        self.trig_curved_index.store(trig_curved_index_data)
+        self.trig_curved_normals_and_points = ArrayBuffer()
+        self.trig_curved_normals_and_points.store(trig_curved_normals_and_points_data)
 
         mesh._opengl_data = self
 
@@ -551,6 +555,8 @@ class MeshScene(BaseMeshSceneObject):
         attributes = self.surface_program.attributes
         attributes.bind('pos', self.mesh_data.trig_coordinates)
         attributes.bind('index', self.mesh_data.trig_element_index)
+        attributes.bind('curved_index', self.mesh_data.trig_curved_index)
+        attributes.bind('normal', self.mesh_data.trig_curved_normals_and_points, stride=36)
 
         self.tex_index_color = glGenTextures(1)
 
