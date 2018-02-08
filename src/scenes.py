@@ -279,16 +279,6 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
         self.colormap_linear = False
 
 
-    def initGL(self):
-        super().initGL()
-        self.coefficients = Texture(GL_TEXTURE_BUFFER, GL_R32F)
-
-    def update(self):
-        self.initGL()
-        vec = GetValues(self.cf, self.mesh, 2**self.subdivision-1, self.order)
-        self.coefficients.store(vec)
-
-
     def setColorMapMin(self, value):
         self.colormap_min = value
 
@@ -470,6 +460,8 @@ class ClippingPlaneScene(BaseFunctionSceneObject):
         attributes.bind('vLam', self.mesh_data.tet_bary_coordinates)
         attributes.bind('vElementNumber', self.mesh_data.tet_element_number)
 
+        self.coefficients = Texture(GL_TEXTURE_BUFFER, GL_R32F)
+
         self.gl_initialized = True
         glBindVertexArray(0)
 
@@ -478,8 +470,8 @@ class ClippingPlaneScene(BaseFunctionSceneObject):
         self.initGL()
         super().update()
         glBindVertexArray(self.vao)
-#         vec = ConvertCoefficients(self.gf)
-#         self.coefficients.store(vec)
+        vec = GetValues(self.cf, self.mesh, ngsolve.VOL, 2**self.subdivision-1, self.order)
+        self.coefficients.store(vec)
         glBindVertexArray(0)
 
 
@@ -774,6 +766,15 @@ class SolutionScene(BaseFunctionSceneObject):
         attributes.bind('vLam', self.mesh_data.trig_bary_coordinates)
         attributes.bind('vElementNumber', self.mesh_data.trig_element_number)
 
+        self.coefficients = Texture(GL_TEXTURE_BUFFER, GL_R32F)
+
+        glBindVertexArray(0)
+
+    def update(self):
+        self.initGL()
+        glBindVertexArray(self.vao)
+        vec = GetValues(self.cf, self.mesh, ngsolve.VOL if self.mesh.dim==2 else ngsolve.BND, 2**self.subdivision-1, self.order)
+        self.coefficients.store(vec)
         glBindVertexArray(0)
 
 
@@ -796,10 +797,7 @@ class SolutionScene(BaseFunctionSceneObject):
         uniforms.set('subdivision', 2**self.subdivision-1)
         uniforms.set('order', self.order)
 
-        if(self.mesh.dim==2):
-            uniforms.set('element_type', 10)
-        if(self.mesh.dim==3):
-            uniforms.set('element_type', 20)
+        uniforms.set('element_type', 10)
 
         glPolygonOffset (2,2)
         glEnable(GL_POLYGON_OFFSET_FILL)

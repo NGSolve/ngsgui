@@ -18,6 +18,28 @@ auto MoveToNumpyArray( ngstd::Array<T> &a )
   return py::array_t<T>(a.Size(), &a[0], free_when_done);
 }
 
+inline SIMD_IntegrationRule GetReferenceRule( int dim, int order, int subdivision )
+{
+  IntegrationRule ir;
+  int n = (order)*(subdivision+1)+1;
+
+  const double h = 1.0/(n-1);
+  if(dim==2) {
+      for (auto j : Range(n))
+          for (auto i : Range(n-j))
+              ir.Append(IntegrationPoint(i*h, j*h, 0.0));
+  }
+
+  if(dim==3) {
+      for (auto k : Range(n))
+        for (auto j : Range(n))
+            for (auto i : Range(n-j))
+              ir.Append(IntegrationPoint(i*h, j*h, k*h));
+  }
+
+  return SIMD_IntegrationRule(ir);
+}
+
 PYBIND11_MODULE(ngui, m) {
 
     m.def("GetTetData", [] (shared_ptr<ngcomp::MeshAccess> ma) {
@@ -179,74 +201,40 @@ PYBIND11_MODULE(ngui, m) {
           py::gil_scoped_acquire ac;
           return MoveToNumpyArray(res);
       },py::call_guard<py::gil_scoped_release>());
-    m.def("GetValues", [] (shared_ptr<ngfem::CoefficientFunction> cf, shared_ptr<ngcomp::MeshAccess> ma, int subdivision, int order) {
+
+    m.def("GetValues", [] (shared_ptr<ngfem::CoefficientFunction> cf, shared_ptr<ngcomp::MeshAccess> ma, VorB vb, int subdivision, int order) {
             ngstd::Array<float> res;
             LocalHeap lh(10000000, "GetValues");
+            int dim = ma->GetDimension();
+            if(vb==BND) dim-=1;
 
-            if(ma->GetDimension()==2)
-            {
-                auto ntrigs = ma->GetNE();
-                const int npoints_trig = (order+1)*(order+2)/2;
-                const int n_subtrigs = (subdivision+1)*(subdivision+1);
-                int n = order*(subdivision+1)+1;
-                res.SetAllocSize(ntrigs*n_subtrigs*npoints_trig);
+            SIMD_IntegrationRule ir = GetReferenceRule( dim, order, subdivision );
+            int nip = ir.GetNIP();
+            FlatMatrix<SIMD<double>> values(ir.Size(), 1, lh);
 
-                IntegrationRule ir;
-                const double h = 1.0/(n-1);
-                for (auto j : Range(n))
-                    for (auto i : Range(n-j))
-                        ir.Append(IntegrationPoint(i*h, j*h, 0.0));
-                SIMD_IntegrationRule sir(ir);
-                FlatMatrix<SIMD<double>> values(ir.Size(), 1, lh);
+            res.SetAllocSize(ma->GetNE(vb)*nip);
 
-                for (auto i : ngcomp::Range(ntrigs)) {
-                    auto ei = ElementId(VOL,i);
-                    auto el = ma->GetElement(ElementId( VOL, i));
-                    auto verts = el.Vertices();
-                    HeapReset hr(lh);
-                    ElementTransformation & eltrans = ma->GetTrafo (ei, lh);
-                    SIMD_MappedIntegrationRule<2,2> mir(ir, eltrans, lh);
-                    cf->Evaluate(mir, values);
-                    int k = 0;
-                    for (auto v : FlatVector<double>(ir.Size(), &values(0,0))) {
-                        if (k++<ir.Size())
-                          res.Append(v);
-                    }
+            for (auto el : ma->Elements(vb)) {
+                auto verts = el.Vertices();
+                HeapReset hr(lh);
+                ElementTransformation & eltrans = ma->GetTrafo (el, lh);
+                if(ma->GetDimension()==2 && vb==VOL) {
+                  SIMD_MappedIntegrationRule<2,2> mir(ir, eltrans, lh);
+                  cf->Evaluate(mir, values);
                 }
-            }
-            if(ma->GetDimension()==3)
-            {
-                auto ntets = ma->GetNE();
-                const int npoints_tet = (order+1)*(order+2)*(order+3)/6;
-                const int n_subtets = (subdivision+1)*(subdivision+1)*(subdivision+1);
-                int n = order*(subdivision+1)+1;
-                res.SetAllocSize(ntets*n_subtets*npoints_tet);
-
-                IntegrationRule ir;
-                const double h = 1.0/(n-1);
-                for (auto i : Range(n))
-                    for (auto j : Range(n-i))
-                      for (auto k : Range(n-j-i))
-                        ir.Append(IntegrationPoint(k*h, j*h, i*h));
-                SIMD_IntegrationRule sir(ir);
-                FlatMatrix<SIMD<double>> values(sir.Size(), 1, lh);
-
-                for (auto i : ngcomp::Range(ntets)) {
-                    auto ei = ElementId(VOL,i);
-                    auto el = ma->GetElement(ElementId( VOL, i));
-                    auto verts = el.Vertices();
-                    HeapReset hr(lh);
-                    ElementTransformation & eltrans = ma->GetTrafo (ei, lh);
-                    SIMD_MappedIntegrationRule<3,3> mir(sir, eltrans, lh);
-                    cf->Evaluate(mir, values);
-                    int k = 0;
-                    for (auto v : FlatVector<double>(ir.Size(), &values(0,0))) {
-                        if (k++<ir.Size())
-                          res.Append(v);
-                    }
+                else if(ma->GetDimension()==3 && vb==BND) {
+                  SIMD_MappedIntegrationRule<2,3> mir(ir, eltrans, lh);
+                  cf->Evaluate(mir, values);
                 }
-            }
+                else if(ma->GetDimension()==3 && vb==VOL) {
+                  SIMD_MappedIntegrationRule<3,3> mir(ir, eltrans, lh);
+                  cf->Evaluate(mir, values);
+                }
 
+                FlatVector<double> vals(ir.GetNIP(), &values(0,0));
+                for (auto k : Range(nip))
+                    res.Append(vals[k]);
+            }
           py::gil_scoped_acquire ac;
           return MoveToNumpyArray(res);
       },py::call_guard<py::gil_scoped_release>());
@@ -264,15 +252,10 @@ PYBIND11_MODULE(ngui, m) {
         max = std::numeric_limits<double>::lowest();
 
         auto addVertices = [&] (auto verts) {
-//             ArrayMem<int,3> sorted_vertices{0,1,2};
-//             ArrayMem<int,3> unsorted_vertices{verts[0], verts[1], verts[2]};
-
-//             BubbleSort (unsorted_vertices, sorted_vertices);
             for (auto j : ngcomp::Range(3)) {
                 auto v = ma->GetPoint<3>(verts[j]);
                 for (auto k : Range(3)) {
                   coordinates.Append(v[k]);
-//                   bary_coordinates.Append( unsorted_vertices[k]==verts[j] ? 1.0 : 0.0 );
                   bary_coordinates.Append( k==j ? 1.0 : 0.0 );
 
                   min[k] = min2(min[k], v[k]);
@@ -305,26 +288,18 @@ PYBIND11_MODULE(ngui, m) {
             for (auto sel : ma->Elements(BND)) {
                 auto sel_vertices = sel.Vertices();
 
-                ArrayMem<int,10> elnums;
-                ma->GetFacetElements (sel.Facets()[0], elnums);
-                auto el = ma->GetElement(ElementId(VOL, elnums[0]));
-
-                auto el_vertices = el.Vertices();
-                ArrayMem<int,4> sorted_vertices{0,1,2,3};
-                ArrayMem<int,4> unsorted_vertices{el_vertices[0], el_vertices[1], el_vertices[2], el_vertices[3]};
-                BubbleSort (unsorted_vertices, sorted_vertices);
 
                 for (auto j : ngcomp::Range(3)) {
                   auto v = ma->GetPoint<3>(sel_vertices[j]);
                   for (auto k : Range(3)) {
                     coordinates.Append(v[k]);
-                    bary_coordinates.Append( unsorted_vertices[k]==sel_vertices[j] ? 1.0 : 0.0 );
+                    bary_coordinates.Append( j==k ? 1.0 : 0.0 );
                     min[k] = min2(min[k], v[k]);
                     max[k] = max2(max[k], v[k]);
                   }
                 }
                 for (auto k : Range(3)) {
-                    element_number[3*sel.Nr()+k] = elnums[0];
+                    element_number[3*sel.Nr()+k] = sel.Nr();
                     element_index[3*sel.Nr()+k] = sel.GetIndex();
                     max_index = max2(max_index, sel.GetIndex());
                 }
