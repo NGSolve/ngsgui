@@ -39,8 +39,10 @@ n = 40
 cf = cos(n*x)*cos(n*y)*cos(n*z)
 
 gui = GUI.GUI()
-scene = GUI.MeshScene(mesh,name="Mesh")
-win1 = gui.make_window(console=locals())
+scene = GUI.ClippingPlaneScene(cf, mesh,name="Solution")
+scene1 = GUI.MeshScene(mesh,name="Mesh")
+scene2 = GUI.MeshScene(mesh,surface=False, wireframe=False, elements=True, name="Elements")
+win1 = gui.make_window()
 win1.draw(scene)
 gui.run()
 

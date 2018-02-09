@@ -33,10 +33,9 @@ def work():
 # gui.draw(scene1)
 
 scene1 = GUI.ClippingPlaneScene(gf)
-win = gui.make_window()
-win.draw(scene1)
+gui.draw(scene1)
 scene = GUI.SolutionScene(gf)
-win.draw(scene)
+gui.draw(scene)
 
 thread = threading.Thread(target=work, daemon=True)
 thread.start()

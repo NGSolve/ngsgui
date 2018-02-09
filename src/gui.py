@@ -7,8 +7,8 @@ import time
 import ngsolve
 from ngsolve.bla import Vector
 from ngsolve.comp import BND, VOL
-from qtconsole.rich_jupyter_widget import RichJupyterWidget
-from qtconsole.inprocess import QtInProcessKernelManager
+from qtconsole.inprocess import QtInProcessKernelManager, QtInProcessRichJupyterWidget
+import inspect
 
 import numpy
 from . import glmath
@@ -349,7 +349,7 @@ class RenderingParameters:
 
 class MainWindow(QtWidgets.QMainWindow):
 
-    def __init__(self,console,shared):
+    def __init__(self,kernel_manager,shared):
         super(MainWindow, self).__init__()
 
         self.scenes = []
@@ -383,25 +383,15 @@ class MainWindow(QtWidgets.QMainWindow):
         settings = QtWidgets.QWidget()
         settings.setLayout( ArrangeV(self.toolbox, buttons))
         mainWidget.addWidget(settings)
-        if console is not None:
+        if kernel_manager is not None:
             console_and_gl = QtWidgets.QSplitter()
             console_and_gl.setOrientation(QtCore.Qt.Vertical)
             console_and_gl.addWidget(self.glWidget)
-            kernel_manager = QtInProcessKernelManager()
-            kernel_manager.start_kernel(show_banner=False)
-            kernel = kernel_manager.kernel
             kernel_client = kernel_manager.client()
             kernel_client.start_channels()
-            kernel.shell.push(console)
-            console = RichJupyterWidget()
+            console = QtInProcessRichJupyterWidget()
             console.kernel_manager = kernel_manager
             console.kernel_client = kernel_client
-            class dummyioloop():
-                def call_later(self,a,b):
-                    return
-                def stop(self):
-                    return
-            kernel.io_loop = dummyioloop()
             console.exit_requested.connect(self.close)
             console_and_gl.addWidget(console)
             console_and_gl.setStretchFactor(0,3)
@@ -412,6 +402,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setCentralWidget(mainWidget)
 
         self.setWindowTitle(self.tr("Pyside2 GL"))
+        self.last = time.time()
 
     def draw(self, scene,position=-1):
         self.scenes.insert(position,scene)
@@ -419,6 +410,18 @@ class MainWindow(QtWidgets.QMainWindow):
         scene.update()
         self.glWidget.addScene(scene)
         self.toolbox.addScene(scene,position)
+
+    def redraw(self, blocking=True):
+        if time.time() - self.last < 0.02:
+            return
+        if blocking:
+            self.glWidget.redraw_mutex.lock()
+            self.glWidget.redraw_signal.emit()
+            self.glWidget.redraw_update_done.wait(self.glWidget.redraw_mutex)
+            self.glWidget.redraw_mutex.unlock()
+        else:
+            self.glWidget.redraw_signal.emit()
+        self.last = time.time()
 
     def keyPressEvent(self, event):
         if event.key() == 16777216:
@@ -604,13 +607,27 @@ class GUI():
     def __init__(self):
         self.windows = []
         self.app = QtWidgets.QApplication([])
-        self.last = time.time()
+        self.kernel_manager = None
 
-    def make_window(self, console=None):
-        if len(self.windows):
-            window = MainWindow(console,shared=self.windows[0].glWidget)
+    def make_window(self, console=True):
+        if console and self.kernel_manager is None:
+            self.kernel_manager = QtInProcessKernelManager()
+            class dummyioloop():
+                def call_later(self,a,b):
+                    return
+                def stop(self):
+                    return
+            self.kernel_manager.start_kernel()
+            self.kernel_manager.kernel.io_loop = dummyioloop()
+        if console:
+            km = self.kernel_manager
         else:
-            window = MainWindow(console,shared=None)
+            km = None
+        if len(self.windows):
+            shared = self.windows[0].glWidget
+        else:
+            shared = None
+        window = MainWindow(kernel_manager=km,shared=shared)
         window.show()
         window.raise_()
         self.windows.append(window)
@@ -619,24 +636,20 @@ class GUI():
     def getWindow(self,index=-1):
         return self.windows[index]
 
+    def draw(self, *args, **kwargs):
+        if not len(self.windows):
+            self.make_window()
+        self.windows[0].draw(*args, **kwargs)
+
     def redraw(self, blocking=True):
-        if time.time() - self.last < 0.02:
-            return
-        if blocking:
-            for window in self.windows:
-                window.glWidget.redraw_mutex.lock()
-                window.glWidget.redraw_signal.emit()
-                window.glWidget.redraw_update_done.wait(window.glWidget.redraw_mutex)
-                window.glWidget.redraw_mutex.unlock()
-        else:
-            for window in self.windows:
-                window.glWidget.redraw_signal.emit()
-        self.last = time.time()
+        for win in self.windows:
+            win.redraw(blocking=blocking)
 
 
     def run(self):
         for i,window in enumerate(self.windows):
             window.draw(scenes.OverlayScene(window.scenes, name="Global options"),position=0)
+        self.kernel_manager.kernel.shell.push(inspect.stack()[1][0].f_globals)
         res = self.app.exec_()
         for window in self.windows:
             window.glWidget.freeResources()
