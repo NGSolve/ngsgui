@@ -1,31 +1,32 @@
 #version 150
+
+{include utils.inc}
+
 uniform mat4 MV;
 uniform mat4 P;
-
-in vec3 pos;
-in vec3 normal;
-in vec3 other_pos;
-in int index;
-in int curved_index;
+uniform Mesh mesh;
+uniform sampler1D colors;
 
 out VertexData
 {
   vec3 pos;
   vec3 normal;
-  vec3 other_pos;
-  flat int index;
-  flat int curved_index;
+  vec4 color;
 } outData;
 
 void main()
 {
-    gl_Position = P * MV * vec4(pos, 1.0);
-    if(curved_index==-1)
-        gl_Position = vec4(0,0,0,1);
+    int element = gl_VertexID/3;
+    int vert_in_element = gl_VertexID-3*element;
+    Element2d el = getElement2d(mesh, element );
 
-    outData.pos = pos;
-    outData.index = index;
-    outData.curved_index = curved_index;
-    outData.normal = normal;
-    outData.other_pos = other_pos;
+    outData.normal = el.normals[vert_in_element];
+    outData.pos = el.pos[vert_in_element];
+    gl_Position = P * MV * vec4(outData.pos, 1.0);
+
+    outData.color = vec4(texelFetch(colors, el.index, 0));
+
+    // Discard whole element if color is completely transparent
+    if(outData.color.a==0.0)
+        gl_Position = vec4(0,0,0,0);
 }

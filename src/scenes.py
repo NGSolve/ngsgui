@@ -11,6 +11,31 @@ from . import glmath
 class CMeshData:
     """Helper class to avoid redundant copies of the same mesh on the GPU."""
 
+    """
+    Vertex data:
+        vec3 pos
+
+    Surface elements:
+        int v0,v1,v2;
+        int curved_id; // to fetch curved element data, negative if element is not curved
+
+    Surface curved elements:
+        vec3 pos[3];     // Additional points for P2 interpolation
+        vec3 normal[3];  // Normals for outer vertices
+
+    Volume elements:
+        int v0,v1,v2,v3;
+        int curved_id; // to fetch curved element data, negative if element is not curved
+
+    Volume curved elements:
+        vec3 pos[6]; // Additional points for p2 interpolation
+
+    Solution data (volume or surface):
+        float values[N];   // N depends on order, subdivision
+        vec3 gradients[N]; // N depends on order, subdivision
+
+    """
+
     def __init__(self, mesh):
         import weakref
         from . import ngui
@@ -41,6 +66,23 @@ class CMeshData:
         self.trig_curved_normals_and_points = ArrayBuffer()
         self.trig_curved_normals_and_points.store(trig_curved_normals_and_points_data)
 
+        self.vertices = Texture(GL_TEXTURE_BUFFER, GL_RGB32F)
+        self.vertices.store(ngui.GetVertices(mesh))
+
+        sels = ngui.GetSurfaceElements(mesh)
+        self.surface_elements = Texture(GL_TEXTURE_BUFFER, GL_R32I)
+        self.surface_elements.store(sels["elements"])
+
+        self.surface_elements_curved = Texture(GL_TEXTURE_BUFFER, GL_RGB32F)
+        self.surface_elements_curved.store(sels["curved_elements"])
+
+        els = ngui.GetVolumeElements(mesh)
+        self.volume_elements = Texture(GL_TEXTURE_BUFFER, GL_R32I)
+        self.volume_elements.store(els["elements"])
+
+#         self.volume_elements_curved = Texture(GL_TEXTURE_BUFFER, GL_RGB32F)
+#         self.volume_elements_curved.store(els["curved_elements"])
+
         mesh._opengl_data = self
 
 def MeshData(mesh):
@@ -61,12 +103,7 @@ class TextRenderer:
         glBindVertexArray(self.vao)
         self.addFont(0)
 
-        shaders = [
-            Shader('font.vert'),
-            Shader('font.geom'),
-            Shader('font.frag')
-        ]
-        self.program = Program(shaders)
+        self.program = Program('font.vert', 'font.geom', 'font.frag')
         self.characters = ArrayBuffer(usage=GL_DYNAMIC_DRAW)
 
     def addFont(self, font_size):
@@ -351,16 +388,7 @@ class OverlayScene(SceneObject):
         points = [self.cross_shift + (self.cross_scale if i%7==3 else 0) for i in range(24)]
         self.cross_points.store(numpy.array(points, dtype=numpy.float32))
 
-        vert = Shader(shader_type=GL_VERTEX_SHADER, string="""
-#version 150
-in vec3 pos;
-uniform mat4 MVP;
-void main() { gl_Position = MVP*vec4(pos, 1.0); }""")
-        frag = Shader(shader_type=GL_FRAGMENT_SHADER, string="""
-#version 150
-out vec4 color;
-void main() { color = vec4(0,0,0,1);}""")
-        self.program = Program([vert, frag])
+        self.program = Program('cross.vert','cross.frag')
 
         self.program.attributes.bind('pos', self.cross_points)
 
@@ -451,12 +479,7 @@ class ClippingPlaneScene(BaseFunctionSceneObject):
 
         Shader.includes['shader_functions'] = ngsolve.fem.GenerateL2ElementCode(3)
 
-        shaders = [
-            Shader('solution.vert'),
-            Shader('clipping.geom'),
-            Shader('solution.frag')
-        ]
-        self.program = Program(shaders)
+        self.program = Program('solution.vert', 'clipping.geom', 'solution.frag')
         glUseProgram(self.program.id)
 
         attributes = self.program.attributes
@@ -472,7 +495,6 @@ class ClippingPlaneScene(BaseFunctionSceneObject):
 
     def update(self):
         self.initGL()
-        super().update()
         glBindVertexArray(self.vao)
         vec = GetValues(self.cf, self.mesh, ngsolve.VOL, 2**self.subdivision-1, self.order)
         self.coefficients.store(vec)
@@ -530,145 +552,129 @@ class MeshScene(BaseMeshSceneObject):
         self.surface_vao = glGenVertexArrays(1)
         glBindVertexArray(self.surface_vao)
 
-        shaders = [
-            Shader('mesh.vert'),
-            Shader('tess.tesc'),
-            Shader('tess.tese'),
-            Shader('mesh.frag')
-        ]
-        self.surface_program = Program(shaders)
+        self.surface_program = Program('mesh.vert', 'mesh.frag')
+        self.bc_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
+        self.bc_colors.store( [0,1,0,1]*(self.mesh_data.trig_max_index+1), data_format=GL_UNSIGNED_BYTE )
+
+        self.element_program = Program('elements.vert','elements.geom','elements.frag')
+        self.gl_initialized = True
 
         self.elements_vao = glGenVertexArrays(1)
         glBindVertexArray(self.elements_vao)
-
-        element_shaders = [
-            Shader('elements.vert'),
-            Shader('elements.geom'),
-            Shader('elements.frag')
-        ]
-        self.element_program = Program(element_shaders)
-        self.gl_initialized = True
         glBindVertexArray(0)
 
-    def update(self):
-        self.initGL()
-        glBindVertexArray(self.surface_vao)
-        self.index_colors = [0, 255, 0, 255] * (self.mesh_data.trig_max_index+1)
-
-        attributes = self.surface_program.attributes
-        attributes.bind('pos', self.mesh_data.trig_coordinates)
-        attributes.bind('index', self.mesh_data.trig_element_index)
-        attributes.bind('curved_index', self.mesh_data.trig_curved_index)
-        attributes.bind('normal', self.mesh_data.trig_curved_normals_and_points, stride=24)
-        attributes.bind('other_pos', self.mesh_data.trig_curved_normals_and_points, stride=24, offset=12)
-
-        self.tex_index_color = glGenTextures(1)
-
-        glBindTexture(GL_TEXTURE_1D, self.tex_index_color)
-
-        # copy texture
-        glTexImage1D(GL_TEXTURE_1D, 0,GL_RGBA, self.mesh_data.trig_max_index+1, 0, GL_RGBA, GL_UNSIGNED_BYTE, bytes(self.index_colors))
-
-        glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
-        glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
-
-        glBindVertexArray(self.elements_vao)
-        self.mat_colors = [0,0,255,255] * (self.mesh_data.tet_max_index+1)
-
-        attributes = self.element_program.attributes
-        attributes.bind('pos', self.mesh_data.tet_coordinates)
-        attributes.bind('corners', self.mesh_data.tet_element_coordinates)
-        attributes.bind('index', self.mesh_data.tet_element_index)
-
-        self.tex_mat_color = Texture(GL_TEXTURE_1D, GL_RGBA)
-        self.tex_mat_color.store(self.mat_colors, GL_UNSIGNED_BYTE, self.mesh_data.tet_max_index+1)
-
-        glBindVertexArray(0)
-
-    def setupSurfaceRender(self, settings):
+    def renderSurface(self, settings):
         glUseProgram(self.surface_program.id)
+        glBindVertexArray(self.surface_vao)
 
         model, view, projection = settings.model, settings.view, settings.projection
         uniforms = self.surface_program.uniforms
         uniforms.set('P',projection)
         uniforms.set('MV',view*model)
 
-        glBindTexture(GL_TEXTURE_1D, self.tex_index_color)
+        glActiveTexture(GL_TEXTURE0)
+        self.mesh_data.vertices.bind()
+        uniforms.set('mesh.vertices', 0)
+
+        glActiveTexture(GL_TEXTURE1)
+        self.mesh_data.surface_elements.bind()
+        uniforms.set('mesh.elements', 1)
+
+        glActiveTexture(GL_TEXTURE2)
+        self.mesh_data.surface_elements_curved.bind()
+        uniforms.set('mesh.curved_elements', 2)
+
+        glActiveTexture(GL_TEXTURE3)
+        self.bc_colors.bind()
+        uniforms.set('colors', 3)
+
+        uniforms.set('clipping_plane', settings.clipping_plane)
+        uniforms.set('do_clipping', True);
+
+
+        if self.show_surface:
+            uniforms.set('light_ambient', 0.3)
+            uniforms.set('light_diffuse', 0.7)
+            glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
+            glPolygonOffset (2, 2)
+            glEnable(GL_POLYGON_OFFSET_FILL)
+            glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh.nface)
+            glDisable(GL_POLYGON_OFFSET_FILL)
+
+        if self.show_wireframe:
+            uniforms.set('light_ambient', 0.0)
+            uniforms.set('light_diffuse', 0.0)
+            glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
+            glPolygonOffset (1, 1)
+            glEnable(GL_POLYGON_OFFSET_LINE)
+            glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh.nface)
+            glDisable(GL_POLYGON_OFFSET_LINE)
+
+
+    def update(self):
+        self.initGL()
+        from . import ngui
+        glBindVertexArray(self.surface_vao)
+
+        glBindVertexArray(self.elements_vao)
+        self.mat_colors = [0,0,255,255] * (self.mesh_data.tet_max_index+1)
+        self.tex_mat_color = Texture(GL_TEXTURE_1D, GL_RGBA)
+        self.tex_mat_color.store(self.mat_colors, GL_UNSIGNED_BYTE, self.mesh_data.tet_max_index+1)
+# 
+#         attributes = self.element_program.attributes
+#         attributes.bind('pos', self.mesh_data.tet_coordinates)
+#         attributes.bind('corners', self.mesh_data.tet_element_coordinates)
+#         attributes.bind('index', self.mesh_data.tet_element_index)
+# 
+#         self.tex_mat_color = Texture(GL_TEXTURE_1D, GL_RGBA)
+#         self.tex_mat_color.store(self.mat_colors, GL_UNSIGNED_BYTE, self.mesh_data.tet_max_index+1)
+# 
+#         glBindVertexArray(0)
 
     def render(self, settings):
         if not self.active:
             return
 
-        if self.show_surface:
-            self.renderMesh(settings)
-
-        if self.show_wireframe:
-            self.renderWireframe(settings)
+        self.renderSurface(settings)
 
         if self.show_elements:
             self.renderElements(settings)
-
-    def renderMesh(self, settings):
-        glBindVertexArray(self.surface_vao)
-        self.setupSurfaceRender(settings)
-
-        uniforms = self.surface_program.uniforms
-        uniforms.set('fColor', [0,1,0,0] )
-        uniforms.set('clipping_plane', settings.clipping_plane)
-        uniforms.set('use_index_color', True)
-        uniforms.set('do_clipping', self.mesh.dim==3);
-        uniforms.set('TessLevel', self.tesslevel)
-        uniforms.set('draw_edges', False)
-
-        glPolygonOffset (2,2)
-        glEnable(GL_POLYGON_OFFSET_FILL)
-        glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
-        glPatchParameteri(GL_PATCH_VERTICES, 3)
-        glDrawArrays(GL_PATCHES, 0, 3*self.mesh_data.ntrigs)
-#         glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh_data.ntrigs)
-        glDisable(GL_POLYGON_OFFSET_FILL)
-
-    def renderWireframe(self, settings):
-        glBindVertexArray(self.surface_vao)
-        self.setupSurfaceRender(settings)
-
-        uniforms = self.surface_program.uniforms
-        uniforms.set('fColor', [0,0,0,1] )
-        uniforms.set('clipping_plane', settings.clipping_plane)
-        uniforms.set('use_index_color', False)
-        uniforms.set('do_clipping', self.mesh.dim==3);
-        uniforms.set('TessLevel', self.tesslevel)
-        uniforms.set('draw_edges', False) # set to true to draw only unrefined edges in wireframe
-        print('tesslevel', self.tesslevel)
-        print('tesslevel', self.tesslevel)
-
-
-        glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
-        glPolygonOffset (1, 1)
-        glEnable(GL_POLYGON_OFFSET_LINE)
-#         glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh_data.ntrigs)
-        glPatchParameteri(GL_PATCH_VERTICES, 3)
-        glDrawArrays(GL_PATCHES, 0, 3*self.mesh_data.ntrigs)
-        glDisable(GL_POLYGON_OFFSET_LINE)
 
     def renderElements(self, settings):
         glBindVertexArray(self.elements_vao)
         glUseProgram(self.element_program.id)
 
         model, view, projection = settings.model, settings.view, settings.projection
-
         uniforms = self.element_program.uniforms
         uniforms.set('P',projection)
         uniforms.set('MV',view*model)
+        uniforms.set('light_ambient', 0.3)
+        uniforms.set('light_diffuse', 0.7)
+
         uniforms.set('shrink_elements', self.shrink)
-        uniforms.set('clipping_plane', settings.clipping_plane)
+#         uniforms.set('clipping_plane', settings.clipping_plane)
 
+        glActiveTexture(GL_TEXTURE0)
+        self.mesh_data.vertices.bind()
+        uniforms.set('mesh.vertices', 0)
+
+        glActiveTexture(GL_TEXTURE1)
+        self.mesh_data.volume_elements.bind()
+        uniforms.set('mesh.elements', 1)
+
+#         glActiveTexture(GL_TEXTURE2)
+#         self.mesh_data.surface_elements_curved.bind()
+#         uniforms.set('mesh.curved_elements', 2)
+
+        glActiveTexture(GL_TEXTURE3)
         self.tex_mat_color.bind()
+        uniforms.set('colors', 3)
 
-        glPolygonOffset (2,2)
-        glEnable(GL_POLYGON_OFFSET_FILL)
+#         glPolygonOffset (2,2)
+#         glEnable(GL_POLYGON_OFFSET_FILL)
+        glDisable(GL_POLYGON_OFFSET_FILL)
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
-        glDrawArrays(GL_LINES_ADJACENCY, 0, 4*self.mesh_data.ntets)
+        glDrawArrays(GL_POINTS, 0, self.mesh_data.ntets)
         glDisable(GL_POLYGON_OFFSET_FILL)
 
     def updateIndexColors(self):
@@ -678,9 +684,7 @@ class MeshScene(BaseMeshSceneObject):
             colors.append(c.green())
             colors.append(c.blue())
             colors.append(c.alpha())
-        self.index_colors = colors
-        glBindTexture(GL_TEXTURE_1D, self.tex_index_color)
-        glTexImage1D(GL_TEXTURE_1D, 0,GL_RGBA, self.mesh_data.trig_max_index+1, 0, GL_RGBA, GL_UNSIGNED_BYTE, bytes(self.index_colors))
+        self.bc_colors.store( colors, width=len(colors), data_format=GL_UNSIGNED_BYTE )
 
     def updateMatColors(self):
         colors = []
@@ -786,11 +790,7 @@ class SolutionScene(BaseFunctionSceneObject):
 
         Shader.includes['shader_functions'] = ngsolve.fem.GenerateL2ElementCode(3)
 
-        shaders = [
-            Shader('solution.vert'),
-            Shader('solution.frag')
-        ]
-        self.program = Program(shaders)
+        self.program = Program('solution.vert', 'solution.frag')
 
 
         attributes = self.program.attributes

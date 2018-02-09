@@ -9,13 +9,17 @@ using namespace ngfem;
 namespace py = pybind11;
 
 template<typename T>
-auto MoveToNumpyArray( ngstd::Array<T> &a )
+py::object MoveToNumpyArray( ngstd::Array<T> &a )
 {
-  py::capsule free_when_done(&a[0], [](void *f) {
-      delete [] reinterpret_cast<T *>(f);
-  });
-  a.NothingToDelete();
-  return py::array_t<T>(a.Size(), &a[0], free_when_done);
+  if(a.Size()) {
+      py::capsule free_when_done(&a[0], [](void *f) {
+                                 delete [] reinterpret_cast<T *>(f);
+                                 });
+      a.NothingToDelete();
+      return py::array_t<T>(a.Size(), &a[0], free_when_done);
+  }
+  else
+      return py::array_t<T>(0, nullptr);
 }
 
 inline SIMD_IntegrationRule GetReferenceRule( int dim, int order, int subdivision )
@@ -238,6 +242,93 @@ PYBIND11_MODULE(ngui, m) {
           py::gil_scoped_acquire ac;
           return MoveToNumpyArray(res);
       },py::call_guard<py::gil_scoped_release>());
+
+    m.def("GetSurfaceElements", [] (shared_ptr<ngcomp::MeshAccess> ma) {
+        ngstd::Array<int> elements;
+        ngstd::Array<float> curved_elements;
+        LocalHeap lh(1000000, "GetSurfaceElements");
+
+        int elsize = 5; // 3 vertices, 1 boundary condition index, 1 curved index
+
+        int curved_index = 0;
+        elements.SetAllocSize(elsize*ma->GetNSE());
+        for (auto el : ma->Elements(BND)) {
+            for (auto v : el.Vertices())
+                elements.Append(v);
+            elements.Append(el.GetIndex());
+            elements.Append(el.is_curved ? curved_index : -1);
+
+            HeapReset hr(lh);
+            ElementTransformation & eltrans = ma->GetTrafo (el, lh);
+            if(el.is_curved) {
+                for (auto j : ngcomp::Range(3)) {
+                  IntegrationPoint ip(j==0?1.0:0.0,j==1?1.0:0.0,0.0);
+                  MappedIntegrationPoint<2,3> mip(ip, eltrans);
+                  auto n = mip.GetNV();
+                  for (auto i : Range(3))
+                      curved_elements.Append(n[i]);
+
+                }
+                curved_index++;
+            }
+        }
+
+        py::gil_scoped_acquire ac;
+        py::dict res;
+        res["elements"] = MoveToNumpyArray(elements);
+        res["curved_elements"] = MoveToNumpyArray(curved_elements);
+        return res;
+      },py::call_guard<py::gil_scoped_release>());
+
+    m.def("GetVolumeElements", [] (shared_ptr<ngcomp::MeshAccess> ma) {
+        ngstd::Array<int> elements;
+        ngstd::Array<float> curved_elements;
+        LocalHeap lh(1000000, "GetVolumeElements");
+
+        int elsize = 6; // 4 vertices, 1 material index, 1 curved index
+
+        int curved_index = 0;
+        elements.SetAllocSize(elsize*ma->GetNE());
+        for (auto el : ma->Elements(VOL)) {
+            for (auto v : el.Vertices())
+                elements.Append(v);
+            elements.Append(el.GetIndex());
+            elements.Append(el.is_curved ? curved_index : -1);
+
+            HeapReset hr(lh);
+            ElementTransformation & eltrans = ma->GetTrafo (el, lh);
+            if(el.is_curved) {
+                for (auto j : ngcomp::Range(3)) {
+                  IntegrationPoint ip(j==0?1.0:0.0,j==1?1.0:0.0,0.0);
+                  MappedIntegrationPoint<2,3> mip(ip, eltrans);
+                  auto n = mip.GetNV();
+                  for (auto i : Range(3))
+                      curved_elements.Append(n[i]);
+
+                }
+                curved_index++;
+            }
+        }
+
+        py::gil_scoped_acquire ac;
+        py::dict res;
+        res["elements"] = MoveToNumpyArray(elements);
+        res["curved_elements"] = MoveToNumpyArray(curved_elements);
+        return res;
+      },py::call_guard<py::gil_scoped_release>());
+
+    m.def("GetVertices", [] (shared_ptr<ngcomp::MeshAccess> ma) {
+        ngstd::Array<float> vertices;
+        vertices.SetAllocSize(ma->GetNP()*3);
+        for ( auto vi : Range(ma->GetNP()) ) {
+            auto v = ma->GetPoint<3>(vi);
+            for (auto i : Range(3))
+              vertices.Append(v[i]);
+        }
+        py::gil_scoped_acquire ac;
+        return MoveToNumpyArray(vertices);
+      },py::call_guard<py::gil_scoped_release>());
+
     m.def("GetFaceData", [] (shared_ptr<ngcomp::MeshAccess> ma) {
         LocalHeap lh(10000000, "GetFaceData");
         ngstd::Array<float> coordinates;

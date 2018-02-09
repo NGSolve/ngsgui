@@ -1,3 +1,97 @@
+struct Mesh {
+    isamplerBuffer elements;
+    samplerBuffer curved_elements;
+    samplerBuffer vertices;
+};
+
+int elements2d_stride = 5;
+int elements2d_index_offset = 3;
+int elements2d_curved_offset = 4;
+
+int elements3d_stride = 6;
+int elements3d_index_offset = 4;
+
+int curved_stride = 3;
+
+struct Element2d {
+    int index;
+    int vertices[3];
+    vec3 pos[3];
+    vec3 normals[3];
+};
+
+struct Element3d {
+    int index;
+    int vertices[4];
+    vec3 pos[4];
+};
+
+void calcNormals(in out Element2d el) {
+  // flat element, normal is constant
+  vec3 n = cross(el.pos[1]-el.pos[0], el.pos[2]-el.pos[0]);
+  el.normals[0] = n;
+  el.normals[1] = n;
+  el.normals[2] = n;
+}
+
+Element2d getElement2d(Element3d tet, int face ) {
+  Element2d trig;
+  trig.index = tet.index;
+  int counter = 0;
+  for (int i=0; i<4; i++) {
+    if(i==face) continue;
+    trig.vertices[counter] = tet.vertices[i];
+    trig.pos[counter] = tet.pos[i];
+    counter++;
+  }
+  if(face==2) {
+    vec3 t=trig.pos[2];
+    trig.pos[2] = trig.pos[1];
+    trig.pos[1] = t;
+    int i=trig.vertices[2];
+    trig.vertices[2] = trig.vertices[1];
+    trig.vertices[1] = i;
+  }
+
+  calcNormals(trig);
+  return trig;
+}
+
+Element2d getElement2d(Mesh mesh, int ei ) {
+    Element2d el;
+    int stride = elements2d_stride;
+
+    for (int i=0; i<3; i++) {
+      el.vertices[i] = texelFetch(mesh.elements, stride*ei+i).r;
+      el.pos[i] = texelFetch(mesh.vertices, el.vertices[i]).xyz;
+    }
+    el.index = texelFetch(mesh.elements, stride*ei+elements2d_index_offset).r;
+    int curved_index = texelFetch(mesh.elements, stride*ei+elements2d_curved_offset).r;
+    if(curved_index>=0) {
+        // have curved element
+        for (int i=0; i<3; i++)
+          el.normals[i] = texelFetch(mesh.curved_elements, curved_stride*curved_index + i).xyz;
+    }
+    else {
+      calcNormals(el);
+    }
+
+    return el;
+}
+
+Element3d getElement3d(Mesh mesh, int ei ) {
+    Element3d el;
+    int stride = elements3d_stride;
+
+    for (int i=0; i<4; i++) {
+      el.vertices[i] = texelFetch(mesh.elements, stride*ei+i).r;
+      el.pos[i] = texelFetch(mesh.vertices, el.vertices[i]).xyz;
+    }
+    el.index = texelFetch(mesh.elements, stride*ei+elements3d_index_offset).r;
+    return el;
+}
+
+
 vec3 MapColor(float value)
 {
     value = clamp(value, 0.0, 1.0);

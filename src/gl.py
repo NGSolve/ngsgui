@@ -99,6 +99,8 @@ class Program(GLObject):
             convert_matrix = lambda m,size: (ctypes.c_float*(size**2))(*[m[j,i] for i in range(size) for j in range(size)])
             functions = {
                     GL_SAMPLER_1D:        lambda v: glUniform1i(loc, v),
+                    GL_INT_SAMPLER_BUFFER:lambda v: glUniform1i(loc, v),
+                    GL_SAMPLER_BUFFER:    lambda v: glUniform1i(loc, v),
                     GL_BOOL:              lambda v: glUniform1i(loc, v),
                     GL_BOOL_VEC2:         lambda v: glUniform2i(loc, *v),
                     GL_BOOL_VEC3:         lambda v: glUniform3i(loc, *v),
@@ -201,12 +203,14 @@ class Program(GLObject):
         def __contains__(self, name):
             return name.encode('ascii', 'ignore') in self.attributes
 
-    def __init__(self, shaders):
+    def __init__(self, *shader_files):
         self.locations = {}
-        self._shaders = shaders
+        self._shaders = []
 
         self._id = glCreateProgram()
-        for shader in shaders:
+        for f in shader_files:
+            shader = Shader(f)
+            self._shaders.append(shader)
             glAttachShader(self.id, shader.id)
 
         glLinkProgram(self.id)
@@ -231,16 +235,15 @@ class ArrayBuffer(GLObject):
         glBufferData(self._type, data, self._usage)
 
 class Texture(GLObject):
-    def __init__(self, buffer_type, format, unit=GL_TEXTURE0 ):
+    def __init__(self, buffer_type, format):
         self._type = buffer_type
         self._format = format
-        self._unit = unit
         self._id = glGenTextures(1)
 
         if self._type == GL_TEXTURE_BUFFER:
             self._buffer = ArrayBuffer( GL_TEXTURE_BUFFER, GL_DYNAMIC_DRAW )
             self.bind()
-            glTexBuffer ( GL_TEXTURE_BUFFER, GL_R32F, self._buffer.id );
+            glTexBuffer ( GL_TEXTURE_BUFFER, format, self._buffer.id );
         else:
             self.bind()
             glTexParameteri( self._type, GL_TEXTURE_MAG_FILTER, GL_NEAREST )
@@ -248,7 +251,6 @@ class Texture(GLObject):
 
 
     def bind(self):
-        glActiveTexture( self._unit );
         glBindTexture( self._type, self.id )
         if self._type == GL_TEXTURE_BUFFER:
             self._buffer.bind()
@@ -256,7 +258,7 @@ class Texture(GLObject):
     def store(self, data, data_format=None, width=0, height=0):
         self.bind()
         if self._type == GL_TEXTURE_1D:
-            glTexImage1D(GL_TEXTURE_1D, 0, self._format, width, 0, self._format, data_format, data)
+            glTexImage1D(GL_TEXTURE_1D, 0, self._format, len(data), 0, self._format, data_format, data)
         if self._type == GL_TEXTURE_2D:
             glTexImage2D( GL_TEXTURE_2D, 0, self._format, width, height, 0, self._format, data_format, data )
         if self._type == GL_TEXTURE_BUFFER:
