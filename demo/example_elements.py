@@ -27,6 +27,5 @@ mesh = Mesh(Coil().GenerateMesh(maxh=0.3))
 
 gui = GUI.GUI()
 scene2 = GUI.MeshScene(mesh,elements=True,name="Mesh Elements")
-win = gui.make_window()
-win.draw(scene2)
+gui.draw(scene2)
 gui.run()
