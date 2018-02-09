@@ -289,15 +289,19 @@ PYBIND11_MODULE(ngui, m) {
             element_number.SetSize(3*ntrigs);
             element_index.SetSize(3*ntrigs);
             element_curved_index.SetSize(3*ntrigs);
-            element_curved_points_and_normals.SetSize(3*3*3*ntrigs);
+            element_curved_points_and_normals.SetSize(2*3*3*ntrigs);
 
             int curved_index=0;
             for (auto sel : ma->Elements(BND)) {
                 auto sel_vertices = sel.Vertices();
-
+                HeapReset hr(lh);
+                ElementTransformation & eltrans = ma->GetTrafo (sel, lh);
 
                 for (auto j : ngcomp::Range(3)) {
-                  auto v = ma->GetPoint<3>(sel_vertices[j]);
+                  IntegrationPoint ip(j==0?1.0:0.0,j==1?1.0:0.0,0.0);
+                  MappedIntegrationPoint<2,3> mip(ip, eltrans);
+                  auto v = mip.GetPoint();
+//                   auto v = ma->GetPoint<3>(sel_vertices[j]);
                   for (auto k : Range(3)) {
                     coordinates.Append(v[k]);
                     bary_coordinates.Append( j==k ? 1.0 : 0.0 );
@@ -310,29 +314,29 @@ PYBIND11_MODULE(ngui, m) {
                     element_index[3*sel.Nr()+k] = sel.GetIndex();
                     max_index = max2(max_index, sel.GetIndex());
                 }
-                if(sel.is_curved) {
-                  HeapReset hr(lh);
-                  ElementTransformation & eltrans = ma->GetTrafo (sel, lh);
+                if(1||sel.is_curved) {
                   auto addValues = [&](int offset, double x, double y, bool add_point) {
                       IntegrationPoint ip(x,y,0);
                       MappedIntegrationPoint<2,3> mip(ip, eltrans);
                         auto n = mip.GetNV();
-                        for (auto k : Range(3))
-                            element_curved_points_and_normals[9*3*sel.Nr()+offset+k] = n[k];
                         if(add_point) {
                           auto p = mip.GetPoint();
                           for (auto k : Range(3))
-                              element_curved_points_and_normals[9*3*sel.Nr()+offset+3+k] = p[k];
+                              element_curved_points_and_normals[6*3*sel.Nr()+offset+k] = p[k];
+                        }
+                        else {
+                          for (auto k : Range(3))
+                            element_curved_points_and_normals[6*3*sel.Nr()+offset+k] = n[k];
                         }
                   };
                   addValues( 0, 1.0, 0.0, false);
                   addValues( 3, 0.0, 0.5, true);
 
-                  addValues( 9, 0.0, 1.0, false);
-                  addValues(12, 0.5, 0.0, true);
+                  addValues( 6, 0.0, 1.0, false);
+                  addValues( 9, 0.5, 0.0, true);
 
-                  addValues(18, 0.0, 0.0, false);
-                  addValues(21, 0.5, 0.5, true);
+                  addValues(12, 0.0, 0.0, false);
+                  addValues(15, 0.5, 0.5, true);
                   
                   element_curved_index[3*sel.Nr()+0] = curved_index;
                   element_curved_index[3*sel.Nr()+1] = curved_index;

@@ -519,8 +519,7 @@ class MeshScene(BaseMeshSceneObject):
         self.show_surface = surface
         self.show_elements = elements
         self.shrink = shrink
-        self.tesslevelinner = 8.0
-        self.tesslevelouter = 8.0
+        self.tesslevel = 1.0
 
     def initGL(self):
         if self.gl_initialized:
@@ -560,7 +559,8 @@ class MeshScene(BaseMeshSceneObject):
         attributes.bind('pos', self.mesh_data.trig_coordinates)
         attributes.bind('index', self.mesh_data.trig_element_index)
         attributes.bind('curved_index', self.mesh_data.trig_curved_index)
-        attributes.bind('normal', self.mesh_data.trig_curved_normals_and_points, stride=36)
+        attributes.bind('normal', self.mesh_data.trig_curved_normals_and_points, stride=24)
+        attributes.bind('other_pos', self.mesh_data.trig_curved_normals_and_points, stride=24, offset=12)
 
         self.tex_index_color = glGenTextures(1)
 
@@ -617,8 +617,7 @@ class MeshScene(BaseMeshSceneObject):
         uniforms.set('clipping_plane', settings.clipping_plane)
         uniforms.set('use_index_color', True)
         uniforms.set('do_clipping', self.mesh.dim==3);
-        uniforms.set('TessLevelInner', self.tesslevelinner)
-        uniforms.set('TessLevelOuter', self.tesslevelouter)
+        uniforms.set('TessLevel', self.tesslevel)
         uniforms.set('draw_edges', False)
 
         glPolygonOffset (2,2)
@@ -638,9 +637,10 @@ class MeshScene(BaseMeshSceneObject):
         uniforms.set('clipping_plane', settings.clipping_plane)
         uniforms.set('use_index_color', False)
         uniforms.set('do_clipping', self.mesh.dim==3);
-        uniforms.set('TessLevelInner', self.tesslevelinner)
-        uniforms.set('TessLevelOuter', self.tesslevelouter)
+        uniforms.set('TessLevel', self.tesslevel)
         uniforms.set('draw_edges', False) # set to true to draw only unrefined edges in wireframe
+        print('tesslevel', self.tesslevel)
+        print('tesslevel', self.tesslevel)
 
 
         glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
@@ -706,6 +706,9 @@ class MeshScene(BaseMeshSceneObject):
     def setShowWireframe(self, value):
         self.show_wireframe = value
 
+    def setTessellation(self, value):
+        self.tesslevel = value
+
     def getQtWidget(self, updateGL, params):
         widgets = super().getQtWidget(updateGL, params)
 
@@ -753,6 +756,13 @@ class MeshScene(BaseMeshSceneObject):
                 self.updateMatColors()
                 widgets["Shrink"] = shrink
                 widgets["MatColors"] = self.matcolors
+
+        inner = QtWidgets.QDoubleSpinBox()
+        inner.setRange(1, 20)
+        inner.valueChanged[float].connect(self.setTessellation)
+        inner.setSingleStep(1.0)
+        inner.valueChanged[float].connect(updateGL)
+        widgets["Tesselation"] = inner
 
         return widgets
 
