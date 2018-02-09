@@ -519,6 +519,8 @@ class MeshScene(BaseMeshSceneObject):
         self.show_surface = surface
         self.show_elements = elements
         self.shrink = shrink
+        self.tesslevelinner = 8.0
+        self.tesslevelouter = 8.0
 
     def initGL(self):
         if self.gl_initialized:
@@ -531,6 +533,8 @@ class MeshScene(BaseMeshSceneObject):
 
         shaders = [
             Shader('mesh.vert'),
+            Shader('tess.tesc'),
+            Shader('tess.tese'),
             Shader('mesh.frag')
         ]
         self.surface_program = Program(shaders)
@@ -613,11 +617,16 @@ class MeshScene(BaseMeshSceneObject):
         uniforms.set('clipping_plane', settings.clipping_plane)
         uniforms.set('use_index_color', True)
         uniforms.set('do_clipping', self.mesh.dim==3);
+        uniforms.set('TessLevelInner', self.tesslevelinner)
+        uniforms.set('TessLevelOuter', self.tesslevelouter)
+        uniforms.set('draw_edges', False)
 
         glPolygonOffset (2,2)
         glEnable(GL_POLYGON_OFFSET_FILL)
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
-        glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh_data.ntrigs)
+        glPatchParameteri(GL_PATCH_VERTICES, 3)
+        glDrawArrays(GL_PATCHES, 0, 3*self.mesh_data.ntrigs)
+#         glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh_data.ntrigs)
         glDisable(GL_POLYGON_OFFSET_FILL)
 
     def renderWireframe(self, settings):
@@ -629,10 +638,17 @@ class MeshScene(BaseMeshSceneObject):
         uniforms.set('clipping_plane', settings.clipping_plane)
         uniforms.set('use_index_color', False)
         uniforms.set('do_clipping', self.mesh.dim==3);
+        uniforms.set('TessLevelInner', self.tesslevelinner)
+        uniforms.set('TessLevelOuter', self.tesslevelouter)
+        uniforms.set('draw_edges', False) # set to true to draw only unrefined edges in wireframe
+
+
         glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
         glPolygonOffset (1, 1)
         glEnable(GL_POLYGON_OFFSET_LINE)
-        glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh_data.ntrigs)
+#         glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh_data.ntrigs)
+        glPatchParameteri(GL_PATCH_VERTICES, 3)
+        glDrawArrays(GL_PATCHES, 0, 3*self.mesh_data.ntrigs)
         glDisable(GL_POLYGON_OFFSET_LINE)
 
     def renderElements(self, settings):

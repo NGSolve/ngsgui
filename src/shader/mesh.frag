@@ -6,6 +6,7 @@ uniform vec4 clipping_plane;
 uniform bool use_index_color;
 uniform sampler1D index_color;
 uniform bool do_clipping;
+uniform bool draw_edges;
 
 out vec4 FragColor;
 
@@ -19,7 +20,6 @@ in VertexData
   flat int curved_index;
 } inData;
 
-{include utils.inc}
 
 void main()
 {
