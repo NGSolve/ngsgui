@@ -82,12 +82,12 @@ PYBIND11_MODULE(ngui, m) {
             int subdivision = 3;
             const int r = 1<<subdivision;
             const int s = r + 1;
-            const double h = 1.0/r;
+            const float h = 1.0/r;
             {
                 for (int i = 0; i <= r; ++i)
                     for (int j = 0; i+j <= r; ++j)
                         for (int k = 0; i+j+k <= r; ++k) {
-                            Vec<4,float> p{i*h,j*h,k*h, 1.0-i*h-j*h-k*h};
+                            Vec<4,float> p{i*h,j*h,k*h, 1.0f-i*h-j*h-k*h};
                             Vec<4,float> p1;
                             ref_coords.Append(p);
                             for (auto n : Range(4))
