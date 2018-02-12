@@ -32,7 +32,7 @@ struct Element3d {
 vec3 interpolatePoint(Mesh mesh, Element2d el, vec2 lam) {
     float x = lam.x;
     float y = lam.y;
-    if(el.curved_index<=0) { // TODO FIXXME: don't curve first curved element (gets wrong data due to bug)
+    if(el.curved_index<0) {
       return x*el.pos[0] + y*el.pos[1]+(1-x-y)*el.pos[2];
     }
     else {

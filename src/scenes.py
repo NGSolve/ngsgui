@@ -596,7 +596,7 @@ class MeshScene(BaseMeshSceneObject):
             glPolygonOffset (2, 2)
             glEnable(GL_POLYGON_OFFSET_FILL)
             glPatchParameteri(GL_PATCH_VERTICES, 1)
-            glDrawArrays(GL_PATCHES, 0, self.mesh.nface)
+            glDrawArrays(GL_PATCHES, 0, self.mesh.GetNE(ngsolve.BND))
             glDisable(GL_POLYGON_OFFSET_FILL)
 
         if self.show_wireframe:
@@ -608,7 +608,7 @@ class MeshScene(BaseMeshSceneObject):
             glPolygonOffset (1, 1)
             glEnable(GL_POLYGON_OFFSET_LINE)
             glPatchParameteri(GL_PATCH_VERTICES, 1)
-            glDrawArrays(GL_PATCHES, 0, self.mesh.nface)
+            glDrawArrays(GL_PATCHES, 0, self.mesh.GetNE(ngsolve.BND))
             glDisable(GL_POLYGON_OFFSET_LINE)
 
 
