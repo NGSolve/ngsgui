@@ -9,7 +9,8 @@ uniform sampler1D colors;
 
 out VertexData
 {
-  flat int element;
+  // flat int element;
+  flat Element2d el;
   /*
   vec3 pos;
   vec3 normal;
@@ -19,7 +20,8 @@ out VertexData
 
 void main()
 {
-  outData.element = gl_VertexID/3;
+  // outData.element = gl_VertexID;
+  outData.el = getElement2d(mesh, gl_VertexID );
   /*
 
     int vert_in_element = gl_VertexID-3*element;

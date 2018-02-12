@@ -1,7 +1,7 @@
 struct Mesh {
     isamplerBuffer elements;
-    samplerBuffer curved_elements;
     samplerBuffer vertices;
+    int surface_curved_offset;
 };
 
 int elements2d_stride = 5;
@@ -32,7 +32,7 @@ struct Element3d {
 vec3 interpolatePoint(Mesh mesh, Element2d el, vec2 lam) {
     float x = lam.x;
     float y = lam.y;
-    if(el.curved_index<0) {
+    if(el.curved_index<=0) { // TODO FIXXME: don't curve first curved element (gets wrong data due to bug)
       return x*el.pos[0] + y*el.pos[1]+(1-x-y)*el.pos[2];
     }
     else {
@@ -40,9 +40,9 @@ vec3 interpolatePoint(Mesh mesh, Element2d el, vec2 lam) {
       f[0] = el.pos[2]; // getSubTrigValue(0,0);
       f[2] = el.pos[0]; // getSubTrigValue(2,0);
       f[5] = el.pos[1]; // getSubTrigValue(0,2);
-      f[1] = texelFetch(mesh.curved_elements, elements2d_curved_stride*el.curved_index + elements2d_curved_points_offset+0).xyz; // getSubTrigValue(1,0);
-      f[3] = texelFetch(mesh.curved_elements, elements2d_curved_stride*el.curved_index + elements2d_curved_points_offset+1).xyz; // getSubTrigValue(0,1);
-      f[4] = texelFetch(mesh.curved_elements, elements2d_curved_stride*el.curved_index + elements2d_curved_points_offset+2).xyz; // getSubTrigValue(1,1);
+      f[1] = texelFetch(mesh.vertices, mesh.surface_curved_offset+elements2d_curved_stride*el.curved_index + elements2d_curved_points_offset+0).xyz; // getSubTrigValue(1,0);
+      f[3] = texelFetch(mesh.vertices, mesh.surface_curved_offset+elements2d_curved_stride*el.curved_index + elements2d_curved_points_offset+1).xyz; // getSubTrigValue(0,1);
+      f[4] = texelFetch(mesh.vertices, mesh.surface_curved_offset+elements2d_curved_stride*el.curved_index + elements2d_curved_points_offset+2).xyz; // getSubTrigValue(1,1);
       return 1.0*f[0] + x*x*(2.0*f[0] - 4.0*f[1] + 2.0*f[2]) + 4.0*x*y*(f[0] - f[1] - f[3] + f[4]) - x*(3.0*f[0] - 4.0*f[1] + 1.0*f[2]) + y*y*(2.0*f[0] - 4.0*f[3] + 2.0*f[5]) - y*(3.0*f[0] - 4.0*f[3] + 1.0*f[5]);
     }
 }
@@ -92,7 +92,7 @@ Element2d getElement2d(Mesh mesh, int ei ) {
     if(el.curved_index>=0) {
         // have curved element
         for (int i=0; i<3; i++)
-          el.normals[i] = texelFetch(mesh.curved_elements, elements2d_curved_stride*el.curved_index + elements2d_curved_normals_offset+i).xyz;
+          el.normals[i] = texelFetch(mesh.vertices, mesh.surface_curved_offset+elements2d_curved_stride*el.curved_index + elements2d_curved_normals_offset+i).xyz;
     }
     else {
       calcNormals(el);

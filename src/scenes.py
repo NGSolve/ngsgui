@@ -66,19 +66,13 @@ class CMeshData:
         self.trig_curved_normals_and_points = ArrayBuffer()
         self.trig_curved_normals_and_points.store(trig_curved_normals_and_points_data)
 
+        meshdata = ngui.GetMeshData(mesh)
         self.vertices = Texture(GL_TEXTURE_BUFFER, GL_RGB32F)
-        self.vertices.store(ngui.GetVertices(mesh))
+        self.vertices.store(meshdata['vertices'])
 
         sels = ngui.GetSurfaceElements(mesh)
         self.surface_elements = Texture(GL_TEXTURE_BUFFER, GL_R32I)
-        self.surface_elements.store(sels["elements"])
-#         print([x for x in sels["elements"][4::5]], len(sels["curved_elements"]))
-#         for i in range(len(sels["elements"])):
-#             if i%5==4 and sels["elements"][i] == 0:
-#                 print('found!', i/5)
-
-        self.surface_elements_curved = Texture(GL_TEXTURE_BUFFER, GL_RGB32F)
-        self.surface_elements_curved.store(sels["curved_elements"])
+        self.surface_elements.store(meshdata["surface_elements"])
 
         els = ngui.GetVolumeElements(mesh)
         self.volume_elements = Texture(GL_TEXTURE_BUFFER, GL_R32I)
@@ -671,10 +665,6 @@ class MeshScene(BaseMeshSceneObject):
         glActiveTexture(GL_TEXTURE1)
         self.mesh_data.volume_elements.bind()
         uniforms.set('mesh.elements', 1)
-
-#         glActiveTexture(GL_TEXTURE2)
-#         self.mesh_data.surface_elements_curved.bind()
-#         uniforms.set('mesh.curved_elements', 2)
 
         glActiveTexture(GL_TEXTURE3)
         self.tex_mat_color.bind()

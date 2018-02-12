@@ -22,7 +22,7 @@ vec3 TransformVec( vec3 x) {
 
 void main()
 {
-  // if(wireframe && inData.edgedist>1e-5) discard;
+  if(wireframe && inData.edgedist>1e-5) discard;
   FragColor = inData.color;
 
 

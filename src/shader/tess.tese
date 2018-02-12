@@ -13,7 +13,8 @@ uniform sampler1D colors;
 
 in VertexData
 {
-  flat int element;
+  // flat int element;
+  flat Element2d el;
   /*
   vec3 pos;
   vec3 normal;
@@ -39,7 +40,7 @@ void main()
 {
     outData.edgedist = min(min(gl_TessCoord.x, gl_TessCoord.y), gl_TessCoord.z);
 
-    Element2d el = getElement2d(mesh, inData[1].element); 
+    Element2d el = inData[0].el; //getElement2d(mesh, inData[0].element); 
     vec3 lam = gl_TessCoord.xyz;
 
     // outData.pos = lam.x*el.pos[0] + lam.y*el.pos[1] + lam.z*el.pos[2];
