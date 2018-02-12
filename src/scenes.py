@@ -73,6 +73,7 @@ class CMeshData:
         sels = ngui.GetSurfaceElements(mesh)
         self.surface_elements = Texture(GL_TEXTURE_BUFFER, GL_R32I)
         self.surface_elements.store(meshdata["surface_elements"])
+        self.nsurface_elements = len(meshdata["surface_elements"])//3;
 
         els = ngui.GetVolumeElements(mesh)
         self.volume_elements = Texture(GL_TEXTURE_BUFFER, GL_R32I)
@@ -592,11 +593,11 @@ class MeshScene(BaseMeshSceneObject):
             uniforms.set('light_diffuse', 0.7)
             uniforms.set('TessLevel', self.tesslevel)
             uniforms.set('wireframe', False)
-            glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
+            glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
             glPolygonOffset (2, 2)
             glEnable(GL_POLYGON_OFFSET_FILL)
             glPatchParameteri(GL_PATCH_VERTICES, 1)
-            glDrawArrays(GL_PATCHES, 0, self.mesh.GetNE(ngsolve.BND))
+            glDrawArrays(GL_PATCHES, 0, 3*self.mesh_data.nsurface_elements)
             glDisable(GL_POLYGON_OFFSET_FILL)
 
         if self.show_wireframe:
@@ -608,7 +609,7 @@ class MeshScene(BaseMeshSceneObject):
             glPolygonOffset (1, 1)
             glEnable(GL_POLYGON_OFFSET_LINE)
             glPatchParameteri(GL_PATCH_VERTICES, 1)
-            glDrawArrays(GL_PATCHES, 0, self.mesh.GetNE(ngsolve.BND))
+            glDrawArrays(GL_PATCHES, 0, 3*self.mesh_data.nsurface_elements)
             glDisable(GL_POLYGON_OFFSET_LINE)
 
 
@@ -789,12 +790,6 @@ class SolutionScene(BaseFunctionSceneObject):
 
         self.program = Program('solution.vert', 'solution.frag')
 
-
-        attributes = self.program.attributes
-        attributes.bind('vPos', self.mesh_data.trig_coordinates)
-        attributes.bind('vLam', self.mesh_data.trig_bary_coordinates)
-        attributes.bind('vElementNumber', self.mesh_data.trig_element_number)
-
         self.coefficients = Texture(GL_TEXTURE_BUFFER, GL_R32F)
 
         glBindVertexArray(0)
@@ -828,8 +823,23 @@ class SolutionScene(BaseFunctionSceneObject):
 
         uniforms.set('element_type', 10)
 
+        glActiveTexture(GL_TEXTURE0)
+        self.mesh_data.vertices.bind()
+        uniforms.set('mesh.vertices', 0)
+
+        glActiveTexture(GL_TEXTURE1)
+        self.mesh_data.surface_elements.bind()
+        uniforms.set('mesh.elements', 1)
+
+        glActiveTexture(GL_TEXTURE2)
+        self.coefficients.bind()
+        uniforms.set('coefficients', 2)
+
+        uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
+
+
         glPolygonOffset (2,2)
         glEnable(GL_POLYGON_OFFSET_FILL)
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
-        glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh_data.ntrigs);
+        glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh_data.nsurface_elements)
 

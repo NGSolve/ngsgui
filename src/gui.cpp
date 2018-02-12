@@ -343,8 +343,17 @@ PYBIND11_MODULE(ngui, m) {
         int elsize = 5; // 3 vertices, 1 boundary condition index, 1 curved index
 
         int curved_index = 0;
-        elements.SetAllocSize(elsize*ma->GetNSE());
-        for (auto el : ma->Elements(BND)) {
+
+        VorB vb;
+        if(ma->GetDimension()==3) {
+          elements.SetAllocSize(elsize*ma->GetNSE());
+          vb = BND;
+        }
+        else {
+          elements.SetAllocSize(elsize*ma->GetNE());
+          vb = VOL;
+        }
+        for (auto el : ma->Elements(vb)) {
             for (auto v : el.Vertices())
                 elements.Append(v);
             elements.Append(el.GetIndex());

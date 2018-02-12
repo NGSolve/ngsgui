@@ -10,9 +10,9 @@ uniform int order;
 
 in VertexData
 {
+  vec3 lam;
   vec3 pos;
   flat int element;
-  vec3 lam;
 } inData;
 
 out vec4 FragColor;
@@ -21,6 +21,7 @@ out vec4 FragColor;
 
 void main()
 {
+  FragColor = vec4(0,1,0,1);
   if(!do_clipping || dot(vec4(inData.pos,1.0),clipping_plane)<0)
   {
       float x = inData.lam.x;
