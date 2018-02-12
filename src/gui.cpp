@@ -286,8 +286,6 @@ PYBIND11_MODULE(ngui, m) {
 
         py::gil_scoped_acquire ac;
         py::dict res;
-        cout << "elements" << elements << endl;
-        cout << "curved_elements" << curved_elements << endl;
         res["elements"] = MoveToNumpyArray(elements);
         res["curved_elements"] = MoveToNumpyArray(curved_elements);
         return res;
