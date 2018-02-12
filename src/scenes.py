@@ -578,16 +578,13 @@ class MeshScene(BaseMeshSceneObject):
         self.mesh_data.surface_elements.bind()
         uniforms.set('mesh.elements', 1)
 
-        glActiveTexture(GL_TEXTURE2)
-        self.mesh_data.surface_elements_curved.bind()
-        uniforms.set('mesh.curved_elements', 2)
-
         glActiveTexture(GL_TEXTURE3)
         self.bc_colors.bind()
         uniforms.set('colors', 3)
 
         uniforms.set('clipping_plane', settings.clipping_plane)
         uniforms.set('do_clipping', True);
+        uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
 
 
         if self.show_surface:
