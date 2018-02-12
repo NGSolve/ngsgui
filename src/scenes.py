@@ -72,6 +72,10 @@ class CMeshData:
         sels = ngui.GetSurfaceElements(mesh)
         self.surface_elements = Texture(GL_TEXTURE_BUFFER, GL_R32I)
         self.surface_elements.store(sels["elements"])
+        print([x for x in sels["elements"][4::5]], len(sels["curved_elements"]))
+        for i in range(len(sels["elements"])):
+            if i%5==4 and sels["elements"][i] == 0:
+                print('found!', i/5)
 
         self.surface_elements_curved = Texture(GL_TEXTURE_BUFFER, GL_RGB32F)
         self.surface_elements_curved.store(sels["curved_elements"])
@@ -552,7 +556,7 @@ class MeshScene(BaseMeshSceneObject):
         self.surface_vao = glGenVertexArrays(1)
         glBindVertexArray(self.surface_vao)
 
-        self.surface_program = Program('mesh.vert', 'mesh.frag')
+        self.surface_program = Program('mesh.vert', 'tess.tesc', 'tess.tese', 'mesh.frag')
         self.bc_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
         self.bc_colors.store( [0,1,0,1]*(self.mesh_data.trig_max_index+1), data_format=GL_UNSIGNED_BYTE )
 
@@ -595,19 +599,27 @@ class MeshScene(BaseMeshSceneObject):
         if self.show_surface:
             uniforms.set('light_ambient', 0.3)
             uniforms.set('light_diffuse', 0.7)
+            uniforms.set('TessLevel', self.tesslevel)
+            uniforms.set('wireframe', False)
             glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
             glPolygonOffset (2, 2)
             glEnable(GL_POLYGON_OFFSET_FILL)
-            glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh.nface)
+            glPatchParameteri(GL_PATCH_VERTICES, 3)
+            glDrawArrays(GL_PATCHES, 0, 3*self.mesh.nface)
+#             glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh.nface)
             glDisable(GL_POLYGON_OFFSET_FILL)
 
         if self.show_wireframe:
             uniforms.set('light_ambient', 0.0)
             uniforms.set('light_diffuse', 0.0)
+            uniforms.set('TessLevel', self.tesslevel)
+            uniforms.set('wireframe', True)
             glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
             glPolygonOffset (1, 1)
             glEnable(GL_POLYGON_OFFSET_LINE)
-            glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh.nface)
+            glPatchParameteri(GL_PATCH_VERTICES, 3)
+            glDrawArrays(GL_PATCHES, 0, 3*self.mesh.nface)
+#             glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh.nface)
             glDisable(GL_POLYGON_OFFSET_LINE)
 
 

@@ -1,31 +1,55 @@
 #version 410 core
 
+
 layout(triangles, equal_spacing, cw) in;
 // layout(triangles, fractional_even_spacing, cw) in;
 
+{include utils.inc}
+
 uniform mat4 P;
 uniform mat4 MV;
+uniform Mesh mesh;
+uniform sampler1D colors;
 
 in VertexData
 {
+  flat int element;
+  /*
   vec3 pos;
   vec3 normal;
   vec3 other_pos;
   flat int index;
   flat int curved_index;
+  */
 } inData[];
 
 out VertexData
 {
   vec3 pos;
   vec3 normal;
-  vec3 other_pos;
+  vec4 color;
   float edgedist;
+  /*
   flat int index;
   flat int curved_index;
+  */
 } outData;
 
+void main()
+{
+    outData.edgedist = min(min(gl_TessCoord.x, gl_TessCoord.y), gl_TessCoord.z);
 
+    Element2d el = getElement2d(mesh, inData[1].element); 
+    vec3 lam = gl_TessCoord.xyz;
+
+    // outData.pos = lam.x*el.pos[0] + lam.y*el.pos[1] + lam.z*el.pos[2];
+    outData.pos = interpolatePoint(mesh, el, lam.xy);
+    outData.normal = lam.x*el.normals[0] + lam.y*el.normals[1] + lam.z*el.normals[2];
+    outData.color = vec4(texelFetch(colors, el.index, 0));
+    gl_Position = P * MV * vec4(outData.pos, 1);
+}
+
+/*
 void InterpolatePos() {
     float x = gl_TessCoord.x;
     float y = gl_TessCoord.y;
@@ -77,3 +101,4 @@ void main()
     InterpolatePos();
     InterpolateNormal();
 }
+*/

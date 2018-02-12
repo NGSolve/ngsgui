@@ -19,6 +19,7 @@ vec3 TransformVec( vec3 x) {
 void main()
 {
   FragColor = inData.color;
+  if(FragColor.a == 0.0) discard;
 
   vec3 lightVector = TransformVec(vec3(1,3,3));
   FragColor.rgb *= light_ambient+light_diffuse*clamp(dot(normalize(inData.normal), lightVector), 0, 1.0);

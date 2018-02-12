@@ -2,6 +2,7 @@
 uniform mat4 MV;
 uniform vec4 clipping_plane;
 uniform bool do_clipping;
+uniform bool wireframe;
 uniform float light_ambient;
 uniform float light_diffuse;
 
@@ -10,6 +11,7 @@ in VertexData
   vec3 pos;
   vec3 normal;
   vec4 color;
+  float edgedist;
 } inData;
 
 out vec4 FragColor;
@@ -20,6 +22,7 @@ vec3 TransformVec( vec3 x) {
 
 void main()
 {
+  // if(wireframe && inData.edgedist>1e-5) discard;
   FragColor = inData.color;
 
 

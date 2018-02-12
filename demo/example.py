@@ -3,15 +3,18 @@ from netgen.geom2d import unit_square
 from netgen.csg import *
 import ngsolve.gui as GUI
 
-ngsglobals.msg_level = 0
-# nrefinements = 1
+ngsglobals.msg_level = 7
+nrefinements = 1
 
 # mesh = Mesh(unit_cube.GenerateMesh(maxh=0.2))
 def MakeGeometry():
     geometry = CSGeometry()
     s1 = Sphere(Pnt( 0.0,0,0), 1)
     s2 = Sphere(Pnt( 0.0,1,0), 1)
-    geometry.Add(s1+s2)
+    box = OrthoBrick(Pnt(0.3,0.3,0.3),Pnt(1.1,1.1,2))
+    s = s1+s2
+    geometry.Add(s)
+    geometry.Add(box-s)
     return geometry
 #     box = OrthoBrick(Pnt(-1,-1,-1),Pnt(2,1,2)).bc("outer")
 # 
@@ -30,11 +33,11 @@ def MakeGeometry():
 
 
 
-ngmesh = MakeGeometry().GenerateMesh(maxh=1.0)
+ngmesh = MakeGeometry().GenerateMesh(maxh=0.3)
 mesh = Mesh(ngmesh)
-# for i in range(nrefinements):
-#     print('refine')
-#     mesh.Refine()
+for i in range(nrefinements):
+    print('refine')
+    mesh.Refine()
 
 mesh.Curve(2)
 print(mesh.ne,'elements')
@@ -44,7 +47,7 @@ cf = cos(n*x)*cos(n*y)*cos(n*z)
 
 gui = GUI.GUI()
 # scene = GUI.ClippingPlaneScene(cf, mesh,name="Solution")
-scene1 = GUI.MeshScene(mesh,name="Mesh", wireframe=False, elements=True, surface=False)
+scene1 = GUI.MeshScene(mesh,name="Mesh", wireframe=True, elements=False, surface=True)
 # scene2 = GUI.MeshScene(mesh,surface=False, wireframe=False, elements=True, name="Elements")
 # gui.draw(scene)
 gui.draw(scene1)

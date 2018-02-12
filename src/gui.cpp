@@ -246,11 +246,13 @@ PYBIND11_MODULE(ngui, m) {
     m.def("GetSurfaceElements", [] (shared_ptr<ngcomp::MeshAccess> ma) {
         ngstd::Array<int> elements;
         ngstd::Array<float> curved_elements;
+        curved_elements.SetSize(18);
+        curved_elements = 0.0;
         LocalHeap lh(1000000, "GetSurfaceElements");
 
         int elsize = 5; // 3 vertices, 1 boundary condition index, 1 curved index
 
-        int curved_index = 0;
+        int curved_index = 1;
         elements.SetAllocSize(elsize*ma->GetNSE());
         for (auto el : ma->Elements(BND)) {
             for (auto v : el.Vertices())
@@ -261,13 +263,22 @@ PYBIND11_MODULE(ngui, m) {
             HeapReset hr(lh);
             ElementTransformation & eltrans = ma->GetTrafo (el, lh);
             if(el.is_curved) {
+                // normals of corner vertices
                 for (auto j : ngcomp::Range(3)) {
-                  IntegrationPoint ip(j==0?1.0:0.0,j==1?1.0:0.0,0.0);
+                  IntegrationPoint ip(j==0,j==1,0.0);
                   MappedIntegrationPoint<2,3> mip(ip, eltrans);
                   auto n = mip.GetNV();
                   for (auto i : Range(3))
                       curved_elements.Append(n[i]);
 
+                }
+                // mapped coordinates of edge mitpoints (for P2 interpolation)
+                for (auto j : ngcomp::Range(3)) {
+                  IntegrationPoint ip(0.5*(j==0||j==2),0.5*(j>=1),0.0);
+                  MappedIntegrationPoint<2,3> mip(ip, eltrans);
+                  auto p = mip.GetPoint();
+                  for (auto i : Range(3))
+                      curved_elements.Append(p[i]);
                 }
                 curved_index++;
             }
@@ -275,6 +286,8 @@ PYBIND11_MODULE(ngui, m) {
 
         py::gil_scoped_acquire ac;
         py::dict res;
+        cout << "elements" << elements << endl;
+        cout << "curved_elements" << curved_elements << endl;
         res["elements"] = MoveToNumpyArray(elements);
         res["curved_elements"] = MoveToNumpyArray(curved_elements);
         return res;
@@ -296,15 +309,14 @@ PYBIND11_MODULE(ngui, m) {
             elements.Append(el.is_curved ? curved_index : -1);
 
             HeapReset hr(lh);
-            ElementTransformation & eltrans = ma->GetTrafo (el, lh);
+            const ElementTransformation & eltrans = ma->GetTrafo (el, lh);
             if(el.is_curved) {
-                for (auto j : ngcomp::Range(3)) {
-                  IntegrationPoint ip(j==0?1.0:0.0,j==1?1.0:0.0,0.0);
-                  MappedIntegrationPoint<2,3> mip(ip, eltrans);
+                for (auto j : ngcomp::Range(4)) {
+                  IntegrationPoint ip(j==0,j==1,j==2);
+                  MappedIntegrationPoint<3,3> mip(ip, eltrans);
                   auto n = mip.GetNV();
                   for (auto i : Range(3))
                       curved_elements.Append(n[i]);
-
                 }
                 curved_index++;
             }
@@ -313,7 +325,7 @@ PYBIND11_MODULE(ngui, m) {
         py::gil_scoped_acquire ac;
         py::dict res;
         res["elements"] = MoveToNumpyArray(elements);
-        res["curved_elements"] = MoveToNumpyArray(curved_elements);
+//         res["curved_elements"] = MoveToNumpyArray(curved_elements);
         return res;
       },py::call_guard<py::gil_scoped_release>());
 

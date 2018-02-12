@@ -2,37 +2,31 @@
 
 layout(vertices = 3) out;
 
+{include utils.inc}
+
 uniform float TessLevel;
+uniform Mesh mesh;
 
 in VertexData
 {
-  vec3 pos;
-  vec3 normal;
-  vec3 other_pos;
-  flat int index;
-  flat int curved_index;
+  flat int element;
 } inData[];
 
 out VertexData
 {
-  vec3 pos;
-  vec3 normal;
-  vec3 other_pos;
-  flat int index;
-  flat int curved_index;
+  flat int element;
 } outData[];
 
 void main()
 {
-    outData[gl_InvocationID].pos = inData[gl_InvocationID].pos;
-    outData[gl_InvocationID].normal = inData[gl_InvocationID].normal;
-    outData[gl_InvocationID].other_pos = inData[gl_InvocationID].other_pos;
-    outData[gl_InvocationID].index = inData[gl_InvocationID].index;
-    outData[gl_InvocationID].curved_index = inData[gl_InvocationID].curved_index;
+    outData[gl_InvocationID].element = inData[0].element;
+    Element2d el = getElement2d(mesh, inData[0].element); 
+    float level = el.curved_index>=0 ? TessLevel : 1;
+
     if (gl_InvocationID == 0) {
-        gl_TessLevelInner[0] = TessLevel;
-        gl_TessLevelOuter[0] = TessLevel;
-        gl_TessLevelOuter[1] = TessLevel;
-        gl_TessLevelOuter[2] = TessLevel;
+        gl_TessLevelInner[0] = level;
+        gl_TessLevelOuter[0] = level;
+        gl_TessLevelOuter[1] = level;
+        gl_TessLevelOuter[2] = level;
     }
 }
