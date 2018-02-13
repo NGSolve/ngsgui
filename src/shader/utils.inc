@@ -2,16 +2,17 @@ struct Mesh {
     isamplerBuffer elements;
     samplerBuffer vertices;
     int surface_curved_offset;
+    int volume_elements_offset;
 };
 
-int elements2d_stride = 5;
+int elements2d_size = 5;
 int elements2d_index_offset = 3;
 int elements2d_curved_offset = 4;
 
-int elements3d_stride = 6;
+int elements3d_size = 6;
 int elements3d_index_offset = 4;
 
-int elements2d_curved_stride = 6;
+int elements2d_curved_size = 6;
 int elements2d_curved_normals_offset = 0;
 int elements2d_curved_points_offset = 3;
 
@@ -40,9 +41,10 @@ vec3 interpolatePoint(Mesh mesh, Element2d el, vec2 lam) {
       f[0] = el.pos[2]; // getSubTrigValue(0,0);
       f[2] = el.pos[0]; // getSubTrigValue(2,0);
       f[5] = el.pos[1]; // getSubTrigValue(0,2);
-      f[1] = texelFetch(mesh.vertices, mesh.surface_curved_offset+elements2d_curved_stride*el.curved_index + elements2d_curved_points_offset+0).xyz; // getSubTrigValue(1,0);
-      f[3] = texelFetch(mesh.vertices, mesh.surface_curved_offset+elements2d_curved_stride*el.curved_index + elements2d_curved_points_offset+1).xyz; // getSubTrigValue(0,1);
-      f[4] = texelFetch(mesh.vertices, mesh.surface_curved_offset+elements2d_curved_stride*el.curved_index + elements2d_curved_points_offset+2).xyz; // getSubTrigValue(1,1);
+      int offset = mesh.surface_curved_offset+elements2d_curved_size*el.curved_index + elements2d_curved_points_offset;
+      f[1] = texelFetch(mesh.vertices, offset+0).xyz; // getSubTrigValue(1,0);
+      f[3] = texelFetch(mesh.vertices, offset+1).xyz; // getSubTrigValue(0,1);
+      f[4] = texelFetch(mesh.vertices, offset+2).xyz; // getSubTrigValue(1,1);
       return 1.0*f[0] + x*x*(2.0*f[0] - 4.0*f[1] + 2.0*f[2]) + 4.0*x*y*(f[0] - f[1] - f[3] + f[4]) - x*(3.0*f[0] - 4.0*f[1] + 1.0*f[2]) + y*y*(2.0*f[0] - 4.0*f[3] + 2.0*f[5]) - y*(3.0*f[0] - 4.0*f[3] + 1.0*f[5]);
     }
 }
@@ -66,22 +68,21 @@ Element2d getElement2d(Element3d tet, int face ) {
     trig.pos[counter] = tet.pos[i];
     counter++;
   }
-  if(face==2) {
-    vec3 t=trig.pos[2];
-    trig.pos[2] = trig.pos[1];
-    trig.pos[1] = t;
-    int i=trig.vertices[2];
-    trig.vertices[2] = trig.vertices[1];
-    trig.vertices[1] = i;
+  calcNormals(trig);
+  vec3 center = 0.25*(tet.pos[0]+tet.pos[1]+tet.pos[2]+tet.pos[3]);
+  vec3 center_trig = 0.3333*(trig.pos[0]+trig.pos[1]+trig.pos[2]);
+  if(dot(center_trig-center, trig.normals[0])<0) {
+    trig.normals[0] = -trig.normals[0];
+    trig.normals[1] = -trig.normals[1];
+    trig.normals[2] = -trig.normals[2];
   }
 
-  calcNormals(trig);
   return trig;
 }
 
 Element2d getElement2d(Mesh mesh, int ei ) {
     Element2d el;
-    int stride = elements2d_stride;
+    int stride = elements2d_size;
 
     for (int i=0; i<3; i++) {
       el.vertices[i] = texelFetch(mesh.elements, stride*ei+i).r;
@@ -92,7 +93,7 @@ Element2d getElement2d(Mesh mesh, int ei ) {
     if(el.curved_index>=0) {
         // have curved element
         for (int i=0; i<3; i++)
-          el.normals[i] = texelFetch(mesh.vertices, mesh.surface_curved_offset+elements2d_curved_stride*el.curved_index + elements2d_curved_normals_offset+i).xyz;
+          el.normals[i] = texelFetch(mesh.vertices, mesh.surface_curved_offset+elements2d_curved_size*el.curved_index + elements2d_curved_normals_offset+i).xyz;
     }
     else {
       calcNormals(el);
@@ -103,16 +104,78 @@ Element2d getElement2d(Mesh mesh, int ei ) {
 
 Element3d getElement3d(Mesh mesh, int ei ) {
     Element3d el;
-    int stride = elements3d_stride;
+    int offset = mesh.volume_elements_offset + elements3d_size*ei;
 
     for (int i=0; i<4; i++) {
-      el.vertices[i] = texelFetch(mesh.elements, stride*ei+i).r;
+      el.vertices[i] = texelFetch(mesh.elements, offset+i).r;
       el.pos[i] = texelFetch(mesh.vertices, el.vertices[i]).xyz;
     }
-    el.index = texelFetch(mesh.elements, stride*ei+elements3d_index_offset).r;
+    el.index = texelFetch(mesh.elements, offset+elements3d_index_offset).r;
     return el;
 }
 
+float CutEdge(vec4 plane, vec3 x, vec3 y) {
+      float dx = dot(plane, vec4(x,1.0));
+      float dy = dot(plane, vec4(y,1.0));
+      return dx/(dx-dy);
+}
+
+// Cut tet with plane and store 0-4 points (and barycentric coords), return the number of intersection points
+int CutElement3d( Element3d tet, vec4 plane, out vec3 pos[4], out vec3 lam[4] ) {
+    int nvertices_behind = 0;
+    int vertices_behind[3];
+    int nvertices_front = 0;
+    int vertices_front[3];
+    for (int i=0; i<4; ++i) {
+      float dist = dot(plane, vec4(tet.pos[i],1.0));
+      if(dist>0) {
+          vertices_behind[nvertices_behind] = i;
+          nvertices_behind++;
+      }
+      else {
+          vertices_front[nvertices_front] = i;
+          nvertices_front++;
+      }
+    }
+    vec3 lams[4] = vec3[4]( vec3(1,0,0), vec3(0,1,0), vec3(0,0,1), vec3(0,0,0));
+    if( nvertices_behind==0 || nvertices_behind==4 ) return 0;
+    if( nvertices_behind==3 ) {
+        for (int i=0; i<3; ++i) {
+          float a = CutEdge(plane, tet.pos[vertices_front[0]] , tet.pos[vertices_behind[i]]);
+          pos[i] =  mix(tet.pos[vertices_front[0]], tet.pos[vertices_behind[i]], a);
+          lam[i] =  mix(lams[vertices_front[0]], lams[vertices_behind[i]], a);
+        }
+        return 3;
+    }
+    if( nvertices_behind==1 ) {
+        for (int i=0; i<3; ++i) {
+          float a = CutEdge(plane, tet.pos[vertices_behind[0]], tet.pos[vertices_front[i]]);
+          pos[i] =  mix(tet.pos[vertices_behind[0]], tet.pos[vertices_front[i]], a);
+          lam[i] =  mix(lams[vertices_behind[0]], lams[vertices_front[i]], a);
+        }
+        return 3;
+    }
+
+    if( nvertices_behind==2 ) {
+        float a;
+        a = CutEdge(plane, tet.pos[vertices_front[0]], tet.pos[vertices_behind[1]]);
+        pos[0] =  mix(tet.pos[vertices_front[0]], tet.pos[vertices_behind[1]], a);
+        lam[0] =  mix(lams[vertices_front[0]], lams[vertices_behind[1]], a);
+
+        a = CutEdge(plane, tet.pos[vertices_front[0]], tet.pos[vertices_behind[0]]);
+        pos[1] =  mix(tet.pos[vertices_front[0]], tet.pos[vertices_behind[0]], a);
+        lam[1] =  mix(lams[vertices_front[0]], lams[vertices_behind[0]], a);
+
+        a = CutEdge(plane, tet.pos[vertices_front[1]], tet.pos[vertices_behind[1]]);
+        pos[2] =  mix(tet.pos[vertices_front[1]], tet.pos[vertices_behind[1]], a);
+        lam[2] =  mix(lams[vertices_front[1]], lams[vertices_behind[1]], a);
+
+        a = CutEdge(plane, tet.pos[vertices_front[1]], tet.pos[vertices_behind[0]]);
+        pos[3] =  mix(tet.pos[vertices_front[1]], tet.pos[vertices_behind[0]], a);
+        lam[3] =  mix(lams[vertices_front[1]], lams[vertices_behind[0]], a);
+        return 4;
+    }
+}
 
 vec3 MapColor(float value)
 {

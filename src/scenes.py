@@ -7,6 +7,7 @@ from .gl import *
 import numpy
 import time
 from . import glmath
+from . import ngui
 
 class CMeshData:
     """Helper class to avoid redundant copies of the same mesh on the GPU."""
@@ -38,51 +39,21 @@ class CMeshData:
 
     def __init__(self, mesh):
         import weakref
-        from . import ngui
         self.mesh = weakref.ref(mesh)
-        self.ntrigs, trig_coordinates_data, trig_bary_coordinates_data, trig_element_number_data, trig_element_index_data, self.trig_max_index, self.min, self.max, trig_curved_index_data, trig_curved_normals_and_points_data = ngui.GetFaceData(mesh)
-        self.ntets, self.tet_max_index, tet_coordinates_data, tet_bary_coordinates_data, tet_element_number_data, tet_element_index_data, tet_element_coordinates_data = ngui.GetTetData(mesh)
-
-        self.tet_bary_coordinates = ArrayBuffer()
-        self.tet_bary_coordinates.store(tet_bary_coordinates_data)
-        self.tet_coordinates = ArrayBuffer()
-        self.tet_coordinates.store(tet_coordinates_data)
-        self.tet_element_index = ArrayBuffer()
-        self.tet_element_index.store(tet_element_index_data)
-        self.tet_element_number = ArrayBuffer()
-        self.tet_element_number.store(tet_element_number_data)
-        self.tet_element_coordinates = ArrayBuffer()
-        self.tet_element_coordinates.store(tet_element_coordinates_data)
-        self.trig_bary_coordinates = ArrayBuffer()
-        self.trig_bary_coordinates.store(trig_bary_coordinates_data)
-        self.trig_coordinates = ArrayBuffer()
-        self.trig_coordinates.store(trig_coordinates_data)
-        self.trig_element_index = ArrayBuffer()
-        self.trig_element_index.store(trig_element_index_data)
-        self.trig_element_number = ArrayBuffer()
-        self.trig_element_number.store(trig_element_number_data)
-        self.trig_curved_index = ArrayBuffer()
-        self.trig_curved_index.store(trig_curved_index_data)
-        self.trig_curved_normals_and_points = ArrayBuffer()
-        self.trig_curved_normals_and_points.store(trig_curved_normals_and_points_data)
-
-        meshdata = ngui.GetMeshData(mesh)
+        self.elements = Texture(GL_TEXTURE_BUFFER, GL_R32I)
         self.vertices = Texture(GL_TEXTURE_BUFFER, GL_RGB32F)
-        self.vertices.store(meshdata['vertices'])
-
-        sels = ngui.GetSurfaceElements(mesh)
-        self.surface_elements = Texture(GL_TEXTURE_BUFFER, GL_R32I)
-        self.surface_elements.store(meshdata["surface_elements"])
-        self.nsurface_elements = len(meshdata["surface_elements"])//3;
-
-        els = ngui.GetVolumeElements(mesh)
-        self.volume_elements = Texture(GL_TEXTURE_BUFFER, GL_R32I)
-        self.volume_elements.store(els["elements"])
-
-#         self.volume_elements_curved = Texture(GL_TEXTURE_BUFFER, GL_RGB32F)
-#         self.volume_elements_curved.store(els["curved_elements"])
-
         mesh._opengl_data = self
+        self.update()
+
+    def update(self):
+        meshdata = ngui.GetMeshData(self.mesh())
+
+        self.vertices.store(meshdata['vertices'])
+        self.elements.store(meshdata["elements"])
+        self.nsurface_elements = meshdata["n_surface_elements"]
+        self.volume_elements_offset = meshdata["volume_elements_offset"]
+        self.min = meshdata['min']
+        self.max = meshdata['max']
 
 def MeshData(mesh):
     """Helper function to avoid redundant copies of the same mesh on the GPU."""
@@ -478,13 +449,8 @@ class ClippingPlaneScene(BaseFunctionSceneObject):
 
         Shader.includes['shader_functions'] = ngsolve.fem.GenerateL2ElementCode(3)
 
-        self.program = Program('solution.vert', 'clipping.geom', 'solution.frag')
+        self.program = Program('clipping.vert', 'clipping.geom', 'solution.frag')
         glUseProgram(self.program.id)
-
-        attributes = self.program.attributes
-        attributes.bind('vPos', self.mesh_data.tet_coordinates)
-        attributes.bind('vLam', self.mesh_data.tet_bary_coordinates)
-        attributes.bind('vElementNumber', self.mesh_data.tet_element_number)
 
         self.coefficients = Texture(GL_TEXTURE_BUFFER, GL_R32F)
 
@@ -495,7 +461,7 @@ class ClippingPlaneScene(BaseFunctionSceneObject):
     def update(self):
         self.initGL()
         glBindVertexArray(self.vao)
-        vec = GetValues(self.cf, self.mesh, ngsolve.VOL, 2**self.subdivision-1, self.order)
+        vec = ngui.GetValues(self.cf, self.mesh, ngsolve.VOL, 2**self.subdivision-1, self.order)
         self.coefficients.store(vec)
         glBindVertexArray(0)
 
@@ -524,8 +490,23 @@ class ClippingPlaneScene(BaseFunctionSceneObject):
         if(self.mesh.dim==3):
             uniforms.set('element_type', 20)
 
+        glActiveTexture(GL_TEXTURE0)
+        self.mesh_data.vertices.bind()
+        uniforms.set('mesh.vertices', 0)
+
+        glActiveTexture(GL_TEXTURE1)
+        self.mesh_data.elements.bind()
+        uniforms.set('mesh.elements', 1)
+
+        glActiveTexture(GL_TEXTURE2)
+        self.coefficients.bind()
+        uniforms.set('coefficients', 2)
+
+        uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
+        uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
+
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
-        glDrawArrays(GL_LINES_ADJACENCY, 0, 4*self.mesh_data.ntets)
+        glDrawArrays(GL_POINTS, 0, self.mesh.ne)
         glBindVertexArray(0)
 
 
@@ -553,7 +534,7 @@ class MeshScene(BaseMeshSceneObject):
 
         self.surface_program = Program('mesh.vert', 'tess.tesc', 'tess.tese', 'mesh.frag')
         self.bc_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
-        self.bc_colors.store( [0,1,0,1]*(self.mesh_data.trig_max_index+1), data_format=GL_UNSIGNED_BYTE )
+        self.bc_colors.store( [0,1,0,1]*len(self.mesh.GetBoundaries()), data_format=GL_UNSIGNED_BYTE )
 
         self.element_program = Program('elements.vert','elements.geom','elements.frag')
         self.gl_initialized = True
@@ -576,7 +557,7 @@ class MeshScene(BaseMeshSceneObject):
         uniforms.set('mesh.vertices', 0)
 
         glActiveTexture(GL_TEXTURE1)
-        self.mesh_data.surface_elements.bind()
+        self.mesh_data.elements.bind()
         uniforms.set('mesh.elements', 1)
 
         glActiveTexture(GL_TEXTURE3)
@@ -597,8 +578,9 @@ class MeshScene(BaseMeshSceneObject):
             glPolygonOffset (2, 2)
             glEnable(GL_POLYGON_OFFSET_FILL)
             glPatchParameteri(GL_PATCH_VERTICES, 1)
-            glDrawArrays(GL_PATCHES, 0, 3*self.mesh_data.nsurface_elements)
+            glDrawArrays(GL_PATCHES, 0, self.mesh_data.nsurface_elements)
             glDisable(GL_POLYGON_OFFSET_FILL)
+
 
         if self.show_wireframe:
             uniforms.set('light_ambient', 0.0)
@@ -609,29 +591,20 @@ class MeshScene(BaseMeshSceneObject):
             glPolygonOffset (1, 1)
             glEnable(GL_POLYGON_OFFSET_LINE)
             glPatchParameteri(GL_PATCH_VERTICES, 1)
-            glDrawArrays(GL_PATCHES, 0, 3*self.mesh_data.nsurface_elements)
+            glDrawArrays(GL_PATCHES, 0, self.mesh_data.nsurface_elements)
             glDisable(GL_POLYGON_OFFSET_LINE)
 
 
     def update(self):
         self.initGL()
-        from . import ngui
         glBindVertexArray(self.surface_vao)
 
         glBindVertexArray(self.elements_vao)
-        self.mat_colors = [0,0,255,255] * (self.mesh_data.tet_max_index+1)
+        nmats = len(self.mesh.GetMaterials())
+        self.mat_colors = [0,0,255,255] * nmats
         self.tex_mat_color = Texture(GL_TEXTURE_1D, GL_RGBA)
-        self.tex_mat_color.store(self.mat_colors, GL_UNSIGNED_BYTE, self.mesh_data.tet_max_index+1)
-# 
-#         attributes = self.element_program.attributes
-#         attributes.bind('pos', self.mesh_data.tet_coordinates)
-#         attributes.bind('corners', self.mesh_data.tet_element_coordinates)
-#         attributes.bind('index', self.mesh_data.tet_element_index)
-# 
-#         self.tex_mat_color = Texture(GL_TEXTURE_1D, GL_RGBA)
-#         self.tex_mat_color.store(self.mat_colors, GL_UNSIGNED_BYTE, self.mesh_data.tet_max_index+1)
-# 
-#         glBindVertexArray(0)
+        self.tex_mat_color.store(self.mat_colors, GL_UNSIGNED_BYTE, nmats)
+        glBindVertexArray(0)
 
     def render(self, settings):
         if not self.active:
@@ -654,16 +627,17 @@ class MeshScene(BaseMeshSceneObject):
         uniforms.set('light_diffuse', 0.7)
 
         uniforms.set('shrink_elements', self.shrink)
-#         uniforms.set('clipping_plane', settings.clipping_plane)
+        uniforms.set('clipping_plane', settings.clipping_plane)
 
         glActiveTexture(GL_TEXTURE0)
         self.mesh_data.vertices.bind()
         uniforms.set('mesh.vertices', 0)
 
         glActiveTexture(GL_TEXTURE1)
-        self.mesh_data.volume_elements.bind()
+        self.mesh_data.elements.bind()
         uniforms.set('mesh.elements', 1)
 
+        uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
         glActiveTexture(GL_TEXTURE3)
         self.tex_mat_color.bind()
         uniforms.set('colors', 3)
@@ -672,7 +646,7 @@ class MeshScene(BaseMeshSceneObject):
 #         glEnable(GL_POLYGON_OFFSET_FILL)
         glDisable(GL_POLYGON_OFFSET_FILL)
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
-        glDrawArrays(GL_POINTS, 0, self.mesh_data.ntets)
+        glDrawArrays(GL_POINTS, 0, self.mesh.ne)
         glDisable(GL_POLYGON_OFFSET_FILL)
 
     def updateIndexColors(self):
@@ -692,7 +666,7 @@ class MeshScene(BaseMeshSceneObject):
             colors.append(c.blue())
             colors.append(c.alpha())
         self.mat_colors = colors
-        self.tex_mat_color.store(self.mat_colors, GL_UNSIGNED_BYTE, self.mesh_data.tet_max_index+1)
+        self.tex_mat_color.store(self.mat_colors, GL_UNSIGNED_BYTE, len(self.mesh.GetMaterials()))
 
     def setShrink(self, value):
         self.shrink = value
@@ -797,7 +771,7 @@ class SolutionScene(BaseFunctionSceneObject):
     def update(self):
         self.initGL()
         glBindVertexArray(self.vao)
-        vec = GetValues(self.cf, self.mesh, ngsolve.VOL if self.mesh.dim==2 else ngsolve.BND, 2**self.subdivision-1, self.order)
+        vec = ngui.GetValues(self.cf, self.mesh, ngsolve.VOL if self.mesh.dim==2 else ngsolve.BND, 2**self.subdivision-1, self.order)
         self.coefficients.store(vec)
         glBindVertexArray(0)
 
@@ -828,7 +802,7 @@ class SolutionScene(BaseFunctionSceneObject):
         uniforms.set('mesh.vertices', 0)
 
         glActiveTexture(GL_TEXTURE1)
-        self.mesh_data.surface_elements.bind()
+        self.mesh_data.elements.bind()
         uniforms.set('mesh.elements', 1)
 
         glActiveTexture(GL_TEXTURE2)

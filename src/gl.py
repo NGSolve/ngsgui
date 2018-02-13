@@ -1,5 +1,4 @@
 from OpenGL.GL import *
-from ngui import *
 import array
 import ctypes
 import time

@@ -22,7 +22,7 @@ out vec4 FragColor;
 void main()
 {
   FragColor = vec4(0,1,0,1);
-  if(!do_clipping || dot(vec4(inData.pos,1.0),clipping_plane)<0)
+  if(!do_clipping || dot(vec4(inData.pos,1.0),clipping_plane)>0)
   {
       float x = inData.lam.x;
       float y = inData.lam.y;

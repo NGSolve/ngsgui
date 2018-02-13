@@ -25,6 +25,11 @@ out VertexData
 
 void main() {
     Element3d tet = getElement3d(mesh, inData[0].element);
+    float mindist = 1e19;
+    for (int i=0; i<4; i++)
+        mindist = min(mindist, dot(clipping_plane, vec4(tet.pos[i],1)));
+    if(mindist > 0 )
+    {
     vec3 center = 0.25*(tet.pos[0]+tet.pos[1]+tet.pos[2]+tet.pos[3]);
 
     for (int face=0; face<4; face++) {
@@ -38,6 +43,7 @@ void main() {
             EmitVertex();
         }
         EndPrimitive();
+    }
     }
 }
 
