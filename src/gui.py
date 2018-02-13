@@ -37,40 +37,40 @@ def ArrangeH(*args):
             layout.addLayout(w)
     return layout
 
+class OptionWidgets():
+    def __init__(self):
+        self.visibilityOptions = {}
+        self.groups = []
+
+    def addGroup(self, name, *widgets, connectedVisibility=None):
+        group = QtWidgets.QGroupBox(name)
+        group.setLayout(ArrangeV(*widgets))
+        if connectedVisibility is not None:
+            self.visibilityOptions[connectedVisibility] = group
+        self.groups.append(group)
+        self.update()
+
+    def update(self):
+        for evaluator, group in self.visibilityOptions.items():
+            group.setVisible(evaluator())
+
 class ToolBox(QtWidgets.QToolBox):
     def __init__(self, window):
         super().__init__()
         self.window = window
         self.scenes = []
-        self.is_drawn = []
 
     def addScene(self, scene, position=-1):
         self.scenes.insert(position,scene)
-        self.is_drawn.insert(position,False)
-        def tbupdate(me):
-            self.updateToolbox(me)
-        scene.toolboxupdate = tbupdate
-        scene.toolboxupdate(scene)
-
-    def updateToolbox(self,scene):
-        i = self.scenes.index(scene)
-        if self.is_drawn[i]:
-            self.removeItem(i)
         widget = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout()
         layout.setAlignment(Qt.AlignTop)
-        for description, item in scene.getQtWidget(self.window.glWidget.updateGL,
-                                                   self.window.glWidget.rendering_parameters).items():
-            group = QtWidgets.QGroupBox(description)
-            group.setLayout(ArrangeV(item))
-            layout.addWidget(group)
+        for item in scene.getQtWidget(self.window.glWidget.updateGL,
+                                      self.window.glWidget.rendering_parameters).groups:
+            layout.addWidget(item)
         widget.setLayout(layout)
-        self.insertItem(i,widget,scene.name)
-        self.is_drawn[i] = True
-        # hack because later scenes are somehow deleted...
-        for j,scene in enumerate(self.scenes[i+1:]):
-            scene.toolboxupdate(scene)
-        self.setCurrentIndex(i)
+        self.insertItem(position,widget,scene.name)
+        self.setCurrentIndex(position)
 
 class GUIHelper():
     def __init__(self, updateSlot):

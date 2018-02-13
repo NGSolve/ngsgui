@@ -1,7 +1,7 @@
 from PySide2 import QtCore, QtGui, QtWidgets, QtOpenGL
 from PySide2.QtCore import Qt
 from OpenGL.GL import *
-from .gui import ColorMapSettings, Qt, RangeGroup, CollColors, ArrangeV, ArrangeH, GUIHelper, ObjectHolder
+from .gui import ColorMapSettings, Qt, RangeGroup, CollColors, ArrangeV, ArrangeH, GUIHelper, ObjectHolder, OptionWidgets
 import ngsolve
 from .gl import *
 import numpy
@@ -197,7 +197,7 @@ class SceneObject():
         updateGL()
 
     def getQtWidget(self, updateGL, params):
-        widgets = {}
+        self.widgets = OptionWidgets()
 
         helper = GUIHelper(updateGL)
         self.actionCheckboxes = []
@@ -229,9 +229,9 @@ class SceneObject():
                 layout.addWidget(cb)
             widget = QtWidgets.QWidget()
             widget.setLayout(layout)
-            widgets["Actions"] = widget
+            self.widgets.addGroup("Actions",widget)
 
-        return widgets
+        return self.widgets
 
     def addAction(self,action,name=None):
         if name is None:
@@ -311,15 +311,14 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
         settings.linearChanged.connect(self.setColorMapLinear)
         settings.linearChanged.connect(updateGL)
 
-        widgets = super().getQtWidget(updateGL, params)
-        widgets["Colormap"] = settings
+        super().getQtWidget(updateGL, params)
+        self.widgets.addGroup("Colormap", settings)
 
         helper = GUIHelper(updateGL)
-        widgets["Subdivision"] = ArrangeV( 
-                helper.DoubleSpinBox(slot = self.setSubdivision, name="Subdivision"),
-                helper.DoubleSpinBox(slot = self.setOrder, name="Order")
-                )
-        return widgets
+        self.widgets.addGroup("Subdivision",
+                              helper.DoubleSpinBox(slot = self.setSubdivision, name="Subdivision"),
+                              helper.DoubleSpinBox(slot = self.setOrder, name="Order"))
+        return self.widgets
 
 class OverlayScene(SceneObject):
     """Class  for overlay objects (Colormap, coordinate system, logo)"""
@@ -408,7 +407,7 @@ void main() { color = vec4(0,0,0,1);}""")
 
     def getQtWidget(self, updateGL, params):
 
-        widgets = super().getQtWidget(updateGL, params)
+        super().getQtWidget(updateGL, params)
         helper = GUIHelper(updateGL)
 
         active_layout = QtWidgets.QVBoxLayout()
@@ -416,17 +415,17 @@ void main() { color = vec4(0,0,0,1);}""")
             active_layout.addWidget(helper.CheckBox(scene.name,
                                                     ObjectHolder(scene, lambda self,state: self.obj.setActive(state,updateGL)),
                                                     scene.active))
-        widgets["Active Scenes"] = active_layout
+        self.widgets.addGroup("Active Scenes",active_layout)
 
         logo = helper.CheckBox("Show version number", self.setShowLogo, self.show_logo)
         cross = helper.CheckBox("Show coordinate cross", self.setShowCross, self.show_cross)
-        widgets["Overlay"] = ArrangeV(logo, cross)
+        self.widgets.addGroup("Overlay",logo, cross)
         clipx = helper.Button("X", lambda : params.setClippingPlaneNormal([1,0,0]))
         clipy = helper.Button("Y", lambda : params.setClippingPlaneNormal([0,1,0]))
         clipz = helper.Button("Z", lambda : params.setClippingPlaneNormal([0,0,1]))
         clip_flip = helper.Button("flip", lambda : params.setClippingPlaneNormal(-1.0*params.getClippingPlaneNormal()))
-        widgets["Clipping plane"] = ArrangeH(clipx, clipy, clipz, clip_flip)
-        return widgets
+        self.widgets.addGroup("Clipping plane",ArrangeH(clipx, clipy, clipz, clip_flip))
+        return self.widgets
 
     
 class ClippingPlaneScene(BaseFunctionSceneObject):
@@ -468,7 +467,7 @@ class ClippingPlaneScene(BaseFunctionSceneObject):
 
     def update(self):
         self.initGL()
-        super().update()
+        # super().update()
         glBindVertexArray(self.vao)
         vec = GetValues(self.cf, self.mesh, ngsolve.VOL, 2**self.subdivision-1, self.order)
         self.coefficients.store(vec)
@@ -675,25 +674,25 @@ class MeshScene(BaseMeshSceneObject):
 
     def setShowElements(self, value):
         self.show_elements = value
-        self.toolboxupdate(self)
+        self.widgets.update()
 
     def setShowSurface(self, value):
         self.show_surface = value
-        self.toolboxupdate(self)
+        self.widgets.update()
 
     def setShowWireframe(self, value):
         self.show_wireframe = value
 
     def getQtWidget(self, updateGL, params):
-        widgets = super().getQtWidget(updateGL, params)
+        super().getQtWidget(updateGL, params)
 
         def setShowElements(value):
             self.show_elements = value
-            self.toolboxupdate(self)
+            self.widgets.update()
             updateGL()
         def setShowSurface(value):
             self.show_surface = value
-            self.toolboxupdate(self)
+            self.widgets.update()
             updateGL()
 
         def setShowWireframe(value):
@@ -705,7 +704,8 @@ class MeshScene(BaseMeshSceneObject):
         comps.append(helper.CheckBox("Wireframe", setShowWireframe, self.show_wireframe))
         if self.mesh.dim == 3:
             comps.append(helper.CheckBox("Elements", setShowElements, self.show_elements))
-        widgets["Components"] = ArrangeV(*comps)
+        QtWidgets.QGroupBox("Components")
+        self.widgets.addGroup("Components",*comps)
         if self.mesh.dim == 3:
             mats = self.mesh.GetBoundaries()
             matsname = "Boundary Conditions"
@@ -713,27 +713,23 @@ class MeshScene(BaseMeshSceneObject):
             mats = self.mesh.GetMaterials()
             matsname = "Materials"
         if self.mesh.dim > 1:
-            if self.show_surface:
-                self.indexcolors = CollColors(mats)
-                self.indexcolors.colors_changed.connect(self.updateIndexColors)
-                self.indexcolors.colors_changed.connect(updateGL)
-                self.updateIndexColors()
-                widgets[matsname] = self.indexcolors
+            self.indexcolors = CollColors(mats)
+            self.indexcolors.colors_changed.connect(self.updateIndexColors)
+            self.indexcolors.colors_changed.connect(updateGL)
+            self.updateIndexColors()
+            self.widgets.addGroup(matsname,self.indexcolors,connectedVisibility = lambda: self.show_surface)
 
         if self.mesh.dim == 3:
-            if self.show_elements:
-                shrink = RangeGroup("Shrink", min=0.0, max=1.0, value=self.shrink)
-                shrink.valueChanged.connect(self.setShrink)
-                shrink.valueChanged.connect(updateGL)
-                self.matcolors = CollColors(self.mesh.GetMaterials(),initial_color=(0,0,255,255))
-                self.matcolors.colors_changed.connect(self.updateMatColors)
-                self.matcolors.colors_changed.connect(updateGL)
-                self.updateMatColors()
-                widgets["Shrink"] = shrink
-                widgets["MatColors"] = self.matcolors
-
-        return widgets
-
+            shrink = RangeGroup("Shrink", min=0.0, max=1.0, value=self.shrink)
+            shrink.valueChanged.connect(self.setShrink)
+            shrink.valueChanged.connect(updateGL)
+            self.matcolors = CollColors(self.mesh.GetMaterials(),initial_color=(0,0,255,255))
+            self.matcolors.colors_changed.connect(self.updateMatColors)
+            self.matcolors.colors_changed.connect(updateGL)
+            self.updateMatColors()
+            self.widgets.addGroup("Shrink",shrink, connectedVisibility = lambda: self.show_elements)
+            self.widgets.addGroup("Materials",self.matcolors, connectedVisibility = lambda: self.show_elements)
+        return self.widgets
 
 
 class SolutionScene(BaseFunctionSceneObject):
