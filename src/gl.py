@@ -266,3 +266,20 @@ class Texture(GLObject):
             glBufferData ( GL_TEXTURE_BUFFER, data_size, ctypes.c_void_p(), GL_DYNAMIC_DRAW ) # alloc
             glBufferSubData( GL_TEXTURE_BUFFER, 0, data_size, data) # fill
 
+
+class Query(GLObject):
+    def __init__(self, query_type):
+        self._type = query_type
+        self._id = glGenQueries(1)[0]
+
+    def __enter__(self):
+        glBeginQuery(self._type , self.id)
+        return self
+
+    def __exit__(self ,type, value, traceback):
+        glEndQuery(self._type)
+        ready = False
+        while not ready:
+            ready = glGetQueryObjectiv(self.id,GL_QUERY_RESULT_AVAILABLE)
+        self.value = glGetQueryObjectuiv(self.id, GL_QUERY_RESULT )
+        glDeleteQueries( [self.id] )
