@@ -403,13 +403,21 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.setWindowTitle(self.tr("Pyside2 GL"))
         self.last = time.time()
+        self.overlay = scenes.OverlayScene(name="Global options")
+        self.draw(self.overlay)
 
     def draw(self, scene,position=-1):
         self.scenes.insert(position,scene)
+        scene.setWindow(self)
         self.glWidget.makeCurrent()
         scene.update()
         self.glWidget.addScene(scene)
         self.toolbox.addScene(scene,position)
+        self.overlay.addScene(scene)
+
+    def deleteScene(self, scene):
+        # TODO
+        pass
 
     def redraw(self, blocking=True):
         if time.time() - self.last < 0.02:
@@ -647,8 +655,6 @@ class GUI():
 
 
     def run(self):
-        for i,window in enumerate(self.windows):
-            window.draw(scenes.OverlayScene(window.scenes, name="Global options"),position=0)
         self.kernel_manager.kernel.shell.push(inspect.stack()[1][0].f_globals)
         res = self.app.exec_()
         for window in self.windows:

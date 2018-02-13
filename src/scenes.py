@@ -196,6 +196,9 @@ class SceneObject():
         self.active = active
         updateGL()
 
+    def setWindow(self,window):
+        self.window = window
+
     def getQtWidget(self, updateGL, params):
         self.widgets = OptionWidgets()
 
@@ -322,14 +325,15 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
 
 class OverlayScene(SceneObject):
     """Class  for overlay objects (Colormap, coordinate system, logo)"""
-    def __init__(self,scenes,**kwargs):
+    def __init__(self,**kwargs):
         super().__init__(**kwargs)
         self.gl_initialized = False
         self.show_logo = True
         self.show_cross = True
         self.cross_scale = 0.3
         self.cross_shift = -0.10
-        self.scenes = scenes
+        self.active_layout = QtWidgets.QVBoxLayout()
+        self.updateGL = lambda : None
 
     def deferRendering(self):
         return 99
@@ -405,17 +409,22 @@ void main() { color = vec4(0,0,0,1);}""")
     def update(self):
         self.initGL()
 
-    def getQtWidget(self, updateGL, params):
+    def callupdateGL(self):
+        self.updateGL()
 
+    def addScene(self,scene):
+        helper = GUIHelper(self.callupdateGL)
+        callupdate = self.callupdateGL
+        self.active_layout.addWidget(helper.CheckBox(scene.name,
+                                                     ObjectHolder(scene, lambda self,state: self.obj.setActive(state,callupdate)),
+                                                     scene.active))
+
+    def getQtWidget(self, updateGL, params):
+        self.updateGL = updateGL
         super().getQtWidget(updateGL, params)
         helper = GUIHelper(updateGL)
 
-        active_layout = QtWidgets.QVBoxLayout()
-        for scene in self.scenes:
-            active_layout.addWidget(helper.CheckBox(scene.name,
-                                                    ObjectHolder(scene, lambda self,state: self.obj.setActive(state,updateGL)),
-                                                    scene.active))
-        self.widgets.addGroup("Active Scenes",active_layout)
+        self.widgets.addGroup("Active Scenes",self.active_layout)
 
         logo = helper.CheckBox("Show version number", self.setShowLogo, self.show_logo)
         cross = helper.CheckBox("Show coordinate cross", self.setShowCross, self.show_cross)
