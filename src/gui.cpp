@@ -161,36 +161,36 @@ PYBIND11_MODULE(ngui, m) {
 
         if(ma->GetDimension()==3) {
             // 3d Elements
-            IntegrationRule irnormals;
-            irnormals.Append(IntegrationPoint(1,0,0));
-            irnormals.Append(IntegrationPoint(0,1,0));
-            irnormals.Append(IntegrationPoint(0,0,1));
-            irnormals.Append(IntegrationPoint(0,0,0));
+            IntegrationRule ir;
+            ir.Append(IntegrationPoint(1,0,0));
+            ir.Append(IntegrationPoint(0,1,0));
+            ir.Append(IntegrationPoint(0,0,1));
+            ir.Append(IntegrationPoint(0,0,0));
+            ir.Append(IntegrationPoint(0.5,0.0,0.0));
+            ir.Append(IntegrationPoint(0.0,0.5,0.0));
+            ir.Append(IntegrationPoint(0.5,0.5,0.0));
+            ir.Append(IntegrationPoint(0.5,0.0,0.5));
+            ir.Append(IntegrationPoint(0.0,0.5,0.5));
+            ir.Append(IntegrationPoint(0.0,0.0,0.5));
             for (auto el : ma->Elements(VOL)) {
                 for (auto v : el.Vertices())
                     elements.Append(v);
                 elements.Append(el.GetIndex());
                 elements.Append(el.is_curved ? curved_index : -1);
 
-                HeapReset hr(lh);
-                ElementTransformation & eltrans = ma->GetTrafo (el, lh);
                 if(el.is_curved) {
+                    HeapReset hr(lh);
+                    ElementTransformation & eltrans = ma->GetTrafo (el, lh);
+                    MappedIntegrationRule<3,3> mir(ir, eltrans, lh);
                     // normals of corner vertices
-                    for (auto j : ngcomp::Range(3)) {
-                      IntegrationPoint ip(j==0,j==1,0.0);
-                      MappedIntegrationPoint<2,3> mip(ip, eltrans);
-                      auto n = mip.GetNV();
-                      if(curved_index<2) { cout << "n" << n << endl; }
+                    for (auto j : ngcomp::Range(4)) {
+                      auto n = mir[j].GetNV();
                       for (auto i : Range(3))
                           vertices.Append(n[i]);
-
                     }
-                    // mapped coordinates of edge mitpoints (for P2 interpolation)
-                    for (auto j : ngcomp::Range(3)) {
-                      IntegrationPoint ip(0.5*(j==0||j==2),0.5*(j>=1),0.0);
-                      MappedIntegrationPoint<2,3> mip(ip, eltrans);
-                      auto p = mip.GetPoint();
-                      if(curved_index<2) { cout << "p" << p << endl; }
+                    // mapped coordinates of edge midpoints (for P2 interpolation)
+                    for (auto j : ngcomp::Range(4,10)) {
+                      auto p = mir[j].GetPoint();
                       for (auto i : Range(3))
                           vertices.Append(p[i]);
                     }
