@@ -7,11 +7,13 @@ uniform vec4 clipping_plane;
 uniform bool do_clipping;
 uniform int subdivision;
 uniform int order;
+uniform mat4 MV;
 
 in VertexData
 {
   vec3 lam;
   vec3 pos;
+  vec3 normal;
   flat int element;
 } inData;
 
@@ -49,6 +51,9 @@ void main()
       FragColor.g = MapColor(value).g;
       FragColor.b = MapColor(value).b;
       FragColor.a = 1.0;
+      // vec3 lightVector = TransformVec(vec3(1,3,3));
+      // FragColor.rgb *= 0.3+0.7*clamp(dot(normalize(inData.normal), lightVector), 0, 1.0);
+      FragColor.rgb = light(FragColor.rgb, MV, inData.pos, inData.normal);
   }
   else
     discard;

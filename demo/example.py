@@ -4,7 +4,7 @@ from netgen.csg import *
 import ngsolve.gui as GUI
 
 ngsglobals.msg_level = 7
-nrefinements = 1
+nrefinements = 2
 
 def MakeGeometry():
     geometry = CSGeometry()
@@ -25,19 +25,20 @@ def MakeGeometry():
 
 
 
-# mesh = Mesh(unit_cube.GenerateMesh(maxh=0.2))
-ngmesh = MakeGeometry().GenerateMesh(maxh=0.3)
-mesh = Mesh(ngmesh)
+mesh = Mesh(unit_cube.GenerateMesh(maxh=0.2))
+# ngmesh = MakeGeometry().GenerateMesh(maxh=0.3)
+# mesh = Mesh(ngmesh)
 for i in range(nrefinements):
     print('refine')
     mesh.Refine()
 
-mesh.Curve(2)
+# mesh.Curve(2)
 print(mesh.ne,'elements')
 # Draw(mesh)
 
 n = 5
 cf = cos(n*x)*cos(n*y)*cos(n*z)
+cf = (x-0.5)**2+(y-0.5)**2+(z-0.5)**2
 
 gui = GUI.GUI()
 scene = GUI.ClippingPlaneScene(cf, mesh,name="Clipping plane")
@@ -45,8 +46,8 @@ scene2 = GUI.SolutionScene(cf, mesh,name="Solution")
 scene1 = GUI.MeshScene(mesh,name="Mesh", wireframe=True, elements=False, surface=True)
 # scene2 = GUI.MeshScene(mesh,surface=False, wireframe=False, elements=True, name="Elements")
 gui.draw(scene)
-gui.draw(scene1)
-gui.draw(scene2)
+# gui.draw(scene1)
+# gui.draw(scene2)
 # win1 = gui.make_window()
 # win1.draw(scene1)
 gui.run()

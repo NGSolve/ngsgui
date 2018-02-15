@@ -121,13 +121,14 @@ float CutEdge(vec4 plane, vec3 x, vec3 y) {
 }
 
 // Cut tet with plane and store 0-4 points (and barycentric coords), return the number of intersection points
-int CutElement3d( Element3d tet, vec4 plane, out vec3 pos[4], out vec3 lam[4] ) {
+int CutElement3d( Element3d tet, float values[4], out vec3 pos[4], out vec3 lam[4] ) {
     int nvertices_behind = 0;
     int vertices_behind[3];
     int nvertices_front = 0;
     int vertices_front[3];
     for (int i=0; i<4; ++i) {
-      float dist = dot(plane, vec4(tet.pos[i],1.0));
+      // float dist = dot(plane, vec4(tet.pos[i],1.0));
+      float dist = values[i];
       if(dist>0) {
           vertices_behind[nvertices_behind] = i;
           nvertices_behind++;
@@ -137,11 +138,14 @@ int CutElement3d( Element3d tet, vec4 plane, out vec3 pos[4], out vec3 lam[4] ) 
           nvertices_front++;
       }
     }
-    vec3 lams[4] = vec3[4]( vec3(1,0,0), vec3(0,1,0), vec3(0,0,1), vec3(0,0,0));
+    vec3 lams[4] = vec3[4]( vec3(0,0,0), vec3(1,0,0), vec3(0,1,0), vec3(0,0,1)); // vec3(0,0,0));
     if( nvertices_behind==0 || nvertices_behind==4 ) return 0;
     if( nvertices_behind==3 ) {
         for (int i=0; i<3; ++i) {
-          float a = CutEdge(plane, tet.pos[vertices_front[0]] , tet.pos[vertices_behind[i]]);
+          float vx = values[vertices_front[0]];
+          float vy = values[vertices_behind[i]];
+          float a = vx/(vx-vy);
+          // float a = CutEdge(plane, tet.pos[vertices_front[0]] , tet.pos[vertices_behind[i]]);
           pos[i] =  mix(tet.pos[vertices_front[0]], tet.pos[vertices_behind[i]], a);
           lam[i] =  mix(lams[vertices_front[0]], lams[vertices_behind[i]], a);
         }
@@ -149,7 +153,10 @@ int CutElement3d( Element3d tet, vec4 plane, out vec3 pos[4], out vec3 lam[4] ) 
     }
     if( nvertices_behind==1 ) {
         for (int i=0; i<3; ++i) {
-          float a = CutEdge(plane, tet.pos[vertices_behind[0]], tet.pos[vertices_front[i]]);
+          float vx = values[vertices_behind[0]];
+          float vy = values[vertices_front[i]];
+          float a = vx/(vx-vy);
+          // float a = CutEdge(plane, tet.pos[vertices_behind[0]], tet.pos[vertices_front[i]]);
           pos[i] =  mix(tet.pos[vertices_behind[0]], tet.pos[vertices_front[i]], a);
           lam[i] =  mix(lams[vertices_behind[0]], lams[vertices_front[i]], a);
         }
@@ -157,25 +164,92 @@ int CutElement3d( Element3d tet, vec4 plane, out vec3 pos[4], out vec3 lam[4] ) 
     }
 
     if( nvertices_behind==2 ) {
-        float a;
-        a = CutEdge(plane, tet.pos[vertices_front[0]], tet.pos[vertices_behind[1]]);
+        float a, vx, vy;
+        vx = values[vertices_front[0]];
+        vy = values[vertices_behind[1]];
+        a = vx/(vx-vy);
+        // a = CutEdge(plane, tet.pos[vertices_front[0]], tet.pos[vertices_behind[1]]);
         pos[0] =  mix(tet.pos[vertices_front[0]], tet.pos[vertices_behind[1]], a);
         lam[0] =  mix(lams[vertices_front[0]], lams[vertices_behind[1]], a);
 
-        a = CutEdge(plane, tet.pos[vertices_front[0]], tet.pos[vertices_behind[0]]);
+        vx = values[vertices_front[0]];
+        vy = values[vertices_behind[0]];
+        a = vx/(vx-vy);
+        // a = CutEdge(plane, tet.pos[vertices_front[0]], tet.pos[vertices_behind[0]]);
         pos[1] =  mix(tet.pos[vertices_front[0]], tet.pos[vertices_behind[0]], a);
         lam[1] =  mix(lams[vertices_front[0]], lams[vertices_behind[0]], a);
 
-        a = CutEdge(plane, tet.pos[vertices_front[1]], tet.pos[vertices_behind[1]]);
+        vx = values[vertices_front[1]];
+        vy = values[vertices_behind[1]];
+        a = vx/(vx-vy);
+        // a = CutEdge(plane, tet.pos[vertices_front[1]], tet.pos[vertices_behind[1]]);
         pos[2] =  mix(tet.pos[vertices_front[1]], tet.pos[vertices_behind[1]], a);
         lam[2] =  mix(lams[vertices_front[1]], lams[vertices_behind[1]], a);
 
-        a = CutEdge(plane, tet.pos[vertices_front[1]], tet.pos[vertices_behind[0]]);
+        vx = values[vertices_front[1]];
+        vy = values[vertices_behind[0]];
+        a = vx/(vx-vy);
+        // a = CutEdge(plane, tet.pos[vertices_front[1]], tet.pos[vertices_behind[0]]);
         pos[3] =  mix(tet.pos[vertices_front[1]], tet.pos[vertices_behind[0]], a);
         lam[3] =  mix(lams[vertices_front[1]], lams[vertices_behind[0]], a);
         return 4;
-    }
+    }           
 }
+
+vec3 TransformVec(mat4 MV, vec3 x) {
+    return normalize(transpose(mat3(MV))*x);
+}
+
+
+/*
+void xlight( int lightIndex, vec3 position, vec3 norm, out vec3 ambient, out vec3 diffuse, out vec3 spec )
+{
+	vec3 n = normalize( norm );
+	vec3 s = normalize( Light[lightIndex].Position - position );
+	vec3 v = normalize( -position );
+	vec3 r = reflect( -s, n );
+
+	ambient = Light[lightIndex].La * Material.Ka;
+
+	float sDotN = max( dot( s, n ), 0.0 );
+	diffuse = Light[lightIndex].Ld * Material.Kd * sDotN;
+
+
+	spec = Light[lightIndex].Ls * Material.Ks * pow( max( dot(r,v) , 0.0 ), Material.Shininess );
+}
+*/
+
+vec3 light(vec3 color, mat4 MV, vec3 position, vec3 norm)
+{
+        mat3 mvt = transpose(inverse(mat3(MV)));
+        // vec3 lightVector = TransformVec(MV, vec3(1,3,3));
+        vec3 lightVector = vec3(1,3,3);
+	vec3 n = normalize( mvt*norm );
+	vec3 s = normalize( lightVector);
+        vec4 p = MV*vec4(position,1);
+	vec3 v = normalize( -p.xyz/p.w );
+	vec3 r = reflect( -s, n );
+
+	float ambient = 0.3;
+
+	float sDotN = max( dot( s, n ), 0.0 );
+	float diffuse = 0.7 * sDotN;
+
+	// spec = Light[lightIndex].Ls * Material.Ks * pow( max( dot(r,v) , 0.0 ), Material.Shininess );
+	float spec = pow( max( dot(r,v) , 0.0 ), 50 );
+        return color*(ambient+diffuse) + spec*vec3(1,1,1);
+}
+
+
+/*
+vec3 CalcLighting(mat4 MV, vec3 pos, vec3 normal) {
+      // vec3 lightVector = TransformVec(vec3(1,3,3));
+      // float ambient = 0.3;
+      // float diffuse = 0.7;
+      // FragColor.rgb *= 0.3+0.7*clamp(dot(normalize(normal), lightVector), 0, 1.0);
+      return light(MV, pos, normal);
+  }
+*/
 
 vec3 MapColor(float value)
 {
