@@ -33,8 +33,8 @@ void main() {
     
     float values[4]; // = float[4](-colormap_max, -colormap_max, -colormap_max, -colormap_max);
     for (int i=0; i<4; i++) {
-      values[i] = colormap_max - texelFetch(coefficients, inData[0].element*4+i).r;
-      // values[i] = dot(clipping_plane, vec4(tet.pos[i],1.0));
+      // values[i] = colormap_max - texelFetch(coefficients, inData[0].element*4+i).r;
+      values[i] = dot(clipping_plane, vec4(tet.pos[i],1.0));
     }
     // values.x += texelFetch(coefficients, inData[0].element*4+0).r;
     // values.y += texelFetch(coefficients, inData[0].element*4+1).r;

@@ -138,7 +138,8 @@ int CutElement3d( Element3d tet, float values[4], out vec3 pos[4], out vec3 lam[
           nvertices_front++;
       }
     }
-    vec3 lams[4] = vec3[4]( vec3(0,0,0), vec3(1,0,0), vec3(0,1,0), vec3(0,0,1)); // vec3(0,0,0));
+    // vec3 lams[4] = vec3[4]( vec3(0,0,0), vec3(1,0,0), vec3(0,1,0), vec3(0,0,1)); // vec3(0,0,0));
+    vec3 lams[4] = vec3[4]( vec3(1,0,0), vec3(0,1,0), vec3(0,0,1), vec3(0,0,0));
     if( nvertices_behind==0 || nvertices_behind==4 ) return 0;
     if( nvertices_behind==3 ) {
         for (int i=0; i<3; ++i) {
@@ -199,25 +200,6 @@ int CutElement3d( Element3d tet, float values[4], out vec3 pos[4], out vec3 lam[
 vec3 TransformVec(mat4 MV, vec3 x) {
     return normalize(transpose(mat3(MV))*x);
 }
-
-
-/*
-void xlight( int lightIndex, vec3 position, vec3 norm, out vec3 ambient, out vec3 diffuse, out vec3 spec )
-{
-	vec3 n = normalize( norm );
-	vec3 s = normalize( Light[lightIndex].Position - position );
-	vec3 v = normalize( -position );
-	vec3 r = reflect( -s, n );
-
-	ambient = Light[lightIndex].La * Material.Ka;
-
-	float sDotN = max( dot( s, n ), 0.0 );
-	diffuse = Light[lightIndex].Ld * Material.Kd * sDotN;
-
-
-	spec = Light[lightIndex].Ls * Material.Ks * pow( max( dot(r,v) , 0.0 ), Material.Shininess );
-}
-*/
 
 vec3 light(vec3 color, mat4 MV, vec3 position, vec3 norm)
 {
@@ -316,7 +298,397 @@ float getSubTetValue(int element, samplerBuffer coefficients, int order, int sub
     return texelFetch(coefficients, element*values_per_element+offset).r;
 }
 
+float InterpolateTrig1(samplerBuffer coefficients, vec3 lam, int first, int dx, int dy) {
+    float x = lam.x;
+    float y = lam.y;
+    float z = lam.z;
+    float f[3];
+    int ii=0;
+    int offsety = 0;
+    for (int i=0; i<=1; i++) {
+      int offsetx = 0;
+      for (int j=0; j<=1-i; j++) {
+        f[ii] = texelFetch(coefficients, first+offsetx+offsety).r;
+        offsetx += dx;
+        ii++;
+      }
+      offsety += dy-i;
+    }
+    return 1.0*f[0] - 1.0*x*(f[0] - f[1]) - 1.0*y*(f[0] - f[2]);
+}
+float InterpolateTrig2(samplerBuffer coefficients, vec3 lam, int first, int dx, int dy) {
+    float x = lam.x;
+    float y = lam.y;
+    float z = lam.z;
+    float f[6];
+    int ii=0;
+    int offsety = 0;
+    for (int i=0; i<=2; i++) {
+      int offsetx = 0;
+      for (int j=0; j<=2-i; j++) {
+        f[ii] = texelFetch(coefficients, first+offsetx+offsety).r;
+        offsetx += dx;
+        ii++;
+      }
+      offsety += dy-i;
+    }
+    return 1.0*f[0] + pow(x, 2)*(2.0*f[0] - 4.0*f[1] + 2.0*f[2]) + 4.0*x*y*(f[0] - f[1] - f[3] + f[4]) - x*(3.0*f[0] - 4.0*f[1] + 1.0*f[2]) + pow(y, 2)*(2.0*f[0] - 4.0*f[3] + 2.0*f[5]) - y*(3.0*f[0] - 4.0*f[3] + 1.0*f[5]);
+}
+float InterpolateTrig3(samplerBuffer coefficients, vec3 lam, int first, int dx, int dy) {
+    float x = lam.x;
+    float y = lam.y;
+    float z = lam.z;
+    float f[10];
+    int ii=0;
+    int offsety = 0;
+    for (int i=0; i<=3; i++) {
+      int offsetx = 0;
+      for (int j=0; j<=3-i; j++) {
+        f[ii] = texelFetch(coefficients, first+offsetx+offsety).r;
+        offsetx += dx;
+        ii++;
+      }
+      offsety += dy-i;
+    }
+    return 1.0*f[0] + pow(x, 3)*(-4.5*f[0] + 13.5*f[1] - 13.5*f[2] + 4.5*f[3]) - pow(x, 2)*y*(13.5*f[0] - 27.0*f[1] + 13.5*f[2] - 13.5*f[4] + 27.0*f[5] - 13.5*f[6]) + pow(x, 2)*(9.0*f[0] - 22.5*f[1] + 18.0*f[2] - 4.49999999999999*f[3]) - x*pow(y, 2)*(13.5*f[0] - 13.5*f[1] - 27.0*f[4] + 27.0*f[5] + 13.5*f[7] - 13.5*f[8]) + x*y*(18.0*f[0] - 22.5*f[1] + 4.5*f[2] - 22.5*f[4] + 27.0*f[5] - 4.5*f[6] + 4.5*f[7] - 4.5*f[8] + 4.9960036108132e-16*f[9]) - x*(5.5*f[0] - 9.0*f[1] + 4.5*f[2] - 0.999999999999998*f[3]) + pow(y, 3)*(-4.5*f[0] + 13.5*f[4] - 13.5*f[7] + 4.5*f[9]) + pow(y, 2)*(9.0*f[0] - 22.5*f[4] + 18.0*f[7] - 4.49999999999999*f[9]) - y*(5.5*f[0] - 9.0*f[4] + 4.5*f[7] - 0.999999999999998*f[9]);
+}
+float InterpolateTrig4(samplerBuffer coefficients, vec3 lam, int first, int dx, int dy) {
+    float x = lam.x;
+    float y = lam.y;
+    float z = lam.z;
+    float f[15];
+    int ii=0;
+    int offsety = 0;
+    for (int i=0; i<=4; i++) {
+      int offsetx = 0;
+      for (int j=0; j<=4-i; j++) {
+        f[ii] = texelFetch(coefficients, first+offsetx+offsety).r;
+        offsetx += dx;
+        ii++;
+      }
+      offsety += dy-i;
+    }
+    return 1.0*f[0] + pow(x, 4)*(10.6666666666667*f[0] - 42.6666666666667*f[1] + 64.0*f[2] - 42.6666666666667*f[3] + 10.6666666666667*f[4]) - pow(x, 3)*y*(-42.6666666666667*f[0] + 3.5527136788005e-15*f[14] + 128.0*f[1] - 128.0*f[2] + 42.6666666666667*f[3] + 42.6666666666667*f[5] - 128.0*f[6] + 128.0*f[7] - 42.6666666666667*f[8]) + pow(x, 3)*(-26.6666666666667*f[0] + 96.0*f[1] - 128.0*f[2] + 74.6666666666667*f[3] - 16.0*f[4]) + pow(x, 2)*pow(y, 2)*(64.0*f[0] - 128.0*f[10] + 64.0*f[11] - 128.0*f[1] + 64.0*f[2] - 128.0*f[5] + 256.0*f[6] - 128.0*f[7] + 64.0*f[9]) + pow(x, 2)*y*(-80.0*f[0] + 32.0*f[10] - 16.0*f[11] + 9.473903143468e-15*f[12] + 4.736951571734e-15*f[13] + 3.25665420556713e-15*f[14] + 192.0*f[1] - 144.0*f[2] + 32.0*f[3] + 96.0*f[5] - 224.0*f[6] + 160.0*f[7] - 32.0*f[8] - 16.0*f[9]) + pow(x, 2)*(23.3333333333333*f[0] - 69.3333333333333*f[1] + 76.0*f[2] - 37.3333333333333*f[3] + 7.33333333333334*f[4]) + x*pow(y, 3)*(42.6666666666667*f[0] - 128.0*f[10] - 42.6666666666667*f[12] + 42.6666666666667*f[13] + 3.5527136788005e-15*f[14] - 42.6666666666667*f[1] - 128.0*f[5] + 128.0*f[6] + 128.0*f[9]) - x*pow(y, 2)*(80.0*f[0] - 160.0*f[10] + 16.0*f[11] - 32.0*f[12] + 32.0*f[13] + 3.5527136788005e-15*f[14] - 96.0*f[1] + 16.0*f[2] - 192.0*f[5] + 224.0*f[6] - 32.0*f[7] + 144.0*f[9]) + x*y*(46.6666666666667*f[0] - 32.0*f[10] + 4.0*f[11] - 5.33333333333334*f[12] + 5.33333333333333*f[13] + 1.03620815631681e-15*f[14] - 69.3333333333333*f[1] + 28.0*f[2] - 5.33333333333333*f[3] - 69.3333333333333*f[5] + 96.0*f[6] - 32.0*f[7] + 5.33333333333333*f[8] + 28.0*f[9]) - x*(8.33333333333333*f[0] - 16.0*f[1] + 12.0*f[2] - 5.33333333333334*f[3] + 1.0*f[4]) + pow(y, 4)*(10.6666666666667*f[0] - 42.6666666666667*f[12] + 10.6666666666667*f[14] - 42.6666666666667*f[5] + 64.0*f[9]) + pow(y, 3)*(-26.6666666666667*f[0] + 74.6666666666667*f[12] - 16.0*f[14] + 96.0*f[5] - 128.0*f[9]) + pow(y, 2)*(23.3333333333333*f[0] - 37.3333333333333*f[12] + 7.33333333333334*f[14] - 69.3333333333333*f[5] + 76.0*f[9]) - y*(8.33333333333333*f[0] - 5.33333333333334*f[12] + 1.0*f[14] - 16.0*f[5] + 12.0*f[9]);
+}
+
+
+/*
+trig_in_quad
++--+--+
+|\1|\1|
+|0\|0\|
++--+--+
+|\1|\1|
+|0\|0\|
++--+--+
+
+*/
+
+int getIndex(int N, int x, int y) {
+  int res = N*(N+1)/2 - (N-y)*(N-y+1)/2;
+  res += x;
+  return res;
+}
+
+int getIndex(int N, int x, int y, int z) {
+  int res = N*(N+1)*(N+2)/6 - (N-z)*(N-z+1)*(N-z+2)/6;
+  res += getIndex(N-z, x, y);
+  return res;
+}
+
+float getSubTrigValue(int element, samplerBuffer coefficients, int order, int subdivision, vec3 lam_) {
+    int n = subdivision+1;
+    int N = order*n+1;
+    int values_per_element = N*(N+1)/2;
+    vec3 lamn = lam_*(n);
+    vec3 lam = lamn-floor(lamn);
+    int x = int(lamn.x);
+    int y = int(lamn.y);
+    int z = int(lamn.z);
+
+    int X = order*x;
+    int Y = order*y;
+    int Z = order*z;
+
+    int first, dx, dy;
+    if(lam.x+lam.y<1.0) { // lower left trig of quad
+        first = element*values_per_element+getIndex(N,X,Y);
+        dx = getIndex(N,X+1, Y)-getIndex(N,X,Y);
+        dy = getIndex(N,X, Y+1)-getIndex(N,X,Y);
+    }
+    else { // upper right trig of quad
+        first = element*values_per_element+getIndex(N,X+order,Y+order);
+        dx = getIndex(N,X, Y)-getIndex(N,X+1,Y);
+        dy = getIndex(N,X, Y+order-1)-getIndex(N,X,Y+order);
+        lam.x = 1-lam.x;
+        lam.y = 1-lam.y;
+        lam.z = 1-lam.x-lam.y;
+    }
+
+    if(order==1) return InterpolateTrig1(coefficients, lam, first, dx, dy);
+    if(order==2) return InterpolateTrig2(coefficients, lam, first, dx, dy);
+    if(order==3) return InterpolateTrig3(coefficients, lam, first, dx, dy);
+    if(order==4) return InterpolateTrig4(coefficients, lam, first, dx, dy);
+    return 0.0;
+}
+
+float[4]  fetchTetValuesP1(int element, samplerBuffer coefficients, int N, ivec3 d, ivec3 s, int special_order=0) {
+  float f[4];
+  int values_per_element = N*(N+1)*(N+2)/6;
+  int first = element*values_per_element;
+  if(special_order==0) {
+    int ii = 0;
+    for (int k=0; k<=1; k++)
+      for (int j=0; j<=1-k; j++)
+        for (int i=0; i<=1-k-j; i++)
+          f[ii++] = texelFetch(coefficients, first+getIndex(N,s.x+d.x*i, s.y+d.y*j, s.z+d.z*k)).r;
+  }
+  if(special_order==1) {
+    int ii = 0;
+    for (int k=0; k<=1; k++)
+      for (int j=0; j<=1-k; j++)
+        for (int i=0; i<=1-k-j; i++)
+          f[ii++] = texelFetch(coefficients, first+getIndex(N,s.x+d.x*(i+j), s.y+d.y*j, s.z+d.z*(j+k))).r;
+  }
+  if(special_order==2) {
+    int ii = 0;
+    for (int k=0; k<=1; k++)
+      for (int j=0; j<=1-k; j++)
+        for (int i=0; i<=1-k-j; i++)
+          f[ii++] = texelFetch(coefficients, first+getIndex(N,s.x+d.x*(i+k), s.y+d.y*j, s.z+d.z*k)).r;
+  }
+  if(special_order==3) {
+    int ii = 0;
+    for (int k=0; k<=1; k++)
+      for (int j=0; j<=1-k; j++)
+        for (int i=0; i<=1-k-j; i++)
+          f[ii++] = texelFetch(coefficients, first+getIndex(N,s.x+d.x*i, s.y+d.y*(j+k), s.z+d.z*(i+k))).r;
+  }
+  return f;
+}
+
+float[10]  fetchTetValuesP2(int element, samplerBuffer coefficients, int N, ivec3 d, ivec3 s, int special_order=0) {
+  float f[10];
+  int values_per_element = N*(N+1)*(N+2)/6;
+  int first = element*values_per_element;
+  if(special_order==0) {
+    int ii = 0;
+    for (int k=0; k<=2; k++)
+      for (int j=0; j<=2-k; j++)
+        for (int i=0; i<=2-k-j; i++)
+          f[ii++] = texelFetch(coefficients, first+getIndex(N,s.x+d.x*i, s.y+d.y*j, s.z+d.z*k)).r;
+  }
+  if(special_order==1) {
+    int ii = 0;
+    for (int k=0; k<=2; k++)
+      for (int j=0; j<=2-k; j++)
+        for (int i=0; i<=2-k-j; i++)
+          f[ii++] = texelFetch(coefficients, first+getIndex(N,s.x+d.x*(i+j), s.y+d.y*j, s.z+d.z*(j+k))).r;
+  }
+  if(special_order==2) {
+    int ii = 0;
+    for (int k=0; k<=2; k++)
+      for (int j=0; j<=2-k; j++)
+        for (int i=0; i<=2-k-j; i++)
+          f[ii++] = texelFetch(coefficients, first+getIndex(N,s.x+d.x*(i+k), s.y+d.y*j, s.z+d.z*k)).r;
+  }
+  if(special_order==3) {
+    int ii = 0;
+    for (int k=0; k<=2; k++)
+      for (int j=0; j<=2-k; j++)
+        for (int i=0; i<=2-k-j; i++)
+          f[ii++] = texelFetch(coefficients, first+getIndex(N,s.x+d.x*i, s.y+d.y*(j+k), s.z+d.z*(i+k))).r;
+  }
+  return f;
+}
+
+float[20]  fetchTetValuesP3(int element, samplerBuffer coefficients, int N, ivec3 d, ivec3 s, int special_order=0) {
+  float f[20];
+  int values_per_element = N*(N+1)*(N+2)/6;
+  int first = element*values_per_element;
+  if(special_order==0) {
+    int ii = 0;
+    for (int k=0; k<=3; k++)
+      for (int j=0; j<=3-k; j++)
+        for (int i=0; i<=3-k-j; i++)
+          f[ii++] = texelFetch(coefficients, first+getIndex(N,s.x+d.x*i, s.y+d.y*j, s.z+d.z*k)).r;
+  }
+  if(special_order==1) {
+    int ii = 0;
+    for (int k=0; k<=3; k++)
+      for (int j=0; j<=3-k; j++)
+        for (int i=0; i<=3-k-j; i++)
+          f[ii++] = texelFetch(coefficients, first+getIndex(N,s.x+d.x*(i+j), s.y+d.y*j, s.z+d.z*(j+k))).r;
+  }
+  if(special_order==2) {
+    int ii = 0;
+    for (int k=0; k<=3; k++)
+      for (int j=0; j<=3-k; j++)
+        for (int i=0; i<=3-k-j; i++)
+          f[ii++] = texelFetch(coefficients, first+getIndex(N,s.x+d.x*(i+k), s.y+d.y*j, s.z+d.z*k)).r;
+  }
+  if(special_order==3) {
+    int ii = 0;
+    for (int k=0; k<=3; k++)
+      for (int j=0; j<=3-k; j++)
+        for (int i=0; i<=3-k-j; i++)
+          f[ii++] = texelFetch(coefficients, first+getIndex(N,s.x+d.x*i, s.y+d.y*(j+k), s.z+d.z*(i+k))).r;
+  }
+  return f;
+}
+
+float  evalTetP1(float f[4], vec3 lam) {
+  float x = lam.x;
+  float y = lam.y;
+  float z = lam.z;
+  return 1.0*f[0] - 1.0*x*(f[0] - f[1]) - 1.0*y*(f[0] - f[2]) - 1.0*z*(f[0] - f[3]);
+}
+
+float  evalTetP2(float f[10], vec3 lam) {
+  float x = lam.x;
+  float y = lam.y;
+  float z = lam.z;
+  return 1.0*f[0] + pow(x, 2)*(2.0*f[0] - 4.0*f[1] + 2.0*f[2]) + 4.0*x*y*(f[0] - f[1] - f[3] + f[4]) + 4.0*x*z*(f[0] - f[1] - f[6] + f[7]) - x*(3.0*f[0] - 4.0*f[1] + 1.0*f[2]) + pow(y, 2)*(2.0*f[0] - 4.0*f[3] + 2.0*f[5]) + 4.0*y*z*(f[0] - f[3] - f[6] + f[8]) - y*(3.0*f[0] - 4.0*f[3] + 1.0*f[5]) + pow(z, 2)*(2.0*f[0] - 4.0*f[6] + 2.0*f[9]) - z*(3.0*f[0] - 4.0*f[6] + 1.0*f[9]);
+}
+float  evalTetP3(float f[20], vec3 lam) {
+  float x = lam.x;
+  float y = lam.y;
+  float z = lam.z;
+  return 1.0*f[0] + pow(x, 3)*(-4.5*f[0] + 13.5*f[1] - 13.5*f[2] + 4.5*f[3]) - pow(x, 2)*y*(13.5*f[0] - 27.0*f[1] + 13.5*f[2] - 13.5*f[4] + 27.0*f[5] - 13.5*f[6]) - pow(x, 2)*z*(13.5*f[0] - 13.5*f[10] + 27.0*f[11] - 13.5*f[12] - 27.0*f[1] + 13.5*f[2]) + pow(x, 2)*(9.0*f[0] - 22.5*f[1] + 18.0*f[2] - 4.49999999999999*f[3]) - x*pow(y, 2)*(13.5*f[0] - 13.5*f[1] - 27.0*f[4] + 27.0*f[5] + 13.5*f[7] - 13.5*f[8]) - 27.0*x*y*z*(f[0] - f[10] + f[11] + f[13] - f[14] - f[1] - f[4] + f[5]) + x*y*(18.0*f[0] - 22.5*f[1] + 4.5*f[2] - 22.5*f[4] + 27.0*f[5] - 4.5*f[6] + 4.5*f[7] - 4.5*f[8] + 4.9960036108132e-16*f[9]) - x*pow(z, 2)*(13.5*f[0] - 27.0*f[10] + 27.0*f[11] + 13.5*f[16] - 13.5*f[17] - 13.5*f[1]) + x*z*(18.0*f[0] - 22.5*f[10] + 27.0*f[11] - 4.5*f[12] + 4.5*f[16] - 4.5*f[17] + 4.9960036108132e-16*f[19] - 22.5*f[1] + 4.5*f[2]) - x*(5.5*f[0] - 9.0*f[1] + 4.5*f[2] - 0.999999999999998*f[3]) + pow(y, 3)*(-4.5*f[0] + 13.5*f[4] - 13.5*f[7] + 4.5*f[9]) - pow(y, 2)*z*(13.5*f[0] - 13.5*f[10] + 27.0*f[13] - 13.5*f[15] - 27.0*f[4] + 13.5*f[7]) + pow(y, 2)*(9.0*f[0] - 22.5*f[4] + 18.0*f[7] - 4.49999999999999*f[9]) - y*pow(z, 2)*(13.5*f[0] - 27.0*f[10] + 27.0*f[13] + 13.5*f[16] - 13.5*f[18] - 13.5*f[4]) + y*z*(18.0*f[0] - 22.5*f[10] + 27.0*f[13] - 4.5*f[15] + 4.5*f[16] - 4.5*f[18] + 4.9960036108132e-16*f[19] - 22.5*f[4] + 4.5*f[7]) - y*(5.5*f[0] - 9.0*f[4] + 4.5*f[7] - 0.999999999999998*f[9]) + pow(z, 3)*(-4.5*f[0] + 13.5*f[10] - 13.5*f[16] + 4.5*f[19]) + pow(z, 2)*(9.0*f[0] - 22.5*f[10] + 18.0*f[16] - 4.49999999999999*f[19]) - z*(5.5*f[0] - 9.0*f[10] + 4.5*f[16] - 0.999999999999998*f[19]);
+}
+  
+
+
+float interpolate3d(int element, samplerBuffer coefficients, int order, int first, int N, vec3 lam, ivec3 d, ivec3 s) {
+  float x = lam.x;
+  float y = lam.y;
+  float z = lam.z;
+  if(order==2) {
+    float f[10];
+    int ii=0;
+    for (int k=0; k<=2; k++) {
+      for (int j=0; j<=2-k; j++) {
+        for (int i=0; i<=2-k-j; i++) {
+          f[ii] = texelFetch(coefficients, first+getIndex(N,s.x+d.x*i,s.y+d.y*j,s.z+d.z*k)).r;
+          ii++;
+        }
+      }
+    }
+    return 1.0*f[0] + pow(x, 2)*(2.0*f[0] - 4.0*f[1] + 2.0*f[2]) + 4.0*x*y*(f[0] - f[1] - f[3] + f[4]) + 4.0*x*z*(f[0] - f[1] - f[6] + f[7]) - x*(3.0*f[0] - 4.0*f[1] + 1.0*f[2]) + pow(y, 2)*(2.0*f[0] - 4.0*f[3] + 2.0*f[5]) + 4.0*y*z*(f[0] - f[3] - f[6] + f[8]) - y*(3.0*f[0] - 4.0*f[3] + 1.0*f[5]) + pow(z, 2)*(2.0*f[0] - 4.0*f[6] + 2.0*f[9]) - z*(3.0*f[0] - 4.0*f[6] + 1.0*f[9]);
+  }
+  if(order==3) {
+    float f[20];
+    int ii=0;
+    for (int k=0; k<=3; k++) {
+      for (int j=0; j<=3-k; j++) {
+        for (int i=0; i<=3-k-j; i++) {
+          f[ii] = texelFetch(coefficients, first+getIndex(N,s.x+d.x*i,s.y+d.y*j,s.z+d.z*k)).r;
+          ii++;
+        }
+      }
+    }
+    return 1.0*f[0] + pow(x, 3)*(-4.5*f[0] + 13.5*f[1] - 13.5*f[2] + 4.5*f[3]) - pow(x, 2)*y*(13.5*f[0] - 27.0*f[1] + 13.5*f[2] - 13.5*f[4] + 27.0*f[5] - 13.5*f[6]) - pow(x, 2)*z*(13.5*f[0] - 13.5*f[10] + 27.0*f[11] - 13.5*f[12] - 27.0*f[1] + 13.5*f[2]) + pow(x, 2)*(9.0*f[0] - 22.5*f[1] + 18.0*f[2] - 4.49999999999999*f[3]) - x*pow(y, 2)*(13.5*f[0] - 13.5*f[1] - 27.0*f[4] + 27.0*f[5] + 13.5*f[7] - 13.5*f[8]) - 27.0*x*y*z*(f[0] - f[10] + f[11] + f[13] - f[14] - f[1] - f[4] + f[5]) + x*y*(18.0*f[0] - 22.5*f[1] + 4.5*f[2] - 22.5*f[4] + 27.0*f[5] - 4.5*f[6] + 4.5*f[7] - 4.5*f[8] + 4.9960036108132e-16*f[9]) - x*pow(z, 2)*(13.5*f[0] - 27.0*f[10] + 27.0*f[11] + 13.5*f[16] - 13.5*f[17] - 13.5*f[1]) + x*z*(18.0*f[0] - 22.5*f[10] + 27.0*f[11] - 4.5*f[12] + 4.5*f[16] - 4.5*f[17] + 4.9960036108132e-16*f[19] - 22.5*f[1] + 4.5*f[2]) - x*(5.5*f[0] - 9.0*f[1] + 4.5*f[2] - 0.999999999999998*f[3]) + pow(y, 3)*(-4.5*f[0] + 13.5*f[4] - 13.5*f[7] + 4.5*f[9]) - pow(y, 2)*z*(13.5*f[0] - 13.5*f[10] + 27.0*f[13] - 13.5*f[15] - 27.0*f[4] + 13.5*f[7]) + pow(y, 2)*(9.0*f[0] - 22.5*f[4] + 18.0*f[7] - 4.49999999999999*f[9]) - y*pow(z, 2)*(13.5*f[0] - 27.0*f[10] + 27.0*f[13] + 13.5*f[16] - 13.5*f[18] - 13.5*f[4]) + y*z*(18.0*f[0] - 22.5*f[10] + 27.0*f[13] - 4.5*f[15] + 4.5*f[16] - 4.5*f[18] + 4.9960036108132e-16*f[19] - 22.5*f[4] + 4.5*f[7]) - y*(5.5*f[0] - 9.0*f[4] + 4.5*f[7] - 0.999999999999998*f[9]) + pow(z, 3)*(-4.5*f[0] + 13.5*f[10] - 13.5*f[16] + 4.5*f[19]) + pow(z, 2)*(9.0*f[0] - 22.5*f[10] + 18.0*f[16] - 4.49999999999999*f[19]) - z*(5.5*f[0] - 9.0*f[10] + 4.5*f[16] - 0.999999999999998*f[19]);
+  }
+  float f[4];
+  int p = order;
+  f[0] = texelFetch(coefficients, first+getIndex(N,s.x,s.y,s.z)).r;
+  f[1] = texelFetch(coefficients, first+getIndex(N,s.x+d.x*p,s.y,      s.z)).r;
+  f[2] = texelFetch(coefficients, first+getIndex(N,s.x      ,s.y+d.y*p,s.z)).r;
+  f[3] = texelFetch(coefficients, first+getIndex(N,s.x      ,s.y,      s.z+d.z*p)).r;
+  return 1.0*f[0] - 1.0*x*(f[0] - f[1]) - 1.0*y*(f[0] - f[2]) - 1.0*z*(f[0] - f[3]);
+}
+
+       
+float getSubTetValue(int element, samplerBuffer coefficients, int order, int subdivision, vec3 lam_) {
+/*
+
+  Coefficients are stored in a cube-like grid. Cut this cube in two prisms (1-3 and 5-7 are cutting lines) and divide the resulting prisms in 3 tets each. Each of the resulting tet has values assigned to do p-interpolation (i.e. 4 values for P1, 10 values for P2 etc.). This function determines to which subtet the point belongs and does the interpolation appropriately using the corresponding values.
+
+          7+-----+6
+          /|    /|
+         / |   / |
+       4+-----+5 |
+        | 3+--|- +2 
+        | /   | /
+        |/    |/
+       0+-----+1 
+*/
+  int n = subdivision+1;
+  int N = order*n+1;
+  int values_per_element = N*(N+1)*(N+2)/6;
+  vec3 lamn = lam_*n;
+  vec3 lam = lamn-floor(lamn);
+  ivec3 s = order*ivec3(lamn);
+
+  ivec3 d = ivec3(1,1,1);
+  float x = lam.x;
+  float y = lam.y;
+  float z = lam.z;
+  int special_order = 0;
+  int first = element*values_per_element;
+  if(lam.x+lam.y<1.0) { // first prism: 0,1,3,4,5,7
+    if(lam.x+lam.y+lam.z<1.0) { // first tet in first prism 0,1,3,4
+      // default settings, nothing to do
+    }
+    else if(lam.x<lam.z) { // second tet in first prism 1,3,4,7
+      z = 1-z;
+      s.z+=order;
+      d.z = -1;
+    }
+    else { // third tet in first prism 1,4,5,7
+      x = 1-lam.x-lam.y;
+      z = 1-lam.z-lam.y;
+      s.z+=order;
+      s.x+=order;
+      d.x = -1;
+      d.z = -1;
+      special_order = 1;
+    }
+  }
+  else { // second prism 1,2,3,5,6,7
+    if(x+y+z>=2.0) { // first tet in second prism 2,5,6,7
+      x = 1-x;
+      y = 1-y;
+      z = 1-z;
+      d.x = -1;
+      d.y = -1;
+      d.z = -1;
+      s.x += order;
+      s.y += order;
+      s.z += order;
+      // return interpolate3d(element, coefficients, order, first, N, vec3(x,y,z), d, s);
+    }
+    else if(lam.z<lam.y) { // second tet in second prism 1,2,3,7
+      x = 1-lam.x-lam.z;
+      y = 1-lam.y;
+      s.x+=order;
+      s.y+=order;
+      d.x = -1;
+      d.y = -1;
+      special_order = 2;
+    }
+    else { // third tet in second prism 1,2,5,7
+      x = 1-lam.x;
+      y = 2-lam.x-lam.y-lam.z;
+      z = lam.z+lam.x-1;
+      s.x+=order;
+      s.y+=order;
+      d.x = -1;
+      d.y = -1;
+      special_order = 3;
+    }
+  }
+  if(order==1)
+    return evalTetP1( fetchTetValuesP1(element, coefficients, N, d, s, special_order), vec3(x,y,z) );
+  if(order==2)
+    return evalTetP2( fetchTetValuesP2(element, coefficients, N, d, s, special_order), vec3(x,y,z) );
+  if(order==3)
+    return evalTetP3( fetchTetValuesP3(element, coefficients, N, d, s, special_order), vec3(x,y,z) );
+}
+
+
 float InterpolateTrig(int element, samplerBuffer coefficients, int order, int subdivision, vec3 lam) {
+  return getSubTrigValue(element, coefficients, order, subdivision, lam);
   int trigx=0;
   int trigy=0;
   int dy=1;
@@ -377,8 +749,8 @@ float InterpolateTrig(int element, samplerBuffer coefficients, int order, int su
   }
   return value;
 }
-
 float InterpolateTet(int element, samplerBuffer coefficients, int order, int subdivision, vec3 lam) {
+  return getSubTetValue(element, coefficients, order, subdivision, lam);
   int trigx=0;
   int trigy=0;
   int dy=1;
@@ -474,4 +846,3 @@ float InterpolateTet(int element, samplerBuffer coefficients, int order, int sub
   }
   return value;
 }
-

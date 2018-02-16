@@ -26,25 +26,19 @@ inline SIMD_IntegrationRule GetReferenceRule( int dim, int order, int subdivisio
 {
   IntegrationRule ir;
   int n = (order)*(subdivision+1)+1;
-  // 3d Elements
-  ir.Append(IntegrationPoint(1,0,0));
-  ir.Append(IntegrationPoint(0,1,0));
-  ir.Append(IntegrationPoint(0,0,1));
-  ir.Append(IntegrationPoint(0,0,0));
+  const double h = 1.0/(n-1);
+  if(dim==2) {
+      for (auto j : Range(n))
+          for (auto i : Range(n-j))
+              ir.Append(IntegrationPoint(i*h, j*h, 0.0));
+  }
 
-//   const double h = 1.0/(n-1);
-//   if(dim==2) {
-//       for (auto j : Range(n))
-//           for (auto i : Range(n-j))
-//               ir.Append(IntegrationPoint(i*h, j*h, 0.0));
-//   }
-// 
-//   if(dim==3) {
-//       for (auto k : Range(n))
-//         for (auto j : Range(n-k))
-//             for (auto i : Range(n-j-k))
-//               ir.Append(IntegrationPoint(i*h, j*h, k*h));
-//   }
+  if(dim==3) {
+      for (auto k : Range(n))
+        for (auto j : Range(n-k))
+            for (auto i : Range(n-j-k))
+              ir.Append(IntegrationPoint(i*h, j*h, k*h));
+  }
 
   return SIMD_IntegrationRule(ir);
 }

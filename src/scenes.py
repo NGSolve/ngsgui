@@ -778,6 +778,7 @@ class SolutionScene(BaseFunctionSceneObject):
         self.initGL()
         glBindVertexArray(self.vao)
         vec = ngui.GetValues(self.cf, self.mesh, ngsolve.VOL if self.mesh.dim==2 else ngsolve.BND, 2**self.subdivision-1, self.order)
+        print(len(vec),'values for', self.mesh.ne, ' elements')
         self.coefficients.store(vec)
         glBindVertexArray(0)
 
