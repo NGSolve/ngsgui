@@ -439,86 +439,6 @@ class OverlayScene(SceneObject):
         return self.widgets
 
     
-class ClippingPlaneScene(BaseFunctionSceneObject):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self.gl_initialized = False
-        self.vao = None
-
-    def initGL(self):
-        if self.gl_initialized:
-            return
-
-        super().initGL()
-
-        self.vao = glGenVertexArrays(1)
-        glBindVertexArray(self.vao)
-
-        Shader.includes['shader_functions'] = ngsolve.fem.GenerateL2ElementCode(3)
-
-        self.program = Program('clipping.vert', 'clipping.geom', 'solution.frag')
-        glUseProgram(self.program.id)
-
-        self.coefficients = Texture(GL_TEXTURE_BUFFER, GL_R32F)
-
-        self.gl_initialized = True
-        glBindVertexArray(0)
-
-
-    def update(self):
-        self.initGL()
-        glBindVertexArray(self.vao)
-        vec = ngui.GetValues(self.cf, self.mesh, ngsolve.VOL, 2**self.subdivision-1, self.order)
-        self.coefficients.store(vec)
-        glBindVertexArray(0)
-
-
-    def render(self, settings):
-        if not self.active:
-            return
-        model, view, projection = settings.model, settings.view, settings.projection
-        glUseProgram(self.program.id)
-        glBindVertexArray(self.vao)
-
-        uniforms = self.program.uniforms
-        uniforms.set('P',projection)
-        uniforms.set('MV',view*model)
-        uniforms.set('colormap_min', self.colormap_min)
-        uniforms.set('colormap_max', self.colormap_max)
-        uniforms.set('colormap_linear', self.colormap_linear)
-        uniforms.set('clipping_plane_deformation', False)
-        uniforms.set('clipping_plane', settings.clipping_plane)
-        uniforms.set('do_clipping', False);
-        uniforms.set('subdivision', 2**self.subdivision-1)
-        uniforms.set('order', self.order)
-
-        if(self.mesh.dim==2):
-            uniforms.set('element_type', 10)
-        if(self.mesh.dim==3):
-            uniforms.set('element_type', 20)
-
-        glActiveTexture(GL_TEXTURE0)
-        self.mesh_data.vertices.bind()
-        uniforms.set('mesh.vertices', 0)
-
-        glActiveTexture(GL_TEXTURE1)
-        self.mesh_data.elements.bind()
-        uniforms.set('mesh.elements', 1)
-
-        glActiveTexture(GL_TEXTURE2)
-        self.coefficients.bind()
-        uniforms.set('coefficients', 2)
-
-        uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
-        uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
-
-        glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
-        glDrawArrays(GL_POINTS, 0, self.mesh.ne)
-        glBindVertexArray(0)
-
-
-
 class MeshScene(BaseMeshSceneObject):
     def __init__(self, mesh, wireframe=True, surface=True, elements=False, shrink=1., **kwargs):
         super().__init__(mesh, **kwargs)
@@ -756,6 +676,8 @@ class SolutionScene(BaseFunctionSceneObject):
 
         self.qtWidget = None
         self.vao = None
+        self.show_surface = True
+        self.show_clipping_plane = False
 
     def initGL(self):
         if self.vao:
@@ -763,34 +685,38 @@ class SolutionScene(BaseFunctionSceneObject):
 
         super().initGL()
 
-        self.vao = glGenVertexArrays(1)
-        glBindVertexArray(self.vao)
+        # solution on surface mesh
+        self.surface_vao = glGenVertexArrays(1)
+        glBindVertexArray(self.surface_vao)
+        self.surface_program = Program('solution.vert', 'solution.frag')
+        self.surface_values = Texture(GL_TEXTURE_BUFFER, GL_R32F)
+        glBindVertexArray(0)
 
-        Shader.includes['shader_functions'] = ngsolve.fem.GenerateL2ElementCode(3)
-
-        self.program = Program('solution.vert', 'solution.frag')
-
-        self.coefficients = Texture(GL_TEXTURE_BUFFER, GL_R32F)
-
+        # solution on clipping plane
+        self.clipping_vao = glGenVertexArrays(1)
+        glBindVertexArray(self.clipping_vao)
+        self.clipping_program = Program('clipping.vert', 'clipping.geom', 'solution.frag')
+        glUseProgram(self.clipping_program.id)
+        self.volume_values = Texture(GL_TEXTURE_BUFFER, GL_R32F)
         glBindVertexArray(0)
 
     def update(self):
         self.initGL()
-        glBindVertexArray(self.vao)
-        vec = ngui.GetValues(self.cf, self.mesh, ngsolve.VOL if self.mesh.dim==2 else ngsolve.BND, 2**self.subdivision-1, self.order)
-        print(len(vec),'values for', self.mesh.ne, ' elements')
-        self.coefficients.store(vec)
-        glBindVertexArray(0)
+        if self.mesh.dim==2:
+            self.surface_values.store(ngui.GetValues(self.cf, self.mesh, ngsolve.VOL, 2**self.subdivision-1, self.order))
 
+        if self.mesh.dim==3:
+            self.surface_values.store(ngui.GetValues(self.cf, self.mesh, ngsolve.BND, 2**self.subdivision-1, self.order))
+            self.volume_values.store(ngui.GetValues(self.cf, self.mesh, ngsolve.VOL, 2**self.subdivision-1, self.order))
 
-    def render(self, settings):
-        if not self.active:
-            return
+    def renderSurface(self, settings):
         model, view, projection = settings.model, settings.view, settings.projection
-        glBindVertexArray(self.vao)
-        glUseProgram(self.program.id)
 
-        uniforms = self.program.uniforms
+        # surface mesh
+        glBindVertexArray(self.surface_vao)
+        glUseProgram(self.surface_program.id)
+
+        uniforms = self.surface_program.uniforms
         uniforms.set('P',projection)
         uniforms.set('MV',view*model)
 
@@ -813,7 +739,7 @@ class SolutionScene(BaseFunctionSceneObject):
         uniforms.set('mesh.elements', 1)
 
         glActiveTexture(GL_TEXTURE2)
-        self.coefficients.bind()
+        self.surface_values .bind()
         uniforms.set('coefficients', 2)
 
         uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
@@ -824,3 +750,69 @@ class SolutionScene(BaseFunctionSceneObject):
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh_data.nsurface_elements)
 
+    def renderClippingPlane(self, settings):
+        model, view, projection = settings.model, settings.view, settings.projection
+        glUseProgram(self.clipping_program.id)
+        glBindVertexArray(self.clipping_vao)
+
+        uniforms = self.clipping_program.uniforms
+        uniforms.set('P',projection)
+        uniforms.set('MV',view*model)
+        uniforms.set('colormap_min', self.colormap_min)
+        uniforms.set('colormap_max', self.colormap_max)
+        uniforms.set('colormap_linear', self.colormap_linear)
+        uniforms.set('clipping_plane_deformation', False)
+        uniforms.set('clipping_plane', settings.clipping_plane)
+        uniforms.set('do_clipping', False);
+        uniforms.set('subdivision', 2**self.subdivision-1)
+        uniforms.set('order', self.order)
+
+        if(self.mesh.dim==2):
+            uniforms.set('element_type', 10)
+        if(self.mesh.dim==3):
+            uniforms.set('element_type', 20)
+
+        glActiveTexture(GL_TEXTURE0)
+        self.mesh_data.vertices.bind()
+        uniforms.set('mesh.vertices', 0)
+
+        glActiveTexture(GL_TEXTURE1)
+        self.mesh_data.elements.bind()
+        uniforms.set('mesh.elements', 1)
+
+        glActiveTexture(GL_TEXTURE2)
+        self.volume_values.bind()
+        uniforms.set('coefficients', 2)
+
+        uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
+        uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
+
+        glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
+        glDrawArrays(GL_POINTS, 0, self.mesh.ne)
+        glBindVertexArray(0)
+
+
+    def render(self, settings):
+        if not self.active:
+            return
+
+        if self.show_surface:
+            self.renderSurface(settings)
+        if self.show_clipping_plane:
+            self.renderClippingPlane(settings)
+
+    def setShowSurface(self, value):
+        self. show_surface = value
+
+    def setShowClippingPlane(self, value):
+        self. show_clipping_plane = value
+
+    def getQtWidget(self, updateGL, params):
+        helper = GUIHelper(updateGL)
+        self.widgets = super().getQtWidget(updateGL, params)
+
+        surface = helper.CheckBox("Surface mesh", self.setShowSurface, self.show_surface)
+        clipping = helper.CheckBox("Clipping Plane", self.setShowClippingPlane, self.show_clipping_plane)
+        self.widgets.addGroup("Show solution on",surface, clipping)
+
+        return self.widgets
