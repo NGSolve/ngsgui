@@ -397,7 +397,7 @@ class OverlayScene(SceneObject):
             for i in range(3):
                 self.text_renderer.draw(settings, "xyz"[i], coords[0:3,i], alignment=Qt.AlignCenter|Qt.AlignVCenter)
         if self.show_logo:
-            self.text_renderer.draw(settings, "NGSolve " + ngsolve.__version__, [0.99,-0.99,0], font_size=16, alignment=Qt.AlignRight|Qt.AlignBottom)
+            self.text_renderer.draw(settings, "NGSolve " + ngsolve.__version__, [0.99,-0.99,0], alignment=Qt.AlignRight|Qt.AlignBottom)
 
         glEnable(GL_DEPTH_TEST)
         glBindVertexArray(0)
