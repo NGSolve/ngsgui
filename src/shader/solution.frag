@@ -20,6 +20,7 @@ in VertexData
 out vec4 FragColor;
 
 {include utils.inc}
+{include interpolation.inc}
 
 void main()
 {
