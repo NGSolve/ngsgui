@@ -703,11 +703,19 @@ class SolutionScene(BaseFunctionSceneObject):
     def update(self):
         self.initGL()
         if self.mesh.dim==2:
-            self.surface_values.store(ngui.GetValues(self.cf, self.mesh, ngsolve.VOL, 2**self.subdivision-1, self.order))
+            try:
+                self.surface_values.store(ngui.GetValues(self.cf, self.mesh, ngsolve.VOL, 2**self.subdivision-1, self.order))
+            except:
+                print("Cannot evaluate given function on surface elemnents")
+                self.show_surace = False
 
         if self.mesh.dim==3:
-            self.surface_values.store(ngui.GetValues(self.cf, self.mesh, ngsolve.BND, 2**self.subdivision-1, self.order))
             self.volume_values.store(ngui.GetValues(self.cf, self.mesh, ngsolve.VOL, 2**self.subdivision-1, self.order))
+            try:
+                self.surface_values.store(ngui.GetValues(self.cf, self.mesh, ngsolve.BND, 2**self.subdivision-1, self.order))
+            except:
+                print("Cannot evaluate given function on surface elemnents")
+                self.show_surace = False
 
     def renderSurface(self, settings):
         model, view, projection = settings.model, settings.view, settings.projection

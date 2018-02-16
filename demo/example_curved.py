@@ -32,10 +32,9 @@ with TaskManager():
 
 gui = GUI.GUI()
 # scene = GUI.SolutionScene(gf)
-scene = GUI.ClippingPlaneScene(gf, name="Solution")
+scene = GUI.SolutionScene(gf, name="Solution")
 scene1 = GUI.MeshScene(mesh, name="Mesh")
 gui.draw(scene)
 gui.draw(scene1)
-gui.draw(scene2)
 gui.run()
 # Draw(gf)
