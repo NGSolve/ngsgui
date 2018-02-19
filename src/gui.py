@@ -60,8 +60,8 @@ class ToolBox(QtWidgets.QToolBox):
         self.window = window
         self.scenes = []
 
-    def addScene(self, scene, position=-1):
-        self.scenes.insert(position,scene)
+    def addScene(self, scene):
+        self.scenes.append(scene)
         widget = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout()
         layout.setAlignment(Qt.AlignTop)
@@ -69,8 +69,8 @@ class ToolBox(QtWidgets.QToolBox):
                                       self.window.glWidget.rendering_parameters).groups:
             layout.addWidget(item)
         widget.setLayout(layout)
-        self.insertItem(position,widget,scene.name)
-        self.setCurrentIndex(position)
+        self.addItem(widget,scene.name)
+        self.setCurrentIndex(len(self.scenes)-1)
 
 class GUIHelper():
     def __init__(self, updateSlot):
@@ -406,13 +406,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.overlay = scenes.OverlayScene(name="Global options")
         self.draw(self.overlay)
 
-    def draw(self, scene,position=-1):
-        self.scenes.insert(position,scene)
+    def draw(self, scene):
+        self.scenes.append(scene)
         scene.setWindow(self)
         self.glWidget.makeCurrent()
         scene.update()
         self.glWidget.addScene(scene)
-        self.toolbox.addScene(scene,position)
+        self.toolbox.addScene(scene)
         self.overlay.addScene(scene)
 
     def deleteScene(self, scene):

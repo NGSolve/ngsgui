@@ -707,7 +707,7 @@ class SolutionScene(BaseFunctionSceneObject):
                 self.surface_values.store(ngui.GetValues(self.cf, self.mesh, ngsolve.VOL, 2**self.subdivision-1, self.order))
             except:
                 print("Cannot evaluate given function on surface elemnents")
-                self.show_surace = False
+                self.show_surface = False
 
         if self.mesh.dim==3:
             self.volume_values.store(ngui.GetValues(self.cf, self.mesh, ngsolve.VOL, 2**self.subdivision-1, self.order))
@@ -715,7 +715,7 @@ class SolutionScene(BaseFunctionSceneObject):
                 self.surface_values.store(ngui.GetValues(self.cf, self.mesh, ngsolve.BND, 2**self.subdivision-1, self.order))
             except:
                 print("Cannot evaluate given function on surface elemnents")
-                self.show_surace = False
+                self.show_surface = False
 
     def renderSurface(self, settings):
         model, view, projection = settings.model, settings.view, settings.projection
