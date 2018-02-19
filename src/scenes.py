@@ -191,6 +191,15 @@ class SceneObject():
             self.name = name
         self.toolboxupdate = lambda me: None
 
+    def __getstate__(self):
+        return (self.name, self.active)
+
+    def __setstate__(self,state):
+        self.name = state[0]
+        self.active = state[1]
+        # TODO: can we pickle actions somehow?
+        self.actions = {}
+
     def deferRendering(self):
         """used to render some scenes later (eg. overlays, transparency)
         the higher the return value, the later it will be rendered"""
@@ -267,6 +276,14 @@ class BaseMeshSceneObject(SceneObject):
     def initGL(self):
         self.mesh_data = MeshData(self.mesh)
 
+    def __getstate__(self):
+        super_state = super().__getstate__()
+        return (super_state, self.mesh)
+
+    def __setstate__(self,state):
+        super().__setstate__(state[0])
+        self.mesh = state[1]
+
     def getBoundingBox(self):
         return self.mesh_data.min, self.mesh_data.max
 
@@ -292,6 +309,20 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
         self.colormap_max = 1
         self.colormap_linear = False
 
+    def __getstate__(self):
+        super_state = super().__getstate__()
+        return (super_state, self.cf, self.is_gridfunction, self.subdivision, self.order,
+                self.colormap_min, self.colormap_max, self.colormap_linear)
+
+    def __setstate__(self, state):
+        super().__setstate__(state[0])
+        self.cf = state[1]
+        self.is_gridfunction = state[2]
+        self.subdivision = state[3]
+        self.order = state[4]
+        self.colormap_min = state[5]
+        self.colormap_max = state[6]
+        self.colormap_linear = state[7]
 
     def setColorMapMin(self, value):
         self.colormap_min = value
@@ -450,6 +481,17 @@ class MeshScene(BaseMeshSceneObject):
         self.show_elements = elements
         self.shrink = shrink
         self.tesslevel = 1.0
+
+    def __getstate__(self):
+        super_state = super().__getstate__()
+        return (super_state, self.show_wireframe, self.show_surface, self.show_elements, self.shrink,
+                self.tesslevel)
+
+    def __setstate__(self, state):
+        super().__setstate__(state[0])
+        self.show_wireframe, self.show_surface, self.show_elements, self.shrink, self.tesslevel = state[1:]
+        self.qtWidget = None
+        self.gl_initialized = False
 
     def initGL(self):
         if self.gl_initialized:
@@ -678,6 +720,16 @@ class SolutionScene(BaseFunctionSceneObject):
         self.vao = None
         self.show_surface = True
         self.show_clipping_plane = False
+
+    def __getstate__(self):
+        super_state = super().__getstate__()
+        return (super_state, self.show_surface, self.show_clipping_plane)
+
+    def __setstate__(self,state):
+        super().__setstate__(state[0])
+        self.show_surface, self.show_clipping_plane = state[1:]
+        self.qtWidget = None
+        self.vao = None
 
     def initGL(self):
         if self.vao:
