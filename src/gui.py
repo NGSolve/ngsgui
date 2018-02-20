@@ -349,8 +349,9 @@ class RenderingParameters:
 
 class MainWindow(QtWidgets.QMainWindow):
 
-    def __init__(self,kernel_manager,shared):
+    def __init__(self,multikernel_manager,console, shared):
         super(MainWindow, self).__init__()
+        self.multikernel_manager = multikernel_manager
 
         self.scenes = []
 
@@ -383,7 +384,15 @@ class MainWindow(QtWidgets.QMainWindow):
         settings = QtWidgets.QWidget()
         settings.setLayout( ArrangeV(self.toolbox, buttons))
         mainWidget.addWidget(settings)
-        if kernel_manager is not None:
+        if console:
+            self.kernel_id = self.multikernel_manager.start_kernel()
+            kernel_manager = self.multikernel_manager.get_kernel(self.kernel_id)
+            class dummyioloop():
+                def call_later(self,a,b):
+                    return
+                def stop(self):
+                    return
+            kernel_manager.kernel.io_loop = dummyioloop()
             console_and_gl = QtWidgets.QSplitter()
             console_and_gl.setOrientation(QtCore.Qt.Vertical)
             console_and_gl.addWidget(self.glWidget)
@@ -613,31 +622,25 @@ class GLWidget(QtOpenGL.QGLWidget):
     def freeResources(self):
         self.makeCurrent()
 
+from jupyter_client.multikernelmanager import MultiKernelManager
+from traitlets import DottedObjectName
+class MultiQtKernelManager(MultiKernelManager):
+    kernel_manager_class = DottedObjectName("qtconsole.inprocess.QtInProcessKernelManager",
+                                            config = True,
+                                            help = """kernel manager class""")
+
 class GUI():
     def __init__(self):
         self.windows = []
         self.app = QtWidgets.QApplication([])
-        self.kernel_manager = None
+        self.kernel_manager = MultiQtKernelManager()
 
     def make_window(self, console=True):
-        if console and self.kernel_manager is None:
-            self.kernel_manager = QtInProcessKernelManager()
-            class dummyioloop():
-                def call_later(self,a,b):
-                    return
-                def stop(self):
-                    return
-            self.kernel_manager.start_kernel()
-            self.kernel_manager.kernel.io_loop = dummyioloop()
-        if console:
-            km = self.kernel_manager
-        else:
-            km = None
         if len(self.windows):
             shared = self.windows[0].glWidget
         else:
             shared = None
-        window = MainWindow(kernel_manager=km,shared=shared)
+        window = MainWindow(multikernel_manager=self.kernel_manager, console = console,shared=shared)
         window.show()
         window.raise_()
         self.windows.append(window)
@@ -657,7 +660,8 @@ class GUI():
 
 
     def run(self):
-        self.kernel_manager.kernel.shell.push(inspect.stack()[1][0].f_globals)
+        for win in self.windows:
+            self.kernel_manager.get_kernel(win.kernel_id).kernel.shell.push(inspect.stack()[1][0].f_globals)
         res = self.app.exec_()
         for window in self.windows:
             window.glWidget.freeResources()
