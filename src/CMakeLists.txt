@@ -3,5 +3,5 @@ install(TARGETS ngui DESTINATION .)
 target_link_libraries(ngui ngcomp)
 
 install(TARGETS ngui DESTINATION ngsolve/gui)
-install(FILES __init__.py gl.py gui.py glmath.py scenes.py DESTINATION ngsolve/gui)
+install(FILES __init__.py gl.py gui.py glwindow.py widgets.py glmath.py scenes.py DESTINATION ngsolve/gui)
 add_subdirectory(shader)
