@@ -623,7 +623,7 @@ class MeshScene(BaseMeshSceneObject):
         uniforms.set('mesh.elements', 1)
 
         uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
-        glActiveTexture(GL_TEXTURE3)
+        GL.glActiveTexture(GL.GL_TEXTURE3)
         self.tex_mat_color.bind()
         uniforms.set('colors', 3)
 

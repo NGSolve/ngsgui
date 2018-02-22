@@ -96,115 +96,57 @@ class RenderingParameters:
         for i in range(3):
             self.clipping_point[i] = point[i]
 
-class MainWindow(QtWidgets.QMainWindow):
-
-    def __init__(self,multikernel_manager,console, shared):
-        super(MainWindow, self).__init__()
+class WindowTab(QtWidgets.QWidget):
+    def __init__(self, multikernel_manager, shared, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.multikernel_manager = multikernel_manager
-
         self.scenes = []
 
-        f = QtOpenGL.QGLFormat()
-        f.setVersion(3,2)
-        f.setProfile(QtOpenGL.QGLFormat.CoreProfile)
-        QtOpenGL.QGLFormat.setDefaultFormat(f)
-
-        self.glWidget = GLWidget(shared=shared)
-        if shared is None:
-            self.glWidget.context().setFormat(f)
-            self.glWidget.context().create()
+        self.glWidget = GLWidget(shared)
+        self.glWidget.makeCurrent()
 
         buttons = QtWidgets.QVBoxLayout()
 
         btnZoomReset = QtWidgets.QPushButton("ZoomReset", self)
         btnZoomReset.clicked.connect(self.glWidget.ZoomReset)
-        btnQuit = QtWidgets.QPushButton("Quit", self)
-        btnQuit.clicked.connect(self.close)
-
-        self.colormapSettings = wid.ColorMapSettings(min=-2, max=2, min_value=-1, max_value=1)
-        self.colormapSettings.layout().setAlignment(QtCore.Qt.AlignTop)
 
         buttons.addWidget(btnZoomReset)
-        buttons.addWidget(btnQuit)
 
         self.toolbox = SceneToolBox(self)
 
-        mainWidget = QtWidgets.QSplitter()
-        settings = QtWidgets.QWidget()
-        settings.setLayout( ArrangeV(self.toolbox, buttons))
-        mainWidget.addWidget(settings)
-        if console:
-            self.kernel_id = self.multikernel_manager.start_kernel()
-            kernel_manager = self.multikernel_manager.get_kernel(self.kernel_id)
-            class dummyioloop():
-                def call_later(self,a,b):
-                    return
-                def stop(self):
-                    return
-            kernel_manager.kernel.io_loop = dummyioloop()
-            console_and_gl = QtWidgets.QSplitter()
-            console_and_gl.setOrientation(QtCore.Qt.Vertical)
-            console_and_gl.addWidget(self.glWidget)
-            kernel_client = kernel_manager.client()
-            kernel_client.start_channels()
-            console = QtInProcessRichJupyterWidget()
-            console.kernel_manager = kernel_manager
-            console.kernel_client = kernel_client
-            console.exit_requested.connect(self.close)
-            console_and_gl.addWidget(console)
-            console_and_gl.setStretchFactor(0,3)
-            console_and_gl.setStretchFactor(1,1)
-            mainWidget.addWidget(console_and_gl)
-        else:
-            mainWidget.addWidget(self.glWidget)
-        self.setCentralWidget(mainWidget)
-
-        self.setWindowTitle(self.tr("Pyside2 GL"))
-        self.last = time.time()
+        splitter = QtWidgets.QSplitter()
+        splitter.addWidget(self.glWidget)
+        tbwidget = QtWidgets.QWidget()
+        tbwidget.setLayout(ArrangeV(self.toolbox, buttons))
+        splitter.addWidget(tbwidget)
+        splitter.setOrientation(QtCore.Qt.Horizontal)
+        splitter.setSizes([75000, 25000])
+        self.setLayout(ArrangeH(splitter))
         self.overlay = scenes.OverlayScene(name="Global options")
         self.draw(self.overlay)
 
     def draw(self, scene):
         self.scenes.append(scene)
-        scene.setWindow(self)
         self.glWidget.makeCurrent()
+        scene.setWindow(self)
         scene.update()
         self.glWidget.addScene(scene)
         self.toolbox.addScene(scene)
         self.overlay.addScene(scene)
 
-    def deleteScene(self, scene):
-        # TODO
-        pass
-
-    def redraw(self, blocking=True):
-        if time.time() - self.last < 0.02:
-            return
-        if blocking:
-            self.glWidget.redraw_mutex.lock()
-            self.glWidget.redraw_signal.emit()
-            self.glWidget.redraw_update_done.wait(self.glWidget.redraw_mutex)
-            self.glWidget.redraw_mutex.unlock()
-        else:
-            self.glWidget.redraw_signal.emit()
-        self.last = time.time()
-
-    def keyPressEvent(self, event):
-        if event.key() == 16777216:
-            self.close()
 
 class GLWidget(QtOpenGL.QGLWidget):
     redraw_signal = QtCore.Signal()
 
-    def ZoomReset(self):
-        self.rendering_parameters.rotmat = glmath.Identity()
-        self.rendering_parameters.zoom = 0.0
-        self.rendering_parameters.dx = 0.0
-        self.rendering_parameters.dy = 0.0
-        self.updateGL()
-
-    def __init__(self, parent=None,shared=None):
-        QtOpenGL.QGLWidget.__init__(self, parent=parent,shareWidget=shared)
+    def __init__(self,shared=None, *args, **kwargs):
+        f = QtOpenGL.QGLFormat()
+        f.setVersion(3,2)
+        f.setProfile(QtOpenGL.QGLFormat.CoreProfile)
+        QtOpenGL.QGLFormat.setDefaultFormat(f)
+        super().__init__(shareWidget=shared, *args, **kwargs)
+        if shared is None:
+            self.context().setFormat(f)
+            self.context().create()
         self.scenes = []
         self.do_rotate = False
         self.do_translate = False
@@ -220,6 +162,13 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.redraw_signal.connect(self.updateScenes)
 
         self.lastPos = QtCore.QPoint()
+
+    def ZoomReset(self):
+        self.rendering_parameters.rotmat = glmath.Identity()
+        self.rendering_parameters.zoom = 0.0
+        self.rendering_parameters.dx = 0.0
+        self.rendering_parameters.dy = 0.0
+        self.updateGL()
 
     def minimumSizeHint(self):
         return QtCore.QSize(50, 50)
