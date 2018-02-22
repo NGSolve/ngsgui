@@ -66,6 +66,20 @@ class MainWindow(QtWidgets.QWidget):
         if event.key() == 16777216:
             self.close()
 
+class SettingsToolBox(QtWidgets.QToolBox):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args,**kwargs)
+        self.settings = []
+
+    def addSettings(self, sett):
+        self.settings.append(sett)
+        widget = QtWidgets.QWidget()
+        widget.setLayout(ArrangeV(*sett.getQtWidget().groups))
+        widget.layout().setAlignment(QtCore.Qt.AlignTop)
+        self.addItem(widget, sett.name)
+        self.setCurrentIndex(len(self.settings)-1)
+
+
 import ngsolve
 class GUI():
     def __init__(self):
@@ -99,8 +113,8 @@ class GUI():
         toolbox_splitter = QtWidgets.QSplitter(parent=menu_splitter)
         menu_splitter.addWidget(toolbox_splitter)
         toolbox_splitter.setOrientation(QtCore.Qt.Horizontal)
-        self.problem_toolbox = QtWidgets.QToolBox(parent=toolbox_splitter)
-        toolbox_splitter.addWidget(self.problem_toolbox)
+        self.settings_toolbox = SettingsToolBox(parent=toolbox_splitter)
+        toolbox_splitter.addWidget(self.settings_toolbox)
         window_splitter = QtWidgets.QSplitter(parent=toolbox_splitter)
         toolbox_splitter.addWidget(window_splitter)
         window_splitter.setOrientation(QtCore.Qt.Vertical)
@@ -125,6 +139,25 @@ Developed by Joachim Schoeberl at
         menu_splitter.show()
         self.console.show()
         self.mainWidget.setWindowTitle("NGSolve")
+
+        # crawl for plugins
+        try:
+            from . import plugins as plu
+            plugins_exist = True
+        except ImportError:
+            plugins_exist = False
+        if plugins_exist:
+            import pkgutil
+            prefix = plu.__name__ + "."
+            plugins = []
+            for importer, modname, ispkg in pkgutil.iter_modules(plu.__path__,prefix):
+                plugins.append(__import__(modname, fromlist="dummy"))
+            from .plugin import GuiPlugin
+            for plugin in plugins:
+                for val in plugin.__dict__.values():
+                    if inspect.isclass(val):
+                        if issubclass(val, GuiPlugin):
+                            val.loadPlugin(self)
 
     def make_window(self):
         if len(self.windows):
