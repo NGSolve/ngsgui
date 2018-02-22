@@ -194,11 +194,19 @@ Developed by Joachim Schoeberl at
 
         self.console.execute(source=txt, hidden=True, interactive=True)
 
-    def run(self):
+    def run(self,filename = None):
+        import os, threading
         self.mainWidget.show()
         globs = inspect.stack()[1][0].f_globals
         self.multikernel_manager.get_kernel(self.kernel_id).kernel.shell.push(globs)
+        if filename:
+            name, ext = os.path.splitext(filename)
+            if ext == ".py":
+                self.loadPythonFile(filename)
+            else:
+                print("Cannot load file type: ", ext)
         res = self.app.exec_()
         for window in self.windows:
             window.glWidget.freeResources()
         self.multikernel_manager.shutdown_kernel(self.kernel_id)
+

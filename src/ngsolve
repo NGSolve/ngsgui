@@ -1,1 +1,2 @@
-python3 -c 'import ngsolve.gui as G; gui = G.GUI(); del G; gui.run()'
+
+python3 -c 'import ngsolve.gui as G; gui = G.GUI(); del G; gui.run("'"$1"'")'
