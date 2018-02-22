@@ -66,6 +66,7 @@ class MainWindow(QtWidgets.QWidget):
         if event.key() == 16777216:
             self.close()
 
+import ngsolve
 class GUI():
     def __init__(self):
         self.windows = []
@@ -106,10 +107,17 @@ class GUI():
         self.window_tabber = QtWidgets.QTabWidget(parent=window_splitter)
         window_splitter.addWidget(self.window_tabber)
         self.console = QtInProcessRichJupyterWidget()
+        self.console.banner = """NGSolve %s
+Developed by Joachim Schoeberl at
+2010-xxxx Vienna University of Technology
+2006-2010 RWTH Aachen University
+1996-2006 Johannes Kepler University Linz
+
+""" % ngsolve.__version__
         window_splitter.addWidget(self.console)
         self.console.kernel_manager = kernel_manager
         self.console.kernel_client = kernel_client
-        self.console.exit_requested.connect(lambda c: self.app.exi13t())
+        self.console.exit_requested.connect(lambda c: self.app.exit())
         menu_splitter.setSizes([100, 10000])
         toolbox_splitter.setSizes([15000, 85000])
         window_splitter.setSizes([70000, 30000])
@@ -126,6 +134,7 @@ class GUI():
         window = glwindow.WindowTab(multikernel_manager=self.multikernel_manager,
                                     shared=shared)
         self.window_tabber.addTab(window,"window" + str(len(self.windows)+1))
+        self.window_tabber.setCurrentWidget(window)
         window.show()
         self.windows.append(window)
         return window
@@ -143,9 +152,14 @@ class GUI():
             win.redraw(blocking=blocking)
 
     def loadPythonFile(self, filename):
+        txt = ""
         with open(filename, "r") as f:
             for line in f.readlines():
-                self.console.do_execute(line.strip(), True, "")
+                txt += line
+                if line[-1] != "\\":
+                    line += "\n"
+
+        self.console.execute(source=txt, hidden=True, interactive=True)
 
     def run(self):
         self.mainWidget.show()
