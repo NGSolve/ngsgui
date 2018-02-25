@@ -23,11 +23,11 @@ class MenuBarWithDict(QtWidgets.QMenuBar):
 
     def addMenu(self, name, *args, **kwargs):
         menu = MenuWithDict(super().addMenu(name,*args,**kwargs))
-        self._dict["name"] = menu
+        self._dict[name] = menu
         return menu
 
     def __getitem__(self, index):
-        return _dict[index]
+        return self._dict[index]
 
 class MenuWithDict(QtWidgets.QMenu):
     def __new__(self, menu):
@@ -42,7 +42,7 @@ class MenuWithDict(QtWidgets.QMenu):
         return menu
 
     def __getitem__(self, index):
-        return _dict[index]
+        return self._dict[index]
 
 class MainWindow(QtWidgets.QWidget):
     def __init__(self, *args, **kwargs):
@@ -97,6 +97,10 @@ class GUI():
                 self.loadPythonFile(filename)
         loadPython = loadMenu.addAction("&Python File", shortcut = "l+y")
         loadPython.triggered.connect(selectPythonFile)
+        createMenu = self.menuBar.addMenu("&Create")
+        newWindowAction = createMenu.addAction("New &Window")
+        newWindowAction.triggered.connect(self.make_window)
+
         self.kernel_id = self.multikernel_manager.start_kernel()
         kernel_manager = self.multikernel_manager.get_kernel(self.kernel_id)
         class dummyioloop():
@@ -171,6 +175,11 @@ Developed by Joachim Schoeberl at
         window.show()
         self.windows.append(window)
         return window
+
+    def getActiveWindow(self):
+        if not self.window_tabber.count():
+            self.make_window()
+        return self.window_tabber.currentWidget()
 
     def getWindow(self,index=-1):
         return self.windows[index]
