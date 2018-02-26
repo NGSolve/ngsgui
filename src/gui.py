@@ -103,6 +103,12 @@ Developed by Joachim Schoeberl at
         self.kernel_manager.kernel.gui = 'qt'
         self.kernel_client = self.kernel_manager.client()
         self.kernel_client.start_channels()
+        class dummyioloop():
+            def call_later(self,a,b):
+                return
+            def stop(self):
+                return
+        self.kernel_manager.kernel.io_loop = dummyioloop()
 
         def stop():
             self.kernel_client.stop_channels()
@@ -126,6 +132,11 @@ class GUI():
         self.menuBar = MenuBarWithDict()
         fileMenu = self.menuBar.addMenu("&File")
         loadMenu = fileMenu.addMenu("&Load")
+        saveMenu = fileMenu.addMenu("&Save")
+        saveSolution = saveMenu.addAction("&Solution")
+        loadSolution = loadMenu.addAction("&Solution")
+        loadSolution.triggered.connect(self.loadSolution)
+        saveSolution.triggered.connect(self.saveSolution)
         def selectPythonFile():
             filename, filt = QtWidgets.QFileDialog.getOpenFileName(caption = "Load Python File",
                                                                    filter = "Python files (*.py)")
@@ -180,16 +191,45 @@ class GUI():
 
     def make_window(self):
         if len(self.windows):
-            shared = self.windows[0].glWidget
+            shared = self.windows[0]
         else:
             shared = None
-        window = glwindow.WindowTab(multikernel_manager=self.multikernel_manager,
-                                    shared=shared)
+        window = glwindow.WindowTab(shared=shared)
         self.window_tabber.addTab(window,"window" + str(len(self.windows)+1))
         self.window_tabber.setCurrentWidget(window)
         window.show()
         self.windows.append(window)
         return window
+
+    def saveSolution(self):
+        import pickle
+        filename, filt = QtWidgets.QFileDialog.getSaveFileName(caption="Save Solution",
+                                                               filter = "Solution Files (*.sol)")
+        if not filename[-4:] == ".sol":
+            filename += ".sol"
+        tabs = []
+        for i in range(self.window_tabber.count()):
+            tabs.append(self.window_tabber.widget(i))
+        settings = self.settings_toolbox.settings
+        with open(filename,"wb") as f:
+            pickle.dump((tabs,settings), f)
+
+    def loadSolution(self):
+        import pickle
+        filename, filt = QtWidgets.QFileDialog.getOpenFileName(caption="Load Solution",
+                                                               filter = "Solution Files (*.sol)")
+        if not filename[-4:] == ".sol":
+            filename += ".sol"
+        with open(filename, "rb") as f:
+            tabs, settings = pickle.load(f)
+        for tab in tabs:
+            self.window_tabber.addTab(tab, "window" + str(len(self.windows)+1))
+            tab.show()
+            self.windows.append(tab)
+            self.window_tabber.setCurrentWidget(tab)
+        for setting in settings:
+            setting.gui = self
+            self.settings_toolbox.addSettings(setting)
 
     def getActiveWindow(self):
         if not self.window_tabber.count():

@@ -97,12 +97,15 @@ class RenderingParameters:
             self.clipping_point[i] = point[i]
 
 class WindowTab(QtWidgets.QWidget):
-    def __init__(self, multikernel_manager, shared, *args, **kwargs):
+    def __init__(self, shared, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.multikernel_manager = multikernel_manager
         self.scenes = []
+        self.shared = shared
 
-        self.glWidget = GLWidget(shared)
+        if shared:
+            self.glWidget = GLWidget(shared.glWidget)
+        else:
+            self.glWidget = GLWidget()
         self.glWidget.makeCurrent()
 
         buttons = QtWidgets.QVBoxLayout()
@@ -133,6 +136,14 @@ class WindowTab(QtWidgets.QWidget):
         self.glWidget.addScene(scene)
         self.toolbox.addScene(scene)
         self.overlay.addScene(scene)
+
+    def __getstate__(self):
+        return (self.scenes, self.shared)
+
+    def __setstate__(self, state):
+        self.__init__(state[1])
+        for scene in state[0]:
+            self.draw(scene)
 
 
 class GLWidget(QtOpenGL.QGLWidget):

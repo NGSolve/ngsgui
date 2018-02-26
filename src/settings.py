@@ -14,6 +14,9 @@ class Settings():
         self.gui = gui
         self.toolboxupdate = lambda me: None
         self.active_mesh = None
+        self.solutions = []
+        self.meshes = []
+
 
     def getQtWidget(self):
         self.widgets = wid.OptionWidgets()
@@ -29,6 +32,14 @@ class Settings():
                                                   ArrangeH(self.comb_sol, btn_draw_sol),
                                                   ArrangeH(QtWidgets.QLabel("On mesh:"), self.comb_active_mesh)))
         return self.widgets
+
+    def __getstate__(self):
+        return (self.name, self.meshes, self.active_mesh)
+
+    def __setstate__(self, state):
+        self.name, self.meshes, self.active_mesh = state
+        # coefficient functions not yet picklable
+        self.solutions = []
 
     def setActiveMesh(self,mesh):
         self.active_mesh = mesh
@@ -55,8 +66,6 @@ class PythonFileSettings(Settings):
     def __init__(self, namespace, *args, **kwargs):
         super().__init__(*args,**kwargs)
         self.name = "Python File Settings"
-        self.solutions = []
-        self.meshes = []
         for name, item in namespace.items():
             if isinstance(item, ngs.CoefficientFunction):
                 item.name = name
@@ -65,6 +74,12 @@ class PythonFileSettings(Settings):
                 item.name =  name
                 self.meshes.append((item,None))
         self.active_mesh = self.meshes[-1][0]
+
+    def __getstate__(self):
+        return (super().__getstate__(),)
+
+    def __setstate__(self, state):
+        super().__setstate__(state[0])
 
     def getQtWidget(self):
         super().getQtWidget()
