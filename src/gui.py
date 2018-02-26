@@ -202,6 +202,7 @@ Developed by Joachim Schoeberl at
                     line += "\n"
 
         self.console.execute(source=txt, hidden=True, interactive=True)
+        self.settings_toolbox.addSettings(PythonFileSettings(gui=self, namespace=self.console.kernel_manager.kernel.shell.__dict__))
 
     def run(self,filename = None):
         import os, threading
