@@ -1,13 +1,19 @@
 
 from . import widgets as wid
+from . import scenes
+
+from .widgets import ArrangeH, ArrangeV
 
 from PySide2 import QtWidgets
+
+import ngsolve as ngs
 
 class Settings():
     def __init__(self, gui):
         self.name = "Settings"
         self.gui = gui
         self.toolboxupdate = lambda me: None
+        self.active_mesh = None
 
     def getQtWidget(self):
         self.widgets = wid.OptionWidgets()
@@ -17,8 +23,11 @@ class Settings():
         self.comb_sol = QtWidgets.QComboBox()
         btn_draw_sol = QtWidgets.QPushButton("Draw Solution")
         btn_draw_sol.clicked.connect(lambda : self.drawSolution(self.comb_sol.currentIndex(), self.gui.getActiveWindow()))
+        self.comb_active_mesh = QtWidgets.QComboBox()
+        self.comb_active_mesh.activated.connect(lambda index: self.setActiveMesh(self.meshes[index][0]))
         self.widgets.addGroup("Drawing", ArrangeV(ArrangeH(self.comb_mesh, btn_draw_mesh),
-                                                  ArrangeH(self.comb_sol, btn_draw_sol)))
+                                                  ArrangeH(self.comb_sol, btn_draw_sol),
+                                                  ArrangeH(QtWidgets.QLabel("On mesh:"), self.comb_active_mesh)))
         return self.widgets
 
     def setActiveMesh(self,mesh):
@@ -48,16 +57,19 @@ class PythonFileSettings(Settings):
         self.name = "Python File Settings"
         self.solutions = []
         self.meshes = []
-        for name, item in namespace:
+        for name, item in namespace.items():
             if isinstance(item, ngs.CoefficientFunction):
                 item.name = name
                 self.solutions.append((item,None))
             if isinstance(item,ngs.Mesh):
                 item.name =  name
                 self.meshes.append((item,None))
+        self.active_mesh = self.meshes[-1][0]
 
     def getQtWidget(self):
         super().getQtWidget()
         self.comb_sol.addItems([self._tryGetName(sol[0], "solution", i+1) for i,sol in enumerate(self.solutions)])
-        self.comb_mesh.addItems([self._tryGetName(msh[0], "mesh", i+1) for i,msh in enumerate(self.meshes)])
+        meshnames = [self._tryGetName(msh[0], "mesh", i+1) for i,msh in enumerate(self.meshes)]
+        self.comb_mesh.addItems(meshnames)
+        self.comb_active_mesh.addItems(meshnames)
         return self.widgets

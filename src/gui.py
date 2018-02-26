@@ -1,6 +1,7 @@
 
 from . import glwindow
 from . widgets import ArrangeV
+from . settings import PythonFileSettings
 
 import inspect
 import time
@@ -79,6 +80,41 @@ class SettingsToolBox(QtWidgets.QToolBox):
         self.addItem(widget, sett.name)
         self.setCurrentIndex(len(self.settings)-1)
 
+import os
+os.environ['Qt_API'] = 'pyside2'
+from IPython.lib import guisupport
+
+class NGSJupyterWidget(QtInProcessRichJupyterWidget):
+    def __init__(self, multikernel_manager,*args, **kwargs):
+        super().__init__(*args,**kwargs)
+        self.banner = """NGSolve %s
+Developed by Joachim Schoeberl at
+2010-xxxx Vienna University of Technology
+2006-2010 RWTH Aachen University
+1996-2006 Johannes Kepler University Linz
+
+""" % ngsolve.__version__
+        if multikernel_manager is not None:
+            self.kernel_id = multikernel_manager.start_kernel()
+            self.kernel_manager = multikernel_manager.get_kernel(self.kernel_id)
+        else:
+            self.kernel_manager = QtInProcessKernelManager()
+            self.kernel_manager.start_kernel()
+        self.kernel_manager.kernel.gui = 'qt'
+        self.kernel_client = self.kernel_manager.client()
+        self.kernel_client.start_channels()
+
+        def stop():
+            self.kernel_client.stop_channels()
+            self.kernel_manager.shutdown_kernel()
+            # this function is qt5 compatible as well
+            guisupport.get_app_qt4().exit()
+        self.exit_requested.connect(stop)
+
+    def pushVariables(self, varDict):
+        self.kernel_manager.kernel.shell.push(varDict)
+    def clearTerminal(self):
+        self._control.clear()
 
 import ngsolve
 class GUI():
@@ -101,16 +137,6 @@ class GUI():
         newWindowAction = createMenu.addAction("New &Window")
         newWindowAction.triggered.connect(self.make_window)
 
-        self.kernel_id = self.multikernel_manager.start_kernel()
-        kernel_manager = self.multikernel_manager.get_kernel(self.kernel_id)
-        class dummyioloop():
-            def call_later(self,a,b):
-                return
-            def stop(self):
-                return
-        kernel_manager.kernel.io_loop = dummyioloop()
-        kernel_client = kernel_manager.client()
-        kernel_client.start_channels()
         menu_splitter = QtWidgets.QSplitter(parent=self.mainWidget)
         menu_splitter.setOrientation(QtCore.Qt.Vertical)
         menu_splitter.addWidget(self.menuBar)
@@ -124,18 +150,8 @@ class GUI():
         window_splitter.setOrientation(QtCore.Qt.Vertical)
         self.window_tabber = QtWidgets.QTabWidget(parent=window_splitter)
         window_splitter.addWidget(self.window_tabber)
-        self.console = QtInProcessRichJupyterWidget()
-        self.console.banner = """NGSolve %s
-Developed by Joachim Schoeberl at
-2010-xxxx Vienna University of Technology
-2006-2010 RWTH Aachen University
-1996-2006 Johannes Kepler University Linz
-
-""" % ngsolve.__version__
+        self.console = NGSJupyterWidget(multikernel_manager = self.multikernel_manager)
         window_splitter.addWidget(self.console)
-        self.console.kernel_manager = kernel_manager
-        self.console.kernel_client = kernel_client
-        self.console.exit_requested.connect(lambda c: self.app.exit())
         menu_splitter.setSizes([100, 10000])
         toolbox_splitter.setSizes([15000, 85000])
         window_splitter.setSizes([70000, 30000])
@@ -143,7 +159,6 @@ Developed by Joachim Schoeberl at
         menu_splitter.show()
         self.console.show()
         self.mainWidget.setWindowTitle("NGSolve")
-
         # crawl for plugins
         try:
             from . import plugins as plu
@@ -198,25 +213,21 @@ Developed by Joachim Schoeberl at
         with open(filename, "r") as f:
             for line in f.readlines():
                 txt += line
-                if line[-1] != "\\":
-                    line += "\n"
-
-        self.console.execute(source=txt, hidden=True, interactive=True)
-        self.settings_toolbox.addSettings(PythonFileSettings(gui=self, namespace=self.console.kernel_manager.kernel.shell.__dict__))
+        self.console.execute(txt,hidden=True, interactive=True)
+        self.settings_toolbox.addSettings(PythonFileSettings(gui=self, namespace=self.console.kernel_manager.kernel.shell.user_ns))
 
     def run(self,filename = None):
         import os, threading
         self.mainWidget.show()
         globs = inspect.stack()[1][0].f_globals
-        self.multikernel_manager.get_kernel(self.kernel_id).kernel.shell.push(globs)
+        self.console.pushVariables(globs)
         if filename:
             name, ext = os.path.splitext(filename)
             if ext == ".py":
                 self.loadPythonFile(filename)
             else:
                 print("Cannot load file type: ", ext)
-        res = self.app.exec_()
+        self.app.exec_()
         for window in self.windows:
             window.glWidget.freeResources()
-        self.multikernel_manager.shutdown_kernel(self.kernel_id)
 
