@@ -11,6 +11,7 @@ from PySide2 import QtWidgets, QtCore, QtGui
 from jupyter_client.multikernelmanager import MultiKernelManager
 from qtconsole.inprocess import QtInProcessRichJupyterWidget
 from traitlets import DottedObjectName
+from qtutils import inmain_decorator, inthread
 
 class MultiQtKernelManager(MultiKernelManager):
     kernel_manager_class = DottedObjectName("qtconsole.inprocess.QtInProcessKernelManager",
@@ -72,6 +73,7 @@ class SettingsToolBox(QtWidgets.QToolBox):
         super().__init__(*args,**kwargs)
         self.settings = []
 
+    @inmain_decorator(wait_for_return=False)
     def addSettings(self, sett):
         self.settings.append(sett)
         widget = QtWidgets.QWidget()
@@ -117,8 +119,11 @@ Developed by Joachim Schoeberl at
             guisupport.get_app_qt4().exit()
         self.exit_requested.connect(stop)
 
+    @inmain_decorator(wait_for_return=True)
     def pushVariables(self, varDict):
         self.kernel_manager.kernel.shell.push(varDict)
+
+    @inmain_decorator(wait_for_return=True)
     def clearTerminal(self):
         self._control.clear()
 
@@ -141,7 +146,7 @@ class GUI():
             filename, filt = QtWidgets.QFileDialog.getOpenFileName(caption = "Load Python File",
                                                                    filter = "Python files (*.py)")
             if filename:
-                self.loadPythonFile(filename)
+                inthread(self.loadPythonFile,filename)
         loadPython = loadMenu.addAction("&Python File", shortcut = "l+y")
         loadPython.triggered.connect(selectPythonFile)
         createMenu = self.menuBar.addMenu("&Create")
@@ -248,12 +253,19 @@ class GUI():
         for win in self.windows:
             win.redraw(blocking=blocking)
 
-    def loadPythonFile(self, filename):
+    @inmain_decorator(wait_for_return=True)
+    def _loadFile(self, filename):
         txt = ""
-        with open(filename, "r") as f:
+        with open(filename,"r") as f:
             for line in f.readlines():
                 txt += line
-        self.console.execute(txt,hidden=True, interactive=True)
+        return txt
+
+    def loadPythonFile(self, filename):
+        txt = self._loadFile(filename)
+        exec_locals = {}
+        exec(txt,exec_locals)
+        self.console.pushVariables(exec_locals)
         self.settings_toolbox.addSettings(PythonFileSettings(gui=self, namespace=self.console.kernel_manager.kernel.shell.user_ns))
 
     def run(self,filename = None):
