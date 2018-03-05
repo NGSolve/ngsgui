@@ -13,6 +13,10 @@ from qtconsole.inprocess import QtInProcessRichJupyterWidget
 from traitlets import DottedObjectName
 from qtutils import inmain_decorator, inthread
 
+import os
+os.environ['Qt_API'] = 'pyside2'
+from IPython.lib import guisupport
+
 class MultiQtKernelManager(MultiKernelManager):
     kernel_manager_class = DottedObjectName("qtconsole.inprocess.QtInProcessKernelManager",
                                             config = True,
@@ -23,6 +27,7 @@ class MenuBarWithDict(QtWidgets.QMenuBar):
         super().__init__(*args,**kwargs)
         self._dict = {}
 
+    @inmain_decorator(wait_for_return=True)
     def addMenu(self, name, *args, **kwargs):
         menu = MenuWithDict(super().addMenu(name,*args,**kwargs))
         self._dict[name] = menu
@@ -38,6 +43,7 @@ class MenuWithDict(QtWidgets.QMenu):
     def __init__(self,menu):
         self._dict = {}
 
+    @inmain_decorator(wait_for_return=True)
     def addMenu(self, name, *args, **kwargs):
         menu = MenuWithDict(super().addMenu(name,*args,**kwargs))
         self._dict["name"] = menu
@@ -51,6 +57,7 @@ class MainWindow(QtWidgets.QWidget):
         super().__init__(*args,**kwargs)
         self.last = time.time()
 
+    @inmain_decorator(wait_for_return=True)
     def redraw(self, blocking = True):
         if time.time() - self.last < 0.02:
             return
@@ -81,10 +88,6 @@ class SettingsToolBox(QtWidgets.QToolBox):
         widget.layout().setAlignment(QtCore.Qt.AlignTop)
         self.addItem(widget, sett.name)
         self.setCurrentIndex(len(self.settings)-1)
-
-import os
-os.environ['Qt_API'] = 'pyside2'
-from IPython.lib import guisupport
 
 class NGSJupyterWidget(QtInProcessRichJupyterWidget):
     def __init__(self, multikernel_manager,*args, **kwargs):
@@ -194,6 +197,7 @@ class GUI():
                         if issubclass(val, GuiPlugin):
                             val.loadPlugin(self)
 
+    @inmain_decorator(wait_for_return=True)
     def make_window(self):
         if len(self.windows):
             shared = self.windows[0]
@@ -241,14 +245,13 @@ class GUI():
             self.make_window()
         return self.window_tabber.currentWidget()
 
-    def getWindow(self,index=-1):
-        return self.windows[index]
-
+    @inmain_decorator(wait_for_return=True)
     def draw(self, *args, **kwargs):
         if not len(self.windows):
             self.make_window()
         self.windows[0].draw(*args, **kwargs)
 
+    @inmain_decorator(wait_for_return=True)
     def redraw(self, blocking=True):
         for win in self.windows:
             win.redraw(blocking=blocking)
@@ -266,7 +269,7 @@ class GUI():
         exec_locals = {}
         exec(txt,exec_locals)
         self.console.pushVariables(exec_locals)
-        self.settings_toolbox.addSettings(PythonFileSettings(gui=self, namespace=self.console.kernel_manager.kernel.shell.user_ns))
+        self.settings_toolbox.addSettings(PythonFileSettings(gui=self, name = filename, namespace=exec_locals))
 
     def run(self,filename = None):
         import os, threading

@@ -63,9 +63,9 @@ class Settings():
 
 class PythonFileSettings(Settings):
 
-    def __init__(self, namespace, *args, **kwargs):
+    def __init__(self, name, namespace, *args, **kwargs):
         super().__init__(*args,**kwargs)
-        self.name = "Python File Settings"
+        self.name = "Python File Settings: " + name
         for name, item in namespace.items():
             if isinstance(item, ngs.CoefficientFunction):
                 item.name = name
@@ -73,7 +73,8 @@ class PythonFileSettings(Settings):
             if isinstance(item,ngs.Mesh):
                 item.name =  name
                 self.meshes.append((item,None))
-        self.active_mesh = self.meshes[-1][0]
+        if self.meshes:
+            self.active_mesh = self.meshes[-1][0]
 
     def __getstate__(self):
         return (super().__getstate__(),)
