@@ -62,14 +62,15 @@ class MainWindow(QtWidgets.QWidget):
     def redraw(self, blocking = True):
         if time.time() - self.last < 0.02:
             return
-        for window in self.windows:
-            if blocking:
-                self.glWidget.redraw_mutex.lock()
-                self.glWidget.redraw_signal.emit()
-                self.glWidget.redraw_update_done.wait(self.glWidget.redraw_mutex)
-                self.glWidget.redraw_mutex.unlock()
-            else:
-                self.glWidget.redraw_signal.emit()
+        for window in (self.window_tabber.widget(index) for index in range(self.window_tabber.count())):
+            if window.isGLWindow():
+                if blocking:
+                    self.glWidget.redraw_mutex.lock()
+                    self.glWidget.redraw_signal.emit()
+                    self.glWidget.redraw_update_done.wait(self.glWidget.redraw_mutex)
+                    self.glWidget.redraw_mutex.unlock()
+                else:
+                    self.glWidget.redraw_signal.emit()
         self.last = time.time()
 
     def keyPressEvent(self, event):
@@ -134,8 +135,8 @@ Developed by Joachim Schoeberl at
 import ngsolve
 class GUI():
     def __init__(self):
-        self.windows = []
         self.app = QtWidgets.QApplication([])
+        self.common_context = None
         self.multikernel_manager = MultiQtKernelManager()
         self.mainWidget = MainWindow()
         self.menuBar = MenuBarWithDict()
@@ -169,6 +170,12 @@ class GUI():
         toolbox_splitter.addWidget(window_splitter)
         window_splitter.setOrientation(QtCore.Qt.Vertical)
         self.window_tabber = QtWidgets.QTabWidget(parent=window_splitter)
+        self.window_tabber.setTabsClosable(True)
+        def _remove_tab(index):
+            if self.activeGLWindow == self.window_tabber.widget(index):
+                self.activeGLWindow = None
+            self.window_tabber.removeTab(index)
+        self.window_tabber.tabCloseRequested.connect(_remove_tab)
         window_splitter.addWidget(self.window_tabber)
         self.console = NGSJupyterWidget(multikernel_manager = self.multikernel_manager)
         window_splitter.addWidget(self.console)
@@ -200,16 +207,11 @@ class GUI():
 
     @inmain_decorator(wait_for_return=True)
     def make_window(self):
-        if len(self.windows):
-            shared = self.windows[0]
-        else:
-            shared = None
-        window = glwindow.WindowTab(shared=shared)
-        self.window_tabber.addTab(window,"window" + str(len(self.windows)+1))
+        self.activeGLWindow = window = glwindow.WindowTab(shared=self.common_context)
+        if not self.common_context:
+            self.common_context = window
+        self.window_tabber.addTab(window,"window" + str(self.window_tabber.count() + 1))
         self.window_tabber.setCurrentWidget(window)
-        window.show()
-        self.windows.append(window)
-        self.activeGLWindow = window
         return window
 
     def saveSolution(self):
@@ -234,18 +236,17 @@ class GUI():
         with open(filename, "rb") as f:
             tabs, settings = pickle.load(f)
         for tab in tabs:
-            self.window_tabber.addTab(tab, "window" + str(len(self.windows)+1))
+            self.window_tabber.addTab(tab, "window" + str(self.window_tabber.count()))
             tab.show()
-            self.windows.append(tab)
             self.window_tabber.setCurrentWidget(tab)
         for setting in settings:
             setting.gui = self
             self.settings_toolbox.addSettings(setting)
 
-    def getActiveWindow(self):
-        if not self.window_tabber.count():
-            self.make_window()
-        return self.window_tabber.currentWidget()
+    # def getActiveWindow(self):
+    #     if not self.window_tabber.count():
+    #         self.make_window()
+    #     return self.window_tabber.currentWidget()
 
     def getActiveGLWindow(self):
         if self.activeGLWindow is None:
@@ -254,14 +255,14 @@ class GUI():
 
     @inmain_decorator(wait_for_return=True)
     def draw(self, *args, **kwargs):
-        if not len(self.windows):
-            self.make_window()
-        self.windows[0].draw(*args, **kwargs)
+        self.getActiveGLWindow().draw(*args,**kwargs)
 
     @inmain_decorator(wait_for_return=True)
     def redraw(self, blocking=True):
-        for win in self.windows:
-            win.redraw(blocking=blocking)
+        for index in range(self.window_tabber.count()):
+            win = self.window_tabber.widget(index)
+            if win.isGLWindow():
+                win.redraw(blocking=blocking)
 
     @inmain_decorator(wait_for_return=True)
     def _loadFile(self, filename):
@@ -287,8 +288,7 @@ class GUI():
             if ext == ".py":
                 self.loadPythonFile(filename)
             else:
-                print("Cannot load file type: ", ext)
+                self.msgbox = QtWidgets.QMessageBox(text="Cannot load file type: " + ext)
+                self.msgbox.setWindowTitle("File loading error")
+                self.msgbox.show()
         self.app.exec_()
-        for window in self.windows:
-            window.glWidget.freeResources()
-

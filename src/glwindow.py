@@ -129,6 +129,9 @@ class WindowTab(QtWidgets.QWidget):
         self.overlay = scenes.OverlayScene(name="Global options")
         self.draw(self.overlay)
 
+    def isGLWindow(self):
+        return True
+
     def draw(self, scene):
         self.scenes.append(scene)
         self.glWidget.makeCurrent()
@@ -345,6 +348,14 @@ class FileEditTab(QtWidgets.QPlainTextEdit):
             if self.windowTitle()[0] != "*":
                 self.setWindowTitle("* " + self.windowTitle())
         self.textChanged.connect(setTitleAsterix)
+
+    def isGLWindow(self):
+        return False
+
+    def contextMenuEvent(self, event):
+        menu = self.createStandardContextMenu()
+        run_section = menu.addAction("Run selection")
+        menu.exec_(event.globalPos())
 
     def save(self):
         if self.windowTitle()[0] == "*":
