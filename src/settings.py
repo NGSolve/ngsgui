@@ -1,11 +1,12 @@
 
 from . import widgets as wid
 from . import scenes
+from .thread import inthread
 
 from .widgets import ArrangeH, ArrangeV
 
 from PySide2 import QtWidgets
-from qtutils import inmain_decorator, inthread
+from qtutils import inmain_decorator
 
 import ngsolve as ngs
 
@@ -70,6 +71,7 @@ class PythonFileSettings(Settings):
         self.name = "Python File Settings: " + name
         self.active_mesh = None
         self.exec_locals = {}
+        self.active_thread = None
 
     def __getstate__(self):
         return (super().__getstate__(),)
@@ -82,15 +84,31 @@ class PythonFileSettings(Settings):
         btn_save = QtWidgets.QPushButton("Save")
         btn_save.clicked.connect(self.save)
         btn_run = QtWidgets.QPushButton("Run")
-        btn_run.clicked.connect(self.run)
+        def _run():
+            def run_and_reset():
+                self.run()
+                self.active_thread = None
+            if self.active_thread:
+                self.msgbox = QtWidgets.QMessageBox(text="Already running, please stop the other computation before starting a new one!")
+                self.msgbox.setWindowTitle("Multiple computations error")
+                self.msgbox.show()
+                return
+            self.active_thread = inthread(run_and_reset)
+        btn_run.clicked.connect(_run)
+        btn_stop = QtWidgets.QPushButton("Stop")
+        btn_stop.clicked.connect(self.stop)
         btn_clear = QtWidgets.QPushButton("Clear")
         btn_clear.clicked.connect(self.clear)
-        self.widgets.addGroup("Executing", ArrangeH(btn_save,btn_run,btn_clear),importance=5)
+        self.widgets.addGroup("Executing", ArrangeV(ArrangeH(btn_save,btn_run),
+                                                    ArrangeH(btn_stop,btn_clear)),
+                              importance=5)
         return self.widgets
 
+    @inmain_decorator(wait_for_return=False)
     def updateWidget(self):
         self.comb_sol.clear()
         self.comb_mesh.clear()
+        self.comb_active_mesh.clear()
         self.solutions = []
         self.meshes = []
         for name, item in self.exec_locals.items():
@@ -107,14 +125,22 @@ class PythonFileSettings(Settings):
         if self.meshes:
             self.active_mesh = self.meshes[-1][0]
 
+    @inmain_decorator(wait_for_return=True)
     def save(self):
         self.editTab.save()
 
     def run(self):
         self.save()
-        inthread(self.editTab.run(self.exec_locals))
+        self.editTab.run(self.exec_locals)
         self.gui.console.pushVariables(self.exec_locals)
         self.updateWidget()
 
     def clear(self):
         self.exec_locals = {}
+        self.updateWidget()
+
+    def stop(self):
+        if self.active_thread:
+            self.active_thread.raiseExc(KeyboardInterrupt)
+            self.gui.console.pushVariables(self.exec_locals)
+            self.updateWidget()
