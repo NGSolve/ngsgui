@@ -104,7 +104,7 @@ class WindowTab(QtWidgets.QWidget):
         self.shared = shared
 
         if shared:
-            self.glWidget = GLWidget(shared.glWidget)
+            self.glWidget = GLWidget(shared=shared)
         else:
             self.glWidget = GLWidget()
         self.glWidget.makeCurrent()

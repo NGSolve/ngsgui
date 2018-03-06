@@ -172,8 +172,12 @@ class GUI():
         self.window_tabber = QtWidgets.QTabWidget(parent=window_splitter)
         self.window_tabber.setTabsClosable(True)
         def _remove_tab(index):
-            if self.activeGLWindow == self.window_tabber.widget(index):
-                self.activeGLWindow = None
+            if self.window_tabber.widget(index).isGLWindow():
+                if self.common_context == self.window_tabber.widget(index).glWidget:
+                    # cannot delete window with openGL context
+                    return
+                if self.activeGLWindow == self.window_tabber.widget(index):
+                    self.activeGLWindow = None
             self.window_tabber.removeTab(index)
         self.window_tabber.tabCloseRequested.connect(_remove_tab)
         window_splitter.addWidget(self.window_tabber)
@@ -208,8 +212,8 @@ class GUI():
     @inmain_decorator(wait_for_return=True)
     def make_window(self):
         self.activeGLWindow = window = glwindow.WindowTab(shared=self.common_context)
-        if not self.common_context:
-            self.common_context = window
+        if self.common_context is None:
+            self.common_context = window.glWidget
         self.window_tabber.addTab(window,"window" + str(self.window_tabber.count() + 1))
         self.window_tabber.setCurrentWidget(window)
         return window
