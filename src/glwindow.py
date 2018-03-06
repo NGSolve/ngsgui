@@ -1,10 +1,10 @@
 
-from . import glmath
+from . import glmath, syntax, scenes
 from . import widgets as wid
-from . import scenes
 from . import gl as mygl
 from .widgets import ArrangeV, ArrangeH
 from qtconsole.inprocess import QtInProcessRichJupyterWidget
+from qtutils import inmain_decorator, inthread
 
 import time
 from ngsolve.bla import Vector
@@ -330,3 +330,31 @@ class GLWidget(QtOpenGL.QGLWidget):
 
     def freeResources(self):
         self.makeCurrent()
+
+class FileEditTab(QtWidgets.QPlainTextEdit):
+    def __init__(self, filename, *args, **kwargs):
+        super().__init__(*args,**kwargs)
+        self.filename = filename
+        self.setWindowTitle(filename)
+        with open(filename,"r") as f:
+            txt = f.read()
+        highlight = syntax.PythonHighlighter(self.document())
+        self.setPlainText(txt)
+        def setTitleAsterix():
+            if self.windowTitle()[0] != "*":
+                self.setWindowTitle("* " + self.windowTitle())
+        self.textChanged.connect(setTitleAsterix)
+
+    def save(self):
+        if self.windowTitle()[0] == "*":
+            with open(self.filename,"w") as f:
+                f.write(self.toPlainText())
+            self.setWindowTitle(self.windowTitle()[2:])
+
+    @inmain_decorator(wait_for_return=True)
+    def toPlainText(self):
+        return super().toPlainText()
+
+    def run(self, exec_locals):
+        exec(self.toPlainText(), exec_locals)
+

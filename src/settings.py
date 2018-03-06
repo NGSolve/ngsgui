@@ -5,6 +5,7 @@ from . import scenes
 from .widgets import ArrangeH, ArrangeV
 
 from PySide2 import QtWidgets
+from qtutils import inmain_decorator, inthread
 
 import ngsolve as ngs
 
@@ -22,10 +23,10 @@ class Settings():
         self.widgets = wid.OptionWidgets()
         self.comb_mesh = QtWidgets.QComboBox()
         btn_draw_mesh = QtWidgets.QPushButton("Draw Mesh")
-        btn_draw_mesh.clicked.connect(lambda : self.drawMesh(self.comb_mesh.currentIndex(), self.gui.getActiveWindow()))
+        btn_draw_mesh.clicked.connect(lambda : self.drawMesh(self.comb_mesh.currentIndex(), self.gui.getActiveGLWindow()))
         self.comb_sol = QtWidgets.QComboBox()
         btn_draw_sol = QtWidgets.QPushButton("Draw Solution")
-        btn_draw_sol.clicked.connect(lambda : self.drawSolution(self.comb_sol.currentIndex(), self.gui.getActiveWindow()))
+        btn_draw_sol.clicked.connect(lambda : self.drawSolution(self.comb_sol.currentIndex(), self.gui.getActiveGLWindow()))
         self.comb_active_mesh = QtWidgets.QComboBox()
         self.comb_active_mesh.activated.connect(lambda index: self.setActiveMesh(self.meshes[index][0]))
         self.widgets.addGroup("Drawing", ArrangeV(ArrangeH(self.comb_mesh, btn_draw_mesh),
@@ -63,18 +64,12 @@ class Settings():
 
 class PythonFileSettings(Settings):
 
-    def __init__(self, name, namespace, *args, **kwargs):
+    def __init__(self, name, editTab, *args, **kwargs):
         super().__init__(*args,**kwargs)
+        self.editTab = editTab
         self.name = "Python File Settings: " + name
-        for name, item in namespace.items():
-            if isinstance(item, ngs.CoefficientFunction):
-                item.name = name
-                self.solutions.append((item,None))
-            if isinstance(item,ngs.Mesh):
-                item.name =  name
-                self.meshes.append((item,None))
-        if self.meshes:
-            self.active_mesh = self.meshes[-1][0]
+        self.active_mesh = None
+        self.exec_locals = {}
 
     def __getstate__(self):
         return (super().__getstate__(),)
@@ -84,8 +79,42 @@ class PythonFileSettings(Settings):
 
     def getQtWidget(self):
         super().getQtWidget()
+        btn_save = QtWidgets.QPushButton("Save")
+        btn_save.clicked.connect(self.save)
+        btn_run = QtWidgets.QPushButton("Run")
+        btn_run.clicked.connect(self.run)
+        btn_clear = QtWidgets.QPushButton("Clear")
+        btn_clear.clicked.connect(self.clear)
+        self.widgets.addGroup("Executing", ArrangeH(btn_save,btn_run,btn_clear),importance=5)
+        return self.widgets
+
+    def updateWidget(self):
+        self.comb_sol.clear()
+        self.comb_mesh.clear()
+        self.solutions = []
+        self.meshes = []
+        for name, item in self.exec_locals.items():
+            if isinstance(item, ngs.CoefficientFunction):
+                item.name = name
+                self.solutions.append((item,None))
+            if isinstance(item,ngs.Mesh):
+                item.name =  name
+                self.meshes.append((item,None))
         self.comb_sol.addItems([self._tryGetName(sol[0], "solution", i+1) for i,sol in enumerate(self.solutions)])
         meshnames = [self._tryGetName(msh[0], "mesh", i+1) for i,msh in enumerate(self.meshes)]
         self.comb_mesh.addItems(meshnames)
         self.comb_active_mesh.addItems(meshnames)
-        return self.widgets
+        if self.meshes:
+            self.active_mesh = self.meshes[-1][0]
+
+    def save(self):
+        self.editTab.save()
+
+    def run(self):
+        self.save()
+        inthread(self.editTab.run(self.exec_locals))
+        self.gui.console.pushVariables(self.exec_locals)
+        self.updateWidget()
+
+    def clear(self):
+        self.exec_locals = {}

@@ -138,6 +138,7 @@ class GUI():
         self.multikernel_manager = MultiQtKernelManager()
         self.mainWidget = MainWindow()
         self.menuBar = MenuBarWithDict()
+        self.activeGLWindow = None
         fileMenu = self.menuBar.addMenu("&File")
         loadMenu = fileMenu.addMenu("&Load")
         saveMenu = fileMenu.addMenu("&Save")
@@ -149,13 +150,12 @@ class GUI():
             filename, filt = QtWidgets.QFileDialog.getOpenFileName(caption = "Load Python File",
                                                                    filter = "Python files (*.py)")
             if filename:
-                inthread(self.loadPythonFile,filename)
+                self.loadPythonFile(filename)
         loadPython = loadMenu.addAction("&Python File", shortcut = "l+y")
         loadPython.triggered.connect(selectPythonFile)
         createMenu = self.menuBar.addMenu("&Create")
         newWindowAction = createMenu.addAction("New &Window")
         newWindowAction.triggered.connect(self.make_window)
-
         menu_splitter = QtWidgets.QSplitter(parent=self.mainWidget)
         menu_splitter.setOrientation(QtCore.Qt.Vertical)
         menu_splitter.addWidget(self.menuBar)
@@ -208,6 +208,7 @@ class GUI():
         self.window_tabber.setCurrentWidget(window)
         window.show()
         self.windows.append(window)
+        self.activeGLWindow = window
         return window
 
     def saveSolution(self):
@@ -245,6 +246,11 @@ class GUI():
             self.make_window()
         return self.window_tabber.currentWidget()
 
+    def getActiveGLWindow(self):
+        if self.activeGLWindow is None:
+            self.make_window()
+        return self.activeGLWindow
+
     @inmain_decorator(wait_for_return=True)
     def draw(self, *args, **kwargs):
         if not len(self.windows):
@@ -265,11 +271,10 @@ class GUI():
         return txt
 
     def loadPythonFile(self, filename):
-        txt = self._loadFile(filename)
-        exec_locals = {}
-        exec(txt,exec_locals)
-        self.console.pushVariables(exec_locals)
-        self.settings_toolbox.addSettings(PythonFileSettings(gui=self, name = filename, namespace=exec_locals))
+        editTab = glwindow.FileEditTab(filename=filename,parent=self.window_tabber)
+        pos = self.window_tabber.addTab(editTab,filename)
+        editTab.windowTitleChanged.connect(lambda txt: self.window_tabber.setTabText(pos, txt))
+        self.settings_toolbox.addSettings(PythonFileSettings(gui=self, name = filename, editTab = editTab))
 
     def run(self,filename = None):
         import os, threading

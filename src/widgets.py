@@ -65,12 +65,19 @@ class OptionWidgets():
         self.visibilityOptions = {}
         self.groups = []
 
-    def addGroup(self, name, *widgets, connectedVisibility=None):
+    def addGroup(self, name, *widgets, connectedVisibility=None, importance = 0):
         group = QtWidgets.QGroupBox(name)
         group.setLayout(ArrangeV(*widgets))
+        group._importance = importance
         if connectedVisibility is not None:
             self.visibilityOptions[connectedVisibility] = group
-        self.groups.append(group)
+        if len(self.groups) and importance > self.groups[-1]._importance:
+            for i in range(len(self.groups)):
+                if self.groups[i]._importance < importance:
+                    self.groups.insert(i,group)
+                    break
+        else:
+            self.groups.append(group)
         self.update()
 
     def update(self):
