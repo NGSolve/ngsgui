@@ -1,5 +1,6 @@
 
 from . import syntax
+from .widgets import ArrangeH, ArrangeV
 
 from PySide2 import QtWidgets, QtGui, QtCore
 from qtutils import inmain_decorator
@@ -12,12 +13,50 @@ class LineNumberArea(QtWidgets.QWidget):
     def paintEvent(self,event):
         self.editor.lineNumberAreaPaintEvent(event)
 
+class ButtonArea(QtWidgets.QWidget):
+    def __init__(self, editor, *args, **kwargs):
+        super().__init__(parent=editor, *args,**kwargs)
+        self.editor = editor
+        pal = QtGui.QPalette()
+        pal.setColor(QtGui.QPalette.Background,QtCore.Qt.black)
+        self.setPalette(pal)
+        savebtn = QtWidgets.QPushButton("Save")
+        savebtn.setShortcut(QtGui.QKeySequence("Ctrl+s"))
+        savebtn.clicked.connect(self.editor.save)
+        runbtn = QtWidgets.QPushButton("Run")
+        def _run():
+            self.editor.settings.computation_started_at = 0
+            self.editor.settings.run(self.editor.toPlainText())
+        runbtn.setShortcut(QtGui.QKeySequence("Ctrl+x"))
+        runbtn.clicked.connect(_run)
+        def _run_cursor():
+            self.editor.settings.computation_started_at = self.editor.textCursor().position()
+            txt = ""
+            block = self.editor.textCursor().block()
+            while block != self.editor.document().end():
+                txt += block.text() + "\n"
+                block = block.next()
+            self.editor.settings.run(txt)
+        runbtn_cursor = QtWidgets.QPushButton("Run from Cursor")
+        runbtn_cursor.setShortcut(QtGui.QKeySequence("Ctrl+Shift+x"))
+        runbtn_cursor.clicked.connect(_run_cursor)
+        run_line = QtWidgets.QPushButton("Run line")
+        run_line.setShortcut("Ctrl+l")
+        def _run_line():
+            self.editor.settings.computation_started_at = self.editor.textCursor().position()
+            self.editor.settings.run(self.editor.textCursor().block().text())
+            self.editor.moveCursor(QtGui.QTextCursor.Down)
+        run_line.clicked.connect(_run_line)
+        layout = ArrangeH(savebtn, runbtn, runbtn_cursor,run_line)
+        self.setContentsMargins(-5,-5,15,-5)
+        self.setLayout(layout)
 
 class CodeEditor(QtWidgets.QPlainTextEdit):
     def __init__(self, filename, *args, **kwargs):
         super().__init__(*args,**kwargs)
         self.filename = filename
         self.setWindowTitle(filename)
+        self.buttonArea = ButtonArea(self)
         self.lineNumberArea = LineNumberArea(self)
         self.blockCountChanged.connect(self.updateLineNumberAreaWidth)
         self.updateRequest.connect(self.updateLineNumberArea)
@@ -83,10 +122,14 @@ class CodeEditor(QtWidgets.QPlainTextEdit):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         cr = self.contentsRect()
-        self.lineNumberArea.setGeometry(QtCore.QRect(cr.left(), cr.top(), self.lineNumberAreaWidth(), cr.height()))
+        self.lineNumberArea.setGeometry(QtCore.QRect(cr.left(), cr.top() + self.buttonAreaHeight(), self.lineNumberAreaWidth(), cr.height()))
+        self.buttonArea.setGeometry(QtCore.QRect(cr.left(), cr.top(), cr.right(), self.buttonAreaHeight()))
+
+    def buttonAreaHeight(self):
+        return 30
 
     def updateLineNumberAreaWidth(self, newBlockCount):
-        self.setViewportMargins(self.lineNumberAreaWidth(),0,0,0)
+        self.setViewportMargins(self.lineNumberAreaWidth(),self.buttonAreaHeight(),0,0)
 
     def highlightCurrentLine(self):
         selection = QtWidgets.QTextEdit.ExtraSelection()

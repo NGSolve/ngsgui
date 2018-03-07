@@ -128,7 +128,7 @@ class PythonFileSettings(Settings):
         self.editTab.setTextCursor(QtGui.QTextCursor(self.editTab.document().findBlock(self.computation_started_at)))
         for i in range(lineno-1):
             self.editTab.moveCursor(QtGui.QTextCursor.Down)
-        self.msgbox = QtWidgets.QMessageBox(text = type(e).__name__ + ": " + str(e) + "\nIn line " + str(lineno))
+        self.msgbox = QtWidgets.QMessageBox(text = type(e).__name__ + ": " + str(e))
         self.msgbox.setWindowTitle("Exception caught!")
         self.msgbox.show()
 
