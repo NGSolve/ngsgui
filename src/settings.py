@@ -5,7 +5,7 @@ from .thread import inthread
 
 from .widgets import ArrangeH, ArrangeV
 
-from PySide2 import QtWidgets
+from PySide2 import QtWidgets, QtGui
 from qtutils import inmain_decorator
 
 import ngsolve as ngs
@@ -59,7 +59,7 @@ class Settings():
 
     def _tryGetName(self,obj, prefix, index):
         try:
-            return obj.name
+            return obj._name
         except AttributeError:
             return prefix + str(index)
 
@@ -85,7 +85,10 @@ class PythonFileSettings(Settings):
         btn_save = QtWidgets.QPushButton("Save")
         btn_save.clicked.connect(self.save)
         btn_run = QtWidgets.QPushButton("Run")
-        btn_run.clicked.connect(lambda : self.run(self.editTab.toPlainText()))
+        def _run():
+            self.computation_started_at = 0
+            self.run(self.editTab.toPlainText())
+        btn_run.clicked.connect(_run)
         btn_stop = QtWidgets.QPushButton("Stop")
         btn_stop.clicked.connect(self.stop)
         btn_clear = QtWidgets.QPushButton("Clear")
@@ -104,10 +107,10 @@ class PythonFileSettings(Settings):
         self.meshes = []
         for name, item in self.exec_locals.items():
             if isinstance(item, ngs.CoefficientFunction):
-                item.name = name
+                item._name = name
                 self.solutions.append((item,None))
             if isinstance(item,ngs.Mesh):
-                item.name =  name
+                item._name =  name
                 self.meshes.append((item,None))
         self.comb_sol.addItems([self._tryGetName(sol[0], "solution", i+1) for i,sol in enumerate(self.solutions)])
         meshnames = [self._tryGetName(msh[0], "mesh", i+1) for i,msh in enumerate(self.meshes)]
@@ -120,9 +123,23 @@ class PythonFileSettings(Settings):
     def save(self):
         self.editTab.save()
 
+    @inmain_decorator(wait_for_return=False)
+    def show_exception(self,e, lineno):
+        self.editTab.setTextCursor(QtGui.QTextCursor(self.editTab.document().findBlock(self.computation_started_at)))
+        for i in range(lineno-1):
+            self.editTab.moveCursor(QtGui.QTextCursor.Down)
+        self.msgbox = QtWidgets.QMessageBox(text = type(e).__name__ + ": " + str(e) + "\nIn line " + str(lineno))
+        self.msgbox.setWindowTitle("Exception caught!")
+        self.msgbox.show()
+
     def run(self, code):
-        def _run(code):
-            self.editTab.run(code,self.exec_locals)
+        def _run(_code):
+            try:
+                self.editTab.run(_code,self.exec_locals)
+            except Exception as e:
+                import sys
+                tb = sys.exc_info()[2].tb_next.tb_next
+                self.show_exception(e, tb.tb_frame.f_lineno)
             self.gui.console.pushVariables(self.exec_locals)
             self.updateWidget()
         def run_and_reset():

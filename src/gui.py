@@ -1,5 +1,6 @@
 
 from . import glwindow
+from . import code_editor
 from . widgets import ArrangeV
 from . settings import PythonFileSettings
 from .thread import inthread
@@ -277,7 +278,7 @@ class GUI():
         return txt
 
     def loadPythonFile(self, filename):
-        editTab = glwindow.FileEditTab(filename=filename,parent=self.window_tabber)
+        editTab = code_editor.CodeEditor(filename=filename,parent=self.window_tabber)
         pos = self.window_tabber.addTab(editTab,filename)
         editTab.windowTitleChanged.connect(lambda txt: self.window_tabber.setTabText(pos, txt))
         self.settings_toolbox.addSettings(PythonFileSettings(gui=self, name = filename, editTab = editTab))
