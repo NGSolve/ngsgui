@@ -355,6 +355,7 @@ class FileEditTab(QtWidgets.QPlainTextEdit):
     def contextMenuEvent(self, event):
         menu = self.createStandardContextMenu()
         run_section = menu.addAction("Run selection")
+        run_section.triggered.connect(lambda : self.settings.run(self.textCursor().selection().toPlainText()))
         menu.exec_(event.globalPos())
 
     def save(self):
@@ -367,6 +368,6 @@ class FileEditTab(QtWidgets.QPlainTextEdit):
     def toPlainText(self):
         return super().toPlainText()
 
-    def run(self, exec_locals):
-        exec(self.toPlainText(), exec_locals)
+    def run(self, code, exec_locals):
+        exec(code, exec_locals)
 

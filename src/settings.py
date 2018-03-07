@@ -68,6 +68,7 @@ class PythonFileSettings(Settings):
     def __init__(self, name, editTab, *args, **kwargs):
         super().__init__(*args,**kwargs)
         self.editTab = editTab
+        editTab.settings = self
         self.name = "Python File Settings: " + name
         self.active_mesh = None
         self.exec_locals = {}
@@ -84,17 +85,7 @@ class PythonFileSettings(Settings):
         btn_save = QtWidgets.QPushButton("Save")
         btn_save.clicked.connect(self.save)
         btn_run = QtWidgets.QPushButton("Run")
-        def _run():
-            def run_and_reset():
-                self.run()
-                self.active_thread = None
-            if self.active_thread:
-                self.msgbox = QtWidgets.QMessageBox(text="Already running, please stop the other computation before starting a new one!")
-                self.msgbox.setWindowTitle("Multiple computations error")
-                self.msgbox.show()
-                return
-            self.active_thread = inthread(run_and_reset)
-        btn_run.clicked.connect(_run)
+        btn_run.clicked.connect(lambda : self.run(self.editTab.toPlainText()))
         btn_stop = QtWidgets.QPushButton("Stop")
         btn_stop.clicked.connect(self.stop)
         btn_clear = QtWidgets.QPushButton("Clear")
@@ -129,11 +120,20 @@ class PythonFileSettings(Settings):
     def save(self):
         self.editTab.save()
 
-    def run(self):
-        self.save()
-        self.editTab.run(self.exec_locals)
-        self.gui.console.pushVariables(self.exec_locals)
-        self.updateWidget()
+    def run(self, code):
+        def _run(code):
+            self.editTab.run(code,self.exec_locals)
+            self.gui.console.pushVariables(self.exec_locals)
+            self.updateWidget()
+        def run_and_reset():
+            _run(code)
+            self.active_thread = None
+        if self.active_thread:
+                self.msgbox = QtWidgets.QMessageBox(text="Already running, please stop the other computation before starting a new one!")
+                self.msgbox.setWindowTitle("Multiple computations error")
+                self.msgbox.show()
+                return
+        self.active_thread = inthread(run_and_reset)
 
     def clear(self):
         self.exec_locals = {}
