@@ -61,8 +61,8 @@ void CutSubTet(float values[8], vec3 normals[8], vec3 pos[8], vec3 lams[8], int 
 }
 
 void main() {
-    int n = subdivision+1;
-    int N = order*n+1;
+    int N = order*(subdivision+1)+1;
+    int n = N-1;
     int values_per_element = N*(N+1)*(N+2)/6;
 
     // float min = texelFetch(coefficients, 2+values_per_element*inData[0].element).r;

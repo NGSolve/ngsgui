@@ -957,7 +957,7 @@ class SolutionScene(BaseFunctionSceneObject):
         uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
 
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
-        instances = 2**(self.getSubdivision()*3)
+        instances = (self.getOrder()*(2**self.getSubdivision()))**3
         glDrawArraysInstanced(GL_POINTS, 0, self.mesh.ne, instances)
         glBindVertexArray(0)
 
