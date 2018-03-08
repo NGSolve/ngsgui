@@ -470,15 +470,6 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
     def setColorMapLinear(self, value):
         self.colormap_linear = value
 
-
-    def setSubdivision(self, value):
-        self.subdivision = int(value)
-        self.update()
-
-#     def setOrder(self, value):
-#         self.order = int(value)
-#         self.update()
-
     def getQtWidget(self, updateGL, params):
 
         settings = wid.ColorMapSettings(min=-2, max=2, min_value=self.colormap_min, max_value=self.colormap_max)
@@ -496,11 +487,6 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
         super().getQtWidget(updateGL, params)
         self.widgets.addGroup("Colormap", settings)
 
-#         self.widgets.addGroup("Subdivision",
-#                 self._widgets["Subdivision"], 
-#                 self._widgets["Order"]
-#                 )
-#         self.widgets.addGroup("Subdivision", *self._widgets["Subdivision"].values())
         return self.widgets
 
 class OverlayScene(SceneObject):
@@ -614,14 +600,12 @@ class MeshScene(BaseMeshSceneObject):
         super().__init__(mesh, **kwargs)
 
         self.qtWidget = None
-        self.show_wireframe = wireframe
-        self.show_surface = surface
-        self.show_elements = elements
         self.shrink = shrink
         self.tesslevel = 1.0
 
-        addOption(self, "Show", "ShowSurface", typ=bool, default_value=True)
-        addOption(self, "Show", "ShowElements", typ=bool, default_value=False)
+        addOption(self, "Show", "ShowWireframe", typ=bool, default_value=True, update_widget_on_change=True)
+        addOption(self, "Show", "ShowSurface", typ=bool, default_value=True, update_widget_on_change=True)
+        addOption(self, "Show", "ShowElements", typ=bool, default_value=False, update_widget_on_change=True)
 
     def __getstate__(self):
         super_state = super().__getstate__()
@@ -679,7 +663,7 @@ class MeshScene(BaseMeshSceneObject):
         uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
 
 
-        if self.show_surface:
+        if self.getShowSurface():
             uniforms.set('light_ambient', 0.3)
             uniforms.set('light_diffuse', 0.7)
             uniforms.set('TessLevel', self.tesslevel)
@@ -692,7 +676,7 @@ class MeshScene(BaseMeshSceneObject):
             glDisable(GL_POLYGON_OFFSET_FILL)
 
 
-        if self.show_wireframe:
+        if self.getShowWireframe():
             uniforms.set('light_ambient', 0.0)
             uniforms.set('light_diffuse', 0.0)
             uniforms.set('TessLevel', self.tesslevel)
@@ -723,7 +707,7 @@ class MeshScene(BaseMeshSceneObject):
 
         self.renderSurface(settings)
 
-        if self.show_elements:
+        if self.getShowElements():
             self.renderElements(settings)
 
     def renderElements(self, settings):
@@ -782,44 +766,12 @@ class MeshScene(BaseMeshSceneObject):
     def setShrink(self, value):
         self.shrink = value
 
-    def setShowElements(self, value):
-        self.show_elements = value
-        self.widgets.update()
-
-    def setShowSurface(self, value):
-        self.show_surface = value
-        self.widgets.update()
-
-    def setShowWireframe(self, value):
-        self.show_wireframe = value
-
     def setTessellation(self, value):
         self.tesslevel = value
 
     def getQtWidget(self, updateGL, params):
         super().getQtWidget(updateGL, params)
 
-        def setShowElements(value):
-            self.show_elements = value
-            self.widgets.update()
-            updateGL()
-        def setShowSurface(value):
-            self.show_surface = value
-            self.widgets.update()
-            updateGL()
-
-        def setShowWireframe(value):
-            self.show_wireframe = value
-            updateGL()
-        comps = []
-        comps.append(wid.CheckBox("Surface", setShowSurface, updateGL, checked=self.show_surface))
-        comps.append(wid.CheckBox("Wireframe", setShowWireframe, updateGL,
-                                  checked=self.show_wireframe))
-        if self.mesh.dim == 3:
-            comps.append(wid.CheckBox("Elements", setShowElements, updateGL,
-                                      checked=self.show_elements))
-        QtWidgets.QGroupBox("Components")
-        self.widgets.addGroup("Components",*comps)
         if self.mesh.dim == 3:
             mats = self.mesh.GetBoundaries()
             matsname = "Boundary Conditions"
@@ -831,7 +783,7 @@ class MeshScene(BaseMeshSceneObject):
             self.indexcolors.colors_changed.connect(self.updateIndexColors)
             self.indexcolors.colors_changed.connect(updateGL)
             self.updateIndexColors()
-            self.widgets.addGroup(matsname,self.indexcolors,connectedVisibility = lambda: self.show_surface)
+            self.widgets.addGroup(matsname,self.indexcolors,connectedVisibility = lambda: self.getShowSurface())
 
         if self.mesh.dim == 3:
             shrink = wid.RangeGroup("Shrink", min=0.0, max=1.0, value=self.shrink)
@@ -841,8 +793,8 @@ class MeshScene(BaseMeshSceneObject):
             self.matcolors.colors_changed.connect(self.updateMatColors)
             self.matcolors.colors_changed.connect(updateGL)
             self.updateMatColors()
-            self.widgets.addGroup("Shrink",shrink, connectedVisibility = lambda: self.show_elements)
-            self.widgets.addGroup("Materials",self.matcolors, connectedVisibility = lambda: self.show_elements)
+            self.widgets.addGroup("Shrink",shrink, connectedVisibility = lambda: self.getShowElements())
+            self.widgets.addGroup("Materials",self.matcolors, connectedVisibility = lambda: self.getShowElements())
 
         tess = QtWidgets.QDoubleSpinBox()
         tess.setRange(1, 20)
@@ -864,8 +816,6 @@ class SolutionScene(BaseFunctionSceneObject):
 
         self.qtWidget = None
         self.vao = None
-        self.show_surface = True
-        self.show_clipping_plane = False
 
     def __getstate__(self):
         super_state = super().__getstate__()
@@ -894,18 +844,18 @@ class SolutionScene(BaseFunctionSceneObject):
         glBindVertexArray(self.clipping_vao)
         self.clipping_program = Program('clipping.vert', 'clipping.geom', 'solution.frag')
         glUseProgram(self.clipping_program.id)
-        self.volume_values = Texture(GL_TEXTURE_BUFFER, GL_R32F)
         glBindVertexArray(0)
 
         # iso-surface
         self.iso_surface_vao = glGenVertexArrays(1)
         glBindVertexArray(self.clipping_vao)
-        self.iso_surface_program = Program('clipping.vert', 'clipping.geom', 'solution.frag')
+        self.iso_surface_program = Program('clipping.vert', 'isosurface.geom', 'solution.frag')
         glBindVertexArray(0)
 
 
     def update(self):
         super().update()
+        print('solutionscene - update')
         if self.mesh.dim==2:
             try:
                 self.surface_values.store(ngui.GetValues(self.cf, self.mesh, ngsolve.VOL, 2**self.getSubdivision()-1, self.getOrder()))
@@ -914,14 +864,14 @@ class SolutionScene(BaseFunctionSceneObject):
                 self.show_surface = False
 
         if self.mesh.dim==3:
-            cf = self.cf
-#             cf = ngsolve.CoefficientFunction((self.cf, ngsolve.grad(self.cf)))
+#             cf = self.cf
+            cf = ngsolve.CoefficientFunction((self.cf, ngsolve.grad(self.cf)))
             formats = [None, GL_R32F, GL_RG32F, GL_RGB32F, GL_RGBA32F];
 #             cf = ngsolve.CoefficientFunction((ngsolve.x, ngsolve.x+1, ngsolve.x+2, ngsolve.x+3));
             self.volume_values = Texture(GL_TEXTURE_BUFFER, formats[cf.dim])
             values = ngui.GetValues(cf, self.mesh, ngsolve.VOL, 2**self.getSubdivision()-1, self.getOrder() )
 #             print('values',list(enumerate(values)))
-#             print('values',values)
+            print('values',len(values))
             self.volume_values.store(values)
             try:
                 self.surface_values.store(ngui.GetValues(self.cf, self.mesh, ngsolve.BND, 2**self.getSubdivision()-1, self.getOrder()))

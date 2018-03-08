@@ -13,6 +13,7 @@ layout(triangle_strip, max_vertices=6) out;
 in VertexData
 {
   flat int element;
+  flat int instance;
 } inData[];
 
 out VertexData

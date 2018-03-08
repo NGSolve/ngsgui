@@ -217,7 +217,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         with mygl.Query(GL.GL_PRIMITIVES_GENERATED) as q:
             for scene in self.scenes:
                 scene.render(self.rendering_parameters) #model, view, projection)
-        # print('\rtotal trigs drawn ' + str(q.value)+' '*10, end='')
+        print('\rtotal trigs drawn ' + str(q.value)+' '*10, end='')
 
     def addScene(self, scene):
         self.scenes.append(scene)

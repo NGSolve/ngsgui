@@ -60,7 +60,10 @@ class Shader(GLObject):
         glCompileShader(self.id)
 
         if glGetShaderiv(self.id, GL_COMPILE_STATUS) != GL_TRUE:
-            raise RuntimeError('Error when compiling ' + fullpath + ': '+glGetShaderInfoLog(self.id).decode()+'\ncompiled code:\n'+self._code)
+            numerated_shader_code = ""
+            for i,line in enumerate(self._code.split('\n')):
+                numerated_shader_code += str(i)+":\t"+line+'\n'
+            raise RuntimeError('Error when compiling ' + fullpath + ': '+glGetShaderInfoLog(self.id).decode()+'\ncompiled code:\n'+numerated_shader_code)
 
 class Program(GLObject):
     class Uniforms:

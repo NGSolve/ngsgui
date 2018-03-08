@@ -37,7 +37,7 @@ inline SIMD_IntegrationRule GetReferenceRule( int dim, int order, int subdivisio
       for (auto k : Range(n))
         for (auto j : Range(n-k))
             for (auto i : Range(n-j-k))
-              ir.Append(IntegrationPoint(i*h, j*h, k*h));
+              ir.Append(IntegrationPoint(1.0-i*h-j*h-k*h, i*h, j*h));
   }
 
   return SIMD_IntegrationRule(ir);
@@ -52,9 +52,22 @@ PYBIND11_MODULE(ngui, m) {
 
             SIMD_IntegrationRule ir = GetReferenceRule( dim, order, subdivision );
             int nip = ir.GetNIP();
-            FlatMatrix<SIMD<double>> values(ir.Size(), 1, lh);
+            int ncomps = cf->Dimension();
 
-            res.SetAllocSize(ma->GetNE(vb)*nip);
+            FlatMatrix<SIMD<double>> values(ncomps, ir.Size(), lh);
+
+            constexpr int extra_values = 2;
+            int values_per_element = nip*ncomps;
+
+            auto getIndex = [=] ( int nr, int p, int comp ) { return extra_values*ncomps + nr*values_per_element + p*ncomps + comp; };
+
+            res.SetSize(extra_values*ncomps+ma->GetNE(vb)*values_per_element); // two entries for global min/max
+
+            ArrayMem<float, 10> min(ncomps);
+            ArrayMem<float, 10> max(ncomps);
+
+            min = std::numeric_limits<float>::max();
+            max = std::numeric_limits<float>::min();
 
             for (auto el : ma->Elements(vb)) {
                 auto verts = el.Vertices();
@@ -73,9 +86,20 @@ PYBIND11_MODULE(ngui, m) {
                   cf->Evaluate(mir, values);
                 }
 
-                FlatVector<double> vals(ir.GetNIP(), &values(0,0));
-                for (auto k : Range(nip))
-                    res.Append(vals[k]);
+                constexpr int n = SIMD<double>::Size();
+                FlatVector<double> vals(ir.GetNIP(), reinterpret_cast<double*>(&values(0,0)));
+                for (auto k : Range(nip)) {
+                    for (auto i : Range(ncomps)) {
+                      float val = values(i, k/n)[k%n];
+                      res[getIndex(el.Nr(), k, i)] = val;
+                      min[i] = min2(min[i], val);
+                      max[i] = max2(max[i], val);
+                    }
+                }
+            }
+            for (auto i : Range(ncomps)) {
+                res[i] = min[i];
+                res[ncomps + i] = max[i];
             }
           py::gil_scoped_acquire ac;
           return MoveToNumpyArray(res);
