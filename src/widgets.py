@@ -60,10 +60,15 @@ def DoubleSpinBox(*slots, step=1, name=None):
         return box
 
 
-class OptionWidgets():
-    def __init__(self):
+class OptionWidgets(QtCore.QObject):
+    updateGLSignal = QtCore.Signal()
+
+    def __init__(self, updateGL=None):
+        super().__init__()
         self.visibilityOptions = {}
         self.groups = []
+        if updateGL:
+            self.updateGLSignal.connect(updateGL)
 
     def addGroup(self, name, *widgets, connectedVisibility=None, importance = 0):
         group = QtWidgets.QGroupBox(name)

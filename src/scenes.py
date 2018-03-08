@@ -38,11 +38,11 @@ class WidgetWithLabel(QtWidgets.QWidget):
         else:
             self._value_widget.setValue(value)
 
-def addOption(self, name, default_value, typ=None, update_on_change=False, widget_type=None, *args, **kwargs):
-    if not hasattr(self, '_widgets'):
-        self._widgets = {}
+def addOption(self, group, name, default_value, typ=None, update_on_change=False, update_widget_on_change=False, widget_type=None, label=None, *args, **kwargs):
+    if not group in self._widgets:
+        self._widgets[group] = {}
 
-    label = name
+    label = label or name
     propname = "_"+name
     widgetname = "_"+name+"Widget"
     setter_name = "set"+name
@@ -55,20 +55,20 @@ def addOption(self, name, default_value, typ=None, update_on_change=False, widge
     elif widget_type:
         w = widget_type(*args, **kwargs)
         w.setValue(default_value)
-        self._widgets[name] = w
+        self._widgets[group][name] = w
 
     elif typ==bool:
         cb = QtWidgets.QCheckBox(label)
 
         cb.setCheckState(QtCore.Qt.Checked if default_value else QtCore.Qt.Unchecked)
         cb.stateChanged.connect(lambda value: getattr(self, setter_name)(bool(value)))
-        self._widgets[name] = WidgetWithLabel(cb)
+        self._widgets[group][name] = WidgetWithLabel(cb)
 
     elif typ==int:
         box = QtWidgets.QSpinBox()
         box.valueChanged[int].connect(lambda value: getattr(self, setter_name)(value))
         w = WidgetWithLabel(box, label)
-        self._widgets[name] = w 
+        self._widgets[group][name] = w 
 
     else:
         print("unknown type: ", typ)
@@ -83,12 +83,14 @@ def addOption(self, name, default_value, typ=None, update_on_change=False, widge
         setattr(self, propname, value) 
         
         if update_on_change:
-            self._needsUpdate.emit()
+            self.update()
+        if update_widget_on_change:
+            self.widgets.update()
         if redraw:
-            self._needsRender.emit()
+            self.widgets.updateGLSignal.emit()
             
         if update_gui:
-            widget = self._widgets[name]
+            widget = self._widgets[group][name]
             widget.setValue(value)
 
     cls = type(self)
@@ -292,9 +294,11 @@ class TextRenderer:
 class SceneObject():
     scene_counter = 1
     def __init__(self,active=True, name = None):
+        self.gl_initialized = False
         self.actions = {}
         self.active_action = None
         self.active = active
+        self._widgets = {}
         if name is None:
             self.name = "Scene" + str(SceneObject.scene_counter)
             SceneObject.scene_counter += 1
@@ -310,6 +314,16 @@ class SceneObject():
         self.active = state[1]
         # TODO: can we pickle actions somehow?
         self.actions = {}
+        self.gl_initialized = False
+
+    def initGL(self):
+        self.gl_initialized = True
+
+    def update(self):
+        self.initGL()
+
+    def render(self, settings):
+        pass
 
     def deferRendering(self):
         """used to render some scenes later (eg. overlays, transparency)
@@ -331,7 +345,7 @@ class SceneObject():
         self.window = window
 
     def getQtWidget(self, updateGL, params):
-        self.widgets = wid.OptionWidgets()
+        self.widgets = wid.OptionWidgets(updateGL=updateGL)
 
         self.actionCheckboxes = []
 
@@ -364,6 +378,9 @@ class SceneObject():
             widget.setLayout(layout)
             self.widgets.addGroup("Actions",widget)
 
+        for group in self._widgets:
+            self.widgets.addGroup(group,*self._widgets[group].values())
+
         return self.widgets
 
     def addAction(self,action,name=None):
@@ -384,6 +401,14 @@ class BaseMeshSceneObject(SceneObject):
         self.mesh = mesh
 
     def initGL(self):
+        if self.gl_initialized:
+            return
+        print('basemeshscene - init')
+        super().initGL()
+
+    def update(self):
+        print('basemeshscene - update')
+        super().update()
         self.mesh_data = MeshData(self.mesh)
 
     def __getstate__(self):
@@ -410,11 +435,12 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
                 raise RuntimeError("A mesh is needed if the given function is no GridFunction")
             self.cf = cf
 
-        addOption(self, "Subdivision", typ=int, default_value=0, update_on_change=True)
-        addOption(self, "Order", typ=int, default_value=1, update_on_change=True)
+        super().__init__(mesh,**kwargs)
+
+        addOption(self, "Subdivision", "Subdivision", typ=int, default_value=0, update_on_change=True)
+        addOption(self, "Subdivision", "Order", typ=int, default_value=1, update_on_change=True)
 
         n = self.getOrder()*(2**self.getSubdivision())+1
-        BaseMeshSceneObject.__init__(self,mesh,**kwargs)
 
         self.colormap_min = -1
         self.colormap_max = 1
@@ -470,17 +496,17 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
         super().getQtWidget(updateGL, params)
         self.widgets.addGroup("Colormap", settings)
 
-        self.widgets.addGroup("Subdivision",
-                self._widgets["Subdivision"], 
-                self._widgets["Order"]
-                )
+#         self.widgets.addGroup("Subdivision",
+#                 self._widgets["Subdivision"], 
+#                 self._widgets["Order"]
+#                 )
+#         self.widgets.addGroup("Subdivision", *self._widgets["Subdivision"].values())
         return self.widgets
 
 class OverlayScene(SceneObject):
     """Class  for overlay objects (Colormap, coordinate system, logo)"""
     def __init__(self,**kwargs):
         super().__init__(**kwargs)
-        self.gl_initialized = False
         self.show_logo = True
         self.show_cross = True
         self.cross_scale = 0.3
@@ -494,6 +520,7 @@ class OverlayScene(SceneObject):
     def initGL(self):
         if self.gl_initialized:
             return
+        super().initGL()
 
         self.text_renderer = TextRenderer()
 
@@ -507,7 +534,6 @@ class OverlayScene(SceneObject):
 
         self.program.attributes.bind('pos', self.cross_points)
 
-        self.gl_initialized = True
         glBindVertexArray(0)
 
     def render(self, settings):
@@ -551,7 +577,7 @@ class OverlayScene(SceneObject):
         self.show_cross = show
 
     def update(self):
-        self.initGL()
+        super().update()
 
     def callupdateGL(self):
         self.updateGL()
@@ -588,12 +614,14 @@ class MeshScene(BaseMeshSceneObject):
         super().__init__(mesh, **kwargs)
 
         self.qtWidget = None
-        self.gl_initialized = False
         self.show_wireframe = wireframe
         self.show_surface = surface
         self.show_elements = elements
         self.shrink = shrink
         self.tesslevel = 1.0
+
+        addOption(self, "Show", "ShowSurface", typ=bool, default_value=True)
+        addOption(self, "Show", "ShowElements", typ=bool, default_value=False)
 
     def __getstate__(self):
         super_state = super().__getstate__()
@@ -604,7 +632,6 @@ class MeshScene(BaseMeshSceneObject):
         super().__setstate__(state[0])
         self.show_wireframe, self.show_surface, self.show_elements, self.shrink, self.tesslevel = state[1:]
         self.qtWidget = None
-        self.gl_initialized = False
 
     def initGL(self):
         if self.gl_initialized:
@@ -621,7 +648,6 @@ class MeshScene(BaseMeshSceneObject):
                               data_format=GL_UNSIGNED_BYTE )
 
         self.element_program = Program('elements.vert','elements.geom','elements.frag')
-        self.gl_initialized = True
 
         self.elements_vao = glGenVertexArrays(1)
         glBindVertexArray(self.elements_vao)
@@ -680,7 +706,8 @@ class MeshScene(BaseMeshSceneObject):
 
 
     def update(self):
-        self.initGL()
+        print('mesh update')
+        super().update()
         glBindVertexArray(self.surface_vao)
 
         glBindVertexArray(self.elements_vao)
@@ -831,9 +858,9 @@ class SolutionScene(BaseFunctionSceneObject):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        addOption(self, "ShowSurface", typ=bool, default_value=False)
-        addOption(self, "ShowClippingPlane", typ=bool, default_value=False)
-        addOption(self, "ShowIsoSurface", typ=bool, default_value=False)
+        addOption(self, "Show", "ShowSurface", typ=bool, default_value=True)
+        addOption(self, "Show", "ShowClippingPlane", typ=bool, default_value=False)
+        addOption(self, "Show", "ShowIsoSurface", typ=bool, default_value=False)
 
         self.qtWidget = None
         self.vao = None
@@ -851,9 +878,8 @@ class SolutionScene(BaseFunctionSceneObject):
         self.vao = None
 
     def initGL(self):
-        if self.vao:
+        if self.gl_initialized:
             return
-
         super().initGL()
 
         # solution on surface mesh
@@ -871,8 +897,15 @@ class SolutionScene(BaseFunctionSceneObject):
         self.volume_values = Texture(GL_TEXTURE_BUFFER, GL_R32F)
         glBindVertexArray(0)
 
+        # iso-surface
+        self.iso_surface_vao = glGenVertexArrays(1)
+        glBindVertexArray(self.clipping_vao)
+        self.iso_surface_program = Program('clipping.vert', 'clipping.geom', 'solution.frag')
+        glBindVertexArray(0)
+
+
     def update(self):
-        self.initGL()
+        super().update()
         if self.mesh.dim==2:
             try:
                 self.surface_values.store(ngui.GetValues(self.cf, self.mesh, ngsolve.VOL, 2**self.getSubdivision()-1, self.getOrder()))
@@ -1024,23 +1057,9 @@ class SolutionScene(BaseFunctionSceneObject):
         if not self.active:
             return
 
-        if self.show_surface:
+        if self.getShowSurface():
             self.renderSurface(settings)
-        if self.show_clipping_plane:
+        if self.getShowClippingPlane():
             self.renderClippingPlane(settings)
-
-    def setShowSurface(self, value):
-        self. show_surface = value
-
-    def setShowClippingPlane(self, value):
-        self. show_clipping_plane = value
-
-    def getQtWidget(self, updateGL, params):
-        self.widgets = super().getQtWidget(updateGL, params)
-
-        surface = self._widgets["ShowSurface"]
-        clipping = self._widgets["ShowClippingPlane"]
-        iso = self._widgets["ShowIsoSurface"]
-        self.widgets.addGroup("Show",surface, clipping, iso)
-
-        return self.widgets
+        if self.getShowIsoSurface():
+            self.renderIsoSurface(settings)
