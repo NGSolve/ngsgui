@@ -1,9 +1,9 @@
 
 from . import syntax
 from .widgets import ArrangeH, ArrangeV
+from .thread import inmain_decorator
 
 from PySide2 import QtWidgets, QtGui, QtCore
-from qtutils import inmain_decorator
 
 class LineNumberArea(QtWidgets.QWidget):
     def __init__(self, editor, *args, **kwargs):

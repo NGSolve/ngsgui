@@ -1,12 +1,11 @@
 
 from . import widgets as wid
 from . import scenes
-from .thread import inthread
+from .thread import inthread, inmain_decorator
 
 from .widgets import ArrangeH, ArrangeV
 
 from PySide2 import QtWidgets, QtGui
-from qtutils import inmain_decorator
 
 import ngsolve as ngs
 

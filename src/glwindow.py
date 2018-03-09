@@ -3,9 +3,8 @@ from . import glmath, scenes
 from . import widgets as wid
 from . import gl as mygl
 from .widgets import ArrangeV, ArrangeH
-from .thread import inthread
+from .thread import inthread, inmain_decorator
 from qtconsole.inprocess import QtInProcessRichJupyterWidget
-from qtutils import inmain_decorator
 
 import time
 from ngsolve.bla import Vector

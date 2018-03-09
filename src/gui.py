@@ -3,7 +3,7 @@ from . import glwindow
 from . import code_editor
 from . widgets import ArrangeV
 from . settings import PythonFileSettings
-from .thread import inthread
+from .thread import inthread, inmain_decorator
 
 import inspect
 import time
@@ -13,7 +13,6 @@ from PySide2 import QtWidgets, QtCore, QtGui
 from jupyter_client.multikernelmanager import MultiKernelManager
 from qtconsole.inprocess import QtInProcessRichJupyterWidget
 from traitlets import DottedObjectName
-from qtutils import inmain_decorator
 
 import os
 os.environ['Qt_API'] = 'pyside2'

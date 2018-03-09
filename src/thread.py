@@ -71,3 +71,80 @@ def inthread(func, *args, **kwargs):
     thread.daemon = True
     thread.start()
     return thread
+
+
+# the following code is copied from qtutils, because it doesn't support PySide2 yet and throws if it doesn't find
+# any other qt binding library. For documentation have a look at qtutils
+
+from queue import Queue
+from qtutils.qt.QtCore import QEvent, QObject, QCoreApplication, QTimer, QThread
+import functools
+
+def _reraise(exc_info):
+    type, value, traceback = exc_info
+    raise value.with_traceback(traceback)
+
+def get_inmain_result(queue):
+    result, exception = queue.get()
+    if exception is not None:
+        _reraise(exception)
+    return result
+
+class CallEvent(QEvent):
+    """An event containing a request for a function call."""
+    EVENT_TYPE = QEvent.Type(QEvent.registerEventType())
+
+    def __init__(self, queue, exceptions_in_main, fn, *args, **kwargs):
+        QEvent.__init__(self, self.EVENT_TYPE)
+        self.fn = fn
+        self.args = args
+        self.kwargs = kwargs
+        self._returnval = queue
+        # Whether to raise exceptions in the main thread or store them
+        # for raising in the calling thread:
+        self._exceptions_in_main = exceptions_in_main
+
+class Caller(QObject):
+    """An event handler which calls the function held within a CallEvent."""
+
+    def event(self, event):
+        event.accept()
+        exception = None
+        try:
+            result = event.fn(*event.args, **event.kwargs)
+        except Exception:
+            # Store for re-raising the exception in the calling thread:
+            exception = sys.exc_info()
+            result = None
+            if event._exceptions_in_main:
+                # Or, if nobody is listening for this exception,
+                # better raise it here so it doesn't pass
+                # silently:
+                raise
+        finally:
+            event._returnval.put([result, exception])
+        return True
+
+caller = Caller()
+
+def _in_main_later(fn, exceptions_in_main, *args, **kwargs):
+    queue = Queue()
+    QCoreApplication.postEvent(caller, CallEvent(queue, exceptions_in_main, fn, *args, **kwargs))
+    return queue
+
+def inmain(fn, *args, **kwargs):
+    if threading.current_thread().name == 'MainThread':
+        return fn(*args, **kwargs)
+    return get_inmain_result(_in_main_later(fn, False, *args, **kwargs))
+
+
+def inmain_decorator(wait_for_return=True, exceptions_in_main=True):
+    def wrap(fn):
+        """A decorator which sets any function to always run in the main thread."""
+        @functools.wraps(fn)
+        def f(*args, **kwargs):
+            if wait_for_return:
+                return inmain(fn, *args, **kwargs)
+            return _in_main_later(fn, exceptions_in_main, *args, **kwargs)
+        return f
+    return wrap
