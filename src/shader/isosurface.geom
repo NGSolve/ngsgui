@@ -3,9 +3,9 @@
 {include utils.inc}
 
 uniform samplerBuffer coefficients;
-uniform bool clipping_plane_deformation;
 uniform float colormap_min, colormap_max;
 uniform Mesh mesh;
+uniform bool have_gradient;
 
 layout(points) in;
 layout(triangle_strip, max_vertices=24) out;
@@ -49,10 +49,14 @@ void CutSubTet(float values[8], vec3 normals[8], vec3 pos[8], vec3 lams[8], int 
         int n_cutting_points = CutElement3d( el, vals, outpos, lam, norm );
 
         if(n_cutting_points >= 3) {
+            if(!have_gradient) {
+                outData.normal = cross(outpos[1]-outpos[0], outpos[2]-outpos[0]);
+            }
             for (int i=0; i<n_cutting_points; i++) {
                 outData.pos = outpos[i];
                 outData.lam = lam[i];
-                outData.normal = norm[i];
+                if(have_gradient)
+                  outData.normal = norm[i];
                 gl_Position = P * MV *vec4(outData.pos,1);
                 EmitVertex();
             }

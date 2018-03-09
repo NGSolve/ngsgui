@@ -100,23 +100,6 @@ def addOption(self, group, name, default_value, typ=None, update_on_change=False
     if not hasattr(cls, 'get'+name):
         setattr(cls, 'get'+name, getValue)
 
-def SceneOptionsClass(*options):
-    class Settings():
-        _initOptions = []
-        _options = options
-        _widgets = {}
-
-        def __init__(self):
-            super().__init__()
-            for f in self._initOptions:
-                f(self)
-
-    for opt in Settings._options:
-        AddOption(Settings, opt)
-
-    return Settings
-
-
 import ngsolve
 import numpy
 import ctypes
@@ -300,7 +283,7 @@ class SceneObject():
         self.active = active
         self._widgets = {}
         if name is None:
-            self.name = "Scene" + str(SceneObject.scene_counter)
+            self.name = type(self).__name__.split('.')[-1] + str(SceneObject.scene_counter)
             SceneObject.scene_counter += 1
         else:
             self.name = name
@@ -403,11 +386,9 @@ class BaseMeshSceneObject(SceneObject):
     def initGL(self):
         if self.gl_initialized:
             return
-        print('basemeshscene - init')
         super().initGL()
 
     def update(self):
-        print('basemeshscene - update')
         super().update()
         self.mesh_data = MeshData(self.mesh)
 
@@ -424,16 +405,21 @@ class BaseMeshSceneObject(SceneObject):
 
 class BaseFunctionSceneObject(BaseMeshSceneObject):
     """Base class for all scenes that depend on a coefficient function and a mesh"""
-    def __init__(self, cf, mesh=None, order=3, **kwargs):
+    def __init__(self, cf, mesh=None, order=3, gradient=None, **kwargs):
         self.cf = cf
         if isinstance(cf, ngsolve.comp.GridFunction):
+            if not gradient and cf.dim == 1:
+                gradient = ngsolve.grad(cf)
             mesh = cf.space.mesh
-            self.is_gridfunction = True
         else:
-            self.is_gridfunction = False
             if mesh==None:
                 raise RuntimeError("A mesh is needed if the given function is no GridFunction")
-            self.cf = cf
+
+        if gradient and cf.dim == 1:
+            self.cf = ngsolve.CoefficientFunction((cf, gradient))
+            self.have_gradient = True
+        else:
+            self.have_gradient = False
 
         super().__init__(mesh,**kwargs)
 
@@ -448,18 +434,17 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
 
     def __getstate__(self):
         super_state = super().__getstate__()
-        return (super_state, self.cf, self.is_gridfunction, self.getSubdivision(), self.getOrder(),
+        return (super_state, self.cf, self.getSubdivision(), self.getOrder(),
                 self.colormap_min, self.colormap_max, self.colormap_linear)
 
     def __setstate__(self, state):
         super().__setstate__(state[0])
         self.cf = state[1]
-        self.is_gridfunction = state[2]
-        self.setSubdivision(state[3])
-        self.setOrder(state[4])
-        self.colormap_min = state[5]
-        self.colormap_max = state[6]
-        self.colormap_linear = state[7]
+        self.setSubdivision(state[2])
+        self.setOrder(state[3])
+        self.colormap_min = state[4]
+        self.colormap_max = state[5]
+        self.colormap_linear = state[6]
 
     def setColorMapMin(self, value):
         self.colormap_min = value
@@ -832,11 +817,14 @@ class SolutionScene(BaseFunctionSceneObject):
             return
         super().initGL()
 
+        formats = [None, GL_R32F, GL_RG32F, GL_RGB32F, GL_RGBA32F];
+        self.volume_values = Texture(GL_TEXTURE_BUFFER, formats[self.cf.dim])
+        self.surface_values = Texture(GL_TEXTURE_BUFFER, formats[self.cf.dim])
+
         # solution on surface mesh
         self.surface_vao = glGenVertexArrays(1)
         glBindVertexArray(self.surface_vao)
         self.surface_program = Program('solution.vert', 'solution.frag')
-        self.surface_values = Texture(GL_TEXTURE_BUFFER, GL_R32F)
         glBindVertexArray(0)
 
         # solution on clipping plane
@@ -855,7 +843,6 @@ class SolutionScene(BaseFunctionSceneObject):
 
     def update(self):
         super().update()
-        print('solutionscene - update')
         if self.mesh.dim==2:
             try:
                 self.surface_values.store(ngui.GetValues(self.cf, self.mesh, ngsolve.VOL, 2**self.getSubdivision()-1, self.getOrder()))
@@ -864,19 +851,12 @@ class SolutionScene(BaseFunctionSceneObject):
                 self.show_surface = False
 
         if self.mesh.dim==3:
-#             cf = self.cf
-            cf = ngsolve.CoefficientFunction((self.cf, ngsolve.grad(self.cf)))
-            formats = [None, GL_R32F, GL_RG32F, GL_RGB32F, GL_RGBA32F];
-#             cf = ngsolve.CoefficientFunction((ngsolve.x, ngsolve.x+1, ngsolve.x+2, ngsolve.x+3));
-            self.volume_values = Texture(GL_TEXTURE_BUFFER, formats[cf.dim])
-            values = ngui.GetValues(cf, self.mesh, ngsolve.VOL, 2**self.getSubdivision()-1, self.getOrder() )
-#             print('values',list(enumerate(values)))
-            print('values',len(values))
+            values = ngui.GetValues(self.cf, self.mesh, ngsolve.VOL, 2**self.getSubdivision()-1, self.getOrder() )
             self.volume_values.store(values)
             try:
                 self.surface_values.store(ngui.GetValues(self.cf, self.mesh, ngsolve.BND, 2**self.getSubdivision()-1, self.getOrder()))
             except:
-                print("Cannot evaluate given function on surface elemnents")
+                print("Cannot evaluate given function on surface elements")
                 self.show_surface = False
 
     def renderSurface(self, settings):
@@ -930,7 +910,7 @@ class SolutionScene(BaseFunctionSceneObject):
         uniforms.set('colormap_min', self.colormap_min)
         uniforms.set('colormap_max', self.colormap_max)
         uniforms.set('colormap_linear', self.colormap_linear)
-        uniforms.set('clipping_plane_deformation', False)
+        uniforms.set('have_gradient', self.have_gradient)
         uniforms.set('clipping_plane', settings.clipping_plane)
         uniforms.set('do_clipping', True);
         uniforms.set('subdivision', 2**self.getSubdivision()-1)

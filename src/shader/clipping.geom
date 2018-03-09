@@ -45,8 +45,8 @@ void main() {
     vec4 plane = -inverse(transpose(mat4(vec4(tet.pos[0],1), vec4(tet.pos[1],1), vec4(tet.pos[2],1), vec4(tet.pos[3],1))))*vec4(values[0], values[1], values[2], values[3]);
 
     vec3 pos[4];
-    vec3 lam[4];
 
+    vec3 lam[4] = vec3[4]( vec3(1,0,0), vec3(0,1,0), vec3(0,0,1), vec3(0,0,0));
     int n_cutting_points = CutElement3d( tet, values, pos, lam );
 
     if(n_cutting_points >= 3) {
