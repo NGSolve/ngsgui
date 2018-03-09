@@ -22,11 +22,14 @@ vec3 TransformVec( vec3 x) {
 
 void main()
 {
-  // if(wireframe && inData.edgedist>1e-5) discard;
+  if(wireframe && inData.edgedist>1e-5) discard;
   FragColor = inData.color;
 
 
   if(do_clipping && dot(vec4(inData.pos,1.0),clipping_plane)<0)
+    discard;
+
+  if (FragColor.a == 0.0)
     discard;
 
 
