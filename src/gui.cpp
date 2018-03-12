@@ -22,6 +22,27 @@ py::object MoveToNumpyArray( ngstd::Array<T> &a )
       return py::array_t<T>(0, nullptr);
 }
 
+inline IntegrationRule GetReferenceRuleNoSIMD( int dim, int order, int subdivision )
+{
+  IntegrationRule ir;
+  int n = (order)*(subdivision+1)+1;
+  const double h = 1.0/(n-1);
+  if(dim==2) {
+      for (auto j : Range(n))
+          for (auto i : Range(n-j))
+              ir.Append(IntegrationPoint(i*h, j*h, 0.0));
+  }
+
+  if(dim==3) {
+      for (auto k : Range(n))
+        for (auto j : Range(n-k))
+            for (auto i : Range(n-j-k))
+              ir.Append(IntegrationPoint(i*h, j*h, k*h));
+  }
+
+  return ir;
+}
+
 inline SIMD_IntegrationRule GetReferenceRule( int dim, int order, int subdivision )
 {
   IntegrationRule ir;
@@ -56,27 +77,54 @@ PYBIND11_MODULE(ngui, m) {
 
             res.SetAllocSize(ma->GetNE(vb)*nip);
 
-            for (auto el : ma->Elements(vb)) {
-                auto verts = el.Vertices();
-                HeapReset hr(lh);
-                ElementTransformation & eltrans = ma->GetTrafo (el, lh);
-                if(ma->GetDimension()==2 && vb==VOL) {
-                  SIMD_MappedIntegrationRule<2,2> mir(ir, eltrans, lh);
-                  cf->Evaluate(mir, values);
-                }
-                else if(ma->GetDimension()==3 && vb==BND) {
-                  SIMD_MappedIntegrationRule<2,3> mir(ir, eltrans, lh);
-                  cf->Evaluate(mir, values);
-                }
-                else if(ma->GetDimension()==3 && vb==VOL) {
-                  SIMD_MappedIntegrationRule<3,3> mir(ir, eltrans, lh);
-                  cf->Evaluate(mir, values);
-                }
-
-                FlatVector<double> vals(ir.GetNIP(), &values(0,0));
-                for (auto k : Range(nip))
+            try
+              {
+                for (auto el : ma->Elements(vb)) {
+                  auto verts = el.Vertices();
+                  HeapReset hr(lh);
+                  ElementTransformation & eltrans = ma->GetTrafo (el, lh);
+                  if(ma->GetDimension()==2 && vb==VOL) {
+                    SIMD_MappedIntegrationRule<2,2> mir(ir, eltrans, lh);
+                    cf->Evaluate(mir, values);
+                  }
+                  else if(ma->GetDimension()==3 && vb==BND) {
+                    SIMD_MappedIntegrationRule<2,3> mir(ir, eltrans, lh);
+                    cf->Evaluate(mir, values);
+                  }
+                  else if(ma->GetDimension()==3 && vb==VOL) {
+                    SIMD_MappedIntegrationRule<3,3> mir(ir, eltrans, lh);
+                    cf->Evaluate(mir, values);
+                  }
+                  FlatVector<double> vals(ir.GetNIP(), &values(0,0));
+                  for (auto k : Range(nip))
                     res.Append(vals[k]);
-            }
+                }
+              }
+            catch(ExceptionNOSIMD e)
+              {
+                res.SetSize0();
+                IntegrationRule ir = GetReferenceRuleNoSIMD(dim,order,subdivision);
+                FlatMatrix<double> values(ir.Size(),1,lh);
+                for (auto el : ma->Elements(vb))
+                  {
+                    HeapReset hr(lh);
+                    ElementTransformation & eltrans = ma->GetTrafo (el, lh);
+                    if(ma->GetDimension()==2 && vb==VOL) {
+                      MappedIntegrationRule<2,2> mir(ir, eltrans, lh);
+                      cf->Evaluate(mir, values);
+                    }
+                    else if(ma->GetDimension()==3 && vb==BND) {
+                      MappedIntegrationRule<2,3> mir(ir, eltrans, lh);
+                      cf->Evaluate(mir, values);
+                    }
+                    else if(ma->GetDimension()==3 && vb==VOL) {
+                      MappedIntegrationRule<3,3> mir(ir, eltrans, lh);
+                      cf->Evaluate(mir, values);
+                    }
+                    for (auto k : Range(nip))
+                      res.Append(values(k,0));
+                  }
+              }
           py::gil_scoped_acquire ac;
           return MoveToNumpyArray(res);
       },py::call_guard<py::gil_scoped_release>());
