@@ -1,6 +1,7 @@
 import sys
 
-from PySide2.QtCore import QRegExp
+from PySide2 import QtCore
+from PySide2.QtCore import QRegExp, QRegularExpression
 from PySide2.QtGui import QColor, QTextCharFormat, QFont, QSyntaxHighlighter
 
 def format(color, style=''):
@@ -110,6 +111,19 @@ class PythonHighlighter (QSyntaxHighlighter):
         self.rules = [(QRegExp(pat), index, fmt)
             for (pat, index, fmt) in rules]
 
+        self.findRule = None
+
+    def setFindRule(self, pattern, color):
+        _color = QColor()
+        _color.setNamedColor(color)
+        _format = QTextCharFormat()
+        _format.setBackground(_color)
+        self.findRule = (pattern.lower(), _format)
+        self.rehighlight()
+
+    def clearFindRule(self):
+        self.findRule = None
+        self.rehighlight()
 
     def highlightBlock(self, text):
         """Apply syntax highlighting to the given block of text.
@@ -125,6 +139,14 @@ class PythonHighlighter (QSyntaxHighlighter):
                 self.setFormat(index, length, format)
                 index = expression.indexIn(text, index + length)
 
+        if self.findRule:
+            ltext = text.lower()
+            expression, format = self.findRule
+            index = ltext.find(expression,0)
+            while index >= 0:
+                length = len(expression)
+                self.setFormat(index,length,format)
+                index = ltext.find(expression, index + length)
         self.setCurrentBlockState(0)
 
         # Do multi-line strings

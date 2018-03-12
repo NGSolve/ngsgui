@@ -13,6 +13,42 @@ class LineNumberArea(QtWidgets.QWidget):
     def paintEvent(self,event):
         self.editor.lineNumberAreaPaintEvent(event)
 
+class TextFinder(QtWidgets.QDialog):
+    def __init__(self,editor, *args,**kwargs):
+        super().__init__(parent=editor, *args,**kwargs)
+        self.editor = editor
+        label = QtWidgets.QLabel("Find:")
+        textedit = QtWidgets.QLineEdit()
+        btn_next = QtWidgets.QPushButton("Next")
+        btn_up = QtWidgets.QPushButton("Up")
+        btn_close = QtWidgets.QPushButton("Close")
+        def _jump_next():
+            searchString = textedit.text().lower()
+            self.editor.find(searchString)
+        btn_next.clicked.connect(_jump_next)
+        def _jump_back():
+            searchString = textedit.text().lower()
+            print(searchString)
+            self.editor.find(searchString, QtGui.QTextDocument.FindBackward)
+        btn_up.clicked.connect(_jump_back)
+        def _highlight():
+            searchString = textedit.text()
+            if not searchString:
+                self.editor.highlighter.clearFindRule()
+            else:
+                self.editor.highlighter.setFindRule(searchString,'cyan')
+        textedit.textChanged.connect(_highlight)
+        btn_close.clicked.connect(self.close)
+        btn_close.setShortcut(QtGui.QKeySequence("Ctrl+c"))
+        btn_next.setShortcut(QtGui.QKeySequence("Ctrl+f"))
+        btn_up.setShortcut(QtGui.QKeySequence("Ctrl+r"))
+        self.setLayout(ArrangeH(label,textedit,btn_next,btn_up,btn_close))
+
+    def close(self):
+        self.editor.highlighter.clearFindRule()
+        super().close()
+
+
 class ButtonArea(QtWidgets.QWidget):
     def __init__(self, editor, *args, **kwargs):
         super().__init__(parent=editor, *args,**kwargs)
@@ -21,13 +57,11 @@ class ButtonArea(QtWidgets.QWidget):
         pal.setColor(QtGui.QPalette.Background,QtCore.Qt.black)
         self.setPalette(pal)
         savebtn = QtWidgets.QPushButton("Save")
-        savebtn.setShortcut(QtGui.QKeySequence("Ctrl+s"))
         savebtn.clicked.connect(self.editor.save)
         runbtn = QtWidgets.QPushButton("Run")
         def _run():
             self.editor.settings.computation_started_at = 0
             self.editor.settings.run(self.editor.toPlainText())
-        runbtn.setShortcut(QtGui.QKeySequence("Ctrl+x"))
         runbtn.clicked.connect(_run)
         def _run_cursor():
             self.editor.settings.computation_started_at = self.editor.textCursor().position()
@@ -38,18 +72,24 @@ class ButtonArea(QtWidgets.QWidget):
                 block = block.next()
             self.editor.settings.run(txt)
         runbtn_cursor = QtWidgets.QPushButton("Run from Cursor")
-        runbtn_cursor.setShortcut(QtGui.QKeySequence("Ctrl+Shift+x"))
         runbtn_cursor.clicked.connect(_run_cursor)
         run_line = QtWidgets.QPushButton("Run line")
-        run_line.setShortcut("Ctrl+l")
         def _run_line():
             self.editor.settings.computation_started_at = self.editor.textCursor().position()
             self.editor.settings.run(self.editor.textCursor().block().text())
             self.editor.moveCursor(QtGui.QTextCursor.Down)
         run_line.clicked.connect(_run_line)
-        layout = ArrangeH(savebtn, runbtn, runbtn_cursor,run_line)
+        find_btn = QtWidgets.QPushButton("Find")
+        find_btn.clicked.connect(lambda : TextFinder(self.editor).show())
+        savebtn.setShortcut(QtGui.QKeySequence("Ctrl+s"))
+        runbtn.setShortcut(QtGui.QKeySequence("Ctrl+x"))
+        runbtn_cursor.setShortcut(QtGui.QKeySequence("Ctrl+Shift+x"))
+        run_line.setShortcut("Ctrl+l")
+        find_btn.setShortcut(QtGui.QKeySequence("Ctrl+f"))
+        layout = ArrangeH(savebtn, runbtn, runbtn_cursor,run_line,find_btn)
         self.setContentsMargins(-5,-5,15,-5)
         self.setLayout(layout)
+
 
 class CodeEditor(QtWidgets.QPlainTextEdit):
     def __init__(self, filename, *args, **kwargs):
@@ -63,7 +103,7 @@ class CodeEditor(QtWidgets.QPlainTextEdit):
         self.cursorPositionChanged.connect(self.highlightCurrentLine)
         with open(filename,"r") as f:
             txt = f.read()
-        highlight = syntax.PythonHighlighter(self.document())
+        self.highlighter = syntax.PythonHighlighter(self.document())
         self.setPlainText(txt)
         def setTitleAsterix():
             if self.windowTitle()[0] != "*":
