@@ -34,8 +34,10 @@ void main()
       //    ET_TRIG = 10, ET_QUAD = 11, 
       //    ET_TET = 20, ET_PYRAMID = 21, ET_PRISM = 22, ET_HEX = 24 };
       float value;
+      vec3 lam = inData.lam.yzx;
+      lam.z = 1.0 - inData.lam.x - inData.lam.y - inData.lam.z;
       if(element_type == 10) value = InterpolateTrig(inData.element, coefficients, order, subdivision, inData.lam);
-      if(element_type == 20) value = InterpolateTet(inData.element, coefficients, order, subdivision, inData.lam);
+      if(element_type == 20) value = InterpolateTet(inData.element, coefficients, order, subdivision, lam);
       // if(element_type == 21) value = EvalPYRAMID(inData.element, x,y,z);
       // if(element_type == 22) value = EvalPRISM(inData.element, x,y,z);
       // if(element_type == 24) value = EvalHEX(inData.element, x,y,z);
@@ -55,6 +57,9 @@ void main()
       // vec3 lightVector = TransformVec(vec3(1,3,3));
       // FragColor.rgb *= 0.3+0.7*clamp(dot(normalize(inData.normal), lightVector), 0, 1.0);
       FragColor.rgb = light(FragColor.rgb, MV, inData.pos, inData.normal);
+      // FragColor.rgb = 0.5+0.5*normalize(inData.normal);
+      // float l = length(inData.normal)*0.5;
+      // FragColor.rgb = vec3(l,l,l);
   }
   else
     discard;

@@ -1,6 +1,6 @@
 # from PySide2 import QtCore, QtGui, QtWidgets, QtOpenGL
 # from PySide2.QtCore import Qt
-# from OpenGL.GL import *
+# from OpenGL import *
 # from . import widgets
 # import ngsolve
 # from .gl import *
@@ -16,7 +16,89 @@ from . import glmath
 from . import ngui
 
 from PySide2 import QtWidgets, QtCore, QtGui
-from OpenGL import GL
+from OpenGL.GL import *
+class WidgetWithLabel(QtWidgets.QWidget):
+    def __init__(self, widget, label=None):
+        super().__init__()
+        self._value_widget = widget
+
+        if label==None:
+            l = ArrangeV(widget) 
+            l.setMargin(0)
+            self.setLayout(l)
+        else:
+            l= QtWidgets.QLabel(label)
+            lay = ArrangeH( l, widget )
+            lay.setMargin(0)
+            self.setLayout(lay)
+
+    def setValue(self, value):
+        if isinstance(self._value_widget, QtWidgets.QCheckBox):
+            self._value_widget.setCheckState(QtCore.Qt.Checked if value else QtCore.Qt.Unchecked)
+        else:
+            self._value_widget.setValue(value)
+
+def addOption(self, group, name, default_value, typ=None, update_on_change=False, update_widget_on_change=False, widget_type=None, label=None, *args, **kwargs):
+    if not group in self._widgets:
+        self._widgets[group] = {}
+
+    label = label or name
+    propname = "_"+name
+    widgetname = "_"+name+"Widget"
+    setter_name = "set"+name
+
+    setattr(self, propname, default_value) 
+
+    if typ==None and widget_type==None:
+        typ = type(default_value)
+
+    elif widget_type:
+        w = widget_type(*args, **kwargs)
+        w.setValue(default_value)
+        self._widgets[group][name] = w
+
+    elif typ==bool:
+        cb = QtWidgets.QCheckBox(label)
+
+        cb.setCheckState(QtCore.Qt.Checked if default_value else QtCore.Qt.Unchecked)
+        cb.stateChanged.connect(lambda value: getattr(self, setter_name)(bool(value)))
+        self._widgets[group][name] = WidgetWithLabel(cb)
+
+    elif typ==int:
+        box = QtWidgets.QSpinBox()
+        box.valueChanged[int].connect(lambda value: getattr(self, setter_name)(value))
+        w = WidgetWithLabel(box, label)
+        self._widgets[group][name] = w 
+
+    else:
+        print("unknown type: ", typ)
+
+    def getValue(self):
+        return getattr(self, propname)
+
+    def setValue(self, value, redraw=True, update_gui=True):
+        if getattr(self, propname) == value:
+            return
+
+        setattr(self, propname, value) 
+        
+        if update_on_change:
+            self.update()
+        if update_widget_on_change:
+            self.widgets.update()
+        if redraw:
+            self.widgets.updateGLSignal.emit()
+            
+        if update_gui:
+            widget = self._widgets[group][name]
+            widget.setValue(value)
+
+    cls = type(self)
+
+    if not hasattr(cls, setter_name):
+        setattr(cls, setter_name, setValue)
+    if not hasattr(cls, 'get'+name):
+        setattr(cls, 'get'+name, getValue)
 
 import ngsolve
 import numpy
@@ -54,8 +136,8 @@ class CMeshData:
     def __init__(self, mesh):
         import weakref
         self.mesh = weakref.ref(mesh)
-        self.elements = Texture(GL.GL_TEXTURE_BUFFER, GL.GL_R32I)
-        self.vertices = Texture(GL.GL_TEXTURE_BUFFER, GL.GL_RGB32F)
+        self.elements = Texture(GL_TEXTURE_BUFFER, GL_R32I)
+        self.vertices = Texture(GL_TEXTURE_BUFFER, GL_RGB32F)
         mesh._opengl_data = self
         self.update()
 
@@ -83,12 +165,12 @@ class TextRenderer:
     def __init__(self):
         self.fonts = {}
 
-        self.vao = GL.glGenVertexArrays(1)
-        GL.glBindVertexArray(self.vao)
+        self.vao = glGenVertexArrays(1)
+        glBindVertexArray(self.vao)
         self.addFont(0)
 
         self.program = Program('font.vert', 'font.geom', 'font.frag')
-        self.characters = ArrayBuffer(usage=GL.GL_DYNAMIC_DRAW)
+        self.characters = ArrayBuffer(usage=GL_DYNAMIC_DRAW)
 
     def addFont(self, font_size):
         font = TextRenderer.Font()
@@ -128,22 +210,22 @@ class TextRenderer:
         painter.end()
         Z = numpy.array(image.bits()).reshape(font.tex_height, font.tex_width)
 
-        font.tex = Texture(GL.GL_TEXTURE_2D, GL.GL_RED)
-        font.tex.store(Z, GL.GL_UNSIGNED_BYTE, Z.shape[1], Z.shape[0] )
-        GL.glTexParameteri( GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST )
-        GL.glTexParameteri( GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST )
+        font.tex = Texture(GL_TEXTURE_2D, GL_RED)
+        font.tex.store(Z, GL_UNSIGNED_BYTE, Z.shape[1], Z.shape[0] )
+        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST )
+        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST )
 
-        GL.glBindVertexArray(0)
+        glBindVertexArray(0)
 
     def draw(self, rendering_params, text, pos, font_size=0, use_absolute_pos=True, alignment=QtCore.Qt.AlignTop|QtCore.Qt.AlignLeft):
 
         if not font_size in self.fonts:
             self.addFont(font_size)
 
-        GL.glBindVertexArray(self.vao)
-        GL.glUseProgram(self.program.id)
+        glBindVertexArray(self.vao)
+        glUseProgram(self.program.id)
 
-        viewport = GL.glGetIntegerv( GL.GL_VIEWPORT )
+        viewport = glGetIntegerv( GL_VIEWPORT )
         screen_width = viewport[2]-viewport[0]
         screen_height = viewport[3]-viewport[1]
 
@@ -185,21 +267,23 @@ class TextRenderer:
         s = numpy.array(list(text.encode('ascii', 'ignore')), dtype=numpy.uint8)
         self.characters.store(s)
 
-        char_id = GL.glGetAttribLocation(self.program.id, b'char_')
-        GL.glVertexAttribIPointer(char_id, 1, GL.GL_UNSIGNED_BYTE, 0, ctypes.c_void_p());
-        GL.glEnableVertexAttribArray( char_id )
+        char_id = glGetAttribLocation(self.program.id, b'char_')
+        glVertexAttribIPointer(char_id, 1, GL_UNSIGNED_BYTE, 0, ctypes.c_void_p());
+        glEnableVertexAttribArray( char_id )
 
-        GL.glPolygonMode( GL.GL_FRONT_AND_BACK, GL.GL_FILL );
-        GL.glDrawArrays(GL.GL_POINTS, 0, len(s))
+        glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
+        glDrawArrays(GL_POINTS, 0, len(s))
 
 class SceneObject():
     scene_counter = 1
     def __init__(self,active=True, name = None):
+        self.gl_initialized = False
         self.actions = {}
         self.active_action = None
         self.active = active
+        self._widgets = {}
         if name is None:
-            self.name = "Scene" + str(SceneObject.scene_counter)
+            self.name = type(self).__name__.split('.')[-1] + str(SceneObject.scene_counter)
             SceneObject.scene_counter += 1
         else:
             self.name = name
@@ -213,6 +297,16 @@ class SceneObject():
         self.active = state[1]
         # TODO: can we pickle actions somehow?
         self.actions = {}
+        self.gl_initialized = False
+
+    def initGL(self):
+        self.gl_initialized = True
+
+    def update(self):
+        self.initGL()
+
+    def render(self, settings):
+        pass
 
     def deferRendering(self):
         """used to render some scenes later (eg. overlays, transparency)
@@ -234,7 +328,7 @@ class SceneObject():
         self.window = window
 
     def getQtWidget(self, updateGL, params):
-        self.widgets = wid.OptionWidgets()
+        self.widgets = wid.OptionWidgets(updateGL=updateGL)
 
         self.actionCheckboxes = []
 
@@ -267,6 +361,9 @@ class SceneObject():
             widget.setLayout(layout)
             self.widgets.addGroup("Actions",widget)
 
+        for group in self._widgets:
+            self.widgets.addGroup(group,*self._widgets[group].values())
+
         return self.widgets
 
     def addAction(self,action,name=None):
@@ -287,6 +384,12 @@ class BaseMeshSceneObject(SceneObject):
         self.mesh = mesh
 
     def initGL(self):
+        if self.gl_initialized:
+            return
+        super().initGL()
+
+    def update(self):
+        super().update()
         self.mesh_data = MeshData(self.mesh)
 
     def __getstate__(self):
@@ -302,21 +405,28 @@ class BaseMeshSceneObject(SceneObject):
 
 class BaseFunctionSceneObject(BaseMeshSceneObject):
     """Base class for all scenes that depend on a coefficient function and a mesh"""
-    def __init__(self, cf, mesh=None, order=3, **kwargs):
+    def __init__(self, cf, mesh=None, order=3, gradient=None, **kwargs):
         self.cf = cf
         if isinstance(cf, ngsolve.comp.GridFunction):
+            if not gradient and cf.dim == 1:
+                gradient = ngsolve.grad(cf)
             mesh = cf.space.mesh
-            self.is_gridfunction = True
         else:
-            self.is_gridfunction = False
             if mesh==None:
                 raise RuntimeError("A mesh is needed if the given function is no GridFunction")
-            self.cf = cf
 
-        self.subdivision = 0
-        self.order = 1
-        n = self.order*(2**self.subdivision)+1
+        if gradient and cf.dim == 1:
+            self.cf = ngsolve.CoefficientFunction((cf, gradient))
+            self.have_gradient = True
+        else:
+            self.have_gradient = False
+
         super().__init__(mesh,**kwargs)
+
+        addOption(self, "Subdivision", "Subdivision", typ=int, default_value=0, update_on_change=True)
+        addOption(self, "Subdivision", "Order", typ=int, default_value=1, update_on_change=True)
+
+        n = self.getOrder()*(2**self.getSubdivision())+1
 
         self.colormap_min = -1
         self.colormap_max = 1
@@ -324,18 +434,17 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
 
     def __getstate__(self):
         super_state = super().__getstate__()
-        return (super_state, self.cf, self.is_gridfunction, self.subdivision, self.order,
+        return (super_state, self.cf, self.getSubdivision(), self.getOrder(),
                 self.colormap_min, self.colormap_max, self.colormap_linear)
 
     def __setstate__(self, state):
         super().__setstate__(state[0])
         self.cf = state[1]
-        self.is_gridfunction = state[2]
-        self.subdivision = state[3]
-        self.order = state[4]
-        self.colormap_min = state[5]
-        self.colormap_max = state[6]
-        self.colormap_linear = state[7]
+        self.setSubdivision(state[2])
+        self.setOrder(state[3])
+        self.colormap_min = state[4]
+        self.colormap_max = state[5]
+        self.colormap_linear = state[6]
 
     def setColorMapMin(self, value):
         self.colormap_min = value
@@ -345,15 +454,6 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
 
     def setColorMapLinear(self, value):
         self.colormap_linear = value
-
-
-    def setSubdivision(self, value):
-        self.subdivision = int(value)
-        self.update()
-
-    def setOrder(self, value):
-        self.order = int(value)
-        self.update()
 
     def getQtWidget(self, updateGL, params):
 
@@ -372,16 +472,12 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
         super().getQtWidget(updateGL, params)
         self.widgets.addGroup("Colormap", settings)
 
-        self.widgets.addGroup("Subdivision",
-                              wid.DoubleSpinBox(self.setSubdivision, updateGL, name="Subdivision"),
-                              wid.DoubleSpinBox(self.setOrder, updateGL, name="Order"))
         return self.widgets
 
 class OverlayScene(SceneObject):
     """Class  for overlay objects (Colormap, coordinate system, logo)"""
     def __init__(self,**kwargs):
         super().__init__(**kwargs)
-        self.gl_initialized = False
         self.show_logo = True
         self.show_cross = True
         self.cross_scale = 0.3
@@ -395,11 +491,12 @@ class OverlayScene(SceneObject):
     def initGL(self):
         if self.gl_initialized:
             return
+        super().initGL()
 
         self.text_renderer = TextRenderer()
 
-        self.vao = GL.glGenVertexArrays(1)
-        GL.glBindVertexArray(self.vao)
+        self.vao = glGenVertexArrays(1)
+        glBindVertexArray(self.vao)
         self.cross_points = ArrayBuffer()
         points = [self.cross_shift + (self.cross_scale if i%7==3 else 0) for i in range(24)]
         self.cross_points.store(numpy.array(points, dtype=numpy.float32))
@@ -408,18 +505,17 @@ class OverlayScene(SceneObject):
 
         self.program.attributes.bind('pos', self.cross_points)
 
-        self.gl_initialized = True
-        GL.glBindVertexArray(0)
+        glBindVertexArray(0)
 
     def render(self, settings):
         if not self.active:
             return
 
         self.update()
-        GL.glUseProgram(self.program.id)
-        GL.glBindVertexArray(self.vao)
+        glUseProgram(self.program.id)
+        glBindVertexArray(self.vao)
 
-        GL.glDisable(GL.GL_DEPTH_TEST)
+        glDisable(GL_DEPTH_TEST)
         if self.show_cross:
             model, view, projection = settings.model, settings.view, settings.projection
             mvp = glmath.Translate(-1+0.15/settings.ratio,-0.85,0)*projection*view*glmath.Translate(0,0,-5)*settings.rotmat
@@ -435,15 +531,15 @@ class OverlayScene(SceneObject):
                 for j in range(4):
                     coords[i,j] = coords[i,j]/coords[3,j]
 
-            GL.glPolygonMode( GL.GL_FRONT_AND_BACK, GL.GL_FILL );
-            GL.glDrawArrays(GL.GL_LINES, 0, 6)
+            glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
+            glDrawArrays(GL_LINES, 0, 6)
             for i in range(3):
                 self.text_renderer.draw(settings, "xyz"[i], coords[0:3,i], alignment=QtCore.Qt.AlignCenter|QtCore.Qt.AlignVCenter)
         if self.show_logo:
             self.text_renderer.draw(settings, "NGSolve " + ngsolve.__version__, [0.99,-0.99,0], alignment=QtCore.Qt.AlignRight|QtCore.Qt.AlignBottom)
 
-        GL.glEnable(GL.GL_DEPTH_TEST)
-        GL.glBindVertexArray(0)
+        glEnable(GL_DEPTH_TEST)
+        glBindVertexArray(0)
 
     def setShowLogo(self, show):
         self.show_logo = show
@@ -452,7 +548,7 @@ class OverlayScene(SceneObject):
         self.show_cross = show
 
     def update(self):
-        self.initGL()
+        super().update()
 
     def callupdateGL(self):
         self.updateGL()
@@ -489,12 +585,12 @@ class MeshScene(BaseMeshSceneObject):
         super().__init__(mesh, **kwargs)
 
         self.qtWidget = None
-        self.gl_initialized = False
-        self.show_wireframe = wireframe
-        self.show_surface = surface
-        self.show_elements = elements
         self.shrink = shrink
         self.tesslevel = 1.0
+
+        addOption(self, "Show", "ShowWireframe", typ=bool, default_value=True, update_widget_on_change=True)
+        addOption(self, "Show", "ShowSurface", typ=bool, default_value=True, update_widget_on_change=True)
+        addOption(self, "Show", "ShowElements", typ=bool, default_value=False, update_widget_on_change=True)
 
     def __getstate__(self):
         super_state = super().__getstate__()
@@ -505,7 +601,6 @@ class MeshScene(BaseMeshSceneObject):
         super().__setstate__(state[0])
         self.show_wireframe, self.show_surface, self.show_elements, self.shrink, self.tesslevel = state[1:]
         self.qtWidget = None
-        self.gl_initialized = False
 
     def initGL(self):
         if self.gl_initialized:
@@ -513,39 +608,38 @@ class MeshScene(BaseMeshSceneObject):
 
         super().initGL()
 
-        self.surface_vao = GL.glGenVertexArrays(1)
-        GL.glBindVertexArray(self.surface_vao)
+        self.surface_vao = glGenVertexArrays(1)
+        glBindVertexArray(self.surface_vao)
 
         self.surface_program = Program('mesh.vert', 'tess.tesc', 'tess.tese', 'mesh.frag')
-        self.bc_colors = Texture(GL.GL_TEXTURE_1D, GL.GL_RGBA)
+        self.bc_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
         self.bc_colors.store( [0,1,0,1]*len(self.mesh.GetBoundaries()),
-                              data_format=GL.GL_UNSIGNED_BYTE )
+                              data_format=GL_UNSIGNED_BYTE )
 
         self.element_program = Program('elements.vert','elements.geom','elements.frag')
-        self.gl_initialized = True
 
-        self.elements_vao = GL.glGenVertexArrays(1)
-        GL.glBindVertexArray(self.elements_vao)
-        GL.glBindVertexArray(0)
+        self.elements_vao = glGenVertexArrays(1)
+        glBindVertexArray(self.elements_vao)
+        glBindVertexArray(0)
 
     def renderSurface(self, settings):
-        GL.glUseProgram(self.surface_program.id)
-        GL.glBindVertexArray(self.surface_vao)
+        glUseProgram(self.surface_program.id)
+        glBindVertexArray(self.surface_vao)
 
         model, view, projection = settings.model, settings.view, settings.projection
         uniforms = self.surface_program.uniforms
         uniforms.set('P',projection)
         uniforms.set('MV',view*model)
 
-        GL.glActiveTexture(GL.GL_TEXTURE0)
+        glActiveTexture(GL_TEXTURE0)
         self.mesh_data.vertices.bind()
         uniforms.set('mesh.vertices', 0)
 
-        GL.glActiveTexture(GL.GL_TEXTURE1)
+        glActiveTexture(GL_TEXTURE1)
         self.mesh_data.elements.bind()
         uniforms.set('mesh.elements', 1)
 
-        GL.glActiveTexture(GL.GL_TEXTURE3)
+        glActiveTexture(GL_TEXTURE3)
         self.bc_colors.bind()
         uniforms.set('colors', 3)
 
@@ -554,42 +648,43 @@ class MeshScene(BaseMeshSceneObject):
         uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
 
 
-        if self.show_surface:
+        if self.getShowSurface():
             uniforms.set('light_ambient', 0.3)
             uniforms.set('light_diffuse', 0.7)
             uniforms.set('TessLevel', self.tesslevel)
             uniforms.set('wireframe', False)
-            GL.glPolygonMode( GL.GL_FRONT_AND_BACK, GL.GL_FILL )
-            GL.glPolygonOffset (2, 2)
-            GL.glEnable(GL.GL_POLYGON_OFFSET_FILL)
-            GL.glPatchParameteri(GL.GL_PATCH_VERTICES, 1)
-            GL.glDrawArrays(GL.GL_PATCHES, 0, self.mesh_data.nsurface_elements)
-            GL.glDisable(GL.GL_POLYGON_OFFSET_FILL)
+            glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
+            glPolygonOffset (2, 2)
+            glEnable(GL_POLYGON_OFFSET_FILL)
+            glPatchParameteri(GL_PATCH_VERTICES, 1)
+            glDrawArrays(GL_PATCHES, 0, self.mesh_data.nsurface_elements)
+            glDisable(GL_POLYGON_OFFSET_FILL)
 
 
-        if self.show_wireframe:
+        if self.getShowWireframe():
             uniforms.set('light_ambient', 0.0)
             uniforms.set('light_diffuse', 0.0)
             uniforms.set('TessLevel', self.tesslevel)
             uniforms.set('wireframe', True)
-            GL.glPolygonMode( GL.GL_FRONT_AND_BACK, GL.GL_LINE );
-            GL.glPolygonOffset (1, 1)
-            GL.glEnable(GL.GL_POLYGON_OFFSET_LINE)
-            GL.glPatchParameteri(GL.GL_PATCH_VERTICES, 1)
-            GL.glDrawArrays(GL.GL_PATCHES, 0, self.mesh_data.nsurface_elements)
-            GL.glDisable(GL.GL_POLYGON_OFFSET_LINE)
+            glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
+            glPolygonOffset (1, 1)
+            glEnable(GL_POLYGON_OFFSET_LINE)
+            glPatchParameteri(GL_PATCH_VERTICES, 1)
+            glDrawArrays(GL_PATCHES, 0, self.mesh_data.nsurface_elements)
+            glDisable(GL_POLYGON_OFFSET_LINE)
 
 
     def update(self):
-        self.initGL()
-        GL.glBindVertexArray(self.surface_vao)
+        print('mesh update')
+        super().update()
+        glBindVertexArray(self.surface_vao)
 
-        GL.glBindVertexArray(self.elements_vao)
+        glBindVertexArray(self.elements_vao)
         nmats = len(self.mesh.GetMaterials())
         self.mat_colors = [0,0,255,255] * nmats
-        self.tex_mat_color = Texture(GL.GL_TEXTURE_1D, GL.GL_RGBA)
-        self.tex_mat_color.store(self.mat_colors, GL.GL_UNSIGNED_BYTE, nmats)
-        GL.glBindVertexArray(0)
+        self.tex_mat_color = Texture(GL_TEXTURE_1D, GL_RGBA)
+        self.tex_mat_color.store(self.mat_colors, GL_UNSIGNED_BYTE, nmats)
+        glBindVertexArray(0)
 
     def render(self, settings):
         if not self.active:
@@ -597,12 +692,12 @@ class MeshScene(BaseMeshSceneObject):
 
         self.renderSurface(settings)
 
-        if self.show_elements:
+        if self.getShowElements():
             self.renderElements(settings)
 
     def renderElements(self, settings):
-        GL.glBindVertexArray(self.elements_vao)
-        GL.glUseProgram(self.element_program.id)
+        glBindVertexArray(self.elements_vao)
+        glUseProgram(self.element_program.id)
 
         model, view, projection = settings.model, settings.view, settings.projection
         uniforms = self.element_program.uniforms
@@ -614,25 +709,25 @@ class MeshScene(BaseMeshSceneObject):
         uniforms.set('shrink_elements', self.shrink)
         uniforms.set('clipping_plane', settings.clipping_plane)
 
-        GL.glActiveTexture(GL.GL_TEXTURE0)
+        glActiveTexture(GL_TEXTURE0)
         self.mesh_data.vertices.bind()
         uniforms.set('mesh.vertices', 0)
 
-        GL.glActiveTexture(GL.GL_TEXTURE1)
+        glActiveTexture(GL_TEXTURE1)
         self.mesh_data.elements.bind()
         uniforms.set('mesh.elements', 1)
 
         uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
-        GL.glActiveTexture(GL.GL_TEXTURE3)
+        glActiveTexture(GL_TEXTURE3)
         self.tex_mat_color.bind()
         uniforms.set('colors', 3)
 
 #         glPolygonOffset (2,2)
 #         glEnable(GL_POLYGON_OFFSET_FILL)
-        GL.glDisable(GL.GL_POLYGON_OFFSET_FILL)
-        GL.glPolygonMode( GL.GL_FRONT_AND_BACK, GL.GL_FILL );
-        GL.glDrawArrays(GL.GL_POINTS, 0, self.mesh.ne)
-        GL.glDisable(GL.GL_POLYGON_OFFSET_FILL)
+        glDisable(GL_POLYGON_OFFSET_FILL)
+        glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
+        glDrawArrays(GL_POINTS, 0, self.mesh.ne)
+        glDisable(GL_POLYGON_OFFSET_FILL)
 
     def updateIndexColors(self):
         colors = []
@@ -641,7 +736,7 @@ class MeshScene(BaseMeshSceneObject):
             colors.append(c.green())
             colors.append(c.blue())
             colors.append(c.alpha())
-        self.bc_colors.store( colors, width=len(colors), data_format=GL.GL_UNSIGNED_BYTE )
+        self.bc_colors.store( colors, width=len(colors), data_format=GL_UNSIGNED_BYTE )
 
     def updateMatColors(self):
         colors = []
@@ -651,21 +746,10 @@ class MeshScene(BaseMeshSceneObject):
             colors.append(c.blue())
             colors.append(c.alpha())
         self.mat_colors = colors
-        self.tex_mat_color.store(self.mat_colors, GL.GL_UNSIGNED_BYTE, len(self.mesh.GetMaterials()))
+        self.tex_mat_color.store(self.mat_colors, GL_UNSIGNED_BYTE, len(self.mesh.GetMaterials()))
 
     def setShrink(self, value):
         self.shrink = value
-
-    def setShowElements(self, value):
-        self.show_elements = value
-        self.widgets.update()
-
-    def setShowSurface(self, value):
-        self.show_surface = value
-        self.widgets.update()
-
-    def setShowWireframe(self, value):
-        self.show_wireframe = value
 
     def setTessellation(self, value):
         self.tesslevel = value
@@ -673,27 +757,6 @@ class MeshScene(BaseMeshSceneObject):
     def getQtWidget(self, updateGL, params):
         super().getQtWidget(updateGL, params)
 
-        def setShowElements(value):
-            self.show_elements = value
-            self.widgets.update()
-            updateGL()
-        def setShowSurface(value):
-            self.show_surface = value
-            self.widgets.update()
-            updateGL()
-
-        def setShowWireframe(value):
-            self.show_wireframe = value
-            updateGL()
-        comps = []
-        comps.append(wid.CheckBox("Surface", setShowSurface, updateGL, checked=self.show_surface))
-        comps.append(wid.CheckBox("Wireframe", setShowWireframe, updateGL,
-                                  checked=self.show_wireframe))
-        if self.mesh.dim == 3:
-            comps.append(wid.CheckBox("Elements", setShowElements, updateGL,
-                                      checked=self.show_elements))
-        QtWidgets.QGroupBox("Components")
-        self.widgets.addGroup("Components",*comps)
         if self.mesh.dim == 3:
             mats = self.mesh.GetBoundaries()
             matsname = "Boundary Conditions"
@@ -705,7 +768,7 @@ class MeshScene(BaseMeshSceneObject):
             self.indexcolors.colors_changed.connect(self.updateIndexColors)
             self.indexcolors.colors_changed.connect(updateGL)
             self.updateIndexColors()
-            self.widgets.addGroup(matsname,self.indexcolors,connectedVisibility = lambda: self.show_surface)
+            self.widgets.addGroup(matsname,self.indexcolors,connectedVisibility = lambda: self.getShowSurface())
 
         if self.mesh.dim == 3:
             shrink = wid.RangeGroup("Shrink", min=0.0, max=1.0, value=self.shrink)
@@ -715,8 +778,8 @@ class MeshScene(BaseMeshSceneObject):
             self.matcolors.colors_changed.connect(self.updateMatColors)
             self.matcolors.colors_changed.connect(updateGL)
             self.updateMatColors()
-            self.widgets.addGroup("Shrink",shrink, connectedVisibility = lambda: self.show_elements)
-            self.widgets.addGroup("Materials",self.matcolors, connectedVisibility = lambda: self.show_elements)
+            self.widgets.addGroup("Shrink",shrink, connectedVisibility = lambda: self.getShowElements())
+            self.widgets.addGroup("Materials",self.matcolors, connectedVisibility = lambda: self.getShowElements())
 
         tess = QtWidgets.QDoubleSpinBox()
         tess.setRange(1, 20)
@@ -732,10 +795,12 @@ class SolutionScene(BaseFunctionSceneObject):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+        addOption(self, "Show", "ShowSurface", typ=bool, default_value=True)
+        addOption(self, "Show", "ShowClippingPlane", typ=bool, default_value=False)
+        addOption(self, "Show", "ShowIsoSurface", typ=bool, default_value=False)
+
         self.qtWidget = None
         self.vao = None
-        self.show_surface = True
-        self.show_clipping_plane = False
 
     def __getstate__(self):
         super_state = super().__getstate__()
@@ -748,49 +813,58 @@ class SolutionScene(BaseFunctionSceneObject):
         self.vao = None
 
     def initGL(self):
-        if self.vao:
+        if self.gl_initialized:
             return
-
         super().initGL()
 
+        formats = [None, GL_R32F, GL_RG32F, GL_RGB32F, GL_RGBA32F];
+        self.volume_values = Texture(GL_TEXTURE_BUFFER, formats[self.cf.dim])
+        self.surface_values = Texture(GL_TEXTURE_BUFFER, formats[self.cf.dim])
+
         # solution on surface mesh
-        self.surface_vao = GL.glGenVertexArrays(1)
-        GL.glBindVertexArray(self.surface_vao)
+        self.surface_vao = glGenVertexArrays(1)
+        glBindVertexArray(self.surface_vao)
         self.surface_program = Program('solution.vert', 'solution.frag')
-        self.surface_values = Texture(GL.GL_TEXTURE_BUFFER, GL.GL_R32F)
-        GL.glBindVertexArray(0)
+        glBindVertexArray(0)
 
         # solution on clipping plane
-        self.clipping_vao = GL.glGenVertexArrays(1)
-        GL.glBindVertexArray(self.clipping_vao)
+        self.clipping_vao = glGenVertexArrays(1)
+        glBindVertexArray(self.clipping_vao)
         self.clipping_program = Program('clipping.vert', 'clipping.geom', 'solution.frag')
-        GL.glUseProgram(self.clipping_program.id)
-        self.volume_values = Texture(GL.GL_TEXTURE_BUFFER, GL.GL_R32F)
-        GL.glBindVertexArray(0)
+        glUseProgram(self.clipping_program.id)
+        glBindVertexArray(0)
+
+        # iso-surface
+        self.iso_surface_vao = glGenVertexArrays(1)
+        glBindVertexArray(self.clipping_vao)
+        self.iso_surface_program = Program('clipping.vert', 'isosurface.geom', 'solution.frag')
+        glBindVertexArray(0)
+
 
     def update(self):
-        self.initGL()
+        super().update()
         if self.mesh.dim==2:
             try:
-                self.surface_values.store(ngui.GetValues(self.cf, self.mesh, ngsolve.VOL, 2**self.subdivision-1, self.order))
+                self.surface_values.store(ngui.GetValues(self.cf, self.mesh, ngsolve.VOL, 2**self.getSubdivision()-1, self.getOrder()))
             except:
                 print("Cannot evaluate given function on surface elemnents")
                 self.show_surface = False
 
         if self.mesh.dim==3:
-            self.volume_values.store(ngui.GetValues(self.cf, self.mesh, ngsolve.VOL, 2**self.subdivision-1, self.order))
+            values = ngui.GetValues(self.cf, self.mesh, ngsolve.VOL, 2**self.getSubdivision()-1, self.getOrder() )
+            self.volume_values.store(values)
             try:
-                self.surface_values.store(ngui.GetValues(self.cf, self.mesh, ngsolve.BND, 2**self.subdivision-1, self.order))
+                self.surface_values.store(ngui.GetValues(self.cf, self.mesh, ngsolve.BND, 2**self.getSubdivision()-1, self.getOrder()))
             except:
-                print("Cannot evaluate given function on surface elemnents")
+                print("Cannot evaluate given function on surface elements")
                 self.show_surface = False
 
     def renderSurface(self, settings):
         model, view, projection = settings.model, settings.view, settings.projection
 
         # surface mesh
-        GL.glBindVertexArray(self.surface_vao)
-        GL.glUseProgram(self.surface_program.id)
+        glBindVertexArray(self.surface_vao)
+        glUseProgram(self.surface_program.id)
 
         uniforms = self.surface_program.uniforms
         uniforms.set('P',projection)
@@ -801,35 +875,76 @@ class SolutionScene(BaseFunctionSceneObject):
         uniforms.set('colormap_linear', self.colormap_linear)
         uniforms.set('clipping_plane', settings.clipping_plane)
         uniforms.set('do_clipping', self.mesh.dim==3);
-        uniforms.set('subdivision', 2**self.subdivision-1)
-        uniforms.set('order', self.order)
+        uniforms.set('subdivision', 2**self.getSubdivision()-1)
+        uniforms.set('order', self.getOrder())
 
         uniforms.set('element_type', 10)
 
-        GL.glActiveTexture(GL.GL_TEXTURE0)
+        glActiveTexture(GL_TEXTURE0)
         self.mesh_data.vertices.bind()
         uniforms.set('mesh.vertices', 0)
 
-        GL.glActiveTexture(GL.GL_TEXTURE1)
+        glActiveTexture(GL_TEXTURE1)
         self.mesh_data.elements.bind()
         uniforms.set('mesh.elements', 1)
 
-        GL.glActiveTexture(GL.GL_TEXTURE2)
+        glActiveTexture(GL_TEXTURE2)
         self.surface_values .bind()
         uniforms.set('coefficients', 2)
 
         uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
 
+        glPolygonOffset (2,2)
+        glEnable(GL_POLYGON_OFFSET_FILL)
+        glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
+        glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh_data.nsurface_elements)
 
-        GL.glPolygonOffset (2,2)
-        GL.glEnable(GL.GL_POLYGON_OFFSET_FILL)
-        GL.glPolygonMode( GL.GL_FRONT_AND_BACK, GL.GL_FILL );
-        GL.glDrawArrays(GL.GL_TRIANGLES, 0, 3*self.mesh_data.nsurface_elements)
+    def renderIsoSurface(self, settings):
+        model, view, projection = settings.model, settings.view, settings.projection
+        glUseProgram(self.iso_surface_program.id)
+        glBindVertexArray(self.iso_surface_vao)
+
+        uniforms = self.iso_surface_program.uniforms
+        uniforms.set('P',projection)
+        uniforms.set('MV',view*model)
+        uniforms.set('colormap_min', self.colormap_min)
+        uniforms.set('colormap_max', self.colormap_max)
+        uniforms.set('colormap_linear', self.colormap_linear)
+        uniforms.set('have_gradient', self.have_gradient)
+        uniforms.set('clipping_plane', settings.clipping_plane)
+        uniforms.set('do_clipping', True);
+        uniforms.set('subdivision', 2**self.getSubdivision()-1)
+        uniforms.set('order', self.getOrder())
+
+        if(self.mesh.dim==2):
+            uniforms.set('element_type', 10)
+        if(self.mesh.dim==3):
+            uniforms.set('element_type', 20)
+
+        glActiveTexture(GL_TEXTURE0)
+        self.mesh_data.vertices.bind()
+        uniforms.set('mesh.vertices', 0)
+
+        glActiveTexture(GL_TEXTURE1)
+        self.mesh_data.elements.bind()
+        uniforms.set('mesh.elements', 1)
+
+        glActiveTexture(GL_TEXTURE2)
+        self.volume_values.bind()
+        uniforms.set('coefficients', 2)
+
+        uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
+        uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
+
+        glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
+        instances = (self.getOrder()*(2**self.getSubdivision()))**3
+        glDrawArraysInstanced(GL_POINTS, 0, self.mesh.ne, instances)
+        glBindVertexArray(0)
 
     def renderClippingPlane(self, settings):
         model, view, projection = settings.model, settings.view, settings.projection
-        GL.glUseProgram(self.clipping_program.id)
-        GL.glBindVertexArray(self.clipping_vao)
+        glUseProgram(self.clipping_program.id)
+        glBindVertexArray(self.clipping_vao)
 
         uniforms = self.clipping_program.uniforms
         uniforms.set('P',projection)
@@ -840,55 +955,41 @@ class SolutionScene(BaseFunctionSceneObject):
         uniforms.set('clipping_plane_deformation', False)
         uniforms.set('clipping_plane', settings.clipping_plane)
         uniforms.set('do_clipping', False);
-        uniforms.set('subdivision', 2**self.subdivision-1)
-        uniforms.set('order', self.order)
+        uniforms.set('subdivision', 2**self.getSubdivision()-1)
+        uniforms.set('order', self.getOrder())
 
         if(self.mesh.dim==2):
             uniforms.set('element_type', 10)
         if(self.mesh.dim==3):
             uniforms.set('element_type', 20)
 
-        GL.glActiveTexture(GL.GL_TEXTURE0)
+        glActiveTexture(GL_TEXTURE0)
         self.mesh_data.vertices.bind()
         uniforms.set('mesh.vertices', 0)
 
-        GL.glActiveTexture(GL.GL_TEXTURE1)
+        glActiveTexture(GL_TEXTURE1)
         self.mesh_data.elements.bind()
         uniforms.set('mesh.elements', 1)
 
-        GL.glActiveTexture(GL.GL_TEXTURE2)
+        glActiveTexture(GL_TEXTURE2)
         self.volume_values.bind()
         uniforms.set('coefficients', 2)
 
         uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
         uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
 
-        GL.glPolygonMode( GL.GL_FRONT_AND_BACK, GL.GL_FILL );
-        GL.glDrawArrays(GL.GL_POINTS, 0, self.mesh.ne)
-        GL.glBindVertexArray(0)
+        glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
+        glDrawArrays(GL_POINTS, 0, self.mesh.ne)
+        glBindVertexArray(0)
 
 
     def render(self, settings):
         if not self.active:
             return
 
-        if self.show_surface:
+        if self.getShowSurface():
             self.renderSurface(settings)
-        if self.show_clipping_plane:
+        if self.getShowClippingPlane():
             self.renderClippingPlane(settings)
-
-    def setShowSurface(self, value):
-        self. show_surface = value
-
-    def setShowClippingPlane(self, value):
-        self. show_clipping_plane = value
-
-    def getQtWidget(self, updateGL, params):
-        self.widgets = super().getQtWidget(updateGL, params)
-
-        surface = wid.CheckBox("Surface mesh", self.setShowSurface, updateGL, checked=self.show_surface)
-        clipping = wid.CheckBox("Clipping Plane", self.setShowClippingPlane, updateGL,
-                                checked=self.show_clipping_plane)
-        self.widgets.addGroup("Show solution on",surface, clipping)
-
-        return self.widgets
+        if self.getShowIsoSurface():
+            self.renderIsoSurface(settings)

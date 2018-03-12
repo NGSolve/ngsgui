@@ -1,15 +1,6 @@
-int getIndex(int N, int x, int y) {
-  int res = N*(N+1)/2 - (N-y)*(N-y+1)/2;
-  res += x;
-  return res;
+vec4 getValue(samplerBuffer coefficients, int offset) {
+  return texelFetch(coefficients, 2+offset+0);
 }
-
-int getIndex(int N, int x, int y, int z) {
-  int res = N*(N+1)*(N+2)/6 - (N-z)*(N-z+1)*(N-z+2)/6;
-  res += getIndex(N-z, x, y);
-  return res;
-}
-
 
 float InterpolateTrigP1(samplerBuffer coefficients, vec3 lam, int first, int dx, int dy) {
   float x = lam.x;
@@ -21,7 +12,7 @@ float InterpolateTrigP1(samplerBuffer coefficients, vec3 lam, int first, int dx,
   for (int i=0; i<=1; i++) {
     int offsetx = 0;
     for (int j=0; j<=1-i; j++) {
-      f[ii] = texelFetch(coefficients, first+offsetx+offsety).r;
+      f[ii] = getValue(coefficients, first+offsetx+offsety).r;
       offsetx += dx;
       ii++;
     }
@@ -39,7 +30,7 @@ float InterpolateTrigP2(samplerBuffer coefficients, vec3 lam, int first, int dx,
   for (int i=0; i<=2; i++) {
     int offsetx = 0;
     for (int j=0; j<=2-i; j++) {
-      f[ii] = texelFetch(coefficients, first+offsetx+offsety).r;
+      f[ii] = getValue(coefficients, first+offsetx+offsety).r;
       offsetx += dx;
       ii++;
     }
@@ -57,7 +48,7 @@ float InterpolateTrigP3(samplerBuffer coefficients, vec3 lam, int first, int dx,
   for (int i=0; i<=3; i++) {
     int offsetx = 0;
     for (int j=0; j<=3-i; j++) {
-      f[ii] = texelFetch(coefficients, first+offsetx+offsety).r;
+      f[ii] = getValue(coefficients, first+offsetx+offsety).r;
       offsetx += dx;
       ii++;
     }
@@ -75,7 +66,7 @@ float InterpolateTrigP4(samplerBuffer coefficients, vec3 lam, int first, int dx,
   for (int i=0; i<=4; i++) {
     int offsetx = 0;
     for (int j=0; j<=4-i; j++) {
-      f[ii] = texelFetch(coefficients, first+offsetx+offsety).r;
+      f[ii] = getValue(coefficients, first+offsetx+offsety).r;
       offsetx += dx;
       ii++;
     }
@@ -128,16 +119,16 @@ float  InterpolateTetP1(int element, samplerBuffer coefficients, int N, ivec3 d,
   int p = 1;
   if(special_order==0)
     for (int k=0; k<=p; k++) for (int j=0; j<=p-k; j++) for (int i=0; i<=p-k-j; i++)
-          f[ii++] = texelFetch(coefficients, first+getIndex(N,s.x+d.x*i, s.y+d.y*j, s.z+d.z*k)).r;
+          f[ii++] = getValue(coefficients, first+getIndex(N,s.x+d.x*i, s.y+d.y*j, s.z+d.z*k)).r;
   if(special_order==1)
     for (int k=0; k<=p; k++) for (int j=0; j<=p-k; j++) for (int i=0; i<=p-k-j; i++)
-          f[ii++] = texelFetch(coefficients, first+getIndex(N,s.x+d.x*(i+j), s.y+d.y*j, s.z+d.z*(j+k))).r;
+          f[ii++] = getValue(coefficients, first+getIndex(N,s.x+d.x*(i+j), s.y+d.y*j, s.z+d.z*(j+k))).r;
   if(special_order==2)
     for (int k=0; k<=p; k++) for (int j=0; j<=p-k; j++) for (int i=0; i<=p-k-j; i++)
-          f[ii++] = texelFetch(coefficients, first+getIndex(N,s.x+d.x*(i+k), s.y+d.y*j, s.z+d.z*k)).r;
+          f[ii++] = getValue(coefficients, first+getIndex(N,s.x+d.x*(i+k), s.y+d.y*j, s.z+d.z*k)).r;
   if(special_order==3)
     for (int k=0; k<=p; k++) for (int j=0; j<=p-k; j++) for (int i=0; i<=p-k-j; i++)
-          f[ii++] = texelFetch(coefficients, first+getIndex(N,s.x+d.x*i, s.y+d.y*(j+k), s.z+d.z*(i+k))).r;
+          f[ii++] = getValue(coefficients, first+getIndex(N,s.x+d.x*i, s.y+d.y*(j+k), s.z+d.z*(i+k))).r;
   float x = lam.x;
   float y = lam.y;
   float z = lam.z;
@@ -152,16 +143,16 @@ float  InterpolateTetP2(int element, samplerBuffer coefficients, int N, ivec3 d,
   int p = 2;
   if(special_order==0)
     for (int k=0; k<=p; k++) for (int j=0; j<=p-k; j++) for (int i=0; i<=p-k-j; i++)
-          f[ii++] = texelFetch(coefficients, first+getIndex(N,s.x+d.x*i, s.y+d.y*j, s.z+d.z*k)).r;
+          f[ii++] = getValue(coefficients, first+getIndex(N,s.x+d.x*i, s.y+d.y*j, s.z+d.z*k)).r;
   if(special_order==1)
     for (int k=0; k<=p; k++) for (int j=0; j<=p-k; j++) for (int i=0; i<=p-k-j; i++)
-          f[ii++] = texelFetch(coefficients, first+getIndex(N,s.x+d.x*(i+j), s.y+d.y*j, s.z+d.z*(j+k))).r;
+          f[ii++] = getValue(coefficients, first+getIndex(N,s.x+d.x*(i+j), s.y+d.y*j, s.z+d.z*(j+k))).r;
   if(special_order==2)
     for (int k=0; k<=p; k++) for (int j=0; j<=p-k; j++) for (int i=0; i<=p-k-j; i++)
-          f[ii++] = texelFetch(coefficients, first+getIndex(N,s.x+d.x*(i+k), s.y+d.y*j, s.z+d.z*k)).r;
+          f[ii++] = getValue(coefficients, first+getIndex(N,s.x+d.x*(i+k), s.y+d.y*j, s.z+d.z*k)).r;
   if(special_order==3)
     for (int k=0; k<=p; k++) for (int j=0; j<=p-k; j++) for (int i=0; i<=p-k-j; i++)
-          f[ii++] = texelFetch(coefficients, first+getIndex(N,s.x+d.x*i, s.y+d.y*(j+k), s.z+d.z*(i+k))).r;
+          f[ii++] = getValue(coefficients, first+getIndex(N,s.x+d.x*i, s.y+d.y*(j+k), s.z+d.z*(i+k))).r;
   float x = lam.x;
   float y = lam.y;
   float z = lam.z;
@@ -175,16 +166,16 @@ float  InterpolateTetP3(int element, samplerBuffer coefficients, int N, ivec3 d,
   int p = 3;
   if(special_order==0)
     for (int k=0; k<=p; k++) for (int j=0; j<=p-k; j++) for (int i=0; i<=p-k-j; i++)
-          f[ii++] = texelFetch(coefficients, first+getIndex(N,s.x+d.x*i, s.y+d.y*j, s.z+d.z*k)).r;
+          f[ii++] = getValue(coefficients, first+getIndex(N,s.x+d.x*i, s.y+d.y*j, s.z+d.z*k)).r;
   if(special_order==1)
     for (int k=0; k<=p; k++) for (int j=0; j<=p-k; j++) for (int i=0; i<=p-k-j; i++)
-          f[ii++] = texelFetch(coefficients, first+getIndex(N,s.x+d.x*(i+j), s.y+d.y*j, s.z+d.z*(j+k))).r;
+          f[ii++] = getValue(coefficients, first+getIndex(N,s.x+d.x*(i+j), s.y+d.y*j, s.z+d.z*(j+k))).r;
   if(special_order==2)
     for (int k=0; k<=p; k++) for (int j=0; j<=p-k; j++) for (int i=0; i<=p-k-j; i++)
-          f[ii++] = texelFetch(coefficients, first+getIndex(N,s.x+d.x*(i+k), s.y+d.y*j, s.z+d.z*k)).r;
+          f[ii++] = getValue(coefficients, first+getIndex(N,s.x+d.x*(i+k), s.y+d.y*j, s.z+d.z*k)).r;
   if(special_order==3)
     for (int k=0; k<=p; k++) for (int j=0; j<=p-k; j++) for (int i=0; i<=p-k-j; i++)
-          f[ii++] = texelFetch(coefficients, first+getIndex(N,s.x+d.x*i, s.y+d.y*(j+k), s.z+d.z*(i+k))).r;
+          f[ii++] = getValue(coefficients, first+getIndex(N,s.x+d.x*i, s.y+d.y*(j+k), s.z+d.z*(i+k))).r;
   float x = lam.x;
   float y = lam.y;
   float z = lam.z;
@@ -199,16 +190,16 @@ float  InterpolateTetP4(int element, samplerBuffer coefficients, int N, ivec3 d,
   int p = 4;
   if(special_order==0)
     for (int k=0; k<=p; k++) for (int j=0; j<=p-k; j++) for (int i=0; i<=p-k-j; i++)
-          f[ii++] = texelFetch(coefficients, first+getIndex(N,s.x+d.x*i, s.y+d.y*j, s.z+d.z*k)).r;
+          f[ii++] = getValue(coefficients, first+getIndex(N,s.x+d.x*i, s.y+d.y*j, s.z+d.z*k)).r;
   if(special_order==1)
     for (int k=0; k<=p; k++) for (int j=0; j<=p-k; j++) for (int i=0; i<=p-k-j; i++)
-          f[ii++] = texelFetch(coefficients, first+getIndex(N,s.x+d.x*(i+j), s.y+d.y*j, s.z+d.z*(j+k))).r;
+          f[ii++] = getValue(coefficients, first+getIndex(N,s.x+d.x*(i+j), s.y+d.y*j, s.z+d.z*(j+k))).r;
   if(special_order==2)
     for (int k=0; k<=p; k++) for (int j=0; j<=p-k; j++) for (int i=0; i<=p-k-j; i++)
-          f[ii++] = texelFetch(coefficients, first+getIndex(N,s.x+d.x*(i+k), s.y+d.y*j, s.z+d.z*k)).r;
+          f[ii++] = getValue(coefficients, first+getIndex(N,s.x+d.x*(i+k), s.y+d.y*j, s.z+d.z*k)).r;
   if(special_order==3)
     for (int k=0; k<=p; k++) for (int j=0; j<=p-k; j++) for (int i=0; i<=p-k-j; i++)
-          f[ii++] = texelFetch(coefficients, first+getIndex(N,s.x+d.x*i, s.y+d.y*(j+k), s.z+d.z*(i+k))).r;
+          f[ii++] = getValue(coefficients, first+getIndex(N,s.x+d.x*i, s.y+d.y*(j+k), s.z+d.z*(i+k))).r;
   float x = lam.x;
   float y = lam.y;
   float z = lam.z;
