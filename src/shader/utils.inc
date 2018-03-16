@@ -5,6 +5,10 @@ struct Mesh {
     int volume_elements_offset;
 };
 
+int elements1d_size = 4;
+int elements1d_index_offset = 3;
+int elements1d_curved_offset = 4;
+
 int elements2d_size = 5;
 int elements2d_index_offset = 3;
 int elements2d_curved_offset = 4;
@@ -15,6 +19,13 @@ int elements3d_index_offset = 4;
 int elements2d_curved_size = 6;
 int elements2d_curved_normals_offset = 0;
 int elements2d_curved_points_offset = 3;
+
+struct Element1d {
+    int index;
+    int curved_index;
+    int vertices[2];
+    vec3 pos[2];
+};
 
 struct Element2d {
     int index;
@@ -78,6 +89,19 @@ Element2d getElement2d(Element3d tet, int face ) {
   }
 
   return trig;
+}
+
+Element1d getElement1d(Mesh mesh, int ei ) {
+    Element1d el;
+    int stride = elements1d_size;
+
+    for (int i=0; i<2; i++) {
+      el.vertices[i] = texelFetch(mesh.elements, stride*ei+i).r;
+      el.pos[i] = texelFetch(mesh.vertices, el.vertices[i]).xyz;
+    }
+    el.index = texelFetch(mesh.elements, stride*ei+elements1d_index_offset).r;
+    el.curved_index = texelFetch(mesh.elements, stride*ei+elements1d_curved_offset).r;
+    return el;
 }
 
 Element2d getElement2d(Mesh mesh, int ei ) {

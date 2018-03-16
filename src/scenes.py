@@ -146,6 +146,7 @@ class CMeshData:
 
         self.vertices.store(meshdata['vertices'])
         self.elements.store(meshdata["elements"])
+        self.nedge_elements = meshdata["n_edge_elements"]
         self.nsurface_elements = meshdata["n_surface_elements"]
         self.volume_elements_offset = meshdata["volume_elements_offset"]
         self.min = meshdata['min']
@@ -795,10 +796,11 @@ class SolutionScene(BaseFunctionSceneObject):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        addOption(self, "Show", "ShowSurface", typ=bool, default_value=True)
-        addOption(self, "Show", "ShowClippingPlane", typ=bool, default_value=False)
-        addOption(self, "Show", "ShowIsoSurface", typ=bool, default_value=False)
-        addOption(self, "Show", "ShowVectors", typ=bool, default_value=False)
+        if(self.mesh.dim>1):
+            addOption(self, "Show", "ShowSurface", typ=bool, default_value=True)
+            addOption(self, "Show", "ShowClippingPlane", typ=bool, default_value=False)
+            addOption(self, "Show", "ShowIsoSurface", typ=bool, default_value=False)
+            addOption(self, "Show", "ShowVectors", typ=bool, default_value=False)
 
         self.qtWidget = None
         self.vao = None
@@ -821,6 +823,12 @@ class SolutionScene(BaseFunctionSceneObject):
         formats = [None, GL_R32F, GL_RG32F, GL_RGB32F, GL_RGBA32F];
         self.volume_values = Texture(GL_TEXTURE_BUFFER, formats[self.cf.dim])
         self.surface_values = Texture(GL_TEXTURE_BUFFER, formats[self.cf.dim])
+
+        # 1d solution (line)
+        self.line_vao = glGenVertexArrays(1)
+        glBindVertexArray(self.line_vao)
+        self.line_program = Program('solution1d.vert', 'solution1d.frag')
+        glBindVertexArray(0)
 
         # solution on surface mesh
         self.surface_vao = glGenVertexArrays(1)
@@ -849,11 +857,19 @@ class SolutionScene(BaseFunctionSceneObject):
 
     def update(self):
         super().update()
+        if self.mesh.dim==1:
+            try:
+                values = ngui.GetValues(self.cf, self.mesh, ngsolve.VOL, 2**self.getSubdivision()-1, self.getOrder())
+                self.surface_values.store(values)
+                self.min_values = values[0:self.cf.dim]
+                self.max_values = values[self.cf.dim:2*self.cf.dim]
+            except:
+                print("Cannot evaluate given function on 1d elements")
         if self.mesh.dim==2:
             try:
                 self.surface_values.store(ngui.GetValues(self.cf, self.mesh, ngsolve.VOL, 2**self.getSubdivision()-1, self.getOrder()))
             except:
-                print("Cannot evaluate given function on surface elemnents")
+                print("Cannot evaluate given function on surface elements")
                 self.show_surface = False
 
         if self.mesh.dim==3:
@@ -864,6 +880,48 @@ class SolutionScene(BaseFunctionSceneObject):
             except:
                 print("Cannot evaluate given function on surface elements")
                 self.show_surface = False
+
+    def render1D(self, settings):
+        model, view, projection = settings.model, settings.view, settings.projection
+
+        # surface mesh
+        glBindVertexArray(self.line_vao)
+        glUseProgram(self.line_program.id)
+
+        uniforms = self.line_program.uniforms
+        uniforms.set('P',projection)
+        uniforms.set('MV',view*model)
+
+        uniforms.set('colormap_min', self.colormap_min)
+        uniforms.set('colormap_max', self.colormap_max)
+        uniforms.set('colormap_linear', self.colormap_linear)
+        uniforms.set('clipping_plane', settings.clipping_plane)
+        uniforms.set('do_clipping', self.mesh.dim==3);
+        uniforms.set('subdivision', 2**self.getSubdivision()-1)
+        uniforms.set('order', self.getOrder())
+
+
+        uniforms.set('element_type', 10)
+
+        glActiveTexture(GL_TEXTURE0)
+        self.mesh_data.vertices.bind()
+        uniforms.set('mesh.vertices', 0)
+
+        glActiveTexture(GL_TEXTURE1)
+        self.mesh_data.elements.bind()
+        uniforms.set('mesh.elements', 1)
+
+        glActiveTexture(GL_TEXTURE2)
+        self.surface_values.bind()
+        uniforms.set('coefficients', 2)
+
+        uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
+
+        glPolygonOffset (2,2)
+        glEnable(GL_POLYGON_OFFSET_FILL)
+        glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
+        glDrawArrays(GL_LINES, 0, self.mesh_data.nedge_elements*(2*(2**self.getSubdivision()*self.getOrder()+1)-2))
+        glBindVertexArray(self.line_vao)
 
     def renderSurface(self, settings):
         model, view, projection = settings.model, settings.view, settings.projection
@@ -1033,11 +1091,15 @@ class SolutionScene(BaseFunctionSceneObject):
         if not self.active:
             return
 
-        if self.getShowSurface():
-            self.renderSurface(settings)
-        if self.getShowClippingPlane():
-            self.renderClippingPlane(settings)
-        if self.getShowIsoSurface():
-            self.renderIsoSurface(settings)
-        if self.getShowVectors():
-            self.renderVectors(settings)
+        if self.mesh.dim==1:
+            self.render1D(settings)
+
+        else:
+            if self.getShowSurface():
+                self.renderSurface(settings)
+            if self.getShowClippingPlane():
+                self.renderClippingPlane(settings)
+            if self.getShowIsoSurface():
+                self.renderIsoSurface(settings)
+            if self.getShowVectors():
+                self.renderVectors(settings)
