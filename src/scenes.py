@@ -798,6 +798,7 @@ class SolutionScene(BaseFunctionSceneObject):
         addOption(self, "Show", "ShowSurface", typ=bool, default_value=True)
         addOption(self, "Show", "ShowClippingPlane", typ=bool, default_value=False)
         addOption(self, "Show", "ShowIsoSurface", typ=bool, default_value=False)
+        addOption(self, "Show", "ShowVectors", typ=bool, default_value=False)
 
         self.qtWidget = None
         self.vao = None
@@ -836,8 +837,13 @@ class SolutionScene(BaseFunctionSceneObject):
 
         # iso-surface
         self.iso_surface_vao = glGenVertexArrays(1)
-        glBindVertexArray(self.clipping_vao)
+        glBindVertexArray(self.iso_surface_vao)
         self.iso_surface_program = Program('clipping.vert', 'isosurface.geom', 'solution.frag')
+        glBindVertexArray(0)
+
+        self.vector_vao = glGenVertexArrays(1)
+        glBindVertexArray(self.vector_vao)
+        self.vector_program = Program('clipping.vert', 'vector.geom', 'solution.frag')
         glBindVertexArray(0)
 
 
@@ -941,6 +947,46 @@ class SolutionScene(BaseFunctionSceneObject):
         glDrawArraysInstanced(GL_POINTS, 0, self.mesh.ne, instances)
         glBindVertexArray(0)
 
+    def renderVectors(self, settings):
+        model, view, projection = settings.model, settings.view, settings.projection
+        glUseProgram(self.vector_program.id)
+        glBindVertexArray(self.vector_vao)
+
+        uniforms = self.vector_program.uniforms
+        uniforms.set('P',projection)
+        uniforms.set('MV',view*model)
+        uniforms.set('colormap_min', 1e99)
+        uniforms.set('colormap_max', -1e99)
+        uniforms.set('colormap_linear', self.colormap_linear)
+        uniforms.set('clipping_plane', settings.clipping_plane)
+        uniforms.set('do_clipping', True);
+        uniforms.set('subdivision', 2**self.getSubdivision()-1)
+        uniforms.set('order', self.getOrder())
+
+        if(self.mesh.dim==2):
+            uniforms.set('element_type', 10)
+        if(self.mesh.dim==3):
+            uniforms.set('element_type', 20)
+
+        glActiveTexture(GL_TEXTURE0)
+        self.mesh_data.vertices.bind()
+        uniforms.set('mesh.vertices', 0)
+
+        glActiveTexture(GL_TEXTURE1)
+        self.mesh_data.elements.bind()
+        uniforms.set('mesh.elements', 1)
+
+        glActiveTexture(GL_TEXTURE2)
+        self.volume_values.bind()
+        uniforms.set('coefficients', 2)
+
+        uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
+        uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
+
+        glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
+        glDrawArrays(GL_POINTS, 0, self.mesh.ne)
+        glBindVertexArray(0)
+
     def renderClippingPlane(self, settings):
         model, view, projection = settings.model, settings.view, settings.projection
         glUseProgram(self.clipping_program.id)
@@ -993,3 +1039,5 @@ class SolutionScene(BaseFunctionSceneObject):
             self.renderClippingPlane(settings)
         if self.getShowIsoSurface():
             self.renderIsoSurface(settings)
+        if self.getShowVectors():
+            self.renderVectors(settings)
