@@ -3,6 +3,7 @@
 from PySide2 import QtCore, QtGui, QtWidgets, QtOpenGL
 from PySide2.QtCore import Qt
 
+import sys, re, math
 
 class ObjectHolder():
     def __init__(self, obj, call_func):
@@ -137,37 +138,63 @@ class QColorButton(QtWidgets.QPushButton):
 
         return super(QColorButton, self).mousePressEvent(e)
 
+class FloatValidator(QtGui.QValidator):
+    _float_re = re.compile(r'(([+-]?\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?)')
+    def _valid_float_string(self,string):
+        match = self._float_re.search(string)
+        return match.groups()[0] == string if match else False
 
-class RangeGroup(QtWidgets.QWidget):
-    valueChanged = QtCore.Signal(float) # TODO: this shouldn't be static
-    def __init__(self, name, min=-1, max=1, value=0, direction=Qt.Horizontal):
-        super(RangeGroup, self).__init__()
-#         self.valueChanged.connect(onValueChanged)
+    def validate(self,string,position):
+        if self._valid_float_string(string):
+            return self.State.Acceptable
+        if string == "" or string[position-1] in "e.-+":
+            return self.State.Intermediate
+        return self.State.Invalid
 
-        self.scalingFactor = 1000 # scaling between integer widgets (scrollslider) and float values to get more resolution
-        self.scroll = QtWidgets.QScrollBar(direction)
-        self.scroll.setFocusPolicy(Qt.StrongFocus)
-        self.scroll.valueChanged[int].connect(self.setIntValue)
-        self.scroll.setRange(self.scalingFactor*min,self.scalingFactor*max)
+    def fixup(self,text):
+        match = self._float_re.search(text)
+        return match.groups()[0] if match else text
 
-        self.valueBox = QtWidgets.QDoubleSpinBox()
-        self.valueBox.setRange(min,max)
-        self.valueBox.valueChanged[float].connect(self.setValue)
-        self.valueBox.setSingleStep(0.01*(max-min))
+class ScienceSpinBox(QtWidgets.QDoubleSpinBox):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args,**kwargs)
+        maxval = sys.float_info.max
+        self.setRange(-maxval,maxval)
+        self.validator = FloatValidator()
+        self.setDecimals(1000)
 
-        self.label = QtWidgets.QLabel(name)
+    def validate(self,text,position):
+        return self.validator.validate(text,position)
 
-        self.setLayout(ArrangeV(ArrangeH(self.label, self.valueBox), self.scroll))
-        self.setValue(value)
+    def fixup(self, text):
+        return self.validator.fixup(text)
 
-    def setIntValue(self, int_value):
-        float_value = int_value*1.0/self.scalingFactor
-        self.valueBox.setValue(float_value)
+    def textFromValue(self, value):
+        return self._format_float(value)
 
-    def setValue(self, float_value):
-        int_value = round(self.scalingFactor*float_value)
-        self.scroll.setValue(int_value)
-        self.valueChanged.emit(float_value)
+    def valueFromText(self,text):
+        return float(text)
+
+    def stepBy(self,steps):
+        text = self.cleanText()
+        groups = self.validator._float_re.search(text).groups()
+        if steps == 10:
+            self.lineEdit().setText(self._format_float(float(text)*10))
+            return
+        elif steps == -10:
+            self.lineEdit().setText(self._format_float(float(text)/10))
+            return
+        else:
+            decimal = float(groups[1])
+            decimal += steps
+            new_string = "{:g}".format(decimal) + (groups[3] if groups[3] else "")
+        self.lineEdit().setText(new_string)
+
+    def _format_float(self,value):
+        """Modified form of the 'g' format specifier."""
+        string = "{:g}".format(value).replace("e+", "e")
+        string = re.sub("e(-?)0*(\d+)", r"e\1\2", string)
+        return string
 
 
 class ColorMapSettings(QtWidgets.QWidget):
@@ -175,10 +202,8 @@ class ColorMapSettings(QtWidgets.QWidget):
     def __init__(self, min=-1, max=1, min_value=0, max_value=1, direction=Qt.Horizontal):
         super(ColorMapSettings, self).__init__()
 
-        self.rangeMin = RangeGroup("Min", min, max, min_value, direction)
-        self.minChanged = self.rangeMin.valueChanged
-        self.rangeMax = RangeGroup("Max", min, max, max_value, direction)
-        self.maxChanged = self.rangeMax.valueChanged
+        self.rangeMin = ScienceSpinBox()
+        self.rangeMax = ScienceSpinBox()
 
         self.linear = QtWidgets.QCheckBox('Linear', self)
         self.linear.stateChanged.connect( lambda state: self.linearChanged.emit(state==Qt.Checked))

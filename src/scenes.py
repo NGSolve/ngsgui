@@ -461,11 +461,11 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
         settings = wid.ColorMapSettings(min=-2, max=2, min_value=self.colormap_min, max_value=self.colormap_max)
         settings.layout().setAlignment(QtCore.Qt.AlignTop)
 
-        settings.minChanged.connect(self.setColorMapMin)
-        settings.minChanged.connect(updateGL)
+        settings.rangeMin.valueChanged.connect(self.setColorMapMin)
+        settings.rangeMin.valueChanged.connect(updateGL)
 
-        settings.maxChanged.connect(self.setColorMapMax)
-        settings.maxChanged.connect(updateGL)
+        settings.rangeMax.valueChanged.connect(self.setColorMapMax)
+        settings.rangeMax.valueChanged.connect(updateGL)
 
         settings.linearChanged.connect(self.setColorMapLinear)
         settings.linearChanged.connect(updateGL)
