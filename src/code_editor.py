@@ -82,8 +82,8 @@ class ButtonArea(QtWidgets.QWidget):
         find_btn = QtWidgets.QPushButton("Find")
         find_btn.clicked.connect(lambda : TextFinder(self.editor).show())
         savebtn.setShortcut(QtGui.QKeySequence("Ctrl+s"))
-        runbtn.setShortcut(QtGui.QKeySequence("Ctrl+x"))
-        runbtn_cursor.setShortcut(QtGui.QKeySequence("Ctrl+Shift+x"))
+        runbtn.setShortcut(QtGui.QKeySequence("Ctrl+r"))
+        runbtn_cursor.setShortcut(QtGui.QKeySequence("Ctrl+Shift+r"))
         run_line.setShortcut("Ctrl+l")
         find_btn.setShortcut(QtGui.QKeySequence("Ctrl+f"))
         layout = ArrangeH(savebtn, runbtn, runbtn_cursor,run_line,find_btn)
@@ -111,16 +111,66 @@ class CodeEditor(QtWidgets.QPlainTextEdit):
         self.textChanged.connect(setTitleAsterix)
         self.highlightCurrentLine()
 
+        self.comment_action = QtWidgets.QAction("Comment/Uncomment")
+        def _comment():
+            cursor = self.textCursor()
+            if not cursor.hasSelection():
+                cursor.movePosition(cursor.StartOfLine)
+                cursor.movePosition(cursor.EndOfLine,cursor.KeepAnchor)
+            start = cursor.selectionStart()
+            end = cursor.selectionEnd()
+            cursor.setPosition(start)
+            firstline = cursor.blockNumber()
+            cursor.setPosition(end,cursor.KeepAnchor)
+            lastline = cursor.blockNumber()
+            hasUncommented = False
+            for line in range(firstline,lastline+1):
+                block = self.document().findBlockByLineNumber(line)
+                if block.text() and block.text()[0] != "#":
+                    hasUncommented = True
+            cursor.beginEditBlock()
+            block = self.document().findBlockByLineNumber(firstline)
+            linenr = firstline
+            while block.isValid() and linenr <= lastline:
+                linenr += 1
+                cur = QtGui.QTextCursor(block)
+                txt = block.text()
+                block = block.next()
+                cur.select(cur.BlockUnderCursor)
+                cur.removeSelectedText()
+                if txt:
+                    if hasUncommented:
+                        cur.insertText("\n# " + txt)
+                    else:
+                        if txt and txt[0] == "#":
+                            if len(txt)>1 and txt[1] == " ":
+                                cur.insertText("\n" + txt[2:])
+                            else:
+                                cur.insertText("\n" + txt[1:])
+            cursor.endEditBlock()
+            cur = QtGui.QTextCursor(self.document().findBlockByLineNumber(firstline))
+            cur.movePosition(cur.Down, cur.KeepAnchor, lastline-firstline)
+            cur.movePosition(cur.EndOfLine, cur.KeepAnchor)
+            self.setTextCursor(cur)
+        self.comment_action.triggered.connect(_comment)
+        self.comment_action.setShortcut(QtGui.QKeySequence("Ctrl+c"))
+        # somehow this doesn't work...
+        self.addAction(self.comment_action)
+
     def isGLWindow(self):
         return False
 
     def contextMenuEvent(self, event):
+        # is there a selection
         menu = self.createStandardContextMenu()
         run_section = menu.addAction("Run selection")
+        if not self.textCursor().hasSelection():
+            run_section.setDisabled(True)
         def _run():
             self.settings.computation_started_at = self.textCursor().selectionStart()
             self.settings.run(self.textCursor().selection().toPlainText())
         run_section.triggered.connect(_run)
+        menu.addAction(self.comment_action)
         menu.exec_(event.globalPos())
 
     def save(self):
