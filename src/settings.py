@@ -105,31 +105,17 @@ class PythonFileSettings(Settings):
         self.solutions = []
         self.meshes = []
         for name, item in self.exec_locals.items():
-            if isinstance(item, ngs.CoefficientFunction):
-                if item.dim == 1:
-                    if item.is_complex:
-                        real = item.real
-                        real._name = name + ".r"
-                        imag = item.imag
-                        imag._name = name + ".i"
-                        self.solutions.append((real,None))
-                        self.solutions.append((imag,None))
-                    else:
-                        item._name = name
-                        self.solutions.append((item,None))
+            if isinstance(item, ngs.CoefficientFunction) and not isinstance(item, ngs.comp.ProxyFunction):
+                if item.is_complex:
+                    real = item.real
+                    real._name = name + ".r"
+                    imag = item.imag
+                    imag._name = name + ".i"
+                    self.solutions.append((real,None))
+                    self.solutions.append((imag,None))
                 else:
-                    for i in range(item.dim):
-                        comp = item[i]
-                        if comp.is_complex:
-                            real = comp.real
-                            real._name = name + "(" + str(i+1) + ")" + ".r"
-                            imag = comp.imag
-                            imag._name = name + "(" + str(i+1) + ")" + ".i"
-                            self.solutions.append((real,None))
-                            self.solutions.append((imag,None))
-                        else:
-                            comp._name = name + "(" + str(i+1) + ")"
-                            self.solutions.append((comp,None))
+                    item._name = name
+                    self.solutions.append((item,None))
             if isinstance(item,ngs.Mesh):
                 item._name =  name
                 self.meshes.append((item,None))
