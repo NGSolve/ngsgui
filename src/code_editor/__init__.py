@@ -1,9 +1,10 @@
 
 from . import syntax
-from .widgets import ArrangeH, ArrangeV
-from .thread import inmain_decorator
+from ngsolve.gui.widgets import ArrangeH, ArrangeV
+from ngsolve.gui.thread import inmain_decorator
 
 from PySide2 import QtWidgets, QtGui, QtCore
+
 
 class LineNumberArea(QtWidgets.QWidget):
     def __init__(self, editor, *args, **kwargs):
@@ -11,7 +12,21 @@ class LineNumberArea(QtWidgets.QWidget):
         self.editor = editor
 
     def paintEvent(self,event):
-        self.editor.lineNumberAreaPaintEvent(event)
+        painter = QtGui.QPainter(self)
+        painter.fillRect(event.rect(),QtCore.Qt.lightGray)
+        block = self.editor.firstVisibleBlock()
+        blockNumber = block.blockNumber()
+        top = int(self.editor.blockBoundingGeometry(block).translated(self.editor.contentOffset()).top())
+        bottom = top + int(self.editor.blockBoundingRect(block).height())
+        while block.isValid() and top <= event.rect().bottom():
+            if block.isVisible() and bottom >= event.rect().top():
+                painter.setPen(QtCore.Qt.black)
+                painter.drawText(0,top,self.width(), self.editor.fontMetrics().height(), QtCore.Qt.AlignRight,
+                                 str(blockNumber + 1))
+            block = block.next()
+            top = bottom
+            bottom = top + int(self.editor.blockBoundingRect(block).height())
+            blockNumber += 1
 
 class TextFinder(QtWidgets.QDialog):
     def __init__(self,editor, *args,**kwargs):
@@ -39,7 +54,6 @@ class TextFinder(QtWidgets.QDialog):
                 self.editor.highlighter.setFindRule(searchString,'cyan')
         textedit.textChanged.connect(_highlight)
         btn_close.clicked.connect(self.close)
-        btn_close.setShortcut(QtGui.QKeySequence("Ctrl+c"))
         btn_next.setShortcut(QtGui.QKeySequence("Ctrl+f"))
         btn_up.setShortcut(QtGui.QKeySequence("Ctrl+r"))
         self.setLayout(ArrangeH(label,textedit,btn_next,btn_up,btn_close))
@@ -157,6 +171,15 @@ class CodeEditor(QtWidgets.QPlainTextEdit):
         # somehow this doesn't work...
         self.addAction(self.comment_action)
 
+    @property
+    @inmain_decorator(wait_for_return=True)
+    def text(self):
+        return self.toPlainText()
+    @text.setter
+    @inmain_decorator(wait_for_return=False)
+    def text(self, text):
+        self.setPlainText(text)
+
     def isGLWindow(self):
         return False
 
@@ -176,32 +199,11 @@ class CodeEditor(QtWidgets.QPlainTextEdit):
     def save(self):
         if self.windowTitle()[0] == "*":
             with open(self.filename,"w") as f:
-                f.write(self.toPlainText())
+                f.write(self.text)
             self.setWindowTitle(self.windowTitle()[2:])
-
-    @inmain_decorator(wait_for_return=True)
-    def toPlainText(self):
-        return super().toPlainText()
 
     def run(self, code, exec_locals):
         exec(code, exec_locals)
-
-    def lineNumberAreaPaintEvent(self, event):
-        painter =  QtGui.QPainter(self.lineNumberArea)
-        painter.fillRect(event.rect(),QtCore.Qt.lightGray)
-        block = self.firstVisibleBlock()
-        blockNumber = block.blockNumber()
-        top = int(self.blockBoundingGeometry(block).translated(self.contentOffset()).top())
-        bottom = top + int(self.blockBoundingRect(block).height())
-        while block.isValid() and top <= event.rect().bottom():
-            if block.isVisible() and bottom >= event.rect().top():
-                painter.setPen(QtCore.Qt.black)
-                painter.drawText(0,top, self.lineNumberArea.width(), self.fontMetrics().height(),
-                                 QtCore.Qt.AlignRight, str(blockNumber + 1))
-            block = block.next()
-            top = bottom
-            bottom = top + int(self.blockBoundingRect(block).height())
-            blockNumber += 1
 
     def lineNumberAreaWidth(self):
         import math
