@@ -9,6 +9,11 @@ from PySide2 import QtWidgets, QtGui
 
 import ngsolve as ngs
 
+class CFwithName:
+    def __init__(self, cf, name):
+        self.cf = cf
+        self._name = name
+
 class Settings():
     def __init__(self, gui):
         self.name = "Settings"
@@ -48,7 +53,7 @@ class Settings():
     def drawSolution(self, index, window):
         if self.solutions[index][1] is None:
             self.solutions[index] = (self.solutions[index][0],
-                                     scenes.SolutionScene(self.solutions[index][0],self.active_mesh))
+                                     scenes.SolutionScene(self.solutions[index][0].cf,self.active_mesh))
         window.draw(self.solutions[index][1])
 
     def drawMesh(self, index, window):
@@ -107,15 +112,10 @@ class PythonFileSettings(Settings):
         for name, item in self.exec_locals.items():
             if isinstance(item, ngs.CoefficientFunction) and not isinstance(item, ngs.comp.ProxyFunction):
                 if item.is_complex:
-                    real = item.real
-                    real._name = name + ".r"
-                    imag = item.imag
-                    imag._name = name + ".i"
-                    self.solutions.append((real,None))
-                    self.solutions.append((imag,None))
+                    self.solutions.append((CFwithName(item.real, name + ".r"),None))
+                    self.solutions.append((CFwithName(item.imag, name + ".i"),None))
                 else:
-                    item._name = name
-                    self.solutions.append((item,None))
+                    self.solutions.append((CFwithName(item, name),None))
             if isinstance(item,ngs.Mesh):
                 item._name =  name
                 self.meshes.append((item,None))

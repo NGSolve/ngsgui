@@ -2,6 +2,7 @@ import threading
 import inspect
 import ctypes
 import psutil
+import sys
 
 def _async_raise(tid, exctype):
     '''Raises an exception in the threads with id tid'''
