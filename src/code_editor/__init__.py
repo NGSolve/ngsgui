@@ -108,13 +108,15 @@ class CodeEditor(QtWidgets.QPlainTextEdit):
     def contextMenuEvent(self, event):
         # is there a selection
         menu = self.createStandardContextMenu()
-        run_section = menu.addAction("Run selection")
-        if not self.textCursor().hasSelection():
-            run_section.setDisabled(True)
+        run_selection = menu.addAction("Run selection")
+        try:
+            selection = Selection(self)
+        except ValueError:
+            run_selection.setDisabled(True)
         def _run():
-            self.settings.computation_started_at = self.textCursor().selectionStart()
-            self.settings.run(self.textCursor().selection().toPlainText())
-        run_section.triggered.connect(_run)
+            self.settings.computation_started_at = selection.start
+            self.settings.run(str(selection))
+        run_selection.triggered.connect(_run)
         menu.addAction(self.comment_action)
         menu.exec_(event.globalPos())
 

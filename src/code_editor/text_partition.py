@@ -31,6 +31,12 @@ class Lines:
     def __len__(self):
         return self.editor.blockCount()
 
+    def __str__(self):
+        string = ""
+        for line in self:
+            string += line + "\n"
+        return string
+
 
 class SlicedLines(Lines):
     """ Sliced Lines object """
@@ -101,6 +107,9 @@ class Selection:
                     self.lines[i] = self.lines[i][2:]
                 else:
                     self.lines[i] = self.lines[i][1:]
+
+    def __str__(self):
+        return str(self.lines)
 
     def _markSelection(self):
         cursor = QtGui.QTextCursor(self.editor.document().findBlockByLineNumber(self.startline))
