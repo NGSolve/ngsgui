@@ -48,6 +48,32 @@ inline SIMD_IntegrationRule GetReferenceRule( int dim, int order, int subdivisio
   return SIMD_IntegrationRule(ir);
 }
 
+inline IntegrationRule GetReferenceRuleNoSIMD( int dim, int order, int subdivision )
+{
+  IntegrationRule ir;
+  int n = (order)*(subdivision+1)+1;
+  const double h = 1.0/(n-1);
+  if(dim==1) {
+      for (auto i : Range(n)) {
+          ir.Append(IntegrationPoint(1.0-i*h, 0, 0.0));
+      }
+  }
+  if(dim==2) {
+      for (auto j : Range(n))
+          for (auto i : Range(n-j))
+              ir.Append(IntegrationPoint(i*h, j*h, 0.0));
+  }
+
+  if(dim==3) {
+      for (auto k : Range(n))
+        for (auto j : Range(n-k))
+            for (auto i : Range(n-j-k))
+              ir.Append(IntegrationPoint(1.0-i*h-j*h-k*h, i*h, j*h));
+  }
+
+  return ir;
+}
+
 PYBIND11_MODULE(ngui, m) {
     m.def("GetValues", [] (shared_ptr<ngfem::CoefficientFunction> cf, shared_ptr<ngcomp::MeshAccess> ma, VorB vb, int subdivision, int order) {
             ngstd::Array<float> res;
@@ -55,57 +81,106 @@ PYBIND11_MODULE(ngui, m) {
             int dim = ma->GetDimension();
             if(vb==BND) dim-=1;
 
-            SIMD_IntegrationRule ir = GetReferenceRule( dim, order, subdivision );
-            int nip = ir.GetNIP();
             int ncomps = cf->Dimension();
-
-            FlatMatrix<SIMD<double>> values(ncomps, ir.Size(), lh);
-
-            constexpr int extra_values = 2;
-            int values_per_element = nip*ncomps;
-
-            auto getIndex = [=] ( int nr, int p, int comp ) { return extra_values*ncomps + nr*values_per_element + p*ncomps + comp; };
-
-            res.SetSize(extra_values*ncomps+ma->GetNE(vb)*values_per_element); // two entries for global min/max
-
             ArrayMem<float, 10> min(ncomps);
             ArrayMem<float, 10> max(ncomps);
-
             min = std::numeric_limits<float>::max();
             max = std::numeric_limits<float>::min();
 
-            for (auto el : ma->Elements(vb)) {
-                auto verts = el.Vertices();
-                HeapReset hr(lh);
-                ElementTransformation & eltrans = ma->GetTrafo (el, lh);
-                if(ma->GetDimension()==1) {
-                  SIMD_MappedIntegrationRule<1,1> mir(ir, eltrans, lh);
-                  cf->Evaluate(mir, values);
-                }
-                else if(ma->GetDimension()==2 && vb==VOL) {
-                  SIMD_MappedIntegrationRule<2,2> mir(ir, eltrans, lh);
-                  cf->Evaluate(mir, values);
-                }
-                else if(ma->GetDimension()==3 && vb==BND) {
-                  SIMD_MappedIntegrationRule<2,3> mir(ir, eltrans, lh);
-                  cf->Evaluate(mir, values);
-                }
-                else if(ma->GetDimension()==3 && vb==VOL) {
-                  SIMD_MappedIntegrationRule<3,3> mir(ir, eltrans, lh);
-                  cf->Evaluate(mir, values);
-                }
+            try
+              {
+                SIMD_IntegrationRule ir = GetReferenceRule( dim, order, subdivision );
+                int nip = ir.GetNIP();
 
-                constexpr int n = SIMD<double>::Size();
-                FlatVector<double> vals(ir.GetNIP(), reinterpret_cast<double*>(&values(0,0)));
-                for (auto k : Range(nip)) {
+                FlatMatrix<SIMD<double>> values(ncomps, ir.Size(), lh);
+
+                constexpr int extra_values = 2;
+                int values_per_element = nip*ncomps;
+
+                auto getIndex = [=] ( int nr, int p, int comp ) { return extra_values*ncomps + nr*values_per_element + p*ncomps + comp; };
+
+                res.SetSize(extra_values*ncomps+ma->GetNE(vb)*values_per_element); // two entries for global min/max
+
+
+                for (auto el : ma->Elements(vb)) {
+                  auto verts = el.Vertices();
+                  HeapReset hr(lh);
+                  ElementTransformation & eltrans = ma->GetTrafo (el, lh);
+                  if(ma->GetDimension()==1) {
+                    SIMD_MappedIntegrationRule<1,1> mir(ir, eltrans, lh);
+                    cf->Evaluate(mir, values);
+                  }
+                  else if(ma->GetDimension()==2 && vb==VOL) {
+                    SIMD_MappedIntegrationRule<2,2> mir(ir, eltrans, lh);
+                    cf->Evaluate(mir, values);
+                  }
+                  else if(ma->GetDimension()==3 && vb==BND) {
+                    SIMD_MappedIntegrationRule<2,3> mir(ir, eltrans, lh);
+                    cf->Evaluate(mir, values);
+                  }
+                  else if(ma->GetDimension()==3 && vb==VOL) {
+                    SIMD_MappedIntegrationRule<3,3> mir(ir, eltrans, lh);
+                    cf->Evaluate(mir, values);
+                  }
+
+                  constexpr int n = SIMD<double>::Size();
+                  FlatVector<double> vals(ir.GetNIP(), reinterpret_cast<double*>(&values(0,0)));
+                  for (auto k : Range(nip)) {
                     for (auto i : Range(ncomps)) {
                       float val = values(i, k/n)[k%n];
                       res[getIndex(el.Nr(), k, i)] = val;
                       min[i] = min2(min[i], val);
                       max[i] = max2(max[i], val);
                     }
+                  }
                 }
-            }
+              }
+            catch(ExceptionNOSIMD e)
+              {
+                auto ir = GetReferenceRuleNoSIMD( dim, order, subdivision );
+                int nip = ir.GetNIP();
+
+                FlatMatrix<double> values(ncomps, ir.Size(), lh);
+
+                constexpr int extra_values = 2;
+                int values_per_element = nip*ncomps;
+
+                auto getIndex = [=] ( int nr, int p, int comp ) { return extra_values*ncomps + nr*values_per_element + p*ncomps + comp; };
+
+                res.SetSize(extra_values*ncomps+ma->GetNE(vb)*values_per_element); // two entries for global min/max
+
+                for (auto el : ma->Elements(vb)) {
+                  auto verts = el.Vertices();
+                  HeapReset hr(lh);
+                  ElementTransformation & eltrans = ma->GetTrafo (el, lh);
+                  if(ma->GetDimension()==1) {
+                    MappedIntegrationRule<1,1> mir(ir, eltrans, lh);
+                    cf->Evaluate(mir, values);
+                  }
+                  else if(ma->GetDimension()==2 && vb==VOL) {
+                    MappedIntegrationRule<2,2> mir(ir, eltrans, lh);
+                    cf->Evaluate(mir, values);
+                  }
+                  else if(ma->GetDimension()==3 && vb==BND) {
+                    MappedIntegrationRule<2,3> mir(ir, eltrans, lh);
+                    cf->Evaluate(mir, values);
+                  }
+                  else if(ma->GetDimension()==3 && vb==VOL) {
+                    MappedIntegrationRule<3,3> mir(ir, eltrans, lh);
+                    cf->Evaluate(mir, values);
+                  }
+
+                  FlatVector<double> vals(ir.GetNIP(), reinterpret_cast<double*>(&values(0,0)));
+                  for (auto k : Range(nip)) {
+                    for (auto i : Range(ncomps)) {
+                      float val = values(i, k);
+                      res[getIndex(el.Nr(), k, i)] = val;
+                      min[i] = min2(min[i], val);
+                      max[i] = max2(max[i], val);
+                    }
+                  }
+                }
+              }
             for (auto i : Range(ncomps)) {
                 res[i] = min[i];
                 res[ncomps + i] = max[i];
