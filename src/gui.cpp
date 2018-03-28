@@ -196,8 +196,8 @@ PYBIND11_MODULE(ngui, m) {
         max = std::numeric_limits<double>::lowest();
 
         ngstd::Array<float> vertices;
-        vertices.SetAllocSize(ma->GetNP()*3);
-        for ( auto vi : Range(ma->GetNP()) ) {
+        vertices.SetAllocSize(ma->GetNV()*3);
+        for ( auto vi : Range(ma->GetNV()) ) {
             auto v = ma->GetPoint<3>(vi);
             for (auto i : Range(3)) {
               vertices.Append(v[i]);
