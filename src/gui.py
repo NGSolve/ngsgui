@@ -4,6 +4,7 @@ from . import code_editor
 from . widgets import ArrangeV
 from . settings import PythonFileSettings
 from .thread import inthread, inmain_decorator
+import ngui
 
 import inspect
 import time
@@ -136,6 +137,7 @@ import ngsolve
 class GUI():
     def __init__(self):
         self.app = QtWidgets.QApplication([])
+        ngui.SetLocale()
         self.common_context = None
         self.multikernel_manager = MultiQtKernelManager()
         self.mainWidget = MainWindow()

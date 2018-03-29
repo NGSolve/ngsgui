@@ -1,6 +1,7 @@
 #include<pybind11/pybind11.h>
 #include<pybind11/stl_bind.h>
 #include<pybind11/numpy.h>
+#include <locale.h>
 
 #include<comp.hpp>
 
@@ -75,7 +76,11 @@ inline IntegrationRule GetReferenceRuleNoSIMD( int dim, int order, int subdivisi
 }
 
 PYBIND11_MODULE(ngui, m) {
-    m.def("GetValues", [] (shared_ptr<ngfem::CoefficientFunction> cf, shared_ptr<ngcomp::MeshAccess> ma, VorB vb, int subdivision, int order) {
+  m.def("SetLocale", []()
+        {
+          setlocale(LC_NUMERIC,"C");
+        });
+  m.def("GetValues", [] (shared_ptr<ngfem::CoefficientFunction> cf, shared_ptr<ngcomp::MeshAccess> ma, VorB vb, int subdivision, int order) {
             ngstd::Array<float> res;
             LocalHeap lh(10000000, "GetValues");
             int dim = ma->GetDimension();
