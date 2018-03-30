@@ -278,23 +278,19 @@ class GUI():
                 txt += line
         return txt
 
-    def loadPythonFile(self, filename):
+    def loadPythonFile(self, filename, execute = False):
         editTab = code_editor.CodeEditor(filename=filename,parent=self.window_tabber)
         pos = self.window_tabber.addTab(editTab,filename)
         editTab.windowTitleChanged.connect(lambda txt: self.window_tabber.setTabText(pos, txt))
-        self.settings_toolbox.addSettings(PythonFileSettings(gui=self, name = filename, editTab = editTab))
+        setting = PythonFileSettings(gui=self, name = filename, editTab = editTab)
+        self.settings_toolbox.addSettings(setting)
+        if execute:
+            setting.run(editTab.text)
 
-    def run(self,filename = None):
+    def run(self,do_after_run):
         import os, threading
         self.mainWidget.show()
         globs = inspect.stack()[1][0].f_globals
         self.console.pushVariables(globs)
-        if filename:
-            name, ext = os.path.splitext(filename)
-            if ext == ".py":
-                self.loadPythonFile(filename)
-            else:
-                self.msgbox = QtWidgets.QMessageBox(text="Cannot load file type: " + ext)
-                self.msgbox.setWindowTitle("File loading error")
-                self.msgbox.show()
+        do_after_run()
         self.app.exec_()

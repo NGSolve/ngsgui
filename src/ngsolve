@@ -1,15 +1,23 @@
 #!/usr/bin/python3
 
 # -*- coding: utf-8 -*-
-import sys
+import sys, os
 import ngsolve.gui as G
 
 
 if __name__ == "__main__":
     gui = G.GUI()
     del G
-    if len(sys.argv) > 1:
-        gui.run(sys.argv[1])
-    else:
-        gui.run()
+    def do_after_run():
+        for option in sys.argv[1:]:
+            if os.path.isfile(option):
+                name,ext = os.path.splitext(option)
+                if ext == ".py":
+                    gui.loadPythonFile(option, not "-noexec" in sys.argv)
+                    file_loaded = True
+                else:
+                    gui.msgbox = QtWidgets.QMessageBox(text = "Cannot load file type: " + ext)
+                    gui.msgbox.setWindowTitle("File loading error")
+                    gui.msgbox.show()
+    gui.run(do_after_run)
 
