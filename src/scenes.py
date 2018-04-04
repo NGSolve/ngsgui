@@ -650,7 +650,12 @@ class MeshScene(BaseMeshSceneObject):
         uniforms.set('mesh.elements', 1)
 
         glActiveTexture(GL_TEXTURE3)
-        self.bbnd_colors.bind()
+        if self.mesh.dim == 3:
+            self.bbnd_colors.bind()
+        elif self.mesh.dim == 2:
+            self.bc_colors.bind()
+        else: # dim == 1
+            self.tex_mat_color.bind()
         uniforms.set('colors', 3)
 
         uniforms.set('clipping_plane', settings.clipping_plane)
@@ -684,7 +689,10 @@ class MeshScene(BaseMeshSceneObject):
         uniforms.set('mesh.elements', 1)
 
         glActiveTexture(GL_TEXTURE3)
-        self.bc_colors.bind()
+        if self.mesh.dim == 3:
+            self.bc_colors.bind()
+        elif self.mesh.dim == 2:
+            self.tex_mat_color.bind()
         uniforms.set('colors', 3)
 
         uniforms.set('clipping_plane', settings.clipping_plane)
@@ -727,7 +735,10 @@ class MeshScene(BaseMeshSceneObject):
 
         glBindVertexArray(self.elements_vao)
         nmats = len(self.mesh.GetMaterials())
-        self.mat_colors = [0,0,255,255] * nmats
+        if self.mesh.dim == 3:
+            self.mat_colors = [0,0,255,255] * nmats
+        else:
+            self.mat_colors = [0,255,0,255] * nmats
         self.tex_mat_color = Texture(GL_TEXTURE_1D, GL_RGBA)
         self.tex_mat_color.store(self.mat_colors, GL_UNSIGNED_BYTE, nmats)
         glBindVertexArray(0)
@@ -818,7 +829,8 @@ class MeshScene(BaseMeshSceneObject):
         bnds = self.mesh.GetBoundaries()
         if self.mesh.dim == 3:
             bbnds = self.mesh.GetBBoundaries()
-        self.matcolors = wid.CollColors(self.mesh.GetMaterials(),initial_color=(0,0,255,255))
+        initial_mat_color = (0,0,255,255) if self.mesh.dim == 3 else (0,255,0,255)
+        self.matcolors = wid.CollColors(self.mesh.GetMaterials(),initial_color=initial_mat_color)
         self.matcolors.colors_changed.connect(self.updateMatColors)
         self.matcolors.colors_changed.connect(updateGL)
         self.updateMatColors()
