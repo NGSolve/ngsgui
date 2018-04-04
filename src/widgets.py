@@ -205,6 +205,22 @@ class ScienceSpinBox(QtWidgets.QDoubleSpinBox):
     def valueFromText(self,text):
         return float(text)
 
+    def wheelEvent(self, event):
+        s = 1.0 if event.angleDelta().y()>0 else -1.0
+        val = self.value()
+        step = 1.0
+
+        if event.modifiers() == QtCore.Qt.ControlModifier:
+            self.setValue(val*(10**s))
+            return
+
+        if event.modifiers() == QtCore.Qt.ShiftModifier:
+            if val!=0.0:
+                step = 10**(math.floor(math.log10(math.fabs(val)))-1)
+
+        self.setValue(val+s*step)
+
+
     def stepBy(self,steps):
         text = self.cleanText()
         groups = self.validator._float_re.search(text).groups()
