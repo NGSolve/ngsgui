@@ -1006,6 +1006,7 @@ class SolutionScene(BaseFunctionSceneObject):
         uniforms.set('coefficients', 2)
 
         uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
+        uniforms.set('mesh.surface_elements_offset', self.mesh_data.surface_elements_offset)
 
         glPolygonOffset (2,2)
         glEnable(GL_POLYGON_OFFSET_FILL)
@@ -1047,6 +1048,7 @@ class SolutionScene(BaseFunctionSceneObject):
         uniforms.set('coefficients', 2)
 
         uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
+        uniforms.set('mesh.surface_elements_offset', self.mesh_data.surface_elements_offset)
 
         glPolygonOffset (2,2)
         glEnable(GL_POLYGON_OFFSET_FILL)
