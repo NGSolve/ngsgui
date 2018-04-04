@@ -295,3 +295,13 @@ class GUI():
         self.console.pushVariables(globs)
         do_after_run()
         self.app.exec_()
+
+class DummyObject:
+    def __init__(self,*arg,**kwargs):
+        pass
+    def __getattr__(self,name):
+        return DummyObject()
+    def __call__(self,*args,**kwargs):
+        pass
+
+gui = DummyObject()

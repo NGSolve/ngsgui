@@ -3,21 +3,37 @@
 # -*- coding: utf-8 -*-
 import sys, os
 import ngsolve.gui as G
+import ngsolve as ngs
+from ngsolve.gui.thread import inmain_decorator
 
+@inmain_decorator(wait_for_return=True)
+def Draw(obj, mesh=None, name=None, **kwargs):
+    """Draw a Mesh or a CoefficientFunction, this function is overridden by
+    the new gui and returns the drawn scene."""
+    scene = None
+    if isinstance(obj,ngs.Mesh):
+        scene = G.scenes.MeshScene(obj)
+    if isinstance(obj, ngs.GridFunction):
+        scene = G.scenes.SolutionScene(obj)
+    if isinstance(obj, ngs.CoefficientFunction):
+        scene = G.scenes.SolutionScene(obj, mesh, name)
+    if scene:
+        G.gui.draw(scene)
+        return scene
+    print("Cannot draw object of type ",type(obj))
 
 if __name__ == "__main__":
-    gui = G.GUI()
-    del G
+    G.gui = G.GUI()
     def do_after_run():
         for option in sys.argv[1:]:
             if os.path.isfile(option):
                 name,ext = os.path.splitext(option)
                 if ext == ".py":
-                    gui.loadPythonFile(option, not "-noexec" in sys.argv)
+                    G.gui.loadPythonFile(option, not "-noexec" in sys.argv)
                     file_loaded = True
                 else:
-                    gui.msgbox = QtWidgets.QMessageBox(text = "Cannot load file type: " + ext)
-                    gui.msgbox.setWindowTitle("File loading error")
-                    gui.msgbox.show()
-    gui.run(do_after_run)
-
+                    G.gui.msgbox = QtWidgets.QMessageBox(text = "Cannot load file type: " + ext)
+                    G.gui.msgbox.setWindowTitle("File loading error")
+                    G.gui.msgbox.show()
+    ngs.Draw = Draw
+    G.gui.run(do_after_run)
