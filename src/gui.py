@@ -285,6 +285,7 @@ class GUI():
         setting = PythonFileSettings(gui=self, name = filename, editTab = editTab)
         self.settings_toolbox.addSettings(setting)
         if execute:
+            setting.computation_started_at = 0
             setting.run(editTab.text)
 
     def run(self,do_after_run):
