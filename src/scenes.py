@@ -659,13 +659,12 @@ class MeshScene(BaseMeshSceneObject):
         if self.getShowEdges():
             uniforms.set('light_ambient', 0.3)
             uniforms.set('light_diffuse', 0.7)
-            # glEnable(GL_LINE_SMOOTH)
-            # print(glGetIntegerv(GL_LINE_WIDTH_RANGE))
-            # print(glGetInteger(GL_LINE_WIDTH_GRANULARITY))
-            # glLineWidth(5)
-            # glPolygonMode( GL_FRONT_AND_BACK, GL_LINE)
+            glLineWidth(3)
+            glEnable(GL_LINE_SMOOTH)
             glPolygonOffset (2, 2)
-            glDrawArrays(GL_LINES, 0, self.mesh_data.nedge_elements)
+            glDrawArrays(GL_LINES, 0, 2*self.mesh_data.nedge_elements)
+            glDisable(GL_LINE_SMOOTH)
+            glLineWidth(1)
 
     def renderSurface(self, settings):
         glUseProgram(self.surface_program.id)
