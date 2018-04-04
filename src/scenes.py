@@ -149,6 +149,7 @@ class CMeshData:
         self.nedge_elements = meshdata["n_edge_elements"]
         self.nsurface_elements = meshdata["n_surface_elements"]
         self.volume_elements_offset = meshdata["volume_elements_offset"]
+        self.surface_elements_offset = meshdata["surface_elements_offset"]
         self.min = meshdata['min']
         self.max = meshdata['max']
 
@@ -592,6 +593,7 @@ class MeshScene(BaseMeshSceneObject):
         addOption(self, "Show", "ShowWireframe", typ=bool, default_value=True, update_widget_on_change=True)
         addOption(self, "Show", "ShowSurface", typ=bool, default_value=True, update_widget_on_change=True)
         addOption(self, "Show", "ShowElements", typ=bool, default_value=False, update_widget_on_change=True)
+        addOption(self, "Show", "ShowEdges", typ=bool, default_value=False, update_widget_on_change=True)
 
     def __getstate__(self):
         super_state = super().__getstate__()
@@ -609,6 +611,13 @@ class MeshScene(BaseMeshSceneObject):
 
         super().initGL()
 
+        self.bbnd_vao = glGenVertexArrays(1)
+        glBindVertexArray(self.bbnd_vao)
+        self.bbnd_program = Program("bbnd.vert","bbnd.frag")
+        self.bbnd_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
+        self.bbnd_colors.store([1,0,0,1] * len(self.mesh.GetBBoundaries()),
+                               data_format = GL_UNSIGNED_BYTE)
+
         self.surface_vao = glGenVertexArrays(1)
         glBindVertexArray(self.surface_vao)
 
@@ -621,7 +630,42 @@ class MeshScene(BaseMeshSceneObject):
 
         self.elements_vao = glGenVertexArrays(1)
         glBindVertexArray(self.elements_vao)
+
         glBindVertexArray(0)
+
+    def renderBBND(self, settings):
+        glUseProgram(self.bbnd_program.id)
+        glBindVertexArray(self.bbnd_vao)
+        model,view,projection = settings.model, settings.view, settings.projection
+        uniforms = self.bbnd_program.uniforms
+        uniforms.set('P',projection)
+        uniforms.set('MV',view*model)
+
+        glActiveTexture(GL_TEXTURE0)
+        self.mesh_data.vertices.bind()
+        uniforms.set('mesh.vertices', 0)
+
+        glActiveTexture(GL_TEXTURE1)
+        self.mesh_data.elements.bind()
+        uniforms.set('mesh.elements', 1)
+
+        glActiveTexture(GL_TEXTURE3)
+        self.bbnd_colors.bind()
+        uniforms.set('colors', 3)
+
+        uniforms.set('clipping_plane', settings.clipping_plane)
+        uniforms.set('do_clipping', True);
+
+        if self.getShowEdges():
+            uniforms.set('light_ambient', 0.3)
+            uniforms.set('light_diffuse', 0.7)
+            # glEnable(GL_LINE_SMOOTH)
+            # print(glGetIntegerv(GL_LINE_WIDTH_RANGE))
+            # print(glGetInteger(GL_LINE_WIDTH_GRANULARITY))
+            # glLineWidth(5)
+            # glPolygonMode( GL_FRONT_AND_BACK, GL_LINE)
+            glPolygonOffset (2, 2)
+            glDrawArrays(GL_LINES, 0, self.mesh_data.nedge_elements)
 
     def renderSurface(self, settings):
         glUseProgram(self.surface_program.id)
@@ -647,6 +691,8 @@ class MeshScene(BaseMeshSceneObject):
         uniforms.set('clipping_plane', settings.clipping_plane)
         uniforms.set('do_clipping', True);
         uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
+        uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
+        uniforms.set('mesh.surface_elements_offset', self.mesh_data.surface_elements_offset)
 
 
         if self.getShowSurface():
@@ -695,6 +741,8 @@ class MeshScene(BaseMeshSceneObject):
 
         if self.getShowElements():
             self.renderElements(settings)
+        if self.getShowEdges():
+            self.renderBBND(settings)
 
     def renderElements(self, settings):
         glBindVertexArray(self.elements_vao)
@@ -730,9 +778,18 @@ class MeshScene(BaseMeshSceneObject):
         glDrawArrays(GL_POINTS, 0, self.mesh.ne)
         glDisable(GL_POLYGON_OFFSET_FILL)
 
-    def updateIndexColors(self):
+    def updateBBNDColors(self):
         colors = []
-        for c in self.indexcolors.getColors():
+        for c in self.bbndcolors.getColors():
+            colors.append(c.red())
+            colors.append(c.green())
+            colors.append(c.blue())
+            colors.append(c.alpha())
+        self.bbnd_colors.store(colors, width=len(colors), data_format=GL_UNSIGNED_BYTE)
+
+    def updateBndColors(self):
+        colors = []
+        for c in self.bndcolors.getColors():
             colors.append(c.red())
             colors.append(c.green())
             colors.append(c.blue())
@@ -758,29 +815,51 @@ class MeshScene(BaseMeshSceneObject):
     def getQtWidget(self, updateGL, params):
         super().getQtWidget(updateGL, params)
 
+        mats = self.mesh.GetMaterials()
+        bnds = self.mesh.GetBoundaries()
         if self.mesh.dim == 3:
-            mats = self.mesh.GetBoundaries()
-            matsname = "Boundary Conditions"
-        else:
-            mats = self.mesh.GetMaterials()
-            matsname = "Materials"
-        if self.mesh.dim > 1:
-            self.indexcolors = wid.CollColors(mats)
-            self.indexcolors.colors_changed.connect(self.updateIndexColors)
-            self.indexcolors.colors_changed.connect(updateGL)
-            self.updateIndexColors()
-            self.widgets.addGroup(matsname,self.indexcolors,connectedVisibility = lambda: self.getShowSurface())
+            bbnds = self.mesh.GetBBoundaries()
+        self.matcolors = wid.CollColors(self.mesh.GetMaterials(),initial_color=(0,0,255,255))
+        self.matcolors.colors_changed.connect(self.updateMatColors)
+        self.matcolors.colors_changed.connect(updateGL)
+        self.updateMatColors()
+        def showVOL():
+            if self.mesh.dim == 3:
+                return self.getShowElements()
+            elif self.mesh.dim == 2:
+                return self.getShowSurface()
+            elif self.mesh.dim == 1:
+                return self.getShowEdges()
+            return False
+        self.widgets.addGroup("Materials", self.matcolors, connectedVisibility = showVOL)
+
+        self.bndcolors = wid.CollColors(self.mesh.GetBoundaries(), initial_color=(0,255,0,255))
+        self.bndcolors.colors_changed.connect(self.updateBndColors)
+        self.bndcolors.colors_changed.connect(updateGL)
+        self.updateBndColors()
+        def showBND():
+            if self.mesh.dim == 3:
+                return self.getShowSurface()
+            elif self.mesh.dim == 2:
+                return self.getShowEdges()
+            return False
+        self.widgets.addGroup("Boundary Conditions", self.bndcolors, connectedVisibility = showBND)
+
+        self.bbndcolors = wid.CollColors(self.mesh.GetBBoundaries(), initial_color=(255,0,0,255))
+        self.bbndcolors.colors_changed.connect(self.updateBBNDColors)
+        self.bbndcolors.colors_changed.connect(updateGL)
+        self.updateBBNDColors()
+        def showBBND():
+            if self.mesh.dim == 3:
+                return self.getShowEdges()
+            return False
+        self.widgets.addGroup("BBoundaries", self.bbndcolors, connectedVisibility=showBBND)
 
         if self.mesh.dim == 3:
             shrink = wid.RangeGroup("Shrink", min=0.0, max=1.0, value=self.shrink)
             shrink.valueChanged.connect(self.setShrink)
             shrink.valueChanged.connect(updateGL)
-            self.matcolors = wid.CollColors(self.mesh.GetMaterials(),initial_color=(0,0,255,255))
-            self.matcolors.colors_changed.connect(self.updateMatColors)
-            self.matcolors.colors_changed.connect(updateGL)
-            self.updateMatColors()
             self.widgets.addGroup("Shrink",shrink, connectedVisibility = lambda: self.getShowElements())
-            self.widgets.addGroup("Materials",self.matcolors, connectedVisibility = lambda: self.getShowElements())
 
         tess = QtWidgets.QDoubleSpinBox()
         tess.setRange(1, 20)

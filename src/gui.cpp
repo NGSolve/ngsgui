@@ -218,8 +218,6 @@ PYBIND11_MODULE(ngui, m) {
         int surface_elements_size = 5; // 3 vertices, 1 boundary condition index, 1 curved index
         int volume_elements_size = 6; // 4 vertices, 1 material index, 1 curved index
 
-
-        VorB vb;
         int n_edge_elements = 0;
         int n_surface_elements = 0;
         int n_volume_elements = 0;
@@ -229,27 +227,29 @@ PYBIND11_MODULE(ngui, m) {
           case 3:
             n_surface_elements = ma->GetNSE();
             n_volume_elements = ma->GetNE();
-            vb = BND;
+            n_edge_elements = ma->GetNE(BBND);
             break;
           case 2:
             n_surface_elements = ma->GetNE();
-            vb = VOL;
+            n_edge_elements = ma->GetNE(BND);
             break;
           case 1:
             n_edge_elements = ma->GetNE();
-            vb = VOL;
             break;
         }
 
-        elements.SetAllocSize(surface_elements_size*n_surface_elements + volume_elements_size*n_volume_elements);
+        elements.SetAllocSize(edge_elements_size * n_edge_elements +
+                              surface_elements_size*n_surface_elements +
+                              volume_elements_size*n_volume_elements);
 
-        if(ma->GetDimension()==1) {
+        if(ma->GetDimension()>=1) {
             // 1d Elements
             int curved_index = 0;
             IntegrationRule ir;
             ir.Append(IntegrationPoint(0,0,0));
             ir.Append(IntegrationPoint(1,0,0));
             ir.Append(IntegrationPoint(0.5,0.0,0.0));
+            VorB vb = ma->GetDimension() == 1 ? VOL : (ma->GetDimension() == 2 ? BND : BBND);
             for (auto el : ma->Elements(vb)) {
                 for (auto v : el.Vertices())
                     elements.Append(v);
@@ -288,6 +288,7 @@ PYBIND11_MODULE(ngui, m) {
             ir.Append(IntegrationPoint(0.5,0.0,0.0));
             ir.Append(IntegrationPoint(0.0,0.5,0.0));
             ir.Append(IntegrationPoint(0.5,0.5,0.0));
+            VorB vb = ma->GetDimension() == 2 ? VOL : BND;
             for (auto el : ma->Elements(vb)) {
                 for (auto v : el.Vertices())
                     elements.Append(v);
@@ -364,7 +365,9 @@ PYBIND11_MODULE(ngui, m) {
         res["n_edge_elements"] = n_edge_elements;
         res["n_surface_elements"] = n_surface_elements;
         res["n_volume_elements"] = n_volume_elements;
-        res["volume_elements_offset"] = n_surface_elements*surface_elements_size;
+        res["volume_elements_offset"] = n_edge_elements * edge_elements_size +
+          n_surface_elements*surface_elements_size;
+        res["surface_elements_offset"] = n_edge_elements * edge_elements_size;
         res["vertices"] = MoveToNumpyArray(vertices);
         res["min"] = min;
         res["max"] = max;

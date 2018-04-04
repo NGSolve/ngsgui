@@ -3,11 +3,12 @@ struct Mesh {
     samplerBuffer vertices;
     int surface_curved_offset;
     int volume_elements_offset;
+  int surface_elements_offset;
 };
 
 int elements1d_size = 4;
-int elements1d_index_offset = 3;
-int elements1d_curved_offset = 4;
+int elements1d_index_offset = 2;
+int elements1d_curved_offset = 3;
 
 int elements2d_size = 5;
 int elements2d_index_offset = 3;
@@ -106,14 +107,15 @@ Element1d getElement1d(Mesh mesh, int ei ) {
 
 Element2d getElement2d(Mesh mesh, int ei ) {
     Element2d el;
+    int offset = mesh.surface_elements_offset;
     int stride = elements2d_size;
 
     for (int i=0; i<3; i++) {
-      el.vertices[i] = texelFetch(mesh.elements, stride*ei+i).r;
+      el.vertices[i] = texelFetch(mesh.elements, offset + stride*ei+i).r;
       el.pos[i] = texelFetch(mesh.vertices, el.vertices[i]).xyz;
     }
-    el.index = texelFetch(mesh.elements, stride*ei+elements2d_index_offset).r;
-    el.curved_index = texelFetch(mesh.elements, stride*ei+elements2d_curved_offset).r;
+    el.index = texelFetch(mesh.elements, offset + stride*ei+elements2d_index_offset).r;
+    el.curved_index = texelFetch(mesh.elements, offset + stride*ei+elements2d_curved_offset).r;
     if(el.curved_index>=0) {
         // have curved element
         for (int i=0; i<3; i++)

@@ -60,6 +60,36 @@ def DoubleSpinBox(*slots, step=1, name=None):
     else:
         return box
 
+class RangeGroup(QtWidgets.QWidget):
+    valueChanged = QtCore.Signal(float) # TODO: this shouldn't be static
+    def __init__(self, name, min=-1, max=1, value=0, direction=Qt.Horizontal):
+        super(RangeGroup, self).__init__()
+        # self.valueChanged.connect(onValueChanged)
+
+        self.scalingFactor = 1000 # scaling between integer widgets (scrollslider) and float values to get more resoltion
+        self.scroll = QtWidgets.QScrollBar(direction)
+        self.scroll.setFocusPolicy(Qt.StrongFocus)
+        self.scroll.valueChanged[int].connect(self.setIntValue)
+        self.scroll.setRange(self.scalingFactor*min,self.scalingFactor*max)
+
+        self.valueBox = QtWidgets.QDoubleSpinBox()
+        self.valueBox.setRange(min,max)
+        self.valueBox.valueChanged[float].connect(self.setValue)
+        self.valueBox.setSingleStep(0.01*(max-min))
+
+        self.label = QtWidgets.QLabel(name)
+
+        self.setLayout(ArrangeV(ArrangeH(self.label, self.valueBox), self.scroll))
+        self.setValue(value)
+
+    def setIntValue(self, int_value):
+        float_value = int_value*1.0/self.scalingFactor
+        self.valueBox.setValue(float_value)
+
+    def setValue(self, float_value):
+        int_value = round(self.scalingFactor*float_value)
+        self.scroll.setValue(int_value)
+        self.valueChanged.emit(float_value)
 
 class OptionWidgets(QtCore.QObject):
     updateGLSignal = QtCore.Signal()
