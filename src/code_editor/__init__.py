@@ -80,7 +80,6 @@ class CodeEditor(QtWidgets.QPlainTextEdit):
                 Selection(self).commentOrUncomment()
         self.comment_action.triggered.connect(_comment)
         self.comment_action.setShortcut(QtGui.QKeySequence("Ctrl+c"))
-        # somehow this doesn't work...
         self.addAction(self.comment_action)
 
     @property
@@ -95,6 +94,12 @@ class CodeEditor(QtWidgets.QPlainTextEdit):
     @property
     def lines(self):
         return self._lines
+
+    def keyPressEvent(self, event):
+        if event.modifiers() == QtCore.Qt.KeyboardModifiers(QtCore.Qt.ControlModifier) and event.key() == 67:
+            self.comment_action.trigger()
+        else:
+            super().keyPressEvent(event)
 
     def selectCurrentLine(self):
         cursor = self.textCursor()
