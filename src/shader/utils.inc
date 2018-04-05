@@ -148,7 +148,7 @@ float CutEdge(vec4 plane, vec3 x, vec3 y) {
 }
 
 // Cut tet with plane and store 0-4 points (and barycentric coords), return the number of intersection points
-int CutElement3d( Element3d tet, float values[4], out vec3 pos[4], in out vec3 lam[4], in out vec3 normals[4] ) {
+int CutElement3d( Element3d tet, float values[4], out vec3 pos[4], inout vec3 lam[4], inout vec3 normals[4] ) {
     int nvertices_behind = 0;
     int vertices_behind[3];
     int nvertices_front = 0;
@@ -234,7 +234,7 @@ int CutElement3d( Element3d tet, float values[4], out vec3 pos[4], in out vec3 l
 }
 
 // Cut tet with plane and store 0-4 points (and barycentric coords), return the number of intersection points
-int CutElement3d( Element3d tet, float values[4], out vec3 pos[4], in out vec3 lam[4] ) {
+int CutElement3d( Element3d tet, float values[4], out vec3 pos[4], inout vec3 lam[4] ) {
     int nvertices_behind = 0;
     int vertices_behind[3];
     int nvertices_front = 0;
