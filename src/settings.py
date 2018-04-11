@@ -75,7 +75,7 @@ class PythonFileSettings(Settings):
         editTab.settings = self
         self.name = "Python File Settings: " + name
         self.active_mesh = None
-        self.exec_locals = {}
+        self.exec_locals = {"__name__" : "__main__"}
         self.active_thread = None
 
     def __getstate__(self):
@@ -160,7 +160,7 @@ class PythonFileSettings(Settings):
         self.active_thread = inthread(run_and_reset)
 
     def clear(self):
-        self.exec_locals = {}
+        self.exec_locals = {"__name__" : "__main__"}
         self.updateWidget()
 
     def stop(self):
