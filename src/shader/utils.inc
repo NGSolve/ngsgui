@@ -69,7 +69,6 @@ void calcNormals(inout Element2d el) {
   el.normals[0] = n;
   el.normals[1] = n;
   el.normals[2] = n;
-  el.normals[3] = n;
 }
 
 Element2d getElement2d(Element3d tet, int face ) {

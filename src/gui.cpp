@@ -293,31 +293,41 @@ PYBIND11_MODULE(ngui, m) {
         }
         if(ma->GetDimension()>=2) {
             // 2d Elements
-            IntegrationRule ir;
-            ir.Append(IntegrationPoint(1,0,0));
-            ir.Append(IntegrationPoint(0,1,0));
-            ir.Append(IntegrationPoint(0,0,0));
-            ir.Append(IntegrationPoint(0.5,0.0,0.0));
-            ir.Append(IntegrationPoint(0.0,0.5,0.0));
-            ir.Append(IntegrationPoint(0.5,0.5,0.0));
+            IntegrationRule ir_trig;
+            ir_trig.Append(IntegrationPoint(1,0,0));
+            ir_trig.Append(IntegrationPoint(0,1,0));
+            ir_trig.Append(IntegrationPoint(0,0,0));
+            ir_trig.Append(IntegrationPoint(0.5,0.0,0.0));
+            ir_trig.Append(IntegrationPoint(0.0,0.5,0.0));
+            ir_trig.Append(IntegrationPoint(0.5,0.5,0.0));
+
+            IntegrationRule ir_quad;
+            ir_quad.Append(IntegrationPoint(0,0,0));
+            ir_quad.Append(IntegrationPoint(1,0,0));
+            ir_quad.Append(IntegrationPoint(1,1,0));
+            ir_quad.Append(IntegrationPoint(0,1,0));
+            // Todo: midpoints for p2 interpolation of coordinates
+
             VorB vb = ma->GetDimension() == 2 ? VOL : BND;
             for (auto el : ma->Elements(vb)) {
                 auto verts = el.Vertices();
+                auto nverts = verts.Size();
                 for (auto i : Range(3))
                     elements.Append(verts[i]);
                 elements.Append(el.GetIndex());
                 elements.Append(el.is_curved ? elsize+curve_info.Size() : -1);
 
                 if(el.is_curved) {
-                    curve_info.Append(verts.Size());
+                    curve_info.Append(nverts);
                     curve_info.Append(vertices.Size()/3);
-                    for (auto i : Range(3UL,verts.Size()))
+                    for (auto i : Range(3UL,nverts))
                         curve_info.Append(verts[i]);
                     HeapReset hr(lh);
                     ElementTransformation & eltrans = ma->GetTrafo (el, lh);
+                    auto & ir = nverts == 3 ? ir_trig : ir_quad;
                     MappedIntegrationRule<2,3> mir(ir, eltrans, lh);
                     // normals of corner vertices
-                    for (auto j : ngcomp::Range(3)) {
+                    for (auto j : ngcomp::Range(nverts)) {
                         auto n = mir[j].GetNV();
                         for (auto i : Range(3))
                             vertices.Append(n[i]);
