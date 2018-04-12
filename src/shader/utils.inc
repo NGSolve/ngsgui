@@ -53,7 +53,8 @@ vec3 interpolatePoint(Mesh mesh, Element2d el, vec2 lam) {
       f[0] = el.pos[2];
       f[2] = el.pos[0];
       f[5] = el.pos[1];
-      int offset = mesh.surface_curved_offset+elements2d_curved_size*el.curved_index + elements2d_curved_points_offset;
+      int curved_offset = texelFetch(mesh.elements, el.curved_index+1).r;
+      int offset = curved_offset + elements2d_curved_points_offset;
       f[1] = texelFetch(mesh.vertices, offset+0).xyz;
       f[3] = texelFetch(mesh.vertices, offset+1).xyz;
       f[4] = texelFetch(mesh.vertices, offset+2).xyz;
@@ -117,9 +118,10 @@ Element2d getElement2d(Mesh mesh, int ei ) {
     el.index = texelFetch(mesh.elements, offset + stride*ei+elements2d_index_offset).r;
     el.curved_index = texelFetch(mesh.elements, offset + stride*ei+elements2d_curved_offset).r;
     if(el.curved_index>=0) {
+        int curved_offset = texelFetch(mesh.elements, el.curved_index+1).r;
         // have curved element
         for (int i=0; i<3; i++)
-          el.normals[i] = texelFetch(mesh.vertices, mesh.surface_curved_offset+elements2d_curved_size*el.curved_index + elements2d_curved_normals_offset+i).xyz;
+          el.normals[i] = texelFetch(mesh.vertices, curved_offset + elements2d_curved_normals_offset+i).xyz;
     }
     else {
       calcNormals(el);
