@@ -11,7 +11,7 @@ in VertexData
   vec3 pos;
   vec3 normal;
   vec4 color;
-  float edgedist;
+  vec3 edgedist;
 } inData;
 
 out vec4 FragColor;
@@ -22,7 +22,10 @@ vec3 TransformVec( vec3 x) {
 
 void main()
 {
-  if(wireframe && inData.edgedist>1e-5) discard;
+  if(wireframe) {
+      float d = min(min(inData.edgedist.x, inData.edgedist.y), inData.edgedist.z);
+      if(d>1e-5) discard;
+  }
   FragColor = inData.color;
 
 

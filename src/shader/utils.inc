@@ -30,10 +30,11 @@ struct Element1d {
 
 struct Element2d {
     int index;
+    int nverts;
     int curved_index;
-    int vertices[3];
-    vec3 pos[3];
-    vec3 normals[3];
+    int vertices[4];
+    vec3 pos[4];
+    vec3 normals[4];
 };
 
 struct Element3d {
@@ -68,6 +69,7 @@ void calcNormals(inout Element2d el) {
   el.normals[0] = n;
   el.normals[1] = n;
   el.normals[2] = n;
+  el.normals[3] = n;
 }
 
 Element2d getElement2d(Element3d tet, int face ) {
@@ -118,12 +120,19 @@ Element2d getElement2d(Mesh mesh, int ei ) {
     el.index = texelFetch(mesh.elements, offset + stride*ei+elements2d_index_offset).r;
     el.curved_index = texelFetch(mesh.elements, offset + stride*ei+elements2d_curved_offset).r;
     if(el.curved_index>=0) {
-        int curved_offset = texelFetch(mesh.elements, el.curved_index+1).r;
         // have curved element
-        for (int i=0; i<3; i++)
+        el.nverts = texelFetch(mesh.elements, el.curved_index).r;
+        int curved_offset = texelFetch(mesh.elements, el.curved_index+1).r;
+        for (int i=0; i<el.nverts; i++)
           el.normals[i] = texelFetch(mesh.vertices, curved_offset + elements2d_curved_normals_offset+i).xyz;
+
+        for (int i=3; i<el.nverts; i++) {
+          el.vertices[i] = texelFetch(mesh.elements, el.curved_index+2-3+i).r;
+          el.pos[i] = texelFetch(mesh.vertices, el.vertices[i]).xyz;
+        }
     }
     else {
+      el.nverts = 3;
       calcNormals(el);
     }
 
