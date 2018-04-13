@@ -50,17 +50,35 @@ vec3 interpolatePoint(Mesh mesh, Element2d el, vec2 lam) {
       return x*el.pos[0] + y*el.pos[1]+(1-x-y)*el.pos[2];
     }
     else {
-      vec3 f[6];
-      f[0] = el.pos[2];
-      f[2] = el.pos[0];
-      f[5] = el.pos[1];
-      int curved_offset = texelFetch(mesh.elements, el.curved_index+1).r;
-      int offset = curved_offset + elements2d_curved_points_offset;
-      f[1] = texelFetch(mesh.vertices, offset+0).xyz;
-      f[3] = texelFetch(mesh.vertices, offset+1).xyz;
-      f[4] = texelFetch(mesh.vertices, offset+2).xyz;
-      return 1.0*f[0] + x*x*(2.0*f[0] - 4.0*f[1] + 2.0*f[2]) + 4.0*x*y*(f[0] - f[1] - f[3] + f[4]) - x*(3.0*f[0] - 4.0*f[1] + 1.0*f[2]) + y*y*(2.0*f[0] - 4.0*f[3] + 2.0*f[5]) - y*(3.0*f[0] - 4.0*f[3] + 1.0*f[5]);
+      if(el.nverts == 3) {
+        vec3 f[6];
+        f[0] = el.pos[2];
+        f[2] = el.pos[0];
+        f[5] = el.pos[1];
+        int curved_offset = texelFetch(mesh.elements, el.curved_index+1).r;
+        int offset = curved_offset + elements2d_curved_points_offset;
+        f[1] = texelFetch(mesh.vertices, offset+0).xyz;
+        f[3] = texelFetch(mesh.vertices, offset+1).xyz;
+        f[4] = texelFetch(mesh.vertices, offset+2).xyz;
+        return 1.0*f[0] + x*x*(2.0*f[0] - 4.0*f[1] + 2.0*f[2]) + 4.0*x*y*(f[0] - f[1] - f[3] + f[4]) - x*(3.0*f[0] - 4.0*f[1] + 1.0*f[2]) + y*y*(2.0*f[0] - 4.0*f[3] + 2.0*f[5]) - y*(3.0*f[0] - 4.0*f[3] + 1.0*f[5]);
+      }
+      if(el.nverts == 4) {
+        vec3 f[9];
+        f[0] = el.pos[0];
+        f[2] = el.pos[1];
+        f[8] = el.pos[2];
+        f[6] = el.pos[3];
+        int curved_offset = texelFetch(mesh.elements, el.curved_index+1).r;
+        int offset = curved_offset + el.nverts+1;
+        f[1] = texelFetch(mesh.vertices, offset+0).xyz;
+        f[3] = texelFetch(mesh.vertices, offset+1).xyz;
+        f[4] = texelFetch(mesh.vertices, offset+2).xyz;
+        f[5] = texelFetch(mesh.vertices, offset+3).xyz;
+        f[7] = texelFetch(mesh.vertices, offset+4).xyz;
+        return 1.0*f[0] + x*x*y*y*(4.0*f[0] - 8.0*f[1] + 4.0*f[2] - 8.0*f[3] + 16.0*f[4] - 8.0*f[5] + 4.0*f[6] - 8.0*f[7] + 4.0*f[8]) - x*x*y*(6.0*f[0] - 12.0*f[1] + 6.0*f[2] - 8.0*f[3] + 16.0*f[4] - 8.0*f[5] + 2.0*f[6] - 4.0*f[7] + 2.0*f[8]) + x*x*(2.0*f[0] - 4.0*f[1] + 2.0*f[2]) - x*y*y*(6.0*f[0] - 8.0*f[1] + 2.0*f[2] - 12.0*f[3] + 16.0*f[4] - 4.0*f[5] + 6.0*f[6] - 8.0*f[7] + 2.0*f[8]) + x*y*(9.0*f[0] - 12.0*f[1] + 3.0*f[2] - 12.0*f[3] + 16.0*f[4] - 4.0*f[5] + 3.0*f[6] - 4.0*f[7] + 1.0*f[8]) - x*(3.0*f[0] - 4.0*f[1] + 1.0*f[2]) + y*y*(2.0*f[0] - 4.0*f[3] + 2.0*f[6]) - y*(3.0*f[0] - 4.0*f[3] + 1.0*f[6]);
+
     }
+  }
 }
 
 void calcNormals(inout Element2d el) {
@@ -123,7 +141,7 @@ Element2d getElement2d(Mesh mesh, int ei ) {
         el.nverts = texelFetch(mesh.elements, el.curved_index).r;
         int curved_offset = texelFetch(mesh.elements, el.curved_index+1).r;
         for (int i=0; i<el.nverts; i++)
-          el.normals[i] = texelFetch(mesh.vertices, curved_offset + elements2d_curved_normals_offset+i).xyz;
+          el.normals[i] = texelFetch(mesh.vertices, curved_offset + i).xyz;
 
         for (int i=3; i<el.nverts; i++) {
           el.vertices[i] = texelFetch(mesh.elements, el.curved_index+2-3+i).r;

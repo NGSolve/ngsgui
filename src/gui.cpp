@@ -306,6 +306,11 @@ PYBIND11_MODULE(ngui, m) {
             ir_quad.Append(IntegrationPoint(1,0,0));
             ir_quad.Append(IntegrationPoint(1,1,0));
             ir_quad.Append(IntegrationPoint(0,1,0));
+            ir_quad.Append(IntegrationPoint(0.5,0.0,0.0));
+            ir_quad.Append(IntegrationPoint(0.0,0.5,0.0));
+            ir_quad.Append(IntegrationPoint(0.5,0.5,0.0));
+            ir_quad.Append(IntegrationPoint(1.0,0.5,0.0));
+            ir_quad.Append(IntegrationPoint(0.5,1.0,0.0));
             // Todo: midpoints for p2 interpolation of coordinates
 
             VorB vb = ma->GetDimension() == 2 ? VOL : BND;
@@ -333,7 +338,7 @@ PYBIND11_MODULE(ngui, m) {
                             vertices.Append(n[i]);
                     }
                     // mapped coordinates of edge midpoints (for P2 interpolation)
-                    for (auto j : ngcomp::Range(3,6)) {
+                    for (auto j : ngcomp::Range(3UL,ir.Size())) {
                         auto p = mir[j].GetPoint();
                         for (auto i : Range(3))
                             vertices.Append(p[i]);
