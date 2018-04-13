@@ -14,6 +14,7 @@ from . import widgets as wid
 from .widgets import ArrangeH, ArrangeV
 from . import glmath
 from . import ngui
+import math, cmath
 
 from PySide2 import QtWidgets, QtCore, QtGui
 from OpenGL.GL import *
@@ -69,6 +70,13 @@ def addOption(self, group, name, default_value, typ=None, update_on_change=False
         box.valueChanged[int].connect(lambda value: getattr(self, setter_name)(value))
         w = WidgetWithLabel(box, label)
         self._widgets[group][name] = w 
+
+    elif typ==float:
+        box = QtWidgets.QDoubleSpinBox()
+        box.setRange(-1e99, 1e99)
+        box.valueChanged[float].connect(lambda value: getattr(self, setter_name)(value))
+        w = WidgetWithLabel(box, label)
+        self._widgets[group][name] = w
 
     else:
         print("unknown type: ", typ)
@@ -891,6 +899,10 @@ class SolutionScene(BaseFunctionSceneObject):
             addOption(self, "Show", "ShowIsoSurface", typ=bool, default_value=False)
             addOption(self, "Show", "ShowVectors", typ=bool, default_value=False)
 
+        if self.cf.is_complex:
+            addOption(self, "Complex", "ComplexEvalFunc", label="Func(0=real,1=imag,2=abs,3=arg)", typ=int, default_value=0, update_on_change=True)
+            addOption(self, "Complex", "ComplexPhaseShift", label="Value shift angle", typ=float, default_value=0.0, update_on_change=True)
+
         self.qtWidget = None
         self.vao = None
 
@@ -911,7 +923,9 @@ class SolutionScene(BaseFunctionSceneObject):
 
         formats = [None, GL_R32F, GL_RG32F, GL_RGB32F, GL_RGBA32F];
         self.volume_values = Texture(GL_TEXTURE_BUFFER, formats[self.cf.dim])
+        self.volume_values_imag = Texture(GL_TEXTURE_BUFFER, formats[self.cf.dim])
         self.surface_values = Texture(GL_TEXTURE_BUFFER, formats[self.cf.dim])
+        self.surface_values_imag = Texture(GL_TEXTURE_BUFFER, formats[self.cf.dim])
 
         # 1d solution (line)
         self.line_vao = glGenVertexArrays(1)
@@ -946,9 +960,10 @@ class SolutionScene(BaseFunctionSceneObject):
 
     def update(self):
         super().update()
+        getValues = lambda vb, real=True: ngui.GetValues(self.cf if not self.cf.is_complex and real else (self.cf.real if real else self.cf.imag), self.mesh, vb, 2**self.getSubdivision()-1, self.getOrder())
         if self.mesh.dim==1:
             try:
-                values = ngui.GetValues(self.cf, self.mesh, ngsolve.VOL, 2**self.getSubdivision()-1, self.getOrder())
+                values = getValues(ngsolve.VOL)
                 self.surface_values.store(values)
                 self.min_values = values[0:self.cf.dim]
                 self.max_values = values[self.cf.dim:2*self.cf.dim]
@@ -956,16 +971,22 @@ class SolutionScene(BaseFunctionSceneObject):
                 print("Cannot evaluate given function on 1d elements")
         if self.mesh.dim==2:
             try:
-                self.surface_values.store(ngui.GetValues(self.cf, self.mesh, ngsolve.VOL, 2**self.getSubdivision()-1, self.getOrder()))
+                self.surface_values.store(getValues(ngsolve.VOL))
+                if self.cf.is_complex:
+                    self.surface_values_imag.store(getValues(ngsolve.VOL, False))
             except:
                 print("Cannot evaluate given function on surface elements")
                 self.show_surface = False
 
         if self.mesh.dim==3:
-            values = ngui.GetValues(self.cf, self.mesh, ngsolve.VOL, 2**self.getSubdivision()-1, self.getOrder() )
-            self.volume_values.store(values)
+            self.volume_values.store(getValues(ngsolve.VOL))
+            if self.cf.is_complex:
+                self.volume_values_imag.store(getValues(ngsolve.VOL, False))
+
             try:
-                self.surface_values.store(ngui.GetValues(self.cf, self.mesh, ngsolve.BND, 2**self.getSubdivision()-1, self.getOrder()))
+                self.surface_values.store(getValues(ngsolve.BND))
+                if self.cf.is_complex:
+                    self.surface_values_imag.store(getValues(ngsolve.BND, False))
             except:
                 print("Cannot evaluate given function on surface elements")
                 self.show_surface = False
@@ -1048,6 +1069,16 @@ class SolutionScene(BaseFunctionSceneObject):
 
         uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
         uniforms.set('mesh.surface_elements_offset', self.mesh_data.surface_elements_offset)
+
+        uniforms.set('is_complex', self.cf.is_complex)
+        if self.cf.is_complex:
+            glActiveTexture(GL_TEXTURE3)
+            self.surface_values_imag.bind()
+            uniforms.set('coefficients_imag', 3)
+
+            uniforms.set('complex_vis_function', self.getComplexEvalFunc())
+            w = cmath.exp(1j*self.getComplexPhaseShift()/180.0*math.pi)
+            uniforms.set('complex_factor', [w.real, w.imag])
 
         glPolygonOffset (2,2)
         glEnable(GL_POLYGON_OFFSET_FILL)
@@ -1172,6 +1203,17 @@ class SolutionScene(BaseFunctionSceneObject):
 
         uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
         uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
+
+        uniforms.set('is_complex', self.cf.is_complex)
+        if self.cf.is_complex:
+            glActiveTexture(GL_TEXTURE3)
+            self.volume_values_imag.bind()
+            uniforms.set('coefficients_imag', 3)
+
+            uniforms.set('complex_vis_function', self.getComplexEvalFunc())
+            w = cmath.exp(1j*self.getComplexPhaseShift()/180.0*math.pi)
+            uniforms.set('complex_factor', [w.real, w.imag])
+
 
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         glDrawArrays(GL_POINTS, 0, self.mesh.ne)

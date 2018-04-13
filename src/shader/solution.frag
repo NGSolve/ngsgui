@@ -9,6 +9,12 @@ uniform int subdivision;
 uniform int order;
 uniform mat4 MV;
 
+// for complex-valued functions
+uniform bool is_complex;
+uniform samplerBuffer coefficients_imag;
+uniform int complex_vis_function; // 0=real, 1=imag, 2=abs, 3=arg
+uniform vec2 complex_factor; // factor to multiply with values before visualizing
+
 in VertexData
 {
   vec3 lam;
@@ -44,6 +50,28 @@ void main()
 
       // value = evalTrig(inData.lam, subdivision);
       // value = evalTrigLinear1(inData.lam, subdivision);
+
+      if(is_complex) {
+          float value_imag;
+          if(element_type == 10) value_imag = InterpolateTrig(inData.element, coefficients_imag, order, subdivision, inData.lam);
+          if(element_type == 20) value_imag = InterpolateTet(inData.element, coefficients_imag, order, subdivision, lam);
+          float r = value*complex_factor.x - value_imag*complex_factor.y;
+          value_imag = value*complex_factor.y + value_imag*complex_factor.x;
+          value = r;
+          switch(complex_vis_function){
+            case 0:
+              break;
+            case 1:
+              value = value_imag;
+              break;
+            case 2:
+              value = length(vec2(value, value_imag));
+              break;
+            case 3:
+              value = atan(value, value_imag);
+              break;
+          }
+      }
 
       value = (value-colormap_min)/(colormap_max-colormap_min);
       value = clamp(value, 0.0, 1.0);

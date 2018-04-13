@@ -111,11 +111,7 @@ class PythonFileSettings(Settings):
         self.meshes = []
         for name, item in self.exec_locals.items():
             if isinstance(item, ngs.CoefficientFunction) and not isinstance(item, ngs.comp.ProxyFunction):
-                if item.is_complex:
-                    self.solutions.append((CFwithName(item.real, name + ".r"),None))
-                    self.solutions.append((CFwithName(item.imag, name + ".i"),None))
-                else:
-                    self.solutions.append((CFwithName(item, name),None))
+                self.solutions.append((CFwithName(item, name),None))
             if isinstance(item,ngs.Mesh):
                 item._name =  name
                 self.meshes.append((item,None))

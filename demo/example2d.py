@@ -19,12 +19,5 @@ print(mesh.ne,'elements')
 print(fes.ndof,'ndofs')
 
 cf = cos(n*x)*cos(n*y)*cos(n*z)
-
-# Draw(cf, mesh, "lskjdf")
-import ngsolve.gui as GUI
-gui = GUI.GUI()
-scene = GUI.SolutionScene(cf, mesh)
-gui.draw(scene)
-scene2 = GUI.MeshScene(mesh,surface=False)
-gui.draw(scene2)
-gui.run()
+cf = x+1.0j*y
+scene = Draw(cf, mesh,'func')
