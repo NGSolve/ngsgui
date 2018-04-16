@@ -178,7 +178,7 @@ PYBIND11_MODULE(ngui, m) {
                   FlatVector<double> vals(ir.GetNIP(), reinterpret_cast<double*>(&values(0,0)));
                   for (auto k : Range(nip)) {
                     for (auto i : Range(ncomps)) {
-                      float val = values(i, k);
+                      float val = values(k, i);
                       res[getIndex(el.Nr(), k, i)] = val;
                       min[i] = min2(min[i], val);
                       max[i] = max2(max[i], val);

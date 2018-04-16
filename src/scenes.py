@@ -909,8 +909,8 @@ class SolutionScene(BaseFunctionSceneObject):
             addOption(self, "Show", "ShowVectors", typ=bool, default_value=False)
 
         if self.cf.is_complex:
-            addOption(self, "Complex", "ComplexEvalFunc", label="Func", typ=list, default_value=0, update_on_change=True, values=["real","imag","abs","arg"])
-            addOption(self, "Complex", "ComplexPhaseShift", label="Value shift angle", typ=float, default_value=0.0, update_on_change=True)
+            addOption(self, "Complex", "ComplexEvalFunc", label="Func", typ=list, default_value=0, values=["real","imag","abs","arg"])
+            addOption(self, "Complex", "ComplexPhaseShift", label="Value shift angle", typ=float, default_value=0.0)
 
         self.qtWidget = None
         self.vao = None
