@@ -36,10 +36,12 @@ class WidgetWithLabel(QtWidgets.QWidget):
     def setValue(self, value):
         if isinstance(self._value_widget, QtWidgets.QCheckBox):
             self._value_widget.setCheckState(QtCore.Qt.Checked if value else QtCore.Qt.Unchecked)
+        elif isinstance(self._value_widget, QtWidgets.QComboBox):
+            self._value_widget.setCurrentIndex(value)
         else:
             self._value_widget.setValue(value)
 
-def addOption(self, group, name, default_value, typ=None, update_on_change=False, update_widget_on_change=False, widget_type=None, label=None, *args, **kwargs):
+def addOption(self, group, name, default_value, typ=None, update_on_change=False, update_widget_on_change=False, widget_type=None, label=None, values=None, *args, **kwargs):
     if not group in self._widgets:
         self._widgets[group] = {}
 
@@ -52,6 +54,13 @@ def addOption(self, group, name, default_value, typ=None, update_on_change=False
 
     if typ==None and widget_type==None:
         typ = type(default_value)
+
+    elif typ is list:
+        cb = QtWidgets.QComboBox()
+        assert type(values) is list
+        cb.addItems(values)
+        cb.currentIndexChanged[int].connect(lambda index: getattr(self,setter_name)(index))
+        self._widgets[group][name] = WidgetWithLabel(cb,label)
 
     elif widget_type:
         w = widget_type(*args, **kwargs)
@@ -900,7 +909,7 @@ class SolutionScene(BaseFunctionSceneObject):
             addOption(self, "Show", "ShowVectors", typ=bool, default_value=False)
 
         if self.cf.is_complex:
-            addOption(self, "Complex", "ComplexEvalFunc", label="Func(0=real,1=imag,2=abs,3=arg)", typ=int, default_value=0, update_on_change=True)
+            addOption(self, "Complex", "ComplexEvalFunc", label="Func", typ=list, default_value=0, update_on_change=True, values=["real","imag","abs","arg"])
             addOption(self, "Complex", "ComplexPhaseShift", label="Value shift angle", typ=float, default_value=0.0, update_on_change=True)
 
         self.qtWidget = None
