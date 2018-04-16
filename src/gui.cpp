@@ -4,6 +4,8 @@
 #include <locale.h>
 
 #include<comp.hpp>
+#include<meshing.hpp>
+#include<csg.hpp>
 
 using namespace ngfem;
 
@@ -373,4 +375,49 @@ PYBIND11_MODULE(ngui, m) {
         res["max"] = max;
         return res;
       }, py::call_guard<py::gil_scoped_release>());
+
+    m.def("GetGeoData", [] (shared_ptr<netgen::NetgenGeometry> geo) -> py::dict
+          {
+            auto csg_geo = dynamic_pointer_cast<netgen::CSGeometry>(geo);
+            Array<float> vertices;
+            Array<int> trigs;
+            float min = std::numeric_limits<float>::min();
+            float max = std::numeric_limits<float>::max();
+            if(csg_geo)
+              {
+                csg_geo->FindIdenticSurfaces(1e-6);
+                csg_geo->CalcTriangleApproximation(0.01,20);
+                auto nto = csg_geo->GetNTopLevelObjects();
+                size_t np = 0;
+                size_t ntrig = 0;
+                for (auto i : Range(nto)){
+                  np += csg_geo->GetTriApprox(i)->GetNP();
+                  ntrig += csg_geo->GetTriApprox(i)->GetNT();
+                }
+                vertices.SetAllocSize(np*3);
+                trigs.SetAllocSize(ntrig*3);
+                for (auto i : Range(nto))
+                  {
+                    auto triapprox = csg_geo->GetTriApprox(i);
+                    for (auto j : Range(triapprox->GetNP()))
+                      for(auto k : Range(3)) {
+                        float val = triapprox->GetPoint(j)[k];
+                        vertices.Append(val);
+                        min = min2(min, val);
+                        max = max2(max,val);
+                      }
+                    for (auto j : Range(triapprox->GetNT()))
+                      for(auto k : Range(3))
+                        trigs.Append(triapprox->GetTriangle(j)[k]);
+                  }
+                py::gil_scoped_acquire ac;
+                py::dict res;
+                res["vertices"] = MoveToNumpyArray(vertices);
+                res["triangles"] = MoveToNumpyArray(trigs);
+                res["min"] = min;
+                res["max"] = max;
+                return res;
+              }
+            throw Exception("Couldn't create geometry information!");
+          }, py::call_guard<py::gil_scoped_release>());
 }

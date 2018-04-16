@@ -160,6 +160,27 @@ def MeshData(mesh):
     except:
         return CMeshData(mesh)
 
+class CGeoData:
+    def __init__(self, geo):
+        import weakref
+        self.geo = weakref.ref(geo)
+        self.vertices = Texture(GL_TEXTURE_BUFFER, GL_RGB32F)
+        self.triangles = Texture(GL_TEXTURE_BUFFER, GL_RGB32I)
+        # geo._opengl_data = self
+        self.update()
+
+    def update(self):
+        geodata = ngui.GetGeoData(self.geo())
+        self.vertices.store(geodata["vertices"])
+        self.triangles.store(geodata["triangles"])
+        self.min = geodata["min"]
+        self.max = geodata["max"]
+        self.ntriangles = len(geodata["triangles"])
+
+def GeoData(geo):
+    return CGeoData(geo)
+
+
 class TextRenderer:
     class Font:
         pass
@@ -1194,3 +1215,45 @@ class SolutionScene(BaseFunctionSceneObject):
                 self.renderIsoSurface(settings)
             if self.getShowVectors():
                 self.renderVectors(settings)
+
+class GeometryScene(SceneObject):
+    def __init__(self, geo, *args, **kwargs):
+        super().__init__(*args,**kwargs)
+        self.geo = geo
+
+    def initGL(self):
+        if self.gl_initialized:
+            return
+        super().initGL()
+        self.program = Program('geo.vert', 'mesh.frag')
+
+    def update(self):
+        super().update()
+        self.geo_data = GeoData(self.geo)
+
+    def getBoundingBox(self):
+        return self.geo_data.min, self.geo_data.max
+
+    def render(self, settings):
+        if not self.active:
+            return
+        glUseProgram(self.program.id)
+        model, view, projection = settings.model, settings.view, settings.projection
+        uniforms = self.program.uniforms
+        uniforms.set('P', projection)
+        uniforms.set('MV', view*model)
+
+        glActiveTexture(GL_TEXTURE0)
+        self.geo_data.vertices.bind()
+        uniforms.set('vertices', 0)
+
+        glActiveTexture(GL_TEXTURE1)
+        self.geo_data.triangles.bind()
+        uniforms.set('triangles',1)
+
+        uniforms.set('clipping_plane', settings.clipping_plane)
+        uniforms.set('do_clipping', True)
+        uniforms.set('light_ambient', 0.3)
+        uniforms.set('light_diffuse', 0.7)
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL )
+        glDrawArrays(GL_TRIANGLES, 0, self.geo_data.ntriangles)
