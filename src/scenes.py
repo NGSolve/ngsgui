@@ -882,14 +882,21 @@ class MeshScene(BaseMeshSceneObject):
 
 
 class SolutionScene(BaseFunctionSceneObject):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, cf, *args, **kwargs):
+        super().__init__(cf,*args, **kwargs)
 
-        if(self.mesh.dim>1):
+        if self.mesh.dim>1:
             addOption(self, "Show", "ShowSurface", typ=bool, default_value=True)
+
+        if self.mesh.dim > 2:
             addOption(self, "Show", "ShowClippingPlane", typ=bool, default_value=False)
-            addOption(self, "Show", "ShowIsoSurface", typ=bool, default_value=False)
+
+        if cf.dim > 1:
+            addOption(self, "Show", "Component", label="Component", typ=int, default_value=0)
             addOption(self, "Show", "ShowVectors", typ=bool, default_value=False)
+
+        if self.mesh.dim > 2:
+            addOption(self, "Show", "ShowIsoSurface", typ=bool, default_value=False)
 
         self.qtWidget = None
         self.vao = None
@@ -1033,6 +1040,10 @@ class SolutionScene(BaseFunctionSceneObject):
         uniforms.set('order', self.getOrder())
 
         uniforms.set('element_type', 10)
+        if self.cf.dim > 1:
+            uniforms.set('component', self.getComponent())
+        else:
+            uniforms.set('component', 0)
 
         glActiveTexture(GL_TEXTURE0)
         self.mesh_data.vertices.bind()
@@ -1152,6 +1163,10 @@ class SolutionScene(BaseFunctionSceneObject):
         uniforms.set('do_clipping', False);
         uniforms.set('subdivision', 2**self.getSubdivision()-1)
         uniforms.set('order', self.getOrder())
+        if self.cf.dim > 1:
+            uniforms.set('component', self.getComponent())
+        else:
+            uniforms.set('component', 0)
 
         if(self.mesh.dim==2):
             uniforms.set('element_type', 10)
@@ -1185,12 +1200,16 @@ class SolutionScene(BaseFunctionSceneObject):
         if self.mesh.dim==1:
             self.render1D(settings)
 
-        else:
+        if self.mesh.dim > 1:
             if self.getShowSurface():
                 self.renderSurface(settings)
-            if self.getShowClippingPlane():
-                self.renderClippingPlane(settings)
+
+        if self.mesh.dim > 2:
             if self.getShowIsoSurface():
                 self.renderIsoSurface(settings)
+            if self.getShowClippingPlane():
+                self.renderClippingPlane(settings)
+
+        if self.cf.dim > 1:
             if self.getShowVectors():
                 self.renderVectors(settings)
