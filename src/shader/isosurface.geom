@@ -100,7 +100,7 @@ void main() {
                 vec4 lam = vec4(1.0-h*(ii.x+ii.y+ii.z), ii.x*h, ii.y*h, ii.z*h);
                 lams[i] = lam.xyz;
                 pos[i] = lam.x * tet1.pos[0] + lam.y * tet1.pos[1] + lam.z * tet1.pos[2] + lam.w * tet1.pos[3];
-                vec4 data = texelFetch(coefficients, 2+values_per_element*inData[0].element + getIndex(N, ii.x, ii.y, ii.z)+0);
+                vec4 data = texelFetch(coefficients, values_per_element*inData[0].element + getIndex(N, ii.x, ii.y, ii.z)+0);
                 values[i] = data.x - colormap_max;
                 normals[i] = data.yzw;
             }

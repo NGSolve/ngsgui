@@ -45,6 +45,7 @@ def CheckBox(name, *slots, checked=False):
 
 def Button(name, *slots):
     button = QtWidgets.QPushButton(name)
+    button.setMinimumWidth(1);
     for slot in slots:
         button.clicked.connect(slot)
     return button

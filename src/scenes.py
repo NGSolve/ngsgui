@@ -14,6 +14,7 @@ from . import widgets as wid
 from .widgets import ArrangeH, ArrangeV
 from . import glmath
 from . import ngui
+import math, cmath
 
 from PySide2 import QtWidgets, QtCore, QtGui
 from OpenGL.GL import *
@@ -35,10 +36,12 @@ class WidgetWithLabel(QtWidgets.QWidget):
     def setValue(self, value):
         if isinstance(self._value_widget, QtWidgets.QCheckBox):
             self._value_widget.setCheckState(QtCore.Qt.Checked if value else QtCore.Qt.Unchecked)
+        elif isinstance(self._value_widget, QtWidgets.QComboBox):
+            self._value_widget.setCurrentIndex(value)
         else:
             self._value_widget.setValue(value)
 
-def addOption(self, group, name, default_value, typ=None, update_on_change=False, update_widget_on_change=False, widget_type=None, label=None, *args, **kwargs):
+def addOption(self, group, name, default_value, typ=None, update_on_change=False, update_widget_on_change=False, widget_type=None, label=None, values=None, *args, **kwargs):
     if not group in self._widgets:
         self._widgets[group] = {}
 
@@ -51,6 +54,13 @@ def addOption(self, group, name, default_value, typ=None, update_on_change=False
 
     if typ==None and widget_type==None:
         typ = type(default_value)
+
+    if typ is list:
+        cb = QtWidgets.QComboBox()
+        assert type(values) is list
+        cb.addItems(values)
+        cb.currentIndexChanged[int].connect(lambda index: getattr(self,setter_name)(index))
+        self._widgets[group][name] = WidgetWithLabel(cb,label)
 
     elif widget_type:
         w = widget_type(*args, **kwargs)
@@ -66,9 +76,18 @@ def addOption(self, group, name, default_value, typ=None, update_on_change=False
 
     elif typ==int:
         box = QtWidgets.QSpinBox()
+        box.setValue(default_value)
         box.valueChanged[int].connect(lambda value: getattr(self, setter_name)(value))
         w = WidgetWithLabel(box, label)
         self._widgets[group][name] = w 
+
+    elif typ==float:
+        box = QtWidgets.QDoubleSpinBox()
+        box.setRange(-1e99, 1e99)
+        box.setValue(default_value)
+        box.valueChanged[float].connect(lambda value: getattr(self, setter_name)(value))
+        w = WidgetWithLabel(box, label)
+        self._widgets[group][name] = w
 
     else:
         print("unknown type: ", typ)
@@ -437,8 +456,8 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
     def __init__(self, cf, mesh=None, order=3, gradient=None, **kwargs):
         self.cf = cf
         if isinstance(cf, ngsolve.comp.GridFunction):
-            if not gradient and cf.dim == 1:
-                gradient = ngsolve.grad(cf)
+#             if not gradient and cf.dim == 1:
+#                 gradient = ngsolve.grad(cf)
             mesh = cf.space.mesh
         else:
             if mesh==None:
@@ -452,8 +471,8 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
 
         super().__init__(mesh,**kwargs)
 
-        addOption(self, "Subdivision", "Subdivision", typ=int, default_value=0, update_on_change=True)
-        addOption(self, "Subdivision", "Order", typ=int, default_value=1, update_on_change=True)
+        addOption(self, "Subdivision", "Subdivision", typ=int, default_value=1, update_on_change=True)
+        addOption(self, "Subdivision", "Order", typ=int, default_value=2, update_on_change=True)
 
         n = self.getOrder()*(2**self.getSubdivision())+1
 
@@ -909,14 +928,23 @@ class MeshScene(BaseMeshSceneObject):
 
 
 class SolutionScene(BaseFunctionSceneObject):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, cf, *args, **kwargs):
+        super().__init__(cf,*args, **kwargs)
 
-        if(self.mesh.dim>1):
+        if self.mesh.dim>1:
             addOption(self, "Show", "ShowSurface", typ=bool, default_value=True)
+
+        if self.mesh.dim > 2:
             addOption(self, "Show", "ShowClippingPlane", typ=bool, default_value=False)
             addOption(self, "Show", "ShowIsoSurface", typ=bool, default_value=False)
+
+        if cf.dim > 1:
+            addOption(self, "Show", "Component", label="Component", typ=int, default_value=0)
             addOption(self, "Show", "ShowVectors", typ=bool, default_value=False)
+
+        if self.cf.is_complex:
+            addOption(self, "Complex", "ComplexEvalFunc", label="Func", typ=list, default_value=0, values=["real","imag","abs","arg"])
+            addOption(self, "Complex", "ComplexPhaseShift", label="Value shift angle", typ=float, default_value=0.0)
 
         self.qtWidget = None
         self.vao = None
@@ -938,7 +966,9 @@ class SolutionScene(BaseFunctionSceneObject):
 
         formats = [None, GL_R32F, GL_RG32F, GL_RGB32F, GL_RGBA32F];
         self.volume_values = Texture(GL_TEXTURE_BUFFER, formats[self.cf.dim])
+        self.volume_values_imag = Texture(GL_TEXTURE_BUFFER, formats[self.cf.dim])
         self.surface_values = Texture(GL_TEXTURE_BUFFER, formats[self.cf.dim])
+        self.surface_values_imag = Texture(GL_TEXTURE_BUFFER, formats[self.cf.dim])
 
         # 1d solution (line)
         self.line_vao = glGenVertexArrays(1)
@@ -970,31 +1000,51 @@ class SolutionScene(BaseFunctionSceneObject):
         self.vector_program = Program('clipping.vert', 'vector.geom', 'solution.frag')
         glBindVertexArray(0)
 
+    def _getValues(self, vb):
+        cf = self.cf
+        values = ngui.GetValues(cf, self.mesh, vb, 2**self.getSubdivision()-1, self.getOrder())
+        if vb==ngsolve.VOL:
+            self.min_values = values["min"]
+            self.max_values = values["max"]
+            self.colormap_min = self.min_values[0]
+            self.colormap_max = self.max_values[0]
+        return values
 
     def update(self):
         super().update()
         if self.mesh.dim==1:
             try:
-                values = ngui.GetValues(self.cf, self.mesh, ngsolve.VOL, 2**self.getSubdivision()-1, self.getOrder())
-                self.surface_values.store(values)
+                values = self._getValues(ngsolve.VOL)
+                self.surface_values.store(values["real"])
+                if self.cf.is_complex:
+                    self.surface_values_imag.store(values["imag"])
                 self.min_values = values[0:self.cf.dim]
                 self.max_values = values[self.cf.dim:2*self.cf.dim]
-            except:
-                print("Cannot evaluate given function on 1d elements")
+            except Exception as e:
+                print("Cannot evaluate given function on 1d elements"+e)
         if self.mesh.dim==2:
             try:
-                self.surface_values.store(ngui.GetValues(self.cf, self.mesh, ngsolve.VOL, 2**self.getSubdivision()-1, self.getOrder()))
-            except:
-                print("Cannot evaluate given function on surface elements")
+                values = self._getValues(ngsolve.VOL)
+                self.surface_values.store(values["real"])
+                if self.cf.is_complex:
+                    self.surface_values_imag.store(values["imag"])
+            except Exception as e:
+                print("Cannot evaluate given function on surface elements: "+e)
                 self.show_surface = False
 
         if self.mesh.dim==3:
-            values = ngui.GetValues(self.cf, self.mesh, ngsolve.VOL, 2**self.getSubdivision()-1, self.getOrder() )
-            self.volume_values.store(values)
+            values = self._getValues(ngsolve.VOL)
+            self.volume_values.store(values["real"])
+            if self.cf.is_complex:
+                self.volume_values_imag.store(values["imag"])
+
             try:
-                self.surface_values.store(ngui.GetValues(self.cf, self.mesh, ngsolve.BND, 2**self.getSubdivision()-1, self.getOrder()))
-            except:
-                print("Cannot evaluate given function on surface elements")
+                values = self._getValues(ngsolve.BND)
+                self.surface_values.store(values["real"])
+                if self.cf.is_complex:
+                    self.surface_values_imag.store(values["imag"])
+            except Exception as e:
+                print("Cannot evaluate given function on surface elements"+e)
                 self.show_surface = False
 
     def render1D(self, settings):
@@ -1060,6 +1110,10 @@ class SolutionScene(BaseFunctionSceneObject):
         uniforms.set('order', self.getOrder())
 
         uniforms.set('element_type', 10)
+        if self.cf.dim > 1:
+            uniforms.set('component', self.getComponent())
+        else:
+            uniforms.set('component', 0)
 
         glActiveTexture(GL_TEXTURE0)
         self.mesh_data.vertices.bind()
@@ -1075,6 +1129,16 @@ class SolutionScene(BaseFunctionSceneObject):
 
         uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
         uniforms.set('mesh.surface_elements_offset', self.mesh_data.surface_elements_offset)
+
+        uniforms.set('is_complex', self.cf.is_complex)
+        if self.cf.is_complex:
+            glActiveTexture(GL_TEXTURE3)
+            self.surface_values_imag.bind()
+            uniforms.set('coefficients_imag', 3)
+
+            uniforms.set('complex_vis_function', self.getComplexEvalFunc())
+            w = cmath.exp(1j*self.getComplexPhaseShift()/180.0*math.pi)
+            uniforms.set('complex_factor', [w.real, w.imag])
 
         glPolygonOffset (2,2)
         glEnable(GL_POLYGON_OFFSET_FILL)
@@ -1179,6 +1243,10 @@ class SolutionScene(BaseFunctionSceneObject):
         uniforms.set('do_clipping', False);
         uniforms.set('subdivision', 2**self.getSubdivision()-1)
         uniforms.set('order', self.getOrder())
+        if self.cf.dim > 1:
+            uniforms.set('component', self.getComponent())
+        else:
+            uniforms.set('component', 0)
 
         if(self.mesh.dim==2):
             uniforms.set('element_type', 10)
@@ -1200,6 +1268,17 @@ class SolutionScene(BaseFunctionSceneObject):
         uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
         uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
 
+        uniforms.set('is_complex', self.cf.is_complex)
+        if self.cf.is_complex:
+            glActiveTexture(GL_TEXTURE3)
+            self.volume_values_imag.bind()
+            uniforms.set('coefficients_imag', 3)
+
+            uniforms.set('complex_vis_function', self.getComplexEvalFunc())
+            w = cmath.exp(1j*self.getComplexPhaseShift()/180.0*math.pi)
+            uniforms.set('complex_factor', [w.real, w.imag])
+
+
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         glDrawArrays(GL_POINTS, 0, self.mesh.ne)
         glBindVertexArray(0)
@@ -1212,13 +1291,17 @@ class SolutionScene(BaseFunctionSceneObject):
         if self.mesh.dim==1:
             self.render1D(settings)
 
-        else:
+        if self.mesh.dim > 1:
             if self.getShowSurface():
                 self.renderSurface(settings)
-            if self.getShowClippingPlane():
-                self.renderClippingPlane(settings)
+
+        if self.mesh.dim > 2:
             if self.getShowIsoSurface():
                 self.renderIsoSurface(settings)
+            if self.getShowClippingPlane():
+                self.renderClippingPlane(settings)
+
+        if self.cf.dim > 1:
             if self.getShowVectors():
                 self.renderVectors(settings)
 
