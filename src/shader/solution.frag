@@ -8,6 +8,7 @@ uniform bool do_clipping;
 uniform int subdivision;
 uniform int order;
 uniform mat4 MV;
+uniform int component;
 
 // for complex-valued functions
 uniform bool is_complex;
@@ -42,8 +43,8 @@ void main()
       float value;
       vec3 lam = inData.lam.yzx;
       lam.z = 1.0 - inData.lam.x - inData.lam.y - inData.lam.z;
-      if(element_type == 10) value = InterpolateTrig(inData.element, coefficients, order, subdivision, inData.lam);
-      if(element_type == 20) value = InterpolateTet(inData.element, coefficients, order, subdivision, lam);
+      if(element_type == 10) value = InterpolateTrig(inData.element, coefficients, order, subdivision, inData.lam, component);
+      if(element_type == 20) value = InterpolateTet(inData.element, coefficients, order, subdivision, lam, component);
       // if(element_type == 21) value = EvalPYRAMID(inData.element, x,y,z);
       // if(element_type == 22) value = EvalPRISM(inData.element, x,y,z);
       // if(element_type == 24) value = EvalHEX(inData.element, x,y,z);

@@ -288,7 +288,7 @@ class GUI():
             setting.computation_started_at = 0
             setting.run(editTab.text)
 
-    def run(self,do_after_run):
+    def run(self,do_after_run=lambda : None):
         import os, threading
         self.mainWidget.show()
         globs = inspect.stack()[1][0].f_globals
