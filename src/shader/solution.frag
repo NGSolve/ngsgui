@@ -54,8 +54,8 @@ void main()
 
       if(is_complex) {
           float value_imag;
-          if(element_type == 10) value_imag = InterpolateTrig(inData.element, coefficients_imag, order, subdivision, inData.lam);
-          if(element_type == 20) value_imag = InterpolateTet(inData.element, coefficients_imag, order, subdivision, lam);
+          if(element_type == 10) value_imag = InterpolateTrig(inData.element, coefficients_imag, order, subdivision, inData.lam, component);
+          if(element_type == 20) value_imag = InterpolateTet(inData.element, coefficients_imag, order, subdivision, lam, component);
           float r = value*complex_factor.x - value_imag*complex_factor.y;
           value_imag = value*complex_factor.y + value_imag*complex_factor.x;
           value = r;
