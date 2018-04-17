@@ -271,25 +271,39 @@ PYBIND11_MODULE(ngui, m) {
             break;
         }
 
-        elements.SetAllocSize(edge_elements_size * n_edge_elements +
-                              surface_elements_size*n_surface_elements +
-                              volume_elements_size*n_volume_elements);
+        size_t elsize = edge_elements_size * n_edge_elements +
+                        surface_elements_size*n_surface_elements +
+                        volume_elements_size*n_volume_elements;
+        elements.SetAllocSize(2*elsize);
+
+        // additional information for curved (i.e. real curved or non-simplex elements like quads)
+        // first  entry: number of vertices (also determines element type)
+        // second entry: offset at vertices array for additional float data (normals, edge midpoint coords etc.)
+        // other entries: additional vertex indices (4th vertex for quads, 5th and other for prism, pyramid, hex)
+        ngstd::Array<int> curve_info;
 
         if(ma->GetDimension()>=1) {
             // 1d Elements
-            int curved_index = 0;
             IntegrationRule ir;
             ir.Append(IntegrationPoint(0,0,0));
             ir.Append(IntegrationPoint(1,0,0));
             ir.Append(IntegrationPoint(0.5,0.0,0.0));
             VorB vb = ma->GetDimension() == 1 ? VOL : (ma->GetDimension() == 2 ? BND : BBND);
             for (auto el : ma->Elements(vb)) {
-                for (auto v : el.Vertices())
-                    elements.Append(v);
+                auto verts = el.Vertices();
+                for (auto i : Range(2))
+                    elements.Append(verts[i]);
                 elements.Append(el.GetIndex());
-                elements.Append(el.is_curved ? curved_index : -1);
+                elements.Append(el.is_curved ? elsize+curve_info.Size() : -1);
 
                 if(el.is_curved) {
+                    // TODO: curved 1d elements are untested
+                    cerr << __FILE__ << ":" << __LINE__ << " warning: curved 1d elements are not tested!" << endl;
+                    curve_info.Append(verts.Size());
+                    curve_info.Append(vertices.Size()/3);
+                    for (auto i : Range(2UL,verts.Size()))
+                        curve_info.Append(verts[i]);
+
                     HeapReset hr(lh);
                     ElementTransformation & eltrans = ma->GetTrafo (el, lh);
                     MappedIntegrationRule<1,3> mir(ir, eltrans, lh);
@@ -305,7 +319,6 @@ PYBIND11_MODULE(ngui, m) {
                         for (auto i : Range(3))
                             vertices.Append(p[i]);
                     }
-                    curved_index++;
                 }
             }
 
@@ -313,38 +326,56 @@ PYBIND11_MODULE(ngui, m) {
         }
         if(ma->GetDimension()>=2) {
             // 2d Elements
-            int curved_index = 0;
-            IntegrationRule ir;
-            ir.Append(IntegrationPoint(1,0,0));
-            ir.Append(IntegrationPoint(0,1,0));
-            ir.Append(IntegrationPoint(0,0,0));
-            ir.Append(IntegrationPoint(0.5,0.0,0.0));
-            ir.Append(IntegrationPoint(0.0,0.5,0.0));
-            ir.Append(IntegrationPoint(0.5,0.5,0.0));
+            IntegrationRule ir_trig;
+            ir_trig.Append(IntegrationPoint(1,0,0));
+            ir_trig.Append(IntegrationPoint(0,1,0));
+            ir_trig.Append(IntegrationPoint(0,0,0));
+            ir_trig.Append(IntegrationPoint(0.5,0.0,0.0));
+            ir_trig.Append(IntegrationPoint(0.0,0.5,0.0));
+            ir_trig.Append(IntegrationPoint(0.5,0.5,0.0));
+
+            IntegrationRule ir_quad;
+            ir_quad.Append(IntegrationPoint(0,0,0));
+            ir_quad.Append(IntegrationPoint(1,0,0));
+            ir_quad.Append(IntegrationPoint(1,1,0));
+            ir_quad.Append(IntegrationPoint(0,1,0));
+            ir_quad.Append(IntegrationPoint(0.5,0.0,0.0));
+            ir_quad.Append(IntegrationPoint(0.0,0.5,0.0));
+            ir_quad.Append(IntegrationPoint(0.5,0.5,0.0));
+            ir_quad.Append(IntegrationPoint(1.0,0.5,0.0));
+            ir_quad.Append(IntegrationPoint(0.5,1.0,0.0));
+            // Todo: midpoints for p2 interpolation of coordinates
+
             VorB vb = ma->GetDimension() == 2 ? VOL : BND;
             for (auto el : ma->Elements(vb)) {
-                for (auto v : el.Vertices())
-                    elements.Append(v);
+                auto verts = el.Vertices();
+                auto nverts = verts.Size();
+                for (auto i : Range(3))
+                    elements.Append(verts[i]);
                 elements.Append(el.GetIndex());
-                elements.Append(el.is_curved ? curved_index : -1);
+                elements.Append(el.is_curved ? elsize+curve_info.Size() : -1);
 
                 if(el.is_curved) {
+                    curve_info.Append(nverts);
+                    curve_info.Append(vertices.Size()/3);
+                    for (auto i : Range(3UL,nverts))
+                        curve_info.Append(verts[i]);
                     HeapReset hr(lh);
                     ElementTransformation & eltrans = ma->GetTrafo (el, lh);
+                    auto & ir = nverts == 3 ? ir_trig : ir_quad;
                     MappedIntegrationRule<2,3> mir(ir, eltrans, lh);
                     // normals of corner vertices
-                    for (auto j : ngcomp::Range(3)) {
+                    for (auto j : ngcomp::Range(nverts)) {
                         auto n = mir[j].GetNV();
                         for (auto i : Range(3))
                             vertices.Append(n[i]);
                     }
                     // mapped coordinates of edge midpoints (for P2 interpolation)
-                    for (auto j : ngcomp::Range(3,6)) {
+                    for (auto j : ngcomp::Range(3UL,ir.Size())) {
                         auto p = mir[j].GetPoint();
                         for (auto i : Range(3))
                             vertices.Append(p[i]);
                     }
-                    curved_index++;
                 }
             }
 
@@ -364,14 +395,19 @@ PYBIND11_MODULE(ngui, m) {
             ir.Append(IntegrationPoint(0.5,0.0,0.5));
             ir.Append(IntegrationPoint(0.0,0.5,0.5));
             ir.Append(IntegrationPoint(0.0,0.0,0.5));
-            int curved_index = 0;
             for (auto el : ma->Elements(VOL)) {
-                for (auto v : el.Vertices())
-                    elements.Append(v);
+                auto verts = el.Vertices();
+                for (auto i : Range(4))
+                    elements.Append(verts[i]);
                 elements.Append(el.GetIndex());
-                elements.Append(el.is_curved ? curved_index : -1);
+                elements.Append(el.is_curved ? elsize+curve_info.Size() : -1);
 
                 if(el.is_curved) {
+                    curve_info.Append(verts.Size());
+                    curve_info.Append(vertices.Size()/3);
+                    for (auto i : Range(4UL,verts.Size()))
+                        curve_info.Append(verts[i]);
+
                     HeapReset hr(lh);
                     ElementTransformation & eltrans = ma->GetTrafo (el, lh);
                     MappedIntegrationRule<3,3> mir(ir, eltrans, lh);
@@ -387,10 +423,15 @@ PYBIND11_MODULE(ngui, m) {
                       for (auto i : Range(3))
                           vertices.Append(p[i]);
                     }
-                    curved_index++;
                 }
             }
         }
+
+
+        elements.SetAllocSize(elements.Size()+curve_info.Size());
+        for (auto i : curve_info)
+            elements.Append(i);
+
 
         py::gil_scoped_acquire ac;
         py::dict res;

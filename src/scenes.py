@@ -667,7 +667,7 @@ class MeshScene(BaseMeshSceneObject):
         self.surface_vao = glGenVertexArrays(1)
         glBindVertexArray(self.surface_vao)
 
-        self.surface_program = Program('mesh.vert', 'tess.tesc', 'tess.tese', 'mesh.frag')
+        self.surface_program = Program('mesh.vert', 'tess.tesc', 'tess.tese', 'mesh.geom', 'mesh.frag')
         self.bc_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
         self.bc_colors.store( [0,1,0,1]*len(self.mesh.GetBoundaries()),
                               data_format=GL_UNSIGNED_BYTE )
