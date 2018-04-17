@@ -179,6 +179,33 @@ def MeshData(mesh):
     except:
         return CMeshData(mesh)
 
+class CGeoData:
+    def __init__(self, geo):
+        import weakref
+        self.geo = weakref.ref(geo)
+        self.vertices = Texture(GL_TEXTURE_BUFFER, GL_RGB32F)
+        self.triangles = Texture(GL_TEXTURE_BUFFER, GL_RGBA32I)
+        self.normals = Texture(GL_TEXTURE_BUFFER, GL_RGB32F)
+        geo._opengl_data = self
+        self.update()
+
+    def update(self):
+        geodata = ngui.GetGeoData(self.geo())
+        self.vertices.store(geodata["vertices"])
+        self.triangles.store(geodata["triangles"])
+        self.normals.store(geodata["normals"])
+        self.surfnames = geodata["surfnames"]
+        self.min = geodata["min"]
+        self.max = geodata["max"]
+        self.ntriangles = len(geodata["triangles"])//4*3
+
+def GeoData(geo):
+    try:
+        return geo._opengl_data
+    except:
+        return CGeoData(geo)
+
+
 class TextRenderer:
     class Font:
         pass
@@ -1277,3 +1304,76 @@ class SolutionScene(BaseFunctionSceneObject):
         if self.cf.dim > 1:
             if self.getShowVectors():
                 self.renderVectors(settings)
+
+class GeometryScene(SceneObject):
+    def __init__(self, geo, *args, **kwargs):
+        super().__init__(*args,**kwargs)
+        self.geo = geo
+
+    def initGL(self):
+        if self.gl_initialized:
+            return
+        super().initGL()
+        self.vao = glGenVertexArrays(1)
+        glBindVertexArray(self.vao)
+        self.program = Program('geo.vert', 'mesh.frag')
+        self.colors = Texture(GL_TEXTURE_1D, GL_RGBA)
+
+    def update(self):
+        super().update()
+        self.geo_data = GeoData(self.geo)
+        self.surf_colors = { name : [0,0,255,255] for name in set(self.geo_data.surfnames)}
+        print("surf colors = ", self.surf_colors)
+        glBindVertexArray(self.vao)
+        self.colors.store([self.surf_colors[name][i] for name in self.geo_data.surfnames for i in range(4)],
+                          data_format=GL_UNSIGNED_BYTE)
+
+    def updateColors(self):
+        # glBindVertexArray(self.vao)
+        self.colors.store(sum(([color.red(), color.green(), color.blue(), color.alpha()] for color in self.colorpicker.getColors()),[]),data_format=GL_UNSIGNED_BYTE)
+
+    def getQtWidget(self, updateGL, params):
+        super().getQtWidget(updateGL, params)
+        self.colorpicker = wid.CollColors(self.surf_colors.keys(), initial_color = (0,0,255,255))
+        self.colorpicker.colors_changed.connect(self.updateColors)
+        self.colorpicker.colors_changed.connect(updateGL)
+        self.updateColors()
+        self.widgets.addGroup("Surface Colors", self.colorpicker)
+        return self.widgets
+
+    def getBoundingBox(self):
+        return self.geo_data.min, self.geo_data.max
+
+    def render(self, settings):
+        if not self.active:
+            return
+        glUseProgram(self.program.id)
+        glBindVertexArray(self.vao)
+        model, view, projection = settings.model, settings.view, settings.projection
+        uniforms = self.program.uniforms
+        uniforms.set('P', projection)
+        uniforms.set('MV', view*model)
+
+        glActiveTexture(GL_TEXTURE0)
+        self.geo_data.vertices.bind()
+        uniforms.set('vertices', 0)
+
+        glActiveTexture(GL_TEXTURE1)
+        self.geo_data.triangles.bind()
+        uniforms.set('triangles',1)
+
+        glActiveTexture(GL_TEXTURE2)
+        self.geo_data.normals.bind()
+        uniforms.set('normals',2)
+
+        glActiveTexture(GL_TEXTURE3)
+        self.colors.bind()
+        uniforms.set('colors',3)
+
+        uniforms.set('wireframe',False)
+        uniforms.set('clipping_plane', settings.clipping_plane)
+        uniforms.set('do_clipping', True)
+        uniforms.set('light_ambient', 0.3)
+        uniforms.set('light_diffuse', 0.7)
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL )
+        glDrawArrays(GL_TRIANGLES, 0, self.geo_data.ntriangles)

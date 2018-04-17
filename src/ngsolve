@@ -5,12 +5,15 @@ import sys, os
 import ngsolve.gui as G
 import ngsolve as ngs
 from ngsolve.gui.thread import inmain_decorator
+import netgen.meshing
 
 @inmain_decorator(wait_for_return=True)
 def Draw(obj, mesh=None, name=None, **kwargs):
     """Draw a Mesh or a CoefficientFunction, this function is overridden by
     the new gui and returns the drawn scene."""
     scene = None
+    if isinstance(obj, netgen.meshing.NetgenGeometry):
+        scene = G.scenes.GeometryScene(obj)
     if isinstance(obj,ngs.Mesh):
         scene = G.scenes.MeshScene(obj)
     if isinstance(obj, ngs.GridFunction):
