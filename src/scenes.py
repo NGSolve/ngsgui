@@ -55,7 +55,7 @@ def addOption(self, group, name, default_value, typ=None, update_on_change=False
     if typ==None and widget_type==None:
         typ = type(default_value)
 
-    elif typ is list:
+    if typ is list:
         cb = QtWidgets.QComboBox()
         assert type(values) is list
         cb.addItems(values)
@@ -76,6 +76,7 @@ def addOption(self, group, name, default_value, typ=None, update_on_change=False
 
     elif typ==int:
         box = QtWidgets.QSpinBox()
+        box.setValue(default_value)
         box.valueChanged[int].connect(lambda value: getattr(self, setter_name)(value))
         w = WidgetWithLabel(box, label)
         self._widgets[group][name] = w 
@@ -83,6 +84,7 @@ def addOption(self, group, name, default_value, typ=None, update_on_change=False
     elif typ==float:
         box = QtWidgets.QDoubleSpinBox()
         box.setRange(-1e99, 1e99)
+        box.setValue(default_value)
         box.valueChanged[float].connect(lambda value: getattr(self, setter_name)(value))
         w = WidgetWithLabel(box, label)
         self._widgets[group][name] = w
@@ -427,8 +429,8 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
     def __init__(self, cf, mesh=None, order=3, gradient=None, **kwargs):
         self.cf = cf
         if isinstance(cf, ngsolve.comp.GridFunction):
-            if not gradient and cf.dim == 1:
-                gradient = ngsolve.grad(cf)
+#             if not gradient and cf.dim == 1:
+#                 gradient = ngsolve.grad(cf)
             mesh = cf.space.mesh
         else:
             if mesh==None:
@@ -442,8 +444,8 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
 
         super().__init__(mesh,**kwargs)
 
-        addOption(self, "Subdivision", "Subdivision", typ=int, default_value=0, update_on_change=True)
-        addOption(self, "Subdivision", "Order", typ=int, default_value=1, update_on_change=True)
+        addOption(self, "Subdivision", "Subdivision", typ=int, default_value=1, update_on_change=True)
+        addOption(self, "Subdivision", "Order", typ=int, default_value=2, update_on_change=True)
 
         n = self.getOrder()*(2**self.getSubdivision())+1
 
@@ -966,38 +968,51 @@ class SolutionScene(BaseFunctionSceneObject):
         self.vector_program = Program('clipping.vert', 'vector.geom', 'solution.frag')
         glBindVertexArray(0)
 
+    def _getValues(self, vb):
+        cf = self.cf
+        values = ngui.GetValues(cf, self.mesh, vb, 2**self.getSubdivision()-1, self.getOrder())
+        if vb==ngsolve.VOL:
+            self.min_values = values["min"]
+            self.max_values = values["max"]
+            self.colormap_min = self.min_values[0]
+            self.colormap_max = self.max_values[0]
+        return values
 
     def update(self):
         super().update()
-        getValues = lambda vb, real=True: ngui.GetValues(self.cf if not self.cf.is_complex and real else (self.cf.real if real else self.cf.imag), self.mesh, vb, 2**self.getSubdivision()-1, self.getOrder())
         if self.mesh.dim==1:
             try:
-                values = getValues(ngsolve.VOL)
-                self.surface_values.store(values)
+                values = self._getValues(ngsolve.VOL)
+                self.surface_values.store(values["real"])
+                if self.cf.is_complex:
+                    self.surface_values_imag.store(values["imag"])
                 self.min_values = values[0:self.cf.dim]
                 self.max_values = values[self.cf.dim:2*self.cf.dim]
-            except:
-                print("Cannot evaluate given function on 1d elements")
+            except Exception as e:
+                print("Cannot evaluate given function on 1d elements"+e)
         if self.mesh.dim==2:
             try:
-                self.surface_values.store(getValues(ngsolve.VOL))
+                values = self._getValues(ngsolve.VOL)
+                self.surface_values.store(values["real"])
                 if self.cf.is_complex:
-                    self.surface_values_imag.store(getValues(ngsolve.VOL, False))
-            except:
-                print("Cannot evaluate given function on surface elements")
+                    self.surface_values_imag.store(values["imag"])
+            except Exception as e:
+                print("Cannot evaluate given function on surface elements: "+e)
                 self.show_surface = False
 
         if self.mesh.dim==3:
-            self.volume_values.store(getValues(ngsolve.VOL))
+            values = self._getValues(ngsolve.VOL)
+            self.volume_values.store(values["real"])
             if self.cf.is_complex:
-                self.volume_values_imag.store(getValues(ngsolve.VOL, False))
+                self.volume_values_imag.store(values["imag"])
 
             try:
-                self.surface_values.store(getValues(ngsolve.BND))
+                values = self._getValues(ngsolve.BND)
+                self.surface_values.store(values["real"])
                 if self.cf.is_complex:
-                    self.surface_values_imag.store(getValues(ngsolve.BND, False))
-            except:
-                print("Cannot evaluate given function on surface elements")
+                    self.surface_values_imag.store(values["imag"])
+            except Exception as e:
+                print("Cannot evaluate given function on surface elements"+e)
                 self.show_surface = False
 
     def render1D(self, settings):

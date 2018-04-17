@@ -1,5 +1,5 @@
 vec4 getValue(samplerBuffer coefficients, int offset) {
-  return texelFetch(coefficients, 2+offset+0);
+  return texelFetch(coefficients, offset);
 }
 
 float InterpolateTrigP1(samplerBuffer coefficients, vec3 lam, int first, int dx, int dy) {

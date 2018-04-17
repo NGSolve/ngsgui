@@ -92,7 +92,7 @@ void main() {
     int N = order*(subdivision+1)+1;
     int n = N-1;
     int values_per_element = N*(N+1)*(N+2)/6;
-    vec4 data = texelFetch(coefficients, 2+values_per_element*inData[0].element);
+    vec4 data = texelFetch(coefficients, values_per_element*inData[0].element);
 
     Element3d tet = getElement3d(mesh, inData[0].element);
     vec3 pmin = min(min(tet.pos[0], tet.pos[1]), min(tet.pos[2], tet.pos[3]));

@@ -4,8 +4,10 @@
 #include <locale.h>
 
 #include<comp.hpp>
+#include<type_traits>
 
 using namespace ngfem;
+using std::is_same;
 
 namespace py = pybind11;
 
@@ -23,33 +25,7 @@ py::object MoveToNumpyArray( ngstd::Array<T> &a )
       return py::array_t<T>(0, nullptr);
 }
 
-inline SIMD_IntegrationRule GetReferenceRule( int dim, int order, int subdivision )
-{
-  IntegrationRule ir;
-  int n = (order)*(subdivision+1)+1;
-  const double h = 1.0/(n-1);
-  if(dim==1) {
-      for (auto i : Range(n)) {
-          ir.Append(IntegrationPoint(1.0-i*h, 0, 0.0));
-      }
-  }
-  if(dim==2) {
-      for (auto j : Range(n))
-          for (auto i : Range(n-j))
-              ir.Append(IntegrationPoint(i*h, j*h, 0.0));
-  }
-
-  if(dim==3) {
-      for (auto k : Range(n))
-        for (auto j : Range(n-k))
-            for (auto i : Range(n-j-k))
-              ir.Append(IntegrationPoint(1.0-i*h-j*h-k*h, i*h, j*h));
-  }
-
-  return SIMD_IntegrationRule(ir);
-}
-
-inline IntegrationRule GetReferenceRuleNoSIMD( int dim, int order, int subdivision )
+inline IntegrationRule GetReferenceRule( int dim, int order, int subdivision )
 {
   IntegrationRule ir;
   int n = (order)*(subdivision+1)+1;
@@ -75,123 +51,178 @@ inline IntegrationRule GetReferenceRuleNoSIMD( int dim, int order, int subdivisi
   return ir;
 }
 
+BaseMappedIntegrationRule *GetMappedIR (IntegrationRule & ir, int dim, VorB vb, ElementTransformation & eltrans, LocalHeap &lh ) {
+    BaseMappedIntegrationRule * pmir;
+    if(dim==1) {
+        void *p = lh.Alloc(sizeof(MappedIntegrationRule<1,1>));
+        return new (p) MappedIntegrationRule<1,1> (ir, eltrans, lh);
+    }
+    else if(dim==2 && vb==VOL) {
+        void *p = lh.Alloc(sizeof(MappedIntegrationRule<2,2>));
+        return new (p) MappedIntegrationRule<2,2> (ir, eltrans, lh);
+    }
+    else if(dim==3 && vb==BND) {
+        void *p = lh.Alloc(sizeof(MappedIntegrationRule<2,3>));
+        return new (p) MappedIntegrationRule<2,3> (ir, eltrans, lh);
+    }
+    else if(dim==3 && vb==VOL) {
+        void *p = lh.Alloc(sizeof(MappedIntegrationRule<3,3>));
+        return new (p) MappedIntegrationRule<3,3> (ir, eltrans, lh);
+    }
+    throw Exception("GetMappedIR: unknown dimension/VorB combination");
+}
+SIMD_BaseMappedIntegrationRule *SIMD_GetMappedIR (SIMD_IntegrationRule & ir, int dim, VorB vb, ElementTransformation & eltrans, LocalHeap &lh ) {
+    SIMD_BaseMappedIntegrationRule * pmir;
+    if(dim==1) {
+        void *p = lh.Alloc(sizeof(SIMD_MappedIntegrationRule<1,1>));
+        return new (p) SIMD_MappedIntegrationRule<1,1> (ir, eltrans, lh);
+    }
+    else if(dim==2 && vb==VOL) {
+        void *p = lh.Alloc(sizeof(SIMD_MappedIntegrationRule<2,2>));
+        return new (p) SIMD_MappedIntegrationRule<2,2> (ir, eltrans, lh);
+    }
+    else if(dim==3 && vb==BND) {
+        void *p = lh.Alloc(sizeof(SIMD_MappedIntegrationRule<2,3>));
+        return new (p) SIMD_MappedIntegrationRule<2,3> (ir, eltrans, lh);
+    }
+    else if(dim==3 && vb==VOL) {
+        void *p = lh.Alloc(sizeof(SIMD_MappedIntegrationRule<3,3>));
+        return new (p) SIMD_MappedIntegrationRule<3,3> (ir, eltrans, lh);
+    }
+    throw Exception("SIMD_GetMappedIR: unknown dimension/VorB combination");
+}
+
+template <typename TSCAL>
+void ExtractRealImag(const TSCAL val, int i, float &real, float &imag);
+
+template<> void ExtractRealImag(const SIMD<Complex> val, int i, float &real, float &imag) {
+    real = val.real()[i];
+    imag = val.imag()[i];
+}
+
+template<> void ExtractRealImag(const Complex val, int i, float &real, float &imag) {
+    real = val.real();
+    imag = val.imag();
+}
+
+template<> void ExtractRealImag(const SIMD<double> val, int i, float &real, float &imag) { real = val[i]; }
+template<> void ExtractRealImag(const double val, int i, float &real, float &imag) { real = val; }
+
+template<typename TSCAL, typename TMIR>
+void GetValues( const CoefficientFunction &cf, LocalHeap &lh, const TMIR &mir, FlatArray<float> values_real, FlatArray<float> values_imag , FlatArray<float> min, FlatArray<float> max) {
+    static_assert( is_same<TSCAL, SIMD<double>>::value || is_same<TSCAL, SIMD<Complex>>::value || is_same<TSCAL, double>::value || is_same<TSCAL, Complex>::value, "Unsupported type in GetValues");
+
+    HeapReset hr(lh);
+
+    auto ncomps = cf.Dimension();
+    int nip = mir.IR().GetNIP();
+    auto getIndex = [=] ( int p, int comp ) { return p*ncomps + comp; };
+    bool is_complex = is_same<TSCAL, SIMD<Complex>>::value || is_same<TSCAL, Complex>::value;
+
+    if(is_same<TSCAL, SIMD<double>>::value || is_same<TSCAL, SIMD<Complex>>::value)
+    {
+        FlatMatrix<TSCAL> values(ncomps, mir.Size(), lh);
+        cf.Evaluate(mir, values);
+
+        constexpr int n = SIMD<double>::Size();
+        for (auto k : Range(nip)) {
+            for (auto i : Range(ncomps)) {
+                float vreal, vimag;
+                ExtractRealImag( values(i, k/n), k%n, vreal, vimag );
+                auto index = getIndex(k,i);
+                values_real[index] = vreal;
+                if(is_complex)
+                  values_imag[index] = vimag;
+                min[i] = min2(min[i], vreal);
+                max[i] = max2(max[i], vreal);
+            }
+        }
+    }
+    else
+    {
+        FlatMatrix<TSCAL> values(mir.Size(), ncomps, lh);
+        cf.Evaluate(mir, values);
+        for (auto k : Range(nip)) {
+            for (auto i : Range(ncomps)) {
+                float vreal, vimag;
+                ExtractRealImag( values(i, k), 0, vreal, vimag );
+                auto index = getIndex(k,i);
+                values_real[index] = vreal;
+                if(is_complex)
+                  values_imag[index] = vimag;
+                min[i] = min2(min[i], vreal);
+                max[i] = max2(max[i], vreal);
+            }
+        }
+    }
+
+}
+
 PYBIND11_MODULE(ngui, m) {
   m.def("SetLocale", []()
         {
           setlocale(LC_NUMERIC,"C");
         });
   m.def("GetValues", [] (shared_ptr<ngfem::CoefficientFunction> cf, shared_ptr<ngcomp::MeshAccess> ma, VorB vb, int subdivision, int order) {
-            ngstd::Array<float> res;
             LocalHeap lh(10000000, "GetValues");
             int dim = ma->GetDimension();
             if(vb==BND) dim-=1;
 
             int ncomps = cf->Dimension();
-            ArrayMem<float, 10> min(ncomps);
-            ArrayMem<float, 10> max(ncomps);
+            Array<float> min(ncomps);
+            Array<float> max(ncomps);
             min = std::numeric_limits<float>::max();
             max = std::numeric_limits<float>::min();
 
+            IntegrationRule ir = GetReferenceRule( dim, order, subdivision );
+            SIMD_IntegrationRule simd_ir(ir);
+            int nip = ir.GetNIP();
+
+            int values_per_element = nip*ncomps;
+
+            Array<float> res_real;
+            Array<float> res_imag;
+
+            res_real.SetSize(ma->GetNE(vb)*values_per_element); // two entries for global min/max
+            if(cf->IsComplex())
+                res_imag.SetSize(ma->GetNE(vb)*values_per_element); // two entries for global min/max
+
             try
               {
-                SIMD_IntegrationRule ir = GetReferenceRule( dim, order, subdivision );
-                int nip = ir.GetNIP();
-
-                FlatMatrix<SIMD<double>> values(ncomps, ir.Size(), lh);
-
-                constexpr int extra_values = 2;
-                int values_per_element = nip*ncomps;
-
-                auto getIndex = [=] ( int nr, int p, int comp ) { return extra_values*ncomps + nr*values_per_element + p*ncomps + comp; };
-
-                res.SetSize(extra_values*ncomps+ma->GetNE(vb)*values_per_element); // two entries for global min/max
-
-
                 for (auto el : ma->Elements(vb)) {
-                  auto verts = el.Vertices();
                   HeapReset hr(lh);
                   ElementTransformation & eltrans = ma->GetTrafo (el, lh);
-                  if(ma->GetDimension()==1) {
-                    SIMD_MappedIntegrationRule<1,1> mir(ir, eltrans, lh);
-                    cf->Evaluate(mir, values);
-                  }
-                  else if(ma->GetDimension()==2 && vb==VOL) {
-                    SIMD_MappedIntegrationRule<2,2> mir(ir, eltrans, lh);
-                    cf->Evaluate(mir, values);
-                  }
-                  else if(ma->GetDimension()==3 && vb==BND) {
-                    SIMD_MappedIntegrationRule<2,3> mir(ir, eltrans, lh);
-                    cf->Evaluate(mir, values);
-                  }
-                  else if(ma->GetDimension()==3 && vb==VOL) {
-                    SIMD_MappedIntegrationRule<3,3> mir(ir, eltrans, lh);
-                    cf->Evaluate(mir, values);
-                  }
-
-                  constexpr int n = SIMD<double>::Size();
-                  FlatVector<double> vals(ir.GetNIP(), reinterpret_cast<double*>(&values(0,0)));
-                  for (auto k : Range(nip)) {
-                    for (auto i : Range(ncomps)) {
-                      float val = values(i, k/n)[k%n];
-                      res[getIndex(el.Nr(), k, i)] = val;
-                      min[i] = min2(min[i], val);
-                      max[i] = max2(max[i], val);
-                    }
-                  }
+                  SIMD_BaseMappedIntegrationRule * pmir = SIMD_GetMappedIR( simd_ir, ma->GetDimension(), vb, eltrans, lh );
+                  size_t first = el.Nr()*values_per_element;
+                  size_t next = (el.Nr()+1)*values_per_element;
+                  if(cf->IsComplex())
+                    GetValues<SIMD<Complex>>( *cf, lh, *pmir, res_real.Range(first,next), res_imag.Range(first,next), min, max);
+                  else
+                    GetValues<SIMD<double>>( *cf, lh, *pmir, res_real.Range(first,next), res_imag, min, max);
                 }
               }
             catch(ExceptionNOSIMD e)
               {
-                auto ir = GetReferenceRuleNoSIMD( dim, order, subdivision );
-                int nip = ir.GetNIP();
-
-                FlatMatrix<double> values(ncomps, ir.Size(), lh);
-
-                constexpr int extra_values = 2;
-                int values_per_element = nip*ncomps;
-
-                auto getIndex = [=] ( int nr, int p, int comp ) { return extra_values*ncomps + nr*values_per_element + p*ncomps + comp; };
-
-                res.SetSize(extra_values*ncomps+ma->GetNE(vb)*values_per_element); // two entries for global min/max
-
                 for (auto el : ma->Elements(vb)) {
-                  auto verts = el.Vertices();
                   HeapReset hr(lh);
                   ElementTransformation & eltrans = ma->GetTrafo (el, lh);
-                  if(ma->GetDimension()==1) {
-                    MappedIntegrationRule<1,1> mir(ir, eltrans, lh);
-                    cf->Evaluate(mir, values);
-                  }
-                  else if(ma->GetDimension()==2 && vb==VOL) {
-                    MappedIntegrationRule<2,2> mir(ir, eltrans, lh);
-                    cf->Evaluate(mir, values);
-                  }
-                  else if(ma->GetDimension()==3 && vb==BND) {
-                    MappedIntegrationRule<2,3> mir(ir, eltrans, lh);
-                    cf->Evaluate(mir, values);
-                  }
-                  else if(ma->GetDimension()==3 && vb==VOL) {
-                    MappedIntegrationRule<3,3> mir(ir, eltrans, lh);
-                    cf->Evaluate(mir, values);
-                  }
-
-                  FlatVector<double> vals(ir.GetNIP(), reinterpret_cast<double*>(&values(0,0)));
-                  for (auto k : Range(nip)) {
-                    for (auto i : Range(ncomps)) {
-                      float val = values(k, i);
-                      res[getIndex(el.Nr(), k, i)] = val;
-                      min[i] = min2(min[i], val);
-                      max[i] = max2(max[i], val);
-                    }
-                  }
+                  BaseMappedIntegrationRule * pmir = GetMappedIR( ir, ma->GetDimension(), vb, eltrans, lh );
+                  size_t first = el.Nr()*values_per_element;
+                  size_t next = (el.Nr()+1)*values_per_element;
+                  if(cf->IsComplex())
+                    GetValues<Complex>( *cf, lh, *pmir, res_real.Range(first,next), res_imag.Range(first,next), min, max);
+                  else
+                    GetValues<double>( *cf, lh, *pmir, res_real.Range(first,next), res_imag, min, max);
                 }
               }
-            for (auto i : Range(ncomps)) {
-                res[i] = min[i];
-                res[ncomps + i] = max[i];
-            }
           py::gil_scoped_acquire ac;
-          return MoveToNumpyArray(res);
+          py::dict res;
+          res["real"] = MoveToNumpyArray(res_real);
+          if(cf->IsComplex())
+            res["imag"] = MoveToNumpyArray(res_imag);
+          res["min"] = MoveToNumpyArray(min);
+          res["max"] = MoveToNumpyArray(max);
+          return res;
       },py::call_guard<py::gil_scoped_release>());
 
     m.def("GetMeshData", [] (shared_ptr<ngcomp::MeshAccess> ma) {
