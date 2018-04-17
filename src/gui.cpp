@@ -381,12 +381,23 @@ PYBIND11_MODULE(ngui, m) {
             auto csg_geo = dynamic_pointer_cast<netgen::CSGeometry>(geo);
             Array<float> vertices;
             Array<int> trigs;
-            float min = std::numeric_limits<float>::min();
-            float max = std::numeric_limits<float>::max();
+            Array<float> normals;
+            ArrayMem<float,3> min = {std::numeric_limits<float>::min(),
+                                     std::numeric_limits<float>::min(),
+                                     std::numeric_limits<float>::min()};
+            ArrayMem<float,3> max = {std::numeric_limits<float>::max(),
+                                     std::numeric_limits<float>::max(),
+                                     std::numeric_limits<float>::max()};
+            Array<string> surfnames;
             if(csg_geo)
               {
+                for (auto i : Range(csg_geo->GetNSurf()))
+                  {
+                    auto surf = csg_geo->GetSurface(i);
+                    surfnames.Append(surf->GetBCName());
+                  }
                 csg_geo->FindIdenticSurfaces(1e-6);
-                csg_geo->CalcTriangleApproximation(0.01,20);
+                csg_geo->CalcTriangleApproximation(0.01,100);
                 auto nto = csg_geo->GetNTopLevelObjects();
                 size_t np = 0;
                 size_t ntrig = 0;
@@ -396,6 +407,7 @@ PYBIND11_MODULE(ngui, m) {
                 }
                 vertices.SetAllocSize(np*3);
                 trigs.SetAllocSize(ntrig*3);
+                normals.SetAllocSize(np*3);
                 for (auto i : Range(nto))
                   {
                     auto triapprox = csg_geo->GetTriApprox(i);
@@ -403,19 +415,28 @@ PYBIND11_MODULE(ngui, m) {
                       for(auto k : Range(3)) {
                         float val = triapprox->GetPoint(j)[k];
                         vertices.Append(val);
-                        min = min2(min, val);
-                        max = max2(max,val);
+                        min[k] = min2(min[k], val);
+                        max[k] = max2(max[k],val);
+                        normals.Append(triapprox->GetNormal(j)[k]);
                       }
                     for (auto j : Range(triapprox->GetNT()))
-                      for(auto k : Range(3))
-                        trigs.Append(triapprox->GetTriangle(j)[k]);
+                      {
+                        for(auto k : Range(3))
+                            trigs.Append(triapprox->GetTriangle(j)[k]);
+                        trigs.Append(triapprox->GetTriangle(j).SurfaceIndex());
+                      }
                   }
                 py::gil_scoped_acquire ac;
                 py::dict res;
+                py::list snames;
+                for(auto name : surfnames)
+                  snames.append(py::cast(name));
                 res["vertices"] = MoveToNumpyArray(vertices);
                 res["triangles"] = MoveToNumpyArray(trigs);
-                res["min"] = min;
-                res["max"] = max;
+                res["normals"] = MoveToNumpyArray(normals);
+                res["surfnames"] = snames;
+                res["min"] = MoveToNumpyArray(min);
+                res["max"] = MoveToNumpyArray(max);
                 return res;
               }
             throw Exception("Couldn't create geometry information!");

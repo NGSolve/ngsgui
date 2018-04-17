@@ -4,6 +4,8 @@ uniform mat4 MV;
 uniform mat4 P;
 uniform samplerBuffer vertices;
 uniform isamplerBuffer triangles;
+uniform samplerBuffer normals;
+uniform sampler1D colors;
 
 out VertexData
 {
@@ -17,14 +19,12 @@ void main()
 {
   int trignr = gl_VertexID/3;
   int vert_in_trig = gl_VertexID - 3*trignr;
-  int other1 = (vert_in_trig + 1)%3;
-  int other2 = (vert_in_trig + 2)%3;
-  ivec3 verts = texelFetch(triangles, trignr).rgb;
-  outData.pos = texelFetch(vertices, verts[vert_in_trig]).rgb;
-  vec3 posother1 = texelFetch(vertices, verts[other1]).rgb;
-  vec3 posother2 = texelFetch(vertices, verts[other2]).rgb;
+  ivec4 trig = texelFetch(triangles, trignr);
+  ivec3 verts = trig.rgb;
+  int surfnr = trig.a;
+  outData.pos = texelFetch(vertices, verts[vert_in_trig]).xyz;
+  outData.normal = texelFetch(normals, verts[vert_in_trig]).xyz;
   gl_Position = P * MV * vec4(outData.pos,1);
-  outData.normal = normalize(cross(posother1-outData.pos, posother2-outData.pos));
   outData.edgedist = 1.;
-  outData.color = vec4(0,0,1,1);
+  outData.color = vec4(texelFetch(colors,surfnr,0));
 }
