@@ -12,7 +12,7 @@ out VertexData
   vec3 pos;
   vec3 normal;
   vec4 color;
-  float edgedist;
+  vec3 edgedist;
 } outData;
 
 void main()
@@ -25,6 +25,6 @@ void main()
   outData.pos = texelFetch(vertices, verts[vert_in_trig]).xyz;
   outData.normal = texelFetch(normals, verts[vert_in_trig]).xyz;
   gl_Position = P * MV * vec4(outData.pos,1);
-  outData.edgedist = 1.;
+  outData.edgedist = vec3(1,1,1);
   outData.color = vec4(texelFetch(colors,surfnr,0));
 }
