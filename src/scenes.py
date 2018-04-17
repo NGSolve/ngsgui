@@ -1040,6 +1040,10 @@ class SolutionScene(BaseFunctionSceneObject):
         uniforms.set('order', self.getOrder())
 
         uniforms.set('element_type', 10)
+        if self.cf.dim > 1:
+            uniforms.set('component', self.getComponent())
+        else:
+            uniforms.set('component', 0)
 
         glActiveTexture(GL_TEXTURE0)
         self.mesh_data.vertices.bind()
