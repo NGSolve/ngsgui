@@ -453,16 +453,18 @@ PYBIND11_MODULE(ngui, m) {
             Array<float> vertices;
             Array<int> trigs;
             Array<float> normals;
-            ArrayMem<float,3> min = {std::numeric_limits<float>::min(),
-                                     std::numeric_limits<float>::min(),
-                                     std::numeric_limits<float>::min()};
-            ArrayMem<float,3> max = {std::numeric_limits<float>::max(),
+            Array<float> min = {std::numeric_limits<float>::max(),
                                      std::numeric_limits<float>::max(),
                                      std::numeric_limits<float>::max()};
+            Array<float> max = {std::numeric_limits<float>::min(),
+                                     std::numeric_limits<float>::min(),
+                                     std::numeric_limits<float>::min()};
             Array<string> surfnames;
 
-            // CSGeometries
             auto csg_geo = dynamic_pointer_cast<netgen::CSGeometry>(geo);
+            auto stl_geo = dynamic_pointer_cast<netgen::STLGeometry>(geo);
+
+            // CSGeometries
             if(csg_geo)
               {
                 for (auto i : Range(csg_geo->GetNSurf()))
@@ -480,7 +482,7 @@ PYBIND11_MODULE(ngui, m) {
                   ntrig += csg_geo->GetTriApprox(i)->GetNT();
                 }
                 vertices.SetAllocSize(np*3);
-                trigs.SetAllocSize(ntrig*3);
+                trigs.SetAllocSize(ntrig*4);
                 normals.SetAllocSize(np*3);
                 for (auto i : Range(nto))
                   {
@@ -500,37 +502,48 @@ PYBIND11_MODULE(ngui, m) {
                         trigs.Append(triapprox->GetTriangle(j).SurfaceIndex());
                       }
                   }
-
-                // STL Geometries
-                auto stl_geo = dynamic_pointer_cast<netgen::STLGeometry>(geo);
-                if(stl_geo)
-                  {
-                    // vertices.SetAllocSize(stl_geo->GetNP());
-                    // trigs.SetAllocSize(stl_geo->GetNT());
-                    // normals.SetAllocSize(stl_geo->GetNP());
-                    // for(auto i : Range(stl_geo->GetNP()))
-                    //   {
-                    //     for(auto k : Range(3))
-                    //       {
-                    //         vertices.Append(stl_geo->GetPoint(i)[k]);
-                    //         normals.Append(stl_geo->
-                    //       }
-                    //   }
-                  }
-
-                py::gil_scoped_acquire ac;
-                py::dict res;
-                py::list snames;
-                for(auto name : surfnames)
-                  snames.append(py::cast(name));
-                res["vertices"] = MoveToNumpyArray(vertices);
-                res["triangles"] = MoveToNumpyArray(trigs);
-                res["normals"] = MoveToNumpyArray(normals);
-                res["surfnames"] = snames;
-                res["min"] = MoveToNumpyArray(min);
-                res["max"] = MoveToNumpyArray(max);
-                return res;
               }
-            throw Exception("Couldn't create geometry information!");
+                // STL Geometries
+            else if(stl_geo)
+              {
+                surfnames.Append("stl");
+                vertices.SetAllocSize(stl_geo->GetNT()*3*3);
+                trigs.SetAllocSize(stl_geo->GetNT()*4);
+                normals.SetAllocSize(stl_geo->GetNT()*3*3);
+                size_t ii = 0;
+                for(auto i : Range(stl_geo->GetNT()))
+                  {
+                    auto& trig = stl_geo->GetTriangle(i+1);
+                    for(auto k : Range(3))
+                      {
+                        trigs.Append(ii++);
+                        auto& pnt = stl_geo->GetPoint(trig[k]);
+                        for (auto l : Range(3))
+                          {
+                            float val = pnt[l];
+                            vertices.Append(val);
+                            min[l] = min2(min[l], val);
+                            max[l] = max2(max[l], val);
+                            normals.Append(trig.Normal()[l]);
+                          }
+                      }
+                    trigs.Append(0);
+                  }
+              }
+            else
+              throw Exception("Couldn't create geometry information!");
+
+            py::gil_scoped_acquire ac;
+            py::dict res;
+            py::list snames;
+            for(auto name : surfnames)
+              snames.append(py::cast(name));
+            res["vertices"] = MoveToNumpyArray(vertices);
+            res["triangles"] = MoveToNumpyArray(trigs);
+            res["normals"] = MoveToNumpyArray(normals);
+            res["surfnames"] = snames;
+            res["min"] = MoveToNumpyArray(min);
+            res["max"] = MoveToNumpyArray(max);
+            return res;
           }, py::call_guard<py::gil_scoped_release>());
 }
