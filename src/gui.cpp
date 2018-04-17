@@ -6,6 +6,7 @@
 #include<comp.hpp>
 #include<meshing.hpp>
 #include<csg.hpp>
+#include <stlgeom.hpp>
 #include<type_traits>
 
 using namespace ngfem;
@@ -449,7 +450,6 @@ PYBIND11_MODULE(ngui, m) {
 
     m.def("GetGeoData", [] (shared_ptr<netgen::NetgenGeometry> geo) -> py::dict
           {
-            auto csg_geo = dynamic_pointer_cast<netgen::CSGeometry>(geo);
             Array<float> vertices;
             Array<int> trigs;
             Array<float> normals;
@@ -460,6 +460,9 @@ PYBIND11_MODULE(ngui, m) {
                                      std::numeric_limits<float>::max(),
                                      std::numeric_limits<float>::max()};
             Array<string> surfnames;
+
+            // CSGeometries
+            auto csg_geo = dynamic_pointer_cast<netgen::CSGeometry>(geo);
             if(csg_geo)
               {
                 for (auto i : Range(csg_geo->GetNSurf()))
@@ -497,6 +500,24 @@ PYBIND11_MODULE(ngui, m) {
                         trigs.Append(triapprox->GetTriangle(j).SurfaceIndex());
                       }
                   }
+
+                // STL Geometries
+                auto stl_geo = dynamic_pointer_cast<netgen::STLGeometry>(geo);
+                if(stl_geo)
+                  {
+                    // vertices.SetAllocSize(stl_geo->GetNP());
+                    // trigs.SetAllocSize(stl_geo->GetNT());
+                    // normals.SetAllocSize(stl_geo->GetNP());
+                    // for(auto i : Range(stl_geo->GetNP()))
+                    //   {
+                    //     for(auto k : Range(3))
+                    //       {
+                    //         vertices.Append(stl_geo->GetPoint(i)[k]);
+                    //         normals.Append(stl_geo->
+                    //       }
+                    //   }
+                  }
+
                 py::gil_scoped_acquire ac;
                 py::dict res;
                 py::list snames;
