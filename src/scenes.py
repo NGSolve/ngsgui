@@ -745,6 +745,7 @@ class MeshScene(BaseMeshSceneObject):
         uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
         uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
         uniforms.set('mesh.surface_elements_offset', self.mesh_data.surface_elements_offset)
+        uniforms.set('mesh.dim', 2);
 
 
         if self.getShowSurface():

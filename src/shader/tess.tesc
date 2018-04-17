@@ -9,22 +9,28 @@ uniform Mesh mesh;
 
 in VertexData
 {
-  // flat int element;
-  flat Element2d el;
+  flat int el_id;
 } inData[];
 
 out VertexData
 {
-  // flat int element;
-  flat Element2d el;
+  flat int el_id;
 } outData[];
 
 void main()
 {
-    outData[gl_InvocationID].el = inData[0].el;
-    // outData[gl_InvocationID].element = inData[0].element;
-    // Element2d el = getElement2d(mesh, inData[0].element); 
-    float level = inData[0].el.curved_index>=0 ? TessLevel : 1;
+    outData[gl_InvocationID].el_id = inData[0].el_id;
+    float level;
+
+    if(mesh.dim== 2) {
+      Element2d el = getElement2d(mesh, inData[0].el_id);
+      level = el.curved_index>=0 ? TessLevel : 1;
+    }
+
+    if(mesh.dim== 3) {
+      Element3d el = getElement3d(mesh, inData[0].el_id);
+      level = el.curved_index>=0 ? TessLevel : 1;
+    }
 
     if (gl_InvocationID == 0) {
         gl_TessLevelInner[0] = level;

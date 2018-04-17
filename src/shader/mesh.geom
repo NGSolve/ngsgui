@@ -12,7 +12,7 @@ layout(triangle_strip, max_vertices=6) out;
 
 in VertexData
 {
-  flat Element2d el;
+  flat int el_id;
   vec3 lam;
 } inData[];
 
@@ -25,7 +25,7 @@ out VertexData
 } outData;
 
 
-void AddPoint( bool flip, vec3 lam, Element2d el ) {
+void AddPoint( int face_index, vec3 lam, Element2d el ) {
     if(el.nverts==3) {
       outData.edgedist = lam;
       outData.pos = interpolatePoint(mesh, el, lam.xy);
@@ -33,16 +33,10 @@ void AddPoint( bool flip, vec3 lam, Element2d el ) {
     }
     else {
       outData.edgedist = vec3(lam.xz, 1.0);
-//       if(lam.y<0.99)
-//         lam.x /= 1.0-lam.y;
-//       lam.y /= 1.0-lam.z;
-      // TODO: curving for quads
-      if(flip)
+      if(face_index==1)
           lam = 1.0-lam;
       outData.pos = interpolatePoint(mesh, el, lam.xz);
-//       outData.normal = lam.x*el.normals[i0] + lam.y*el.normals[i1] + lam.z*el.normals[i2];
       outData.normal = mix(mix(el.normals[0],el.normals[1], lam.x), mix(el.normals[3], el.normals[2],lam.x),lam.z);
-//      outData.pos = lam.x*el.pos[i0] + lam.y*el.pos[i1] + lam.z*el.pos[i2];
     }
 
     outData.color = vec4(texelFetch(colors, el.index, 0));
@@ -50,19 +44,18 @@ void AddPoint( bool flip, vec3 lam, Element2d el ) {
     EmitVertex();
 }
 
+void AddTrig( Element2d el, int v0, int v1, int v2, int face_index ) {
+    AddPoint(face_index, inData[v0].lam, el);
+    AddPoint(face_index, inData[v1].lam, el);
+    AddPoint(face_index, inData[v2].lam, el);
+    EndPrimitive();
+}
+
 void main() {
 
-    Element2d el = inData[0].el;
-//     calcNormals(el);
-    AddPoint(false, inData[0].lam, el);
-    AddPoint(false, inData[1].lam, el);
-    AddPoint(false, inData[2].lam, el);
-    EndPrimitive();
-    if(el.nverts==4) {
-        AddPoint(true, inData[2].lam, el);
-        AddPoint(true, inData[1].lam, el);
-        AddPoint(true, inData[0].lam, el);
-    }
-    EndPrimitive();
+    Element2d el = getElement2d(mesh, inData[0].el_id);
+    AddTrig(el, 0,1,2, 0);
+    if(el.nverts==4)
+        AddTrig(el, 2,1,0, 1);
 
 }

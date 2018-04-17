@@ -1,9 +1,10 @@
 struct Mesh {
+    int dim;
     isamplerBuffer elements;
     samplerBuffer vertices;
     int surface_curved_offset;
     int volume_elements_offset;
-  int surface_elements_offset;
+    int surface_elements_offset;
 };
 
 int elements1d_size = 4;
@@ -39,6 +40,8 @@ struct Element2d {
 
 struct Element3d {
     int index;
+    int nverts;
+    int curved_index;
     int vertices[4];
     vec3 pos[4];
 };
