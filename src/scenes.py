@@ -1161,6 +1161,10 @@ class SolutionScene(BaseFunctionSceneObject):
         uniforms.set('do_clipping', True);
         uniforms.set('subdivision', 2**self.getSubdivision()-1)
         uniforms.set('order', self.getOrder())
+        if self.cf.dim > 1:
+            uniforms.set('component', self.getComponent())
+        else:
+            uniforms.set('component', 0)
 
         if(self.mesh.dim==2):
             uniforms.set('element_type', 10)
