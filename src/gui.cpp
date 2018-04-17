@@ -298,7 +298,6 @@ PYBIND11_MODULE(ngui, m) {
 
                 if(el.is_curved) {
                     // TODO: curved 1d elements are untested
-                    cerr << __FILE__ << ":" << __LINE__ << " warning: curved 1d elements are not tested!" << endl;
                     curve_info.Append(verts.Size());
                     curve_info.Append(vertices.Size()/3);
                     for (auto i : Range(2UL,verts.Size()))

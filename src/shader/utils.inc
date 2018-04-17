@@ -362,7 +362,7 @@ vec3 light(vec3 color, mat4 MV, vec3 position, vec3 norm)
 	// spec = Light[lightIndex].Ls * Material.Ks * pow( max( dot(r,v) , 0.0 ), Material.Shininess );
 	float spec = pow( max( dot(r,v) , 0.0 ), 50 );
         if(diffuse==0.0) spec = 0.0;
-        return color*(ambient+diffuse) + spec*vec3(1,1,1);
+        return color*(ambient+diffuse) + spec*0.1*vec3(1,1,1);
 }
 
 vec3 MapColor(float value)

@@ -25,7 +25,7 @@ void main()
     if(vertex_in_element==0) outData.lam.x = 1.0;
     if(vertex_in_element==1) outData.lam.y = 1.0;
     outData.lam.z = 1.0 - outData.lam.x - outData.lam.y;
-    outData.normal = el.normals[0];
+    outData.normal = el.normals[vertex_in_element];
 
     gl_Position = P * MV * vec4(outData.pos, 1.0);
 }
