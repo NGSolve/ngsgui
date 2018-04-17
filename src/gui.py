@@ -2,7 +2,6 @@
 from . import glwindow
 from . import code_editor
 from . widgets import ArrangeV
-from . settings import PythonFileSettings
 from .thread import inthread, inmain_decorator
 import ngui
 
@@ -163,7 +162,7 @@ class GUI():
         menu_splitter = QtWidgets.QSplitter(parent=self.mainWidget)
         menu_splitter.setOrientation(QtCore.Qt.Vertical)
         menu_splitter.addWidget(self.menuBar)
-        toolbox_splitter = QtWidgets.QSplitter(parent=menu_splitter)
+        self.toolbox_splitter = toolbox_splitter = QtWidgets.QSplitter(parent=menu_splitter)
         menu_splitter.addWidget(toolbox_splitter)
         toolbox_splitter.setOrientation(QtCore.Qt.Horizontal)
         self.settings_toolbox = SettingsToolBox(parent=toolbox_splitter)
@@ -186,7 +185,7 @@ class GUI():
         self.console = NGSJupyterWidget(multikernel_manager = self.multikernel_manager)
         window_splitter.addWidget(self.console)
         menu_splitter.setSizes([100, 10000])
-        toolbox_splitter.setSizes([15000, 85000])
+        toolbox_splitter.setSizes([0, 85000])
         window_splitter.setSizes([70000, 30000])
         self.mainWidget.setLayout(ArrangeV(menu_splitter))
         menu_splitter.show()
@@ -210,6 +209,13 @@ class GUI():
                     if inspect.isclass(val):
                         if issubclass(val, GuiPlugin):
                             val.loadPlugin(self)
+
+    @inmain_decorator(wait_for_return=False)
+    def update_setting_area(self):
+        if len(self.settings_toolbox.settings) == 0:
+            self.toolbox_splitter.setSizes([0,85000])
+        else:
+            self.toolbox_splitter.setSizes([15000, 85000])
 
     @inmain_decorator(wait_for_return=True)
     def make_window(self):
@@ -279,14 +285,12 @@ class GUI():
         return txt
 
     def loadPythonFile(self, filename, execute = False):
-        editTab = code_editor.CodeEditor(filename=filename,parent=self.window_tabber)
+        editTab = code_editor.CodeEditor(filename=filename,gui=self,parent=self.window_tabber)
         pos = self.window_tabber.addTab(editTab,filename)
         editTab.windowTitleChanged.connect(lambda txt: self.window_tabber.setTabText(pos, txt))
-        setting = PythonFileSettings(gui=self, name = filename, editTab = editTab)
-        self.settings_toolbox.addSettings(setting)
         if execute:
-            setting.computation_started_at = 0
-            setting.run(editTab.text)
+            editTab.computation_started_at = 0
+            editTab.run()
 
     def run(self,do_after_run=lambda : None):
         import os, threading

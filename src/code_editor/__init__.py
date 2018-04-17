@@ -4,7 +4,7 @@ from .text_finder import TextFinder
 from .button_area import ButtonArea
 from .text_partition import Lines, Selection
 from ngsolve.gui.widgets import ArrangeH, ArrangeV
-from ngsolve.gui.thread import inmain_decorator
+from ngsolve.gui.thread import inmain_decorator, inthread
 
 from PySide2 import QtWidgets, QtGui, QtCore
 
@@ -51,8 +51,9 @@ class LineNumberArea(QtWidgets.QWidget):
 
 
 class CodeEditor(QtWidgets.QPlainTextEdit):
-    def __init__(self, filename, *args, **kwargs):
+    def __init__(self, filename, gui, *args, **kwargs):
         super().__init__(*args,**kwargs)
+        self.gui = gui
         self.filename = filename
         self.setWindowTitle(filename)
         self.buttonArea = ButtonArea(self)
@@ -81,6 +82,7 @@ class CodeEditor(QtWidgets.QPlainTextEdit):
         self.comment_action.triggered.connect(_comment)
         self.comment_action.setShortcut(QtGui.QKeySequence("Ctrl+c"))
         self.addAction(self.comment_action)
+        self.active_thread = None
 
     @property
     @inmain_decorator(wait_for_return=True)
@@ -110,6 +112,15 @@ class CodeEditor(QtWidgets.QPlainTextEdit):
     def isGLWindow(self):
         return False
 
+    @inmain_decorator(wait_for_return=False)
+    def show_exception(self, e, lineno):
+        self.setTextCursor(QtGui.QTextCursor(self.document().findBlock(self.computation_started_at)))
+        for i in range(lineno-1):
+            self.moveCursor(QtGui.QTextCursor.Down)
+        self.msgbox = QtWidgets.QMessageBox(text = type(e).__name__ + ": " + str(e))
+        self.msgbox.setWindowTitle("Exception caught!")
+        self.msgbox.show()
+
     def contextMenuEvent(self, event):
         # is there a selection
         menu = self.createStandardContextMenu()
@@ -118,10 +129,7 @@ class CodeEditor(QtWidgets.QPlainTextEdit):
             selection = Selection(self)
         except ValueError:
             run_selection.setDisabled(True)
-        def _run():
-            self.settings.computation_started_at = selection.start
-            self.settings.run(str(selection))
-        run_selection.triggered.connect(_run)
+        run_selection.triggered.connect(lambda : self.run(str(selection), reset_exec_locals=False, computation_started_at=selection.start))
         menu.addAction(self.comment_action)
         menu.exec_(event.globalPos())
 
@@ -131,8 +139,30 @@ class CodeEditor(QtWidgets.QPlainTextEdit):
                 f.write(self.text)
             self.setWindowTitle(self.windowTitle()[2:])
 
-    def run(self, code, exec_locals):
-        exec(code, exec_locals)
+    def run(self, code=None, reset_exec_locals = True, computation_started_at = 0):
+        self.computation_started_at = computation_started_at
+        if code is None:
+            code = self.text
+        if reset_exec_locals:
+            self.clear_locals()
+        def _run():
+            exec(code,self.exec_locals)
+            self.active_thread = None
+        if self.active_thread:
+            self.msgbox = QtWidgets.QMessageBox(text="Already running, please stop the other computation before starting a new one!")
+            self.msgbox.setWindowTitle("Multiple computations error")
+            self.msgbox.show()
+            return
+        try:
+            self.active_thread = inthread(_run)
+        except Exception as e:
+            import sys
+            tb = sys.exc_info()[2]
+            self.show_exception(e,tb.tb_frame.f_lineno)
+        self.gui.console.pushVariables(self.exec_locals)
+
+    def clear_locals(self):
+        self.exec_locals = { "__name__" : "__main__" }
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
