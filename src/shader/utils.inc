@@ -84,6 +84,39 @@ vec3 interpolatePoint(Mesh mesh, Element2d el, vec2 lam) {
   }
 }
 
+vec3 interpolatePoint(Mesh mesh, Element3d tet, Element2d trig, int face, vec2 lam) {
+    float x = lam.x;
+    float y = lam.y;
+    if(tet.curved_index<0) {
+      return x*trig.pos[0] + y*trig.pos[1]+(1-x-y)*trig.pos[2];
+    }
+    vec3 f[6];
+    f[0] = trig.pos[2];
+    f[2] = trig.pos[0];
+    f[5] = trig.pos[1];
+    int curved_offset = texelFetch(mesh.elements, tet.curved_index+1).r;
+    int offset = curved_offset + 4;
+    if(face==0) {
+      f[1] = 0.5*(trig.pos[2]+trig.pos[0]);
+      f[3] = 0.5*(trig.pos[1]+trig.pos[2]);
+      f[4] = 0.5*(trig.pos[0]+trig.pos[1]);
+
+      f[1] = texelFetch(mesh.vertices, offset+1).xyz;
+      f[3] = texelFetch(mesh.vertices, offset+5).xyz;
+      f[4] = texelFetch(mesh.vertices, offset+4).xyz;
+    }
+    if(face==1) {
+      f[1] = 0.5*(trig.pos[2]+trig.pos[0]);
+      f[3] = 0.5*(trig.pos[1]+trig.pos[2]);
+      f[4] = 0.5*(trig.pos[0]+trig.pos[1]);
+
+      f[1] = texelFetch(mesh.vertices, offset+0).xyz;
+      f[3] = texelFetch(mesh.vertices, offset+5).xyz;
+      f[4] = texelFetch(mesh.vertices, offset+3).xyz;
+    }
+    return 1.0*f[0] + x*x*(2.0*f[0] - 4.0*f[1] + 2.0*f[2]) + 4.0*x*y*(f[0] - f[1] - f[3] + f[4]) - x*(3.0*f[0] - 4.0*f[1] + 1.0*f[2]) + y*y*(2.0*f[0] - 4.0*f[3] + 2.0*f[5]) - y*(3.0*f[0] - 4.0*f[3] + 1.0*f[5]);
+}
+
 void calcNormals(inout Element2d el) {
   // flat element, normal is constant
   vec3 n = cross(el.pos[1]-el.pos[0], el.pos[2]-el.pos[0]);
@@ -92,8 +125,9 @@ void calcNormals(inout Element2d el) {
   el.normals[2] = n;
 }
 
-Element2d getElement2d(Element3d tet, int face ) {
+Element2d getElement2d(Mesh mesh, Element3d tet, int face ) {
   Element2d trig;
+  trig.nverts = 3;
   trig.index = tet.index;
   trig.curved_index = -1;
   int counter = 0;
@@ -111,6 +145,17 @@ Element2d getElement2d(Element3d tet, int face ) {
     trig.normals[1] = -trig.normals[1];
     trig.normals[2] = -trig.normals[2];
   }
+//   }
+//   else {
+//     int counter = 0;
+//     int curved_offset = texelFetch(mesh.elements, tet.curved_index+1).r;
+//     for (int i=0; i<4; i++) {
+//       if(i==face) continue;
+//       trig.normals[counter] = -texelFetch(mesh.vertices, curved_offset + i).xyz;
+//       counter++;
+//     }
+// 
+//   }
 
   return trig;
 }
@@ -168,6 +213,7 @@ Element3d getElement3d(Mesh mesh, int ei ) {
       el.pos[i] = texelFetch(mesh.vertices, el.vertices[i]).xyz;
     }
     el.index = texelFetch(mesh.elements, offset+elements3d_index_offset).r;
+    el.curved_index = texelFetch(mesh.elements, offset+elements3d_index_offset+1).r;
     return el;
 }
 

@@ -745,7 +745,8 @@ class MeshScene(BaseMeshSceneObject):
         uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
         uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
         uniforms.set('mesh.surface_elements_offset', self.mesh_data.surface_elements_offset)
-        uniforms.set('mesh.dim', 2);
+        uniforms.set('mesh.dim', 3);
+        uniforms.set('shrink_elements', self.shrink)
 
 
         if self.getShowSurface():
@@ -757,7 +758,8 @@ class MeshScene(BaseMeshSceneObject):
             glPolygonOffset (2, 2)
             glEnable(GL_POLYGON_OFFSET_FILL)
             glPatchParameteri(GL_PATCH_VERTICES, 1)
-            glDrawArrays(GL_PATCHES, 0, self.mesh_data.nsurface_elements)
+#             glDrawArrays(GL_PATCHES, 0, self.mesh_data.nsurface_elements)
+            glDrawArrays(GL_PATCHES, 0, self.mesh.ne)
             glDisable(GL_POLYGON_OFFSET_FILL)
 
 
@@ -770,7 +772,8 @@ class MeshScene(BaseMeshSceneObject):
             glPolygonOffset (1, 1)
             glEnable(GL_POLYGON_OFFSET_LINE)
             glPatchParameteri(GL_PATCH_VERTICES, 1)
-            glDrawArrays(GL_PATCHES, 0, self.mesh_data.nsurface_elements)
+#             glDrawArrays(GL_PATCHES, 0, self.mesh_data.nsurface_elements)
+            glDrawArrays(GL_PATCHES, 0, self.mesh.ne)
             glDisable(GL_POLYGON_OFFSET_LINE)
 
 

@@ -33,7 +33,7 @@ void main() {
     vec3 center = 0.25*(tet.pos[0]+tet.pos[1]+tet.pos[2]+tet.pos[3]);
 
     for (int face=0; face<4; face++) {
-        Element2d trig = getElement2d(tet, face);
+        Element2d trig = getElement2d(mesh, tet, face);
         for (int j=0; j<3; j++) {
             outData.pos = mix(center, trig.pos[j], shrink_elements);
             outData.normal = trig.normals[j];
