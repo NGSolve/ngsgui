@@ -774,7 +774,6 @@ class MeshScene(BaseMeshSceneObject):
 
 
     def update(self):
-        print('mesh update')
         super().update()
         glBindVertexArray(self.surface_vao)
 
@@ -1325,7 +1324,6 @@ class GeometryScene(SceneObject):
         super().update()
         self.geo_data = GeoData(self.geo)
         self.surf_colors = { name : [0,0,255,255] for name in set(self.geo_data.surfnames)}
-        print("surf colors = ", self.surf_colors)
         self.colors.store([self.surf_colors[name][i] for name in self.geo_data.surfnames for i in range(4)],
                           data_format=GL_UNSIGNED_BYTE)
 

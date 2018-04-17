@@ -146,20 +146,20 @@ class CodeEditor(QtWidgets.QPlainTextEdit):
         if reset_exec_locals:
             self.clear_locals()
         def _run():
-            exec(code,self.exec_locals)
+            try:
+                exec(code,self.exec_locals)
+            except Exception as e:
+                import sys
+                tb = sys.exc_info()[2]
+                self.show_exception(e,tb.tb_frame.f_lineno)
             self.active_thread = None
+            self.gui.console.pushVariables(self.exec_locals)
         if self.active_thread:
             self.msgbox = QtWidgets.QMessageBox(text="Already running, please stop the other computation before starting a new one!")
             self.msgbox.setWindowTitle("Multiple computations error")
             self.msgbox.show()
             return
-        try:
-            self.active_thread = inthread(_run)
-        except Exception as e:
-            import sys
-            tb = sys.exc_info()[2]
-            self.show_exception(e,tb.tb_frame.f_lineno)
-        self.gui.console.pushVariables(self.exec_locals)
+        self.active_thread = inthread(_run)
 
     def clear_locals(self):
         self.exec_locals = { "__name__" : "__main__" }

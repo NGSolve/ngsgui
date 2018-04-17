@@ -12,24 +12,20 @@ class ButtonArea(QtWidgets.QWidget):
         savebtn = QtWidgets.QPushButton("Save")
         savebtn.clicked.connect(self.editor.save)
         runbtn = QtWidgets.QPushButton("Run")
-        def _run():
-            self.editor.settings.computation_started_at = 0
-            self.editor.settings.run(self.editor.text)
-        runbtn.clicked.connect(_run)
+        runbtn.clicked.connect(self.editor.run)
         def _run_cursor():
-            self.editor.settings.computation_started_at = self.editor.textCursor().position()
             txt = ""
             block = self.editor.textCursor().block()
             while block != self.editor.document().end():
                 txt += block.text() + "\n"
                 block = block.next()
-            self.editor.settings.run(txt)
+            self.editor.run(txt,reset_exec_locals=False,computation_started_at=self.editor().textCursor().position())
         runbtn_cursor = QtWidgets.QPushButton("Run from Cursor")
         runbtn_cursor.clicked.connect(_run_cursor)
         run_line = QtWidgets.QPushButton("Run line")
         def _run_line():
-            self.editor.settings.computation_started_at = self.editor.textCursor().position()
-            self.editor.settings.run(self.editor.textCursor().block().text())
+            self.editor.settings.run(self.editor.textCursor().block().text(), reset_exec_locals=False,
+                                     computation_started_at = self.editor.textCursor().position())
             self.editor.moveCursor(QtGui.QTextCursor.Down)
         run_line.clicked.connect(_run_line)
         find_btn = QtWidgets.QPushButton("Find")
