@@ -778,7 +778,6 @@ class MeshScene(BaseMeshSceneObject):
 
 
     def update(self):
-        print('mesh update')
         super().update()
         glBindVertexArray(self.surface_vao)
 
@@ -1322,8 +1321,6 @@ class GeometryScene(SceneObject):
         if self.gl_initialized:
             return
         super().initGL()
-        self.vao = glGenVertexArrays(1)
-        glBindVertexArray(self.vao)
         self.program = Program('geo.vert', 'mesh.frag')
         self.colors = Texture(GL_TEXTURE_1D, GL_RGBA)
 
@@ -1331,13 +1328,10 @@ class GeometryScene(SceneObject):
         super().update()
         self.geo_data = GeoData(self.geo)
         self.surf_colors = { name : [0,0,255,255] for name in set(self.geo_data.surfnames)}
-        print("surf colors = ", self.surf_colors)
-        glBindVertexArray(self.vao)
         self.colors.store([self.surf_colors[name][i] for name in self.geo_data.surfnames for i in range(4)],
                           data_format=GL_UNSIGNED_BYTE)
 
     def updateColors(self):
-        # glBindVertexArray(self.vao)
         self.colors.store(sum(([color.red(), color.green(), color.blue(), color.alpha()] for color in self.colorpicker.getColors()),[]),data_format=GL_UNSIGNED_BYTE)
 
     def getQtWidget(self, updateGL, params):
@@ -1356,7 +1350,6 @@ class GeometryScene(SceneObject):
         if not self.active:
             return
         glUseProgram(self.program.id)
-        glBindVertexArray(self.vao)
         model, view, projection = settings.model, settings.view, settings.projection
         uniforms = self.program.uniforms
         uniforms.set('P', projection)
