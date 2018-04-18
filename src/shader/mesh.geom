@@ -53,10 +53,11 @@ void AddTrig( Element2d el, int v0, int v1, int v2, int face_index ) {
     EndPrimitive();
 }
 
-void AddPoint( int face_index, vec3 lam, Element3d tet, Element2d trig ) {
+void AddPoint( int face_index, vec3 lam, Element3d tet, Element2d trig, vec3 center) {
 
     outData.edgedist = lam;
     outData.pos = interpolatePoint(mesh, tet, trig, face_index, lam.xy);
+    outData.pos = mix(center,outData.pos,  shrink_elements);
     outData.normal = lam.x*trig.normals[0] + lam.y*trig.normals[1] + lam.z*trig.normals[2];
 
     outData.color = vec4(texelFetch(colors, tet.index, 0));
@@ -77,19 +78,13 @@ void main() {
 
     if(mesh.dim==3) {
         Element3d el = getElement3d(mesh, inData[0].el_id);
-//         vec3 center = 0.25*(el.pos[0]+el.pos[1]+el.pos[2]+el.pos[3]);
-//         for (int i=0;i<4;i++)
-//             el.pos[i] = mix(center, el.pos[i], shrink_elements);
-//         for (int i=0;i<4;i++) {
-//             Element2d el2d = getElement2d(mesh, el, i);
-//             AddTrig(el2d, 0,1,2, 0);
-//         }
-        for (int face =0; face<2; face++) {
-        Element2d trig = getElement2d(mesh, el, face);
-        AddPoint( face, inData[0].lam, el, trig);
-        AddPoint( face, inData[1].lam, el, trig);
-        AddPoint( face, inData[2].lam, el, trig);
-        EndPrimitive();
+        vec3 center = 0.25*(el.pos[0]+el.pos[1]+el.pos[2]+el.pos[3]);
+        for (int face =0; face<4; face++) {
+            Element2d trig = getElement2d(mesh, el, face);
+            AddPoint( face, inData[0].lam, el, trig, center);
+            AddPoint( face, inData[1].lam, el, trig, center);
+            AddPoint( face, inData[2].lam, el, trig, center);
+            EndPrimitive();
         }
     }
 

@@ -96,23 +96,30 @@ vec3 interpolatePoint(Mesh mesh, Element3d tet, Element2d trig, int face, vec2 l
     f[5] = trig.pos[1];
     int curved_offset = texelFetch(mesh.elements, tet.curved_index+1).r;
     int offset = curved_offset + 4;
-    if(face==0) {
-      f[1] = 0.5*(trig.pos[2]+trig.pos[0]);
-      f[3] = 0.5*(trig.pos[1]+trig.pos[2]);
-      f[4] = 0.5*(trig.pos[0]+trig.pos[1]);
+    // fall-back code to ignore curving
+    // f[1] = 0.5*(trig.pos[2]+trig.pos[0]);
+    // f[3] = 0.5*(trig.pos[1]+trig.pos[2]);
+    // f[4] = 0.5*(trig.pos[0]+trig.pos[1]);
 
+    if(face==0) {
       f[1] = texelFetch(mesh.vertices, offset+1).xyz;
       f[3] = texelFetch(mesh.vertices, offset+5).xyz;
       f[4] = texelFetch(mesh.vertices, offset+4).xyz;
     }
     if(face==1) {
-      f[1] = 0.5*(trig.pos[2]+trig.pos[0]);
-      f[3] = 0.5*(trig.pos[1]+trig.pos[2]);
-      f[4] = 0.5*(trig.pos[0]+trig.pos[1]);
-
       f[1] = texelFetch(mesh.vertices, offset+0).xyz;
       f[3] = texelFetch(mesh.vertices, offset+5).xyz;
       f[4] = texelFetch(mesh.vertices, offset+3).xyz;
+    }
+    if(face==2) {
+      f[1] = texelFetch(mesh.vertices, offset+0).xyz;
+      f[3] = texelFetch(mesh.vertices, offset+1).xyz;
+      f[4] = texelFetch(mesh.vertices, offset+2).xyz;
+    }
+    if(face==3) {
+      f[1] = texelFetch(mesh.vertices, offset+3).xyz;
+      f[3] = texelFetch(mesh.vertices, offset+4).xyz;
+      f[4] = texelFetch(mesh.vertices, offset+2).xyz;
     }
     return 1.0*f[0] + x*x*(2.0*f[0] - 4.0*f[1] + 2.0*f[2]) + 4.0*x*y*(f[0] - f[1] - f[3] + f[4]) - x*(3.0*f[0] - 4.0*f[1] + 1.0*f[2]) + y*y*(2.0*f[0] - 4.0*f[3] + 2.0*f[5]) - y*(3.0*f[0] - 4.0*f[3] + 1.0*f[5]);
 }
