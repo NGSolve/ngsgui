@@ -78,6 +78,10 @@ def addOption(self, group, name, default_value, typ=None, update_on_change=False
         box = QtWidgets.QSpinBox()
         box.setValue(default_value)
         box.valueChanged[int].connect(lambda value: getattr(self, setter_name)(value))
+        if "min" in kwargs:
+            box.setMinimum(kwargs["min"])
+        if "max" in kwargs:
+            box.setMaximum(kwargs["max"])
         w = WidgetWithLabel(box, label)
         self._widgets[group][name] = w 
 
@@ -86,6 +90,12 @@ def addOption(self, group, name, default_value, typ=None, update_on_change=False
         box.setRange(-1e99, 1e99)
         box.setValue(default_value)
         box.valueChanged[float].connect(lambda value: getattr(self, setter_name)(value))
+        if "min" in kwargs:
+            box.setMinimum(kwargs["min"])
+        if "max" in kwargs:
+            box.setMaximum(kwargs["max"])
+        if "step" in kwargs:
+            box.setSingleStep(kwargs["step"])
         w = WidgetWithLabel(box, label)
         self._widgets[group][name] = w
 
@@ -629,26 +639,25 @@ class OverlayScene(SceneObject):
 
     
 class MeshScene(BaseMeshSceneObject):
-    def __init__(self, mesh, wireframe=True, surface=True, elements=False, shrink=1., **kwargs):
+    def __init__(self, mesh, wireframe=True, surface=True, elements=False, **kwargs):
         super().__init__(mesh, **kwargs)
 
         self.qtWidget = None
-        self.shrink = shrink
-        self.tesslevel = 1.0
 
         addOption(self, "Show", "ShowWireframe", typ=bool, default_value=True, update_widget_on_change=True)
         addOption(self, "Show", "ShowSurface", typ=bool, default_value=True, update_widget_on_change=True)
         addOption(self, "Show", "ShowElements", typ=bool, default_value=False, update_widget_on_change=True)
         addOption(self, "Show", "ShowEdges", typ=bool, default_value=False, update_widget_on_change=True)
+        addOption(self, "", "GeomSubdivision", label="Subdivision", typ=int, default_value=5, min=1, max=20, update_widget_on_change=True)
+        addOption(self, "", "Shrink", typ=float, default_value=1.0, min=0.0, max=1.0, step=0.01, update_widget_on_change=True)
 
     def __getstate__(self):
         super_state = super().__getstate__()
-        return (super_state, self.show_wireframe, self.show_surface, self.show_elements, self.shrink,
-                self.tesslevel)
+        return (super_state, self.show_wireframe, self.show_surface, self.show_elements)
 
     def __setstate__(self, state):
         super().__setstate__(state[0])
-        self.show_wireframe, self.show_surface, self.show_elements, self.shrink, self.tesslevel = state[1:]
+        self.show_wireframe, self.show_surface, self.show_elements = state[1:]
         self.qtWidget = None
 
     def initGL(self):
@@ -728,7 +737,7 @@ class MeshScene(BaseMeshSceneObject):
         uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
         uniforms.set('mesh.surface_elements_offset', self.mesh_data.surface_elements_offset)
         uniforms.set('mesh.dim', 2);
-        uniforms.set('shrink_elements', self.shrink)
+        uniforms.set('shrink_elements', self.getShrink())
         uniforms.set('clip_whole_elements', False)
         glActiveTexture(GL_TEXTURE3)
         if self.mesh.dim == 3:
@@ -741,7 +750,7 @@ class MeshScene(BaseMeshSceneObject):
         if self.getShowSurface():
             uniforms.set('light_ambient', 0.3)
             uniforms.set('light_diffuse', 0.7)
-            uniforms.set('TessLevel', self.tesslevel)
+            uniforms.set('TessLevel', self.getGeomSubdivision())
             uniforms.set('wireframe', False)
             glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
             glPolygonOffset (2, 2)
@@ -753,7 +762,7 @@ class MeshScene(BaseMeshSceneObject):
         if self.getShowWireframe():
             uniforms.set('light_ambient', 0.0)
             uniforms.set('light_diffuse', 0.0)
-            uniforms.set('TessLevel', self.tesslevel)
+            uniforms.set('TessLevel', self.getGeomSubdivision())
             uniforms.set('wireframe', True)
             glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
             glPolygonOffset (1, 1)
@@ -767,7 +776,7 @@ class MeshScene(BaseMeshSceneObject):
             uniforms.set('do_clipping', False);
             uniforms.set('light_ambient', 0.3)
             uniforms.set('light_diffuse', 0.7)
-            uniforms.set('TessLevel', self.tesslevel)
+            uniforms.set('TessLevel', self.getGeomSubdivision())
             uniforms.set('wireframe', False)
             uniforms.set('mesh.dim', 3);
             glActiveTexture(GL_TEXTURE3)
@@ -829,12 +838,6 @@ class MeshScene(BaseMeshSceneObject):
         self.mat_colors = colors
         self.tex_mat_color.store(self.mat_colors, GL_UNSIGNED_BYTE, len(self.mesh.GetMaterials()))
 
-    def setShrink(self, value):
-        self.shrink = value
-
-    def setTessellation(self, value):
-        self.tesslevel = value
-
     def getQtWidget(self, updateGL, params):
         super().getQtWidget(updateGL, params)
 
@@ -878,19 +881,6 @@ class MeshScene(BaseMeshSceneObject):
                 return self.getShowEdges()
             return False
         self.widgets.addGroup("BBoundaries", self.bbndcolors, connectedVisibility=showBBND)
-
-        if self.mesh.dim == 3:
-            shrink = wid.RangeGroup("Shrink", min=0.0, max=1.0, value=self.shrink)
-            shrink.valueChanged.connect(self.setShrink)
-            shrink.valueChanged.connect(updateGL)
-            self.widgets.addGroup("Shrink",shrink)# connectedVisibility = lambda: self.getShowElements())
-
-        tess = QtWidgets.QDoubleSpinBox()
-        tess.setRange(1, 20)
-        tess.valueChanged[float].connect(self.setTessellation)
-        tess.setSingleStep(1.0)
-        tess.valueChanged[float].connect(updateGL)
-        self.widgets.addGroup("Tesselation", tess)
 
         return self.widgets
 

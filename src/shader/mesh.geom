@@ -42,7 +42,7 @@ void AddPoint( int face_index, vec3 lam, Element2d el ) {
 
     outData.color = vec4(texelFetch(colors, el.index, 0));
     gl_Position = P * MV * vec4(outData.pos, 1);
-    outData.edgedist = vec3(0,0,0);
+    // outData.edgedist = vec3(0,0,0);
     EmitVertex();
 }
 
