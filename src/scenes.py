@@ -664,20 +664,10 @@ class MeshScene(BaseMeshSceneObject):
         self.bbnd_colors.store([1,0,0,1] * len(self.mesh.GetBBoundaries()),
                                data_format = GL_UNSIGNED_BYTE)
 
-        self.surface_vao = glGenVertexArrays(1)
-        glBindVertexArray(self.surface_vao)
-
         self.surface_program = Program('mesh.vert', 'tess.tesc', 'tess.tese', 'mesh.geom', 'mesh.frag')
         self.bc_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
         self.bc_colors.store( [0,1,0,1]*len(self.mesh.GetBoundaries()),
                               data_format=GL_UNSIGNED_BYTE )
-
-        self.element_program = Program('elements.vert','elements.geom','elements.frag')
-
-        self.elements_vao = glGenVertexArrays(1)
-        glBindVertexArray(self.elements_vao)
-
-        glBindVertexArray(0)
 
     def renderBBND(self, settings):
         glUseProgram(self.bbnd_program.id)
@@ -718,8 +708,6 @@ class MeshScene(BaseMeshSceneObject):
 
     def renderSurface(self, settings):
         glUseProgram(self.surface_program.id)
-        glBindVertexArray(self.surface_vao)
-
         model, view, projection = settings.model, settings.view, settings.projection
         uniforms = self.surface_program.uniforms
         uniforms.set('P',projection)
@@ -733,20 +721,21 @@ class MeshScene(BaseMeshSceneObject):
         self.mesh_data.elements.bind()
         uniforms.set('mesh.elements', 1)
 
-        glActiveTexture(GL_TEXTURE3)
-        if self.mesh.dim == 3:
-            self.bc_colors.bind()
-        elif self.mesh.dim == 2:
-            self.tex_mat_color.bind()
-        uniforms.set('colors', 3)
 
         uniforms.set('clipping_plane', settings.clipping_plane)
         uniforms.set('do_clipping', True);
         uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
         uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
         uniforms.set('mesh.surface_elements_offset', self.mesh_data.surface_elements_offset)
-        uniforms.set('mesh.dim', 3);
+        uniforms.set('mesh.dim', 2);
         uniforms.set('shrink_elements', self.shrink)
+        uniforms.set('clip_whole_elements', False)
+        glActiveTexture(GL_TEXTURE3)
+        if self.mesh.dim == 3:
+            self.bc_colors.bind()
+        elif self.mesh.dim == 2:
+            self.tex_mat_color.bind()
+        uniforms.set('colors', 3)
 
 
         if self.getShowSurface():
@@ -758,10 +747,8 @@ class MeshScene(BaseMeshSceneObject):
             glPolygonOffset (2, 2)
             glEnable(GL_POLYGON_OFFSET_FILL)
             glPatchParameteri(GL_PATCH_VERTICES, 1)
-#             glDrawArrays(GL_PATCHES, 0, self.mesh_data.nsurface_elements)
-            glDrawArrays(GL_PATCHES, 0, self.mesh.ne)
+            glDrawArrays(GL_PATCHES, 0, self.mesh_data.nsurface_elements)
             glDisable(GL_POLYGON_OFFSET_FILL)
-
 
         if self.getShowWireframe():
             uniforms.set('light_ambient', 0.0)
@@ -772,16 +759,31 @@ class MeshScene(BaseMeshSceneObject):
             glPolygonOffset (1, 1)
             glEnable(GL_POLYGON_OFFSET_LINE)
             glPatchParameteri(GL_PATCH_VERTICES, 1)
-#             glDrawArrays(GL_PATCHES, 0, self.mesh_data.nsurface_elements)
-            glDrawArrays(GL_PATCHES, 0, self.mesh.ne)
+            glDrawArrays(GL_PATCHES, 0, self.mesh_data.nsurface_elements)
             glDisable(GL_POLYGON_OFFSET_LINE)
+
+        if self.getShowElements():
+            uniforms.set('clip_whole_elements', True)
+            uniforms.set('do_clipping', False);
+            uniforms.set('light_ambient', 0.3)
+            uniforms.set('light_diffuse', 0.7)
+            uniforms.set('TessLevel', self.tesslevel)
+            uniforms.set('wireframe', False)
+            uniforms.set('mesh.dim', 3);
+            glActiveTexture(GL_TEXTURE3)
+            self.tex_mat_color.bind()
+            uniforms.set('colors', 3)
+            glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
+            glPolygonOffset (2, 2)
+            glEnable(GL_POLYGON_OFFSET_FILL)
+            glPatchParameteri(GL_PATCH_VERTICES, 1)
+            glDrawArrays(GL_PATCHES, 0, self.mesh.ne)
+            glDisable(GL_POLYGON_OFFSET_FILL)
+
 
 
     def update(self):
         super().update()
-        glBindVertexArray(self.surface_vao)
-
-        glBindVertexArray(self.elements_vao)
         nmats = len(self.mesh.GetMaterials())
         if self.mesh.dim == 3:
             self.mat_colors = [0,0,255,255] * nmats
@@ -789,7 +791,6 @@ class MeshScene(BaseMeshSceneObject):
             self.mat_colors = [0,255,0,255] * nmats
         self.tex_mat_color = Texture(GL_TEXTURE_1D, GL_RGBA)
         self.tex_mat_color.store(self.mat_colors, GL_UNSIGNED_BYTE, nmats)
-        glBindVertexArray(0)
 
     def render(self, settings):
         if not self.active:
@@ -797,44 +798,8 @@ class MeshScene(BaseMeshSceneObject):
 
         self.renderSurface(settings)
 
-        if self.getShowElements():
-            self.renderElements(settings)
         if self.getShowEdges():
             self.renderBBND(settings)
-
-    def renderElements(self, settings):
-        glBindVertexArray(self.elements_vao)
-        glUseProgram(self.element_program.id)
-
-        model, view, projection = settings.model, settings.view, settings.projection
-        uniforms = self.element_program.uniforms
-        uniforms.set('P',projection)
-        uniforms.set('MV',view*model)
-        uniforms.set('light_ambient', 0.3)
-        uniforms.set('light_diffuse', 0.7)
-
-        uniforms.set('shrink_elements', self.shrink)
-        uniforms.set('clipping_plane', settings.clipping_plane)
-
-        glActiveTexture(GL_TEXTURE0)
-        self.mesh_data.vertices.bind()
-        uniforms.set('mesh.vertices', 0)
-
-        glActiveTexture(GL_TEXTURE1)
-        self.mesh_data.elements.bind()
-        uniforms.set('mesh.elements', 1)
-
-        uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
-        glActiveTexture(GL_TEXTURE3)
-        self.tex_mat_color.bind()
-        uniforms.set('colors', 3)
-
-#         glPolygonOffset (2,2)
-#         glEnable(GL_POLYGON_OFFSET_FILL)
-        glDisable(GL_POLYGON_OFFSET_FILL)
-        glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
-        glDrawArrays(GL_POINTS, 0, self.mesh.ne)
-        glDisable(GL_POLYGON_OFFSET_FILL)
 
     def updateBBNDColors(self):
         colors = []
@@ -918,7 +883,7 @@ class MeshScene(BaseMeshSceneObject):
             shrink = wid.RangeGroup("Shrink", min=0.0, max=1.0, value=self.shrink)
             shrink.valueChanged.connect(self.setShrink)
             shrink.valueChanged.connect(updateGL)
-            self.widgets.addGroup("Shrink",shrink, connectedVisibility = lambda: self.getShowElements())
+            self.widgets.addGroup("Shrink",shrink)# connectedVisibility = lambda: self.getShowElements())
 
         tess = QtWidgets.QDoubleSpinBox()
         tess.setRange(1, 20)
@@ -1097,7 +1062,6 @@ class SolutionScene(BaseFunctionSceneObject):
         model, view, projection = settings.model, settings.view, settings.projection
 
         # surface mesh
-        glBindVertexArray(self.surface_vao)
         glUseProgram(self.surface_program.id)
 
         uniforms = self.surface_program.uniforms

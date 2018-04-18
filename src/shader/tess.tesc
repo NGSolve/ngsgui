@@ -6,6 +6,8 @@ layout(vertices = 3) out;
 
 uniform float TessLevel;
 uniform Mesh mesh;
+uniform bool clip_whole_elements;
+uniform vec4 clipping_plane;
 
 in VertexData
 {
@@ -25,12 +27,28 @@ void main()
     if(mesh.dim== 2) {
       Element2d el = getElement2d(mesh, inData[0].el_id);
       level = el.curved_index>=0 ? TessLevel : 1;
+      if(clip_whole_elements) {
+          float clip_dist = dot(clipping_plane, vec4(el.pos[0], 1.0));
+          clip_dist = max(clip_dist, dot(clipping_plane, vec4(el.pos[1], 1.0)));
+          clip_dist = max(clip_dist, dot(clipping_plane, vec4(el.pos[2], 1.0)));
+          if(clip_dist<0)
+              level = 0;
+      }
     }
 
     if(mesh.dim== 3) {
       Element3d el = getElement3d(mesh, inData[0].el_id);
       level = el.curved_index>=0 ? TessLevel : 1;
+      if(clip_whole_elements) {
+          float clip_dist = dot(clipping_plane, vec4(el.pos[0], 1.0));
+          clip_dist = max(clip_dist, dot(clipping_plane, vec4(el.pos[1], 1.0)));
+          clip_dist = max(clip_dist, dot(clipping_plane, vec4(el.pos[2], 1.0)));
+          clip_dist = max(clip_dist, dot(clipping_plane, vec4(el.pos[3], 1.0)));
+          if(clip_dist<0)
+              level = 0;
+      }
     }
+
 
     if (gl_InvocationID == 0) {
         gl_TessLevelInner[0] = level;
