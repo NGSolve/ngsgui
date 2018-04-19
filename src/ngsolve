@@ -27,10 +27,11 @@ def Draw(obj, mesh=None, name=None, **kwargs):
         return scene
     print("Cannot draw object of type ",type(obj))
 
-@inmain_decorator(wait_for_return=False)
-def Redraw(**kwargs):
-    window = G.gui.getActiveGLWindow()
-    window.glWidget.updateScenes()
+def Redraw(blocking=True,**kwargs):
+    if blocking:
+        G.gui.redraw_blocking()
+    else:
+        G.gui.redraw()
 
 if __name__ == "__main__":
     G.gui = G.GUI()

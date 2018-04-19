@@ -264,12 +264,13 @@ class GUI():
     def draw(self, *args, **kwargs):
         self.getActiveGLWindow().draw(*args,**kwargs)
 
+    @inmain_decorator(wait_for_return=False)
+    def redraw(self):
+        self.getActiveGLWindow().glWidget.updateScenes()
+
     @inmain_decorator(wait_for_return=True)
-    def redraw(self, blocking=True):
-        for index in range(self.window_tabber.count()):
-            win = self.window_tabber.widget(index)
-            if win.isGLWindow():
-                win.redraw(blocking=blocking)
+    def redraw_blocking(self):
+        self.getActiveGLWindow().glWidget.updateScenes()
 
     @inmain_decorator(wait_for_return=True)
     def _loadFile(self, filename):
