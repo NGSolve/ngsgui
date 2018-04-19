@@ -783,11 +783,8 @@ class MeshScene(BaseMeshSceneObject):
             self.tex_mat_color.bind()
             uniforms.set('colors', 3)
             glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
-            glPolygonOffset (2, 2)
-            glEnable(GL_POLYGON_OFFSET_FILL)
             glPatchParameteri(GL_PATCH_VERTICES, 1)
             glDrawArrays(GL_PATCHES, 0, self.mesh.ne)
-            glDisable(GL_POLYGON_OFFSET_FILL)
 
 
 

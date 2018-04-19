@@ -23,6 +23,7 @@ def Coil():
 
 
 mesh = Mesh(Coil().GenerateMesh(maxh=0.3))
+mesh.Curve(5)
 # mesh = Mesh(unit_cube.GenerateMesh(maxh=0.1))
 
 gui = GUI.GUI()

@@ -29,8 +29,8 @@ void main()
       level = el.curved_index>=0 ? TessLevel : 1;
       if(clip_whole_elements) {
           float clip_dist = dot(clipping_plane, vec4(el.pos[0], 1.0));
-          clip_dist = min(clip_dist, dot(clipping_plane, vec4(el.pos[1], 1.0)));
-          clip_dist = min(clip_dist, dot(clipping_plane, vec4(el.pos[2], 1.0)));
+          clip_dist = max(clip_dist, dot(clipping_plane, vec4(el.pos[1], 1.0)));
+          clip_dist = max(clip_dist, dot(clipping_plane, vec4(el.pos[2], 1.0)));
           if(clip_dist<0)
               level = 0;
       }
