@@ -54,45 +54,34 @@ inline IntegrationRule GetReferenceRule( int dim, int order, int subdivision )
   return ir;
 }
 
-BaseMappedIntegrationRule *GetMappedIR (IntegrationRule & ir, int dim, VorB vb, ElementTransformation & eltrans, LocalHeap &lh ) {
-    BaseMappedIntegrationRule * pmir;
-    if(dim==1) {
-        void *p = lh.Alloc(sizeof(MappedIntegrationRule<1,1>));
-        return new (p) MappedIntegrationRule<1,1> (ir, eltrans, lh);
-    }
-    else if(dim==2 && vb==VOL) {
-        void *p = lh.Alloc(sizeof(MappedIntegrationRule<2,2>));
-        return new (p) MappedIntegrationRule<2,2> (ir, eltrans, lh);
-    }
-    else if(dim==3 && vb==BND) {
-        void *p = lh.Alloc(sizeof(MappedIntegrationRule<2,3>));
-        return new (p) MappedIntegrationRule<2,3> (ir, eltrans, lh);
-    }
-    else if(dim==3 && vb==VOL) {
-        void *p = lh.Alloc(sizeof(MappedIntegrationRule<3,3>));
-        return new (p) MappedIntegrationRule<3,3> (ir, eltrans, lh);
-    }
-    throw Exception("GetMappedIR: unknown dimension/VorB combination");
+template<int S, int R>
+BaseMappedIntegrationRule &T_GetMappedIR (IntegrationRule & ir, ElementTransformation & eltrans, LocalHeap &lh ) {
+    void *p = lh.Alloc(sizeof(MappedIntegrationRule<S,R>));
+    return *new (p) MappedIntegrationRule<S,R> (ir, eltrans, lh);
 }
-SIMD_BaseMappedIntegrationRule *SIMD_GetMappedIR (SIMD_IntegrationRule & ir, int dim, VorB vb, ElementTransformation & eltrans, LocalHeap &lh ) {
-    SIMD_BaseMappedIntegrationRule * pmir;
+
+template<int S, int R>
+SIMD_BaseMappedIntegrationRule &T_GetMappedIR (SIMD_IntegrationRule & ir, ElementTransformation & eltrans, LocalHeap &lh ) {
+    void *p = lh.Alloc(sizeof(SIMD_MappedIntegrationRule<S,R>));
+    return *new (p) SIMD_MappedIntegrationRule<S,R> (ir, eltrans, lh);
+}
+
+
+template<typename TIR>
+auto &GetMappedIR (TIR & ir, int dim, VorB vb, ElementTransformation & eltrans, LocalHeap &lh ) {
     if(dim==1) {
-        void *p = lh.Alloc(sizeof(SIMD_MappedIntegrationRule<1,1>));
-        return new (p) SIMD_MappedIntegrationRule<1,1> (ir, eltrans, lh);
+        if(vb==VOL) return T_GetMappedIR<1,1>(ir, eltrans, lh);
     }
-    else if(dim==2 && vb==VOL) {
-        void *p = lh.Alloc(sizeof(SIMD_MappedIntegrationRule<2,2>));
-        return new (p) SIMD_MappedIntegrationRule<2,2> (ir, eltrans, lh);
+    if(dim==2) {
+        if(vb==VOL) return T_GetMappedIR<1,2>(ir, eltrans, lh);
+        if(vb==BND) return T_GetMappedIR<2,2>(ir, eltrans, lh);
     }
-    else if(dim==3 && vb==BND) {
-        void *p = lh.Alloc(sizeof(SIMD_MappedIntegrationRule<2,3>));
-        return new (p) SIMD_MappedIntegrationRule<2,3> (ir, eltrans, lh);
+    if(dim==3) {
+        if(vb==BBND) return T_GetMappedIR<1,3>(ir, eltrans, lh);
+        if(vb==BND) return T_GetMappedIR<2,3>(ir, eltrans, lh);
+        if(vb==VOL) return T_GetMappedIR<3,3>(ir, eltrans, lh);
     }
-    else if(dim==3 && vb==VOL) {
-        void *p = lh.Alloc(sizeof(SIMD_MappedIntegrationRule<3,3>));
-        return new (p) SIMD_MappedIntegrationRule<3,3> (ir, eltrans, lh);
-    }
-    throw Exception("SIMD_GetMappedIR: unknown dimension/VorB combination");
+    throw Exception("GetMappedIR: unknown dimension/VorB combination: " + ToString(vb) + ","+ToString(dim));
 }
 
 template <typename TSCAL>
@@ -195,13 +184,13 @@ PYBIND11_MODULE(ngui, m) {
                 for (auto el : ma->Elements(vb)) {
                   HeapReset hr(lh);
                   ElementTransformation & eltrans = ma->GetTrafo (el, lh);
-                  SIMD_BaseMappedIntegrationRule * pmir = SIMD_GetMappedIR( simd_ir, ma->GetDimension(), vb, eltrans, lh );
+                  auto & mir = GetMappedIR( simd_ir, ma->GetDimension(), vb, eltrans, lh );
                   size_t first = el.Nr()*values_per_element;
                   size_t next = (el.Nr()+1)*values_per_element;
                   if(cf->IsComplex())
-                    GetValues<SIMD<Complex>>( *cf, lh, *pmir, res_real.Range(first,next), res_imag.Range(first,next), min, max);
+                    GetValues<SIMD<Complex>>( *cf, lh, mir, res_real.Range(first,next), res_imag.Range(first,next), min, max);
                   else
-                    GetValues<SIMD<double>>( *cf, lh, *pmir, res_real.Range(first,next), res_imag, min, max);
+                    GetValues<SIMD<double>>( *cf, lh, mir, res_real.Range(first,next), res_imag, min, max);
                 }
               }
             catch(ExceptionNOSIMD e)
@@ -209,13 +198,13 @@ PYBIND11_MODULE(ngui, m) {
                 for (auto el : ma->Elements(vb)) {
                   HeapReset hr(lh);
                   ElementTransformation & eltrans = ma->GetTrafo (el, lh);
-                  BaseMappedIntegrationRule * pmir = GetMappedIR( ir, ma->GetDimension(), vb, eltrans, lh );
+                  auto & mir = GetMappedIR( ir, ma->GetDimension(), vb, eltrans, lh );
                   size_t first = el.Nr()*values_per_element;
                   size_t next = (el.Nr()+1)*values_per_element;
                   if(cf->IsComplex())
-                    GetValues<Complex>( *cf, lh, *pmir, res_real.Range(first,next), res_imag.Range(first,next), min, max);
+                    GetValues<Complex>( *cf, lh, mir, res_real.Range(first,next), res_imag.Range(first,next), min, max);
                   else
-                    GetValues<double>( *cf, lh, *pmir, res_real.Range(first,next), res_imag, min, max);
+                    GetValues<double>( *cf, lh, mir, res_real.Range(first,next), res_imag, min, max);
                 }
               }
           py::gil_scoped_acquire ac;
@@ -306,10 +295,11 @@ PYBIND11_MODULE(ngui, m) {
 
                     HeapReset hr(lh);
                     ElementTransformation & eltrans = ma->GetTrafo (el, lh);
-                    MappedIntegrationRule<1,3> mir(ir, eltrans, lh);
+                    auto & mir = GetMappedIR( ir, ma->GetDimension(), vb, eltrans, lh );
                     // normals of corner vertices
                     for (auto j : ngcomp::Range(2)) {
-                        auto n = mir[j].GetNV();
+                        auto p = static_cast<DimMappedIntegrationPoint<1>&>(mir[j]);
+                        auto n = p.GetNV();
                         for (auto i : Range(3))
                             vertices.Append(n[i]);
                     }
@@ -363,10 +353,12 @@ PYBIND11_MODULE(ngui, m) {
                     HeapReset hr(lh);
                     ElementTransformation & eltrans = ma->GetTrafo (el, lh);
                     auto & ir = nverts == 3 ? ir_trig : ir_quad;
-                    MappedIntegrationRule<2,3> mir(ir, eltrans, lh);
+                    auto & mir = GetMappedIR( ir, ma->GetDimension(), vb, eltrans, lh );
                     // normals of corner vertices
                     for (auto j : ngcomp::Range(nverts)) {
-                        auto n = mir[j].GetNV();
+                        Vec<3> n(0,0,1);
+                        if(vb=BND)
+                            n = static_cast<DimMappedIntegrationPoint<3>&>(mir[j]).GetNV();
                         for (auto i : Range(3))
                             vertices.Append(n[i]);
                     }
@@ -385,10 +377,10 @@ PYBIND11_MODULE(ngui, m) {
         if(ma->GetDimension()==3) {
             // 3d Elements
             IntegrationRule ir;
-            ir.Append(IntegrationPoint(1,0,0));
-            ir.Append(IntegrationPoint(0,1,0));
-            ir.Append(IntegrationPoint(0,0,1));
-            ir.Append(IntegrationPoint(0,0,0));
+//             ir.Append(IntegrationPoint(1,0,0));
+//             ir.Append(IntegrationPoint(0,1,0));
+//             ir.Append(IntegrationPoint(0,0,1));
+//             ir.Append(IntegrationPoint(0,0,0));
             ir.Append(IntegrationPoint(0.5,0.0,0.0));
             ir.Append(IntegrationPoint(0.0,0.5,0.0));
             ir.Append(IntegrationPoint(0.5,0.5,0.0));
@@ -410,16 +402,17 @@ PYBIND11_MODULE(ngui, m) {
 
                     HeapReset hr(lh);
                     ElementTransformation & eltrans = ma->GetTrafo (el, lh);
-                    MappedIntegrationRule<3,3> mir(ir, eltrans, lh);
-                    // normals of corner vertices
-                    for (auto j : ngcomp::Range(4)) {
-                      auto n = mir[j].GetNV();
-                      for (auto i : Range(3))
-                          vertices.Append(n[i]);
-                    }
+                    auto & mir = GetMappedIR( ir, ma->GetDimension(), VOL, eltrans, lh );
+//                     // normals of corner vertices
+//                     for (auto j : ngcomp::Range(4)) {
+//                       auto p = static_cast<DimMappedIntegrationPoint<3>&>(mir[j]);
+//                       auto n = p.GetNV();
+//                       for (auto i : Range(3))
+//                           vertices.Append(n[i]);
+//                     }
                     // mapped coordinates of edge midpoints (for P2 interpolation)
-                    for (auto j : ngcomp::Range(4,10)) {
-                      auto p = mir[j].GetPoint();
+                    for (auto &ip : mir) {
+                      auto p = ip.GetPoint();
                       for (auto i : Range(3))
                           vertices.Append(p[i]);
                     }

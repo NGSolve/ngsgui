@@ -13,7 +13,7 @@ layout(triangle_strip, max_vertices=12) out;
 
 in VertexData
 {
-  flat int el_id;
+  flat int element;
   vec3 lam;
 } inData[];
 
@@ -42,7 +42,6 @@ void AddPoint( int face_index, vec3 lam, Element2d el ) {
 
     outData.color = vec4(texelFetch(colors, el.index, 0));
     gl_Position = P * MV * vec4(outData.pos, 1);
-    // outData.edgedist = vec3(0,0,0);
     EmitVertex();
 }
 
@@ -62,7 +61,6 @@ void AddPoint( int face_index, vec3 lam, Element3d tet, Element2d trig, vec3 cen
 
     outData.color = vec4(texelFetch(colors, tet.index, 0));
     gl_Position = P * MV * vec4(outData.pos, 1);
-//     outData.edgedist = vec3(0,0,0);
     EmitVertex();
 }
 
@@ -70,14 +68,14 @@ void AddPoint( int face_index, vec3 lam, Element3d tet, Element2d trig, vec3 cen
 void main() {
 
     if(mesh.dim==2) {
-        Element2d el = getElement2d(mesh, inData[0].el_id);
+        Element2d el = getElement2d(mesh, inData[0].element);
         AddTrig(el, 0,1,2, 0);
         if(el.nverts==4)
             AddTrig(el, 2,1,0, 1);
     }
 
     if(mesh.dim==3) {
-        Element3d el = getElement3d(mesh, inData[0].el_id);
+        Element3d el = getElement3d(mesh, inData[0].element);
         vec3 center = 0.25*(el.pos[0]+el.pos[1]+el.pos[2]+el.pos[3]);
         for (int face =0; face<4; face++) {
             Element2d trig = getElement2d(mesh, el, face);

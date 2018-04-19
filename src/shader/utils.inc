@@ -95,7 +95,7 @@ vec3 interpolatePoint(Mesh mesh, Element3d tet, Element2d trig, int face, vec2 l
     f[2] = trig.pos[0];
     f[5] = trig.pos[1];
     int curved_offset = texelFetch(mesh.elements, tet.curved_index+1).r;
-    int offset = curved_offset + 4;
+    int offset = curved_offset + 0;
     // fall-back code to ignore curving
     // f[1] = 0.5*(trig.pos[2]+trig.pos[0]);
     // f[3] = 0.5*(trig.pos[1]+trig.pos[2]);
@@ -196,7 +196,7 @@ Element2d getElement2d(Mesh mesh, int ei ) {
         el.nverts = texelFetch(mesh.elements, el.curved_index).r;
         int curved_offset = texelFetch(mesh.elements, el.curved_index+1).r;
         for (int i=0; i<el.nverts; i++)
-          el.normals[i] = texelFetch(mesh.vertices, curved_offset + i).xyz;
+          el.normals[i] = normalize(texelFetch(mesh.vertices, curved_offset + i).xyz);
 
         for (int i=3; i<el.nverts; i++) {
           el.vertices[i] = texelFetch(mesh.elements, el.curved_index+2-3+i).r;
