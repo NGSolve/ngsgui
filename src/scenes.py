@@ -869,7 +869,7 @@ class MeshScene(BaseMeshSceneObject):
             return False
         self.widgets.addGroup("Boundary Conditions", self.bndcolors, connectedVisibility = showBND)
 
-        self.bbndcolors = wid.CollColors(self.mesh.GetBBoundaries(), initial_color=(255,0,0,255))
+        self.bbndcolors = wid.CollColors(self.mesh.GetBBoundaries(), initial_color=(0,0,0,255))
         self.bbndcolors.colors_changed.connect(self.updateBBNDColors)
         self.bbndcolors.colors_changed.connect(updateGL)
         self.updateBBNDColors()
