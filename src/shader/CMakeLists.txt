@@ -5,5 +5,6 @@ install(FILES
   font.vert font.frag font.geom tess.tesc tess.tese
   bbnd.vert bbnd.frag
   geo.vert
+  colorbar.vert colorbar.frag
   DESTINATION ngsolve/gui/shader
 )

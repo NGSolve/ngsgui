@@ -217,7 +217,8 @@ class ScienceSpinBox(QtWidgets.QDoubleSpinBox):
 
         if event.modifiers() == QtCore.Qt.ShiftModifier:
             if val!=0.0:
-                step = 10**(math.floor(math.log10(math.fabs(val)))-1)
+                step = (10**(math.floor(math.log10(math.fabs(val)))-1))
+                step = (val//(10*step))*step
 
         self.setValue(val+s*step)
 
@@ -239,7 +240,7 @@ class ScienceSpinBox(QtWidgets.QDoubleSpinBox):
 
     def _format_float(self,value):
         """Modified form of the 'g' format specifier."""
-        string = "{:g}".format(value).replace("e+", "e")
+        string = "{:.3g}".format(value).replace("e+", "e")
         string = re.sub("e(-?)0*(\d+)", r"e\1\2", string)
         return string
 

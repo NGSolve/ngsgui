@@ -2,6 +2,7 @@
 from . import glmath, scenes
 from . import widgets as wid
 from . import gl as mygl
+import copy
 from .widgets import ArrangeV, ArrangeH
 from .thread import inthread, inmain_decorator
 from qtconsole.inprocess import QtInProcessRichJupyterWidget
@@ -49,6 +50,10 @@ class RenderingParameters:
         self.clipping_normal[0] = 1.0
         self.clipping_point = Vector(3)
         self.clipping_dist = 0.0
+
+        self.colormap_min = 0
+        self.colormap_max = 1
+        self.colormap_linear = False
 
     @property
     def center(self):
@@ -215,8 +220,9 @@ class GLWidget(QtOpenGL.QGLWidget):
         GL.glEnable(GL.GL_BLEND);
         GL.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
         with mygl.Query(GL.GL_PRIMITIVES_GENERATED) as q:
+            rp = copy.copy(self.rendering_parameters)
             for scene in self.scenes:
-                scene.render(self.rendering_parameters) #model, view, projection)
+                scene.render(rp) #model, view, projection)
         # print('\rtotal trigs drawn ' + str(q.value)+' '*10, end='')
 
     def addScene(self, scene):
