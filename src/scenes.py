@@ -463,7 +463,8 @@ class BaseMeshSceneObject(SceneObject):
 
 class BaseFunctionSceneObject(BaseMeshSceneObject):
     """Base class for all scenes that depend on a coefficient function and a mesh"""
-    def __init__(self, cf, mesh=None, order=3, gradient=None, **kwargs):
+    def __init__(self, cf, mesh=None, order=3, gradient=None, cmapmin=None, cmapmax=None,
+                 cmaplinear=False,**kwargs):
         self.cf = cf
         if isinstance(cf, ngsolve.comp.GridFunction):
 #             if not gradient and cf.dim == 1:
@@ -479,16 +480,18 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
         else:
             self.have_gradient = False
 
+        if cmapmin:
+            self.setColorMapMin(cmapmin)
+        if cmapmax:
+            self.setColorMapMax(cmapmax)
+        self.colormap_linear = cmaplinear
+
         super().__init__(mesh,**kwargs)
 
         addOption(self, "Subdivision", "Subdivision", typ=int, default_value=1, min=0, update_on_change=True)
         addOption(self, "Subdivision", "Order", typ=int, default_value=2, min=1, max=4, update_on_change=True)
 
         n = self.getOrder()*(2**self.getSubdivision())+1
-
-        self.colormap_min = None
-        self.colormap_max = None
-        self.colormap_linear = False
 
     def __getstate__(self):
         super_state = super().__getstate__()
@@ -515,7 +518,8 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
 
     def getQtWidget(self, updateGL, params):
 
-        settings = wid.ColorMapSettings(min=-2, max=2, min_value=self.colormap_min, max_value=self.colormap_max)
+        settings = wid.ColorMapSettings(min=-2, max=2, min_value=self.colormap_min, max_value=self.colormap_max,
+                                        linear=self.colormap_linear)
         settings.layout().setAlignment(QtCore.Qt.AlignTop)
 
         settings.rangeMin.valueChanged.connect(self.setColorMapMin)

@@ -246,13 +246,14 @@ class ScienceSpinBox(QtWidgets.QDoubleSpinBox):
 
 class ColorMapSettings(QtWidgets.QWidget):
     linearChanged = QtCore.Signal(bool)
-    def __init__(self, min=-1, max=1, min_value=0, max_value=1, direction=Qt.Horizontal):
+    def __init__(self, min=-1, max=1, min_value=0, max_value=1, direction=Qt.Horizontal, linear=False):
         super(ColorMapSettings, self).__init__()
 
         self.rangeMin = ScienceSpinBox()
         self.rangeMax = ScienceSpinBox()
 
         self.linear = QtWidgets.QCheckBox('Linear', self)
+        self.linear.setCheckState(Qt.Checked if linear else Qt.Unchecked)
         self.linear.stateChanged.connect( lambda state: self.linearChanged.emit(state==Qt.Checked))
 
         self.setLayout( ArrangeV( self.rangeMin, self.rangeMax, self.linear ))
