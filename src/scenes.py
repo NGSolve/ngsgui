@@ -480,6 +480,8 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
         else:
             self.have_gradient = False
 
+        self.colormap_min = None
+        self.colormap_max = None
         if cmapmin:
             self.setColorMapMin(cmapmin)
         if cmapmax:

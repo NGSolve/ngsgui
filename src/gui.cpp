@@ -357,7 +357,7 @@ PYBIND11_MODULE(ngui, m) {
                     // normals of corner vertices
                     for (auto j : ngcomp::Range(nverts)) {
                         Vec<3> n(0,0,1);
-                        if(vb=BND)
+                        if(vb==BND)
                             n = static_cast<DimMappedIntegrationPoint<3>&>(mir[j]).GetNV();
                         for (auto i : Range(3))
                             vertices.Append(n[i]);
