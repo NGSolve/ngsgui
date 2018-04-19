@@ -114,6 +114,7 @@ class CodeEditor(QtWidgets.QPlainTextEdit):
 
     @inmain_decorator(wait_for_return=False)
     def show_exception(self, e, lineno):
+        self.gui.window_tabber.setCurrentWidget(self)
         self.setTextCursor(QtGui.QTextCursor(self.document().findBlock(self.computation_started_at)))
         for i in range(lineno-1):
             self.moveCursor(QtGui.QTextCursor.Down)
@@ -150,7 +151,7 @@ class CodeEditor(QtWidgets.QPlainTextEdit):
                 exec(code,self.exec_locals)
             except Exception as e:
                 import sys
-                tb = sys.exc_info()[2]
+                tb = sys.exc_info()[2].tb_next
                 self.show_exception(e,tb.tb_frame.f_lineno)
             self.active_thread = None
             self.gui.console.pushVariables(self.exec_locals)
