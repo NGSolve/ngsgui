@@ -10,11 +10,27 @@ import time
 from ngsolve.bla import Vector
 from math import exp
 
-from PySide2 import QtWidgets, QtOpenGL, QtCore
+from PySide2 import QtWidgets, QtOpenGL, QtCore, QtGui
 from OpenGL import GL
 
 
+class ToolBoxItem(QtWidgets.QWidget):
+    def __init__(self, window, scene, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        layout = QtWidgets.QVBoxLayout()
+        for item in scene.getQtWidget(window.glWidget.updateGL, window.glWidget.rendering_parameters).groups:
+            layout.addWidget(item)
+        self.setLayout(layout)
+        self.scene = scene
+        self.window = window
+
+    def changeActive(self):
+        self.scene.active = not self.scene.active
+        self.window.glWidget.updateGL()
+
 class SceneToolBox(QtWidgets.QToolBox):
+    ic_visible = "@ICON_INSTALL_PATH@/visible.png"
+    ic_hidden = "@ICON_INSTALL_PATH@/hidden.png"
     def __init__(self, window):
         super().__init__()
         self.window = window
@@ -22,15 +38,40 @@ class SceneToolBox(QtWidgets.QToolBox):
 
     def addScene(self, scene):
         self.scenes.append(scene)
-        widget = QtWidgets.QWidget()
-        layout = QtWidgets.QVBoxLayout()
-        layout.setAlignment(QtCore.Qt.AlignTop)
-        for item in scene.getQtWidget(self.window.glWidget.updateGL,
-                                      self.window.glWidget.rendering_parameters).groups:
-            layout.addWidget(item)
-        widget.setLayout(layout)
-        self.addItem(widget,scene.name)
-        self.setCurrentIndex(len(self.scenes)-1)
+        icon = QtGui.QIcon(SceneToolBox.ic_visible if scene.active else SceneToolBox.ic_hidden)
+        widget = ToolBoxItem(self.window,scene)
+        self.setCurrentIndex(self.addItem(widget,icon, scene.name))
+
+    def mousePressEvent(self, event):
+        if event.buttons() == QtCore.Qt.RightButton:
+            event.accept()
+            clicked = self.childAt(event.pos())
+            i = 0
+            index = None
+            while self.layout().itemAt(i) is not None:
+                if self.layout().itemAt(i).widget() == clicked:
+                    index = i//2
+                i += 1
+            if index is not None:
+                widget = self.widget(index)
+                widget.changeActive()
+                self.setItemIcon(index, QtGui.QIcon(SceneToolBox.ic_visible if
+                                                    widget.scene.active else SceneToolBox.ic_hidden))
+        if event.buttons() == QtCore.Qt.MidButton:
+            event.accept()
+            clicked = self.childAt(event.pos())
+            i = 0
+            index = None
+            while self.layout().itemAt(i) is not None:
+                if self.layout().itemAt(i).widget() == clicked:
+                    index = i//2
+                i += 1
+            if index is not None:
+                scene = self.scenes[index]
+                self.scenes.remove(scene)
+                self.removeItem(index)
+                self.window.glWidget.scenes.remove(scene)
+                self.window.glWidget.updateGL()
 
 class RenderingParameters:
     def __init__(self):
@@ -99,7 +140,6 @@ class RenderingParameters:
 class WindowTab(QtWidgets.QWidget):
     def __init__(self, shared, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.scenes = []
         self.shared = shared
 
         if shared:
@@ -132,21 +172,11 @@ class WindowTab(QtWidgets.QWidget):
         return True
 
     def draw(self, scene):
-        self.scenes.append(scene)
         self.glWidget.makeCurrent()
         scene.setWindow(self)
         scene.update()
         self.glWidget.addScene(scene)
         self.toolbox.addScene(scene)
-        self.overlay.addScene(scene)
-
-    def __getstate__(self):
-        return (self.scenes, self.shared)
-
-    def __setstate__(self, state):
-        self.__init__(state[1])
-        for scene in state[0]:
-            self.draw(scene)
 
 
 class GLWidget(QtOpenGL.QGLWidget):
