@@ -11,17 +11,17 @@ uniform sampler1D colors;
 
 in VertexData
 {
-  flat int el_id;
+  flat int element;
 } inData[];
 
 out VertexData
 {
-  flat int el_id;
+  flat int element;
   vec3 lam;
 } outData;
 
 void main()
 {
-    outData.el_id = inData[0].el_id;
+    outData.element = inData[0].element;
     outData.lam = gl_TessCoord.xyz;
 }

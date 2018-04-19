@@ -938,7 +938,7 @@ class SolutionScene(BaseFunctionSceneObject):
         # solution on surface mesh
         self.surface_vao = glGenVertexArrays(1)
         glBindVertexArray(self.surface_vao)
-        self.surface_program = Program('solution.vert', 'solution.frag')
+        self.surface_program = Program('mesh.vert', 'tess.tesc', 'tess.tese', 'solution.geom', 'solution.frag')
         glBindVertexArray(0)
 
         # solution on clipping plane
@@ -954,6 +954,7 @@ class SolutionScene(BaseFunctionSceneObject):
         self.iso_surface_program = Program('clipping.vert', 'isosurface.geom', 'solution.frag')
         glBindVertexArray(0)
 
+        # vectors (currently one per element)
         self.vector_vao = glGenVertexArrays(1)
         glBindVertexArray(self.vector_vao)
         self.vector_program = Program('clipping.vert', 'vector.geom', 'solution.frag')
@@ -1064,6 +1065,7 @@ class SolutionScene(BaseFunctionSceneObject):
         uniforms.set('do_clipping', self.mesh.dim==3);
         uniforms.set('subdivision', 2**self.getSubdivision()-1)
         uniforms.set('order', self.getOrder())
+        uniforms.set('mesh.dim', 2);
 
         uniforms.set('element_type', 10)
         if self.cf.dim > 1:
@@ -1096,10 +1098,14 @@ class SolutionScene(BaseFunctionSceneObject):
             w = cmath.exp(1j*self.getComplexPhaseShift()/180.0*math.pi)
             uniforms.set('complex_factor', [w.real, w.imag])
 
-        glPolygonOffset (2,2)
+        uniforms.set('TessLevel', max(1,2*self.getSubdivision()))
+        uniforms.set('wireframe', False)
+        glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
+        glPolygonOffset (2, 2)
         glEnable(GL_POLYGON_OFFSET_FILL)
-        glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
-        glDrawArrays(GL_TRIANGLES, 0, 3*self.mesh_data.nsurface_elements)
+        glPatchParameteri(GL_PATCH_VERTICES, 1)
+        glDrawArrays(GL_PATCHES, 0, self.mesh_data.nsurface_elements)
+        glDisable(GL_POLYGON_OFFSET_FILL)
 
     def renderIsoSurface(self, settings):
         model, view, projection = settings.model, settings.view, settings.projection

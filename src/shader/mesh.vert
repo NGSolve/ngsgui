@@ -9,10 +9,10 @@ uniform sampler1D colors;
 
 out VertexData
 {
-  flat int el_id;
+  flat int element;
 } outData;
 
 void main()
 {
-  outData.el_id = gl_VertexID;
+  outData.element = gl_VertexID;
 }

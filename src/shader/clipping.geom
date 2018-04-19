@@ -34,14 +34,8 @@ void main() {
     
     float values[4]; // = float[4](-colormap_max, -colormap_max, -colormap_max, -colormap_max);
     for (int i=0; i<4; i++) {
-      // values[i] = colormap_max - texelFetch(coefficients, inData[0].element*4+i).r;
       values[i] = dot(clipping_plane, vec4(tet.pos[i],1.0));
     }
-    // values.x += texelFetch(coefficients, inData[0].element*4+0).r;
-    // values.y += texelFetch(coefficients, inData[0].element*4+1).r;
-    // values.z += texelFetch(coefficients, inData[0].element*4+2).r;
-    // values.w += texelFetch(coefficients, inData[0].element*4+3).r;
-    // values = -values;
     vec4 plane = -inverse(transpose(mat4(vec4(tet.pos[0],1), vec4(tet.pos[1],1), vec4(tet.pos[2],1), vec4(tet.pos[3],1))))*vec4(values[0], values[1], values[2], values[3]);
 
     vec3 pos[4];
@@ -53,7 +47,7 @@ void main() {
         for (int i=0; i<n_cutting_points; i++) {
             outData.pos = pos[i];
             outData.lam = lam[i];
-            outData.normal = plane.xyz;
+            outData.normal = clipping_plane.xyz;
             gl_Position = P * MV *vec4(outData.pos,1);
             EmitVertex();
         }
