@@ -13,10 +13,6 @@ mesh = Mesh( geo.GenerateMesh(maxh=0.08))
 
 mesh.Curve(3)
 
-fes = L2(mesh, order=3, all_dofs_together=True)
-gf_draw = GridFunction(fes)
-gf_draw.Set(CoefficientFunction(0.0))
-
 nu = 0.001
 
 tau = 0.001
@@ -74,7 +70,7 @@ velocity = CoefficientFunction (gfu.components[0:2])
 # implicit Euler/explicit Euler splitting method:
 t = 0
 
-Draw(velocity, mesh, "velocity")
+Draw(Norm(velocity), mesh, "velocity")
 
 with TaskManager():
     for i in range(1000):
@@ -85,6 +81,5 @@ with TaskManager():
             gfu.vec.data -= tau * inv * res    
 
             t = t + tau
-        gf_draw.Set(Norm(velocity))
         Redraw(blocking=False)
 
