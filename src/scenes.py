@@ -86,7 +86,7 @@ def addOption(self, group, name, default_value, typ=None, update_on_change=False
         self._widgets[group][name] = w 
 
     elif typ==float:
-        box = QtWidgets.QDoubleSpinBox()
+        box = wid.ScienceSpinBox()
         box.setRange(-1e99, 1e99)
         box.setValue(default_value)
         box.valueChanged[float].connect(lambda value: getattr(self, setter_name)(value))
@@ -97,6 +97,10 @@ def addOption(self, group, name, default_value, typ=None, update_on_change=False
         if "step" in kwargs:
             box.setSingleStep(kwargs["step"])
         w = WidgetWithLabel(box, label)
+        self._widgets[group][name] = w
+
+    elif typ=="button":
+        w = wid.Button(label, default_value)
         self._widgets[group][name] = w
 
     else:
@@ -480,11 +484,8 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
         else:
             self.have_gradient = False
 
-        if cmapmin:
-            self.setColorMapMin(cmapmin)
-        if cmapmax:
-            self.setColorMapMax(cmapmax)
-        self.colormap_linear = cmaplinear
+        self.colormap_min = cmapmin
+        self.colormap_max = cmapmax
 
         super().__init__(mesh,**kwargs)
 
@@ -507,34 +508,6 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
         self.colormap_max = state[5]
         self.colormap_linear = state[6]
 
-    def setColorMapMin(self, value):
-        self.colormap_min = value
-
-    def setColorMapMax(self, value):
-        self.colormap_max = value
-
-    def setColorMapLinear(self, value):
-        self.colormap_linear = value
-
-    def getQtWidget(self, updateGL, params):
-
-        settings = wid.ColorMapSettings(min=-2, max=2, min_value=self.colormap_min, max_value=self.colormap_max,
-                                        linear=self.colormap_linear)
-        settings.layout().setAlignment(QtCore.Qt.AlignTop)
-
-        settings.rangeMin.valueChanged.connect(self.setColorMapMin)
-        settings.rangeMin.valueChanged.connect(updateGL)
-
-        settings.rangeMax.valueChanged.connect(self.setColorMapMax)
-        settings.rangeMax.valueChanged.connect(updateGL)
-
-        settings.linearChanged.connect(self.setColorMapLinear)
-        settings.linearChanged.connect(updateGL)
-
-        super().getQtWidget(updateGL, params)
-        self.widgets.addGroup("Colormap", settings)
-
-        return self.widgets
 
 class OverlayScene(SceneObject):
     """Class  for overlay objects (Colormap, coordinate system, logo)"""
@@ -546,6 +519,10 @@ class OverlayScene(SceneObject):
         self.cross_shift = -0.10
         self.active_layout = QtWidgets.QVBoxLayout()
         self.updateGL = lambda : None
+
+        addOption(self, "Overlay", "ShowCross", True, label = "Axis", typ=bool)
+        addOption(self, "Overlay", "ShowVersion", True, label = "Version", typ=bool)
+        addOption(self, "Overlay", "ShowColorBar", True, label = "Color bar", typ=bool)
 
     def deferRendering(self):
         return 99
@@ -564,6 +541,7 @@ class OverlayScene(SceneObject):
         self.cross_points.store(numpy.array(points, dtype=numpy.float32))
 
         self.program = Program('cross.vert','cross.frag')
+        self.colorbar_program = Program('colorbar.vert','colorbar.frag')
 
         self.program.attributes.bind('pos', self.cross_points)
 
@@ -578,7 +556,7 @@ class OverlayScene(SceneObject):
         glBindVertexArray(self.vao)
 
         glDisable(GL_DEPTH_TEST)
-        if self.show_cross:
+        if self.getShowCross():
             model, view, projection = settings.model, settings.view, settings.projection
             mvp = glmath.Translate(-1+0.15/settings.ratio,-0.85,0)*projection*view*glmath.Translate(0,0,-5)*settings.rotmat
 
@@ -597,17 +575,31 @@ class OverlayScene(SceneObject):
             glDrawArrays(GL_LINES, 0, 6)
             for i in range(3):
                 self.text_renderer.draw(settings, "xyz"[i], coords[0:3,i], alignment=QtCore.Qt.AlignCenter|QtCore.Qt.AlignVCenter)
-        if self.show_logo:
+        if self.getShowVersion():
             self.text_renderer.draw(settings, "NGSolve " + ngsolve.__version__, [0.99,-0.99,0], alignment=QtCore.Qt.AlignRight|QtCore.Qt.AlignBottom)
+
+        if self.getShowColorBar():
+            glBindVertexArray(0)
+            glUseProgram(self.colorbar_program.id)
+            uniforms = self.colorbar_program.uniforms
+            x0,y0 = -0.6, 0.82
+            dx,dy = 1.2, 0.03
+            uniforms.set('x0', x0)
+            uniforms.set('dx', dx)
+            uniforms.set('y0', y0)
+            uniforms.set('dy', dy)
+
+            glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
+            glDrawArrays(GL_QUADS, 0, 4)
+            cmin = settings.colormap_min
+            cmax = settings.colormap_max
+            for i in range(5):
+                x = x0+i*dx/4
+                val = cmin + i*(cmax-cmin)/4
+                self.text_renderer.draw(settings, f'{val:.2g}'.replace("e+", "e"), [x,y0-0.03,0], alignment=QtCore.Qt.AlignCenter|QtCore.Qt.AlignTop)
 
         glEnable(GL_DEPTH_TEST)
         glBindVertexArray(0)
-
-    def setShowLogo(self, show):
-        self.show_logo = show
-
-    def setShowCross(self, show):
-        self.show_cross = show
 
     def update(self):
         super().update()
@@ -630,13 +622,9 @@ class OverlayScene(SceneObject):
 
         self.widgets.addGroup("Active Scenes",self.active_layout)
 
-        logo = wid.CheckBox("Show version number", self.setShowLogo, updateGL, checked=self.show_logo)
-        cross = wid.CheckBox("Show coordinate cross", self.setShowCross, updateGL,
-                             checked=self.show_cross)
-        self.widgets.addGroup("Overlay",logo, cross)
         clipx = wid.Button("X", lambda : params.setClippingPlaneNormal([1,0,0]), updateGL)
         clipy = wid.Button("Y", lambda : params.setClippingPlaneNormal([0,1,0]), updateGL)
-        clipz = wid.Button("Z", lambda : params.setClippingPlaneNormal([0,0,1]))
+        clipz = wid.Button("Z", lambda : params.setClippingPlaneNormal([0,0,1]), updateGL)
         clip_flip = wid.Button("flip", lambda : params.setClippingPlaneNormal(-1.0*params.getClippingPlaneNormal()), updateGL)
         self.widgets.addGroup("Clipping plane",ArrangeH(clipx, clipy, clipz, clip_flip))
         return self.widgets
@@ -905,6 +893,10 @@ class SolutionScene(BaseFunctionSceneObject):
             addOption(self, "Complex", "ComplexEvalFunc", label="Func", typ=list, default_value=0, values=["real","imag","abs","arg"])
             addOption(self, "Complex", "ComplexPhaseShift", label="Value shift angle", typ=float, default_value=0.0)
 
+        addOption(self, "Colormap", "ColorMapMin", label="Min", typ=float, default_value=0.0)
+        addOption(self, "Colormap", "ColorMapMax", label="Max" ,typ=float, default_value=1.0)
+        addOption(self, "Colormap", "Autoscale",typ='button', default_value=self.AutoScale)
+
         self.qtWidget = None
         self.vao = None
 
@@ -964,11 +956,13 @@ class SolutionScene(BaseFunctionSceneObject):
         cf = self.cf
         values = ngui.GetValues(cf, self.mesh, vb, 2**self.getSubdivision()-1, self.getOrder())
 
-        if self.colormap_min == None:
-            self.colormap_min = min(values["min"])
-        if self.colormap_max == None:
-            self.colormap_max = max(values["max"])
+        self.min_values = values["min"]
+        self.max_values = values["max"]
         return values
+
+    def AutoScale(self,**kwargs):
+        self.setColorMapMin(min(self.min_values))
+        self.setColorMapMax(max(self.max_values))
 
     def update(self):
         super().update()
@@ -1016,9 +1010,9 @@ class SolutionScene(BaseFunctionSceneObject):
         uniforms.set('P',projection)
         uniforms.set('MV',view*model)
 
-        uniforms.set('colormap_min', self.colormap_min)
-        uniforms.set('colormap_max', self.colormap_max)
-        uniforms.set('colormap_linear', self.colormap_linear)
+        uniforms.set('colormap_min', settings.colormap_min)
+        uniforms.set('colormap_max', settings.colormap_max)
+        uniforms.set('colormap_linear', settings.colormap_linear)
         uniforms.set('clipping_plane', settings.clipping_plane)
         uniforms.set('do_clipping', self.mesh.dim==3);
         uniforms.set('subdivision', 2**self.getSubdivision()-1)
@@ -1058,9 +1052,9 @@ class SolutionScene(BaseFunctionSceneObject):
         uniforms.set('P',projection)
         uniforms.set('MV',view*model)
 
-        uniforms.set('colormap_min', self.colormap_min)
-        uniforms.set('colormap_max', self.colormap_max)
-        uniforms.set('colormap_linear', self.colormap_linear)
+        uniforms.set('colormap_min', settings.colormap_min)
+        uniforms.set('colormap_max', settings.colormap_max)
+        uniforms.set('colormap_linear', settings.colormap_linear)
         uniforms.set('clipping_plane', settings.clipping_plane)
         uniforms.set('do_clipping', self.mesh.dim==3);
         uniforms.set('subdivision', 2**self.getSubdivision()-1)
@@ -1115,9 +1109,9 @@ class SolutionScene(BaseFunctionSceneObject):
         uniforms = self.iso_surface_program.uniforms
         uniforms.set('P',projection)
         uniforms.set('MV',view*model)
-        uniforms.set('colormap_min', self.colormap_min)
-        uniforms.set('colormap_max', self.colormap_max)
-        uniforms.set('colormap_linear', self.colormap_linear)
+        uniforms.set('colormap_min', settings.colormap_min)
+        uniforms.set('colormap_max', settings.colormap_max)
+        uniforms.set('colormap_linear', settings.colormap_linear)
         uniforms.set('have_gradient', self.have_gradient)
         uniforms.set('clipping_plane', settings.clipping_plane)
         uniforms.set('do_clipping', True);
@@ -1163,7 +1157,7 @@ class SolutionScene(BaseFunctionSceneObject):
         uniforms.set('MV',view*model)
         uniforms.set('colormap_min', 1e99)
         uniforms.set('colormap_max', -1e99)
-        uniforms.set('colormap_linear', self.colormap_linear)
+        uniforms.set('colormap_linear', settings.colormap_linear)
         uniforms.set('clipping_plane', settings.clipping_plane)
         uniforms.set('do_clipping', True);
         uniforms.set('subdivision', 2**self.getSubdivision()-1)
@@ -1201,9 +1195,9 @@ class SolutionScene(BaseFunctionSceneObject):
         uniforms = self.clipping_program.uniforms
         uniforms.set('P',projection)
         uniforms.set('MV',view*model)
-        uniforms.set('colormap_min', self.colormap_min)
-        uniforms.set('colormap_max', self.colormap_max)
-        uniforms.set('colormap_linear', self.colormap_linear)
+        uniforms.set('colormap_min', settings.colormap_min)
+        uniforms.set('colormap_max', settings.colormap_max)
+        uniforms.set('colormap_linear', settings.colormap_linear)
         uniforms.set('clipping_plane_deformation', False)
         uniforms.set('clipping_plane', settings.clipping_plane)
         uniforms.set('do_clipping', False);
@@ -1253,6 +1247,9 @@ class SolutionScene(BaseFunctionSceneObject):
     def render(self, settings):
         if not self.active:
             return
+
+        settings.colormap_min = self.getColorMapMin()
+        settings.colormap_max = self.getColorMapMax()
 
         if self.mesh.dim==1:
             self.render1D(settings)
