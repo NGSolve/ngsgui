@@ -255,11 +255,6 @@ class GUI():
             setting.gui = self
             self.settings_toolbox.addSettings(setting)
 
-    # def getActiveWindow(self):
-    #     if not self.window_tabber.count():
-    #         self.make_window()
-    #     return self.window_tabber.currentWidget()
-
     def getActiveGLWindow(self):
         if self.activeGLWindow is None:
             self.make_window()

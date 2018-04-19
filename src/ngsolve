@@ -13,17 +13,24 @@ def Draw(obj, mesh=None, name=None, **kwargs):
     the new gui and returns the drawn scene."""
     scene = None
     if isinstance(obj, netgen.meshing.NetgenGeometry):
-        scene = G.scenes.GeometryScene(obj)
+        scene = G.scenes.GeometryScene(obj,name=name)
     if isinstance(obj,ngs.Mesh):
-        scene = G.scenes.MeshScene(obj)
+        scene = G.scenes.MeshScene(obj, name=name)
     if isinstance(obj, ngs.GridFunction):
-        scene = G.scenes.SolutionScene(obj)
+        if name is None:
+            name = obj.name
+        scene = G.scenes.SolutionScene(obj,name = name)
     if isinstance(obj, ngs.CoefficientFunction):
-        scene = G.scenes.SolutionScene(obj, mesh, name)
+        scene = G.scenes.SolutionScene(obj, mesh, name=name)
     if scene:
         G.gui.draw(scene)
         return scene
     print("Cannot draw object of type ",type(obj))
+
+@inmain_decorator(wait_for_return=False)
+def Redraw(**kwargs):
+    window = G.gui.getActiveGLWindow()
+    window.glWidget.updateScenes()
 
 if __name__ == "__main__":
     G.gui = G.GUI()
@@ -39,4 +46,5 @@ if __name__ == "__main__":
                     G.gui.msgbox.setWindowTitle("File loading error")
                     G.gui.msgbox.show()
     ngs.Draw = Draw
+    ngs.Redraw = Redraw
     G.gui.run(do_after_run)
