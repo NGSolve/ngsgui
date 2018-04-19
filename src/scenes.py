@@ -481,13 +481,13 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
 
         super().__init__(mesh,**kwargs)
 
-        addOption(self, "Subdivision", "Subdivision", typ=int, default_value=1, update_on_change=True)
-        addOption(self, "Subdivision", "Order", typ=int, default_value=2, update_on_change=True)
+        addOption(self, "Subdivision", "Subdivision", typ=int, default_value=1, min=0, update_on_change=True)
+        addOption(self, "Subdivision", "Order", typ=int, default_value=2, min=1, max=4, update_on_change=True)
 
         n = self.getOrder()*(2**self.getSubdivision())+1
 
-        self.colormap_min = -1
-        self.colormap_max = 1
+        self.colormap_min = None
+        self.colormap_max = None
         self.colormap_linear = False
 
     def __getstate__(self):
@@ -958,11 +958,11 @@ class SolutionScene(BaseFunctionSceneObject):
     def _getValues(self, vb):
         cf = self.cf
         values = ngui.GetValues(cf, self.mesh, vb, 2**self.getSubdivision()-1, self.getOrder())
-        if vb==ngsolve.VOL:
-            self.min_values = values["min"]
-            self.max_values = values["max"]
-            self.colormap_min = self.min_values[0]
-            self.colormap_max = self.max_values[0]
+
+        if self.colormap_min == None:
+            self.colormap_min = min(values["min"])
+        if self.colormap_max == None:
+            self.colormap_max = max(values["max"])
         return values
 
     def update(self):
@@ -973,8 +973,6 @@ class SolutionScene(BaseFunctionSceneObject):
                 self.surface_values.store(values["real"])
                 if self.cf.is_complex:
                     self.surface_values_imag.store(values["imag"])
-                self.min_values = values[0:self.cf.dim]
-                self.max_values = values[self.cf.dim:2*self.cf.dim]
             except Exception as e:
                 print("Cannot evaluate given function on 1d elements"+e)
         if self.mesh.dim==2:
