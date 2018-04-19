@@ -9,9 +9,15 @@ class ButtonArea(QtWidgets.QWidget):
         pal = QtGui.QPalette()
         pal.setColor(QtGui.QPalette.Background,QtCore.Qt.black)
         self.setPalette(pal)
-        savebtn = QtWidgets.QPushButton("Save")
+        savebtn = QtWidgets.QPushButton()
+        savebtn.setIcon(QtGui.QIcon("@ICON_INSTALL_PATH@/save.png"))
+        savebtn.setIconSize(QtCore.QSize(25,25))
         savebtn.clicked.connect(self.editor.save)
-        runbtn = QtWidgets.QPushButton("Run")
+        savebtn.setToolTip("Save")
+        runbtn = QtWidgets.QPushButton()
+        runbtn.setIcon(QtGui.QIcon("@ICON_INSTALL_PATH@/run.png"))
+        runbtn.setIconSize(QtCore.QSize(55,55))
+        runbtn.setToolTip("Run")
         runbtn.clicked.connect(self.editor.run)
         def _run_cursor():
             txt = ""
