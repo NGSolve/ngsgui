@@ -22,6 +22,7 @@ class ToolBoxItem(QtWidgets.QWidget):
         for item in scene.getQtWidget(window.glWidget.updateGL, window.glWidget.rendering_parameters).groups:
             layout.addWidget(item)
         self.setLayout(layout)
+        self.layout().setAlignment(QtCore.Qt.AlignTop)
         self.scene = scene
         self.window = window
 
@@ -157,6 +158,7 @@ class WindowTab(QtWidgets.QWidget):
 
         btnZoomReset = QtWidgets.QPushButton("ZoomReset", self)
         btnZoomReset.clicked.connect(self.glWidget.ZoomReset)
+        btnZoomReset.setMinimumWidth(1);
 
         buttons.addWidget(btnZoomReset)
 

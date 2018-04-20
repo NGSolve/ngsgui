@@ -13,25 +13,20 @@ class ObjectHolder():
     def __call__(self, *args, **kwargs):
         self.call_func(self,*args, **kwargs)
 
+def Arrange(layout_type, *args):
+    layout = layout_type()
+    for w in args:
+        if isinstance(w, QtWidgets.QWidget):
+            layout.addWidget(w)
+        else:
+            layout.addLayout(w)
+    return layout
 
 def ArrangeV(*args):
-    layout = QtWidgets.QVBoxLayout()
-    for w in args:
-        if isinstance(w, QtWidgets.QWidget):
-            layout.addWidget(w)
-        else:
-            layout.addLayout(w)
-    return layout
+    return Arrange(QtWidgets.QVBoxLayout, *args)
 
 def ArrangeH(*args):
-    layout = QtWidgets.QHBoxLayout()
-    for w in args:
-        if isinstance(w, QtWidgets.QWidget):
-            layout.addWidget(w)
-        else:
-            layout.addLayout(w)
-    return layout
-
+    return Arrange(QtWidgets.QHBoxLayout, *args)
 
 def CheckBox(name, *slots, checked=False):
     cb = QtWidgets.QCheckBox(name)
@@ -104,7 +99,11 @@ class OptionWidgets(QtCore.QObject):
 
     def addGroup(self, name, *widgets, connectedVisibility=None, importance = 0):
         group = QtWidgets.QGroupBox(name)
-        group.setLayout(ArrangeV(*widgets))
+        minwidth = min([w.minimumWidth() for w in widgets])
+        layout = QtWidgets.QHBoxLayout if minwidth>0 and minwidth<50 else QtWidgets.QVBoxLayout
+        group.setLayout(Arrange(layout, *widgets))
+        group.setMinimumWidth(1);
+        group.layout().setAlignment(Qt.AlignTop)
         group._importance = importance
         if connectedVisibility is not None:
             self.visibilityOptions[connectedVisibility] = group

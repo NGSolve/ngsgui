@@ -100,38 +100,51 @@ def addOption(self, group, name, default_value, typ=None, update_on_change=False
         self._widgets[group][name] = w
 
     elif typ=="button":
-        w = wid.Button(label, default_value)
+        def doAction(self, redraw=True):
+            default_value()
+            if update_on_change:
+                self.update()
+            if redraw:
+                self.widgets.updateGLSignal.emit()
+
+        cls = type(self)
+
+        if not hasattr(cls, name):
+            setattr(cls, name, doAction)
+
+        w = wid.Button(label, getattr(self, name))
         self._widgets[group][name] = w
 
     else:
-        print("unknown type: ", typ)
+        raise RuntimeError("unknown type: ", typ)
 
-    def getValue(self):
-        return getattr(self, propname)
+    if typ!='button':
+        def getValue(self):
+            return getattr(self, propname)
 
-    def setValue(self, value, redraw=True, update_gui=True):
-        if getattr(self, propname) == value:
-            return
+        def setValue(self, value, redraw=True, update_gui=True):
+            if getattr(self, propname) == value:
+                return
 
-        setattr(self, propname, value) 
-        
-        if update_on_change:
-            self.update()
-        if update_widget_on_change:
-            self.widgets.update()
-        if redraw:
-            self.widgets.updateGLSignal.emit()
+            setattr(self, propname, value) 
             
-        if update_gui:
-            widget = self._widgets[group][name]
-            widget.setValue(value)
+            if update_on_change:
+                self.update()
+            if update_widget_on_change:
+                self.widgets.update()
+            if redraw:
+                self.widgets.updateGLSignal.emit()
+                
+            if update_gui:
+                widget = self._widgets[group][name]
+                widget.setValue(value)
 
-    cls = type(self)
+        cls = type(self)
 
-    if not hasattr(cls, setter_name):
-        setattr(cls, setter_name, setValue)
-    if not hasattr(cls, 'get'+name):
-        setattr(cls, 'get'+name, getValue)
+        if not hasattr(cls, setter_name):
+            setattr(cls, setter_name, setValue)
+        if not hasattr(cls, 'get'+name):
+            setattr(cls, 'get'+name, getValue)
 
 import ngsolve
 import numpy
@@ -391,6 +404,7 @@ class SceneObject():
 
     def getQtWidget(self, updateGL, params):
         self.widgets = wid.OptionWidgets(updateGL=updateGL)
+        self._rendering_params = params
 
         self.actionCheckboxes = []
 
@@ -524,6 +538,11 @@ class OverlayScene(SceneObject):
         addOption(self, "Overlay", "ShowVersion", True, label = "Version", typ=bool)
         addOption(self, "Overlay", "ShowColorBar", True, label = "Color bar", typ=bool)
 
+        addOption(self, "Clipping plane", "clipX", label='X', typ='button', default_value=lambda : self._rendering_params.setClippingPlaneNormal([1,0,0]))
+        addOption(self, "Clipping plane", "clipY", label='Y', typ='button', default_value=lambda : self._rendering_params.setClippingPlaneNormal([0,1,0]))
+        addOption(self, "Clipping plane", "clipZ", label='Z', typ='button', default_value=lambda : self._rendering_params.setClippingPlaneNormal([0,0,1]))
+        addOption(self, "Clipping plane", "clipFlip", label='flip', typ='button', default_value=lambda : self._rendering_params.setClippingPlaneNormal(-1.0*self._rendering_params.getClippingPlaneNormal()))
+
     def deferRendering(self):
         return 99
 
@@ -615,19 +634,6 @@ class OverlayScene(SceneObject):
                                                                    self.obj.setActive(state,callupdate)),
                                                   self.callupdateGL,
                                                   checked = scene.active))
-
-    def getQtWidget(self, updateGL, params):
-        self.updateGL = updateGL
-        super().getQtWidget(updateGL, params)
-
-        self.widgets.addGroup("Active Scenes",self.active_layout)
-
-        clipx = wid.Button("X", lambda : params.setClippingPlaneNormal([1,0,0]), updateGL)
-        clipy = wid.Button("Y", lambda : params.setClippingPlaneNormal([0,1,0]), updateGL)
-        clipz = wid.Button("Z", lambda : params.setClippingPlaneNormal([0,0,1]), updateGL)
-        clip_flip = wid.Button("flip", lambda : params.setClippingPlaneNormal(-1.0*params.getClippingPlaneNormal()), updateGL)
-        self.widgets.addGroup("Clipping plane",ArrangeH(clipx, clipy, clipz, clip_flip))
-        return self.widgets
 
     
 class MeshScene(BaseMeshSceneObject):
