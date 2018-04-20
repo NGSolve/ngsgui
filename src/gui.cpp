@@ -287,11 +287,7 @@ PYBIND11_MODULE(ngui, m) {
                 elements.Append(el.is_curved ? elsize+curve_info.Size() : -1);
 
                 if(el.is_curved) {
-                    // TODO: curved 1d elements are untested
-                    curve_info.Append(verts.Size());
                     curve_info.Append(vertices.Size()/3);
-                    for (auto i : Range(2UL,verts.Size()))
-                        curve_info.Append(verts[i]);
 
                     HeapReset hr(lh);
                     ElementTransformation & eltrans = ma->GetTrafo (el, lh);
@@ -303,12 +299,10 @@ PYBIND11_MODULE(ngui, m) {
                         for (auto i : Range(3))
                             vertices.Append(n[i]);
                     }
-                    // mapped coordinates of edge midpoints (for P2 interpolation)
-                    for (auto j : ngcomp::Range(2,3)) {
-                        auto p = mir[j].GetPoint();
-                        for (auto i : Range(3))
-                            vertices.Append(p[i]);
-                    }
+                    // mapped coordinates of midpoint (for P2 interpolation)
+                    auto p = mir[2].GetPoint();
+                    for (auto i : Range(3))
+                        vertices.Append(p[i]);
                 }
             }
 

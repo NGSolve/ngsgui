@@ -1,4 +1,7 @@
 #version 150
+
+{include utils.inc}
+
 uniform mat4 MV;
 uniform vec4 clipping_plane;
 uniform bool do_clipping;

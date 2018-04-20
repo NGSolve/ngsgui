@@ -24,6 +24,11 @@ void main()
     outData[gl_InvocationID].element = inData[0].element;
     float level=0;
 
+    if(mesh.dim== 1) {
+      Element1d el = getElement1d(mesh, inData[0].element);
+      level = el.curved_index>=0 ? TessLevel : 1;
+    }
+
     if(mesh.dim== 2) {
       Element2d el = getElement2d(mesh, inData[0].element);
       level = el.curved_index>=0 ? TessLevel : 1;

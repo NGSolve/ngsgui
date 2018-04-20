@@ -26,7 +26,8 @@ struct Element1d {
     int index;
     int curved_index;
     int vertices[2];
-    vec3 pos[2];
+    vec3 pos[3];
+    vec3 normals[2];
 };
 
 struct Element2d {
@@ -45,6 +46,16 @@ struct Element3d {
     int vertices[4];
     vec3 pos[4];
 };
+
+vec3 interpolatePoint(Mesh mesh, Element1d el, float x0) {
+  float x = 1-x0;
+  if(el.curved_index<0) {
+    return x*el.pos[0] + (1-x)*el.pos[1];
+  }
+  else {
+    return el.pos[0] + x*(-el.pos[1]-3*el.pos[0]+4*el.pos[2]) + x*x*2*(el.pos[0]-2*el.pos[2]+el.pos[1]);
+  }
+}
 
 vec3 interpolatePoint(Mesh mesh, Element2d el, vec2 lam) {
     float x = lam.x;
@@ -177,6 +188,16 @@ Element1d getElement1d(Mesh mesh, int ei ) {
     }
     el.index = texelFetch(mesh.elements, stride*ei+elements1d_index_offset).r;
     el.curved_index = texelFetch(mesh.elements, stride*ei+elements1d_curved_offset).r;
+    int curved_offset = texelFetch(mesh.elements, el.curved_index).r;
+    if(el.curved_index>=0) {
+      el.normals[0] = texelFetch(mesh.vertices, curved_offset+0).xyz;
+      el.normals[1] = texelFetch(mesh.vertices, curved_offset+1).xyz;
+      el.pos[2] = texelFetch(mesh.vertices, curved_offset+2).xyz;
+    }
+    else {
+      el.normals[0] = el.pos[0];
+      el.normals[1] = el.pos[1];
+    }
     return el;
 }
 

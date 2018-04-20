@@ -664,9 +664,7 @@ class MeshScene(BaseMeshSceneObject):
 
         super().initGL()
 
-        self.bbnd_vao = glGenVertexArrays(1)
-        glBindVertexArray(self.bbnd_vao)
-        self.bbnd_program = Program("bbnd.vert","bbnd.frag")
+        self.bbnd_program = Program('mesh.vert', 'lines.tesc', 'lines.tese', 'mesh.frag')
         self.bbnd_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
         self.bbnd_colors.store([1,0,0,1] * len(self.mesh.GetBBoundaries()),
                                data_format = GL_UNSIGNED_BYTE)
@@ -678,7 +676,6 @@ class MeshScene(BaseMeshSceneObject):
 
     def renderBBND(self, settings):
         glUseProgram(self.bbnd_program.id)
-        glBindVertexArray(self.bbnd_vao)
         model,view,projection = settings.model, settings.view, settings.projection
         uniforms = self.bbnd_program.uniforms
         uniforms.set('P',projection)
@@ -701,17 +698,18 @@ class MeshScene(BaseMeshSceneObject):
             self.tex_mat_color.bind()
         uniforms.set('colors', 3)
 
-        uniforms.set('clipping_plane', settings.clipping_plane)
-        uniforms.set('do_clipping', True);
+        uniforms.set('do_clipping', False);
 
-        if self.getShowEdges():
-            uniforms.set('light_ambient', 0.3)
-            uniforms.set('light_diffuse', 0.7)
-            glLineWidth(3)
-            glPolygonOffset (2, 2)
-            glDrawArrays(GL_LINES, 0, 2*self.mesh_data.nedge_elements)
-            # glDisable(GL_LINE_SMOOTH)
-            glLineWidth(1)
+        uniforms.set('mesh.dim', 1);
+        uniforms.set('light_ambient', 1.0)
+        uniforms.set('light_diffuse', 0.0)
+        uniforms.set('TessLevel', self.getGeomSubdivision())
+        uniforms.set('wireframe', True)
+        glLineWidth(3)
+        glPatchParameteri(GL_PATCH_VERTICES, 1)
+        glDrawArrays(GL_PATCHES, 0, self.mesh_data.nedge_elements)
+        glLineWidth(1)
+
 
     def renderSurface(self, settings):
         glUseProgram(self.surface_program.id)
@@ -800,10 +798,10 @@ class MeshScene(BaseMeshSceneObject):
         if not self.active:
             return
 
-        self.renderSurface(settings)
-
         if self.getShowEdges():
             self.renderBBND(settings)
+
+        self.renderSurface(settings)
 
     def updateBBNDColors(self):
         colors = []
