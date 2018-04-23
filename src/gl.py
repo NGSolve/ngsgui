@@ -205,7 +205,7 @@ class Program(GLObject):
         def __contains__(self, name):
             return name.encode('ascii', 'ignore') in self.attributes
 
-    def __init__(self, *shader_files):
+    def __init__(self, *shader_files, feedback=[]):
         self.locations = {}
         self._shaders = []
 
@@ -215,6 +215,18 @@ class Program(GLObject):
             self._shaders.append(shader)
             glAttachShader(self.id, shader.id)
 
+        if len(feedback):
+
+            feedback = [ctypes.create_string_buffer(name.encode('ascii', 'ignore')) for name in feedback]
+
+            LP_c_char = ctypes.POINTER(ctypes.c_char)
+            LP_LP_c_char = ctypes.POINTER(LP_c_char)
+
+            buff = (LP_c_char * (len(feedback)))()
+            for i, arg in enumerate(feedback):
+                buff[i] = arg
+
+            glTransformFeedbackVaryings(self.id, len(feedback), buff, GL_INTERLEAVED_ATTRIBS)
         glLinkProgram(self.id)
         if glGetProgramiv(self.id, GL_LINK_STATUS) != GL_TRUE:
                 raise RuntimeError(glGetProgramInfoLog(self.id))

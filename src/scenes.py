@@ -664,12 +664,12 @@ class MeshScene(BaseMeshSceneObject):
 
         super().initGL()
 
-        self.bbnd_program = Program('mesh.vert', 'lines.tesc', 'lines.tese', 'mesh.frag')
+        self.bbnd_program = Program('filter_elements.vert', 'lines.tesc', 'lines.tese', 'mesh.frag')
         self.bbnd_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
         self.bbnd_colors.store([1,0,0,1] * len(self.mesh.GetBBoundaries()),
                                data_format = GL_UNSIGNED_BYTE)
 
-        self.surface_program = Program('mesh.vert', 'tess.tesc', 'tess.tese', 'mesh.geom', 'mesh.frag')
+        self.surface_program = Program('filter_elements.vert', 'tess.tesc', 'tess.tese', 'mesh.geom', 'mesh.frag')
         self.bc_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
         self.bc_colors.store( [0,1,0,1]*len(self.mesh.GetBoundaries()),
                               data_format=GL_UNSIGNED_BYTE )
@@ -925,6 +925,20 @@ class SolutionScene(BaseFunctionSceneObject):
         self.surface_values = Texture(GL_TEXTURE_BUFFER, formats[self.cf.dim])
         self.surface_values_imag = Texture(GL_TEXTURE_BUFFER, formats[self.cf.dim])
 
+        # to filter elements (eg. elements intersecting with clipping plane or iso-surface)
+        self.filter_program = Program('filter_elements.vert', 'filter_elements.geom', feedback=['element'])
+
+        self.filter_buffer = ArrayBuffer()
+        self.filter_buffer.bind()
+        glBufferData(GL_ARRAY_BUFFER, 1000000, ctypes.c_void_p(), GL_STATIC_DRAW)
+
+        self.filter_feedback = glGenTransformFeedbacks(1)
+        glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, self.filter_feedback)
+        glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, self.filter_buffer.id)
+        glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, 0)
+
+        self._have_filter = False
+
         # 1d solution (line)
         self.line_vao = glGenVertexArrays(1)
         glBindVertexArray(self.line_vao)
@@ -934,26 +948,26 @@ class SolutionScene(BaseFunctionSceneObject):
         # solution on surface mesh
         self.surface_vao = glGenVertexArrays(1)
         glBindVertexArray(self.surface_vao)
-        self.surface_program = Program('mesh.vert', 'tess.tesc', 'tess.tese', 'solution.geom', 'solution.frag')
+        self.surface_program = Program('filter_elements.vert', 'tess.tesc', 'tess.tese', 'solution.geom', 'solution.frag')
         glBindVertexArray(0)
 
         # solution on clipping plane
         self.clipping_vao = glGenVertexArrays(1)
         glBindVertexArray(self.clipping_vao)
-        self.clipping_program = Program('clipping.vert', 'clipping.geom', 'solution.frag')
+        self.clipping_program = Program('mesh.vert', 'clipping.geom', 'solution.frag')
         glUseProgram(self.clipping_program.id)
         glBindVertexArray(0)
 
         # iso-surface
         self.iso_surface_vao = glGenVertexArrays(1)
         glBindVertexArray(self.iso_surface_vao)
-        self.iso_surface_program = Program('clipping.vert', 'isosurface.geom', 'solution.frag')
+        self.iso_surface_program = Program('mesh.vert', 'isosurface.geom', 'solution.frag')
         glBindVertexArray(0)
 
         # vectors (currently one per element)
         self.vector_vao = glGenVertexArrays(1)
         glBindVertexArray(self.vector_vao)
-        self.vector_program = Program('clipping.vert', 'vector.geom', 'solution.frag')
+        self.vector_program = Program('mesh.vert', 'vector.geom', 'solution.frag')
         glBindVertexArray(0)
 
     def _getValues(self, vb):
@@ -970,6 +984,7 @@ class SolutionScene(BaseFunctionSceneObject):
 
     def update(self):
         super().update()
+        self._have_filter = False
         if self.mesh.dim==1:
             try:
                 values = self._getValues(ngsolve.VOL)
@@ -1002,6 +1017,46 @@ class SolutionScene(BaseFunctionSceneObject):
             except Exception as e:
                 print("Cannot evaluate given function on surface elements"+e)
                 self.show_surface = False
+
+    def _filterElements(self, settings, filter_type):
+        glEnable(GL_RASTERIZER_DISCARD)
+        glUseProgram(self.filter_program.id)
+        uniforms = self.filter_program.uniforms
+        uniforms.set('clipping_plane', settings.clipping_plane)
+        glActiveTexture(GL_TEXTURE0)
+        self.mesh_data.vertices.bind()
+        uniforms.set('mesh.vertices', 0)
+        uniforms.set('mesh.dim', 3);
+
+        glActiveTexture(GL_TEXTURE1)
+        self.mesh_data.elements.bind()
+        uniforms.set('mesh.elements', 1)
+
+        glActiveTexture(GL_TEXTURE2)
+        self.volume_values.bind()
+        uniforms.set('coefficients', 2)
+        uniforms.set('colormap_min', settings.colormap_min)
+        uniforms.set('colormap_max', settings.colormap_max)
+        uniforms.set('subdivision', 2**self.getSubdivision()-1)
+        uniforms.set('order', self.getOrder())
+        if self.cf.dim > 1:
+            uniforms.set('component', self.getComponent())
+        else:
+            uniforms.set('component', 0)
+
+        uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
+        uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
+        uniforms.set('mesh.surface_elements_offset', self.mesh_data.surface_elements_offset)
+        uniforms.set('filter_type', filter_type)
+
+        glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, self.filter_feedback)
+        glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, self.filter_buffer.id)
+        glBeginTransformFeedback(GL_POINTS)
+
+        glDrawArrays(GL_POINTS, 0, self.mesh.ne)
+
+        glEndTransformFeedback()
+        glDisable(GL_RASTERIZER_DISCARD)
 
     def render1D(self, settings):
         model, view, projection = settings.model, settings.view, settings.projection
@@ -1106,6 +1161,7 @@ class SolutionScene(BaseFunctionSceneObject):
         glDisable(GL_POLYGON_OFFSET_FILL)
 
     def renderIsoSurface(self, settings):
+        self._filterElements(settings, 1)
         model, view, projection = settings.model, settings.view, settings.projection
         glUseProgram(self.iso_surface_program.id)
         glBindVertexArray(self.iso_surface_vao)
@@ -1148,13 +1204,13 @@ class SolutionScene(BaseFunctionSceneObject):
 
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         instances = (self.getOrder()*(2**self.getSubdivision()))**3
-        glDrawArraysInstanced(GL_POINTS, 0, self.mesh.ne, instances)
+        self.iso_surface_program.attributes.bind('element', self.filter_buffer)
+        glDrawTransformFeedbackInstanced(GL_POINTS, self.filter_feedback, instances)
         glBindVertexArray(0)
 
     def renderVectors(self, settings):
         model, view, projection = settings.model, settings.view, settings.projection
         glUseProgram(self.vector_program.id)
-        glBindVertexArray(self.vector_vao)
 
         uniforms = self.vector_program.uniforms
         uniforms.set('P',projection)
@@ -1192,6 +1248,7 @@ class SolutionScene(BaseFunctionSceneObject):
         glBindVertexArray(0)
 
     def renderClippingPlane(self, settings):
+        self._filterElements(settings, 0)
         model, view, projection = settings.model, settings.view, settings.projection
         glUseProgram(self.clipping_program.id)
         glBindVertexArray(self.clipping_vao)
@@ -1244,7 +1301,8 @@ class SolutionScene(BaseFunctionSceneObject):
 
 
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
-        glDrawArrays(GL_POINTS, 0, self.mesh.ne)
+        self.clipping_program.attributes.bind('element', self.filter_buffer)
+        glDrawTransformFeedback(GL_POINTS, self.filter_feedback)
         glBindVertexArray(0)
 
 
