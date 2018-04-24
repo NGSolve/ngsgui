@@ -1,18 +1,15 @@
 #version 150
 
-{include utils.inc}
-
-uniform mat4 MV;
-uniform mat4 P;
-uniform Mesh mesh;
-uniform sampler1D colors;
-
 out VertexData
 {
   flat int element;
+  flat int instance;
 } outData;
+
+in int element;
 
 void main()
 {
-  outData.element = gl_VertexID;
+  outData.element = element;
+  outData.instance = gl_InstanceID;
 }
