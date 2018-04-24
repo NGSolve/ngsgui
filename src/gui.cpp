@@ -73,8 +73,8 @@ auto &GetMappedIR (TIR & ir, int dim, VorB vb, ElementTransformation & eltrans, 
         if(vb==VOL) return T_GetMappedIR<1,1>(ir, eltrans, lh);
     }
     if(dim==2) {
-        if(vb==VOL) return T_GetMappedIR<1,2>(ir, eltrans, lh);
-        if(vb==BND) return T_GetMappedIR<2,2>(ir, eltrans, lh);
+        if(vb==BND) return T_GetMappedIR<1,2>(ir, eltrans, lh);
+        if(vb==VOL) return T_GetMappedIR<2,2>(ir, eltrans, lh);
     }
     if(dim==3) {
         if(vb==BBND) return T_GetMappedIR<1,3>(ir, eltrans, lh);
