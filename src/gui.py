@@ -35,6 +35,8 @@ class MenuBarWithDict(QtWidgets.QMenuBar):
         return menu
 
     def __getitem__(self, index):
+        if index not in self._dict:
+            return self.addMenu(index)
         return self._dict[index]
 
 class MenuWithDict(QtWidgets.QMenu):
@@ -281,7 +283,7 @@ class GUI():
         return txt
 
     def loadPythonFile(self, filename, execute = False):
-        editTab = code_editor.CodeEditor(filename=filename,gui=self,parent=self.window_tabber)
+        self.mainEditTab = editTab = code_editor.CodeEditor(filename=filename,gui=self,parent=self.window_tabber)
         pos = self.window_tabber.addTab(editTab,filename)
         editTab.windowTitleChanged.connect(lambda txt: self.window_tabber.setTabText(pos, txt))
         if execute:
