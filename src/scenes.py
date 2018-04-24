@@ -15,6 +15,7 @@ from .widgets import ArrangeH, ArrangeV
 from . import glmath
 from . import ngui
 import math, cmath
+from .thread import inmain_decorator
 
 from PySide2 import QtWidgets, QtCore, QtGui
 from OpenGL.GL import *
@@ -187,6 +188,7 @@ class CMeshData:
         mesh._opengl_data = self
         self.update()
 
+    @inmain_decorator(True)
     def update(self):
         meshdata = ngui.GetMeshData(self.mesh())
 
@@ -216,6 +218,7 @@ class CGeoData:
         geo._opengl_data = self
         self.update()
 
+    @inmain_decorator(True)
     def update(self):
         geodata = ngui.GetGeoData(self.geo())
         self.vertices.store(geodata["vertices"])
@@ -377,6 +380,7 @@ class SceneObject():
     def initGL(self):
         self.gl_initialized = True
 
+    @inmain_decorator(True)
     def update(self):
         self.initGL()
 
@@ -464,6 +468,7 @@ class BaseMeshSceneObject(SceneObject):
             return
         super().initGL()
 
+    @inmain_decorator(True)
     def update(self):
         super().update()
         self.mesh_data = MeshData(self.mesh)
@@ -615,6 +620,7 @@ class OverlayScene(SceneObject):
         glEnable(GL_DEPTH_TEST)
         glBindVertexArray(0)
 
+    @inmain_decorator(True)
     def update(self):
         super().update()
 
@@ -769,7 +775,7 @@ class MeshScene(BaseMeshSceneObject):
             glDrawArrays(GL_PATCHES, 0, self.mesh.ne)
 
 
-
+    @inmain_decorator(True)
     def update(self):
         super().update()
         nmats = len(self.mesh.GetMaterials())
@@ -968,6 +974,7 @@ class SolutionScene(BaseFunctionSceneObject):
         self.setColorMapMin(min(self.min_values))
         self.setColorMapMax(max(self.max_values))
 
+    @inmain_decorator(True)
     def update(self):
         super().update()
         self._have_filter = False
@@ -1328,6 +1335,7 @@ class GeometryScene(SceneObject):
         self.program = Program('geo.vert', 'mesh.frag')
         self.colors = Texture(GL_TEXTURE_1D, GL_RGBA)
 
+    @inmain_decorator(True)
     def update(self):
         super().update()
         self.geo_data = GeoData(self.geo)

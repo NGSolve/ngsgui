@@ -216,6 +216,10 @@ class GLWidget(QtOpenGL.QGLWidget):
 
         self.lastPos = QtCore.QPoint()
 
+    @inmain_decorator(True)
+    def updateGL(self,*args,**kwargs):
+        super().updateGL(*args,**kwargs)
+
     def ZoomReset(self):
         self.rendering_parameters.rotmat = glmath.Identity()
         self.rendering_parameters.zoom = 0.0
