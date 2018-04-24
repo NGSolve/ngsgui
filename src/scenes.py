@@ -101,7 +101,7 @@ def addOption(self, group, name, default_value, typ=None, update_on_change=False
 
     elif typ=="button":
         def doAction(self, redraw=True):
-            getattr(self,default_value)()
+            getattr(self,default_value)(*args, **kwargs)
             if update_on_change:
                 self.update()
             if redraw:
@@ -533,10 +533,21 @@ class OverlayScene(SceneObject):
         addOption(self, "Overlay", "ShowVersion", True, label = "Version", typ=bool)
         addOption(self, "Overlay", "ShowColorBar", True, label = "Color bar", typ=bool)
 
-        addOption(self, "Clipping plane", "clipX", label='X', typ='button', default_value=lambda : self._rendering_params.setClippingPlaneNormal([1,0,0]))
-        addOption(self, "Clipping plane", "clipY", label='Y', typ='button', default_value=lambda : self._rendering_params.setClippingPlaneNormal([0,1,0]))
-        addOption(self, "Clipping plane", "clipZ", label='Z', typ='button', default_value=lambda : self._rendering_params.setClippingPlaneNormal([0,0,1]))
-        addOption(self, "Clipping plane", "clipFlip", label='flip', typ='button', default_value=lambda : self._rendering_params.setClippingPlaneNormal(-1.0*self._rendering_params.getClippingPlaneNormal()))
+        addOption(self, "Clipping plane", "clipX", label='X', typ='button', default_value='_setClippingPlane', action="clipX")
+        addOption(self, "Clipping plane", "clipY", label='Y', typ='button', default_value='_setClippingPlane', action="clipY")
+        addOption(self, "Clipping plane", "clipZ", label='Z', typ='button', default_value='_setClippingPlane', action="clipZ")
+        addOption(self, "Clipping plane", "clipFlip", label='flip', typ='button', default_value='_setClippingPlane', action="clipFlip")
+
+    def _setClippingPlane(self, action):
+        if action == "clipX":
+            self._rendering_params.setClippingPlaneNormal([1,0,0])
+        if action == "clipY":
+            self._rendering_params.setClippingPlaneNormal([0,1,0])
+        if action == "clipZ":
+            self._rendering_params.setClippingPlaneNormal([0,0,1])
+        if action == "clipFlip":
+            self._rendering_params.setClippingPlaneNormal(-1.0*self._rendering_params.getClippingPlaneNormal())
+
 
     def deferRendering(self):
         return 99
