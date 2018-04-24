@@ -101,7 +101,7 @@ def addOption(self, group, name, default_value, typ=None, update_on_change=False
 
     elif typ=="button":
         def doAction(self, redraw=True):
-            default_value()
+            getattr(self,default_value)()
             if update_on_change:
                 self.update()
             if redraw:
@@ -531,7 +531,6 @@ class OverlayScene(SceneObject):
         self.show_cross = True
         self.cross_scale = 0.3
         self.cross_shift = -0.10
-        self.active_layout = QtWidgets.QVBoxLayout()
         self.updateGL = lambda : None
 
         addOption(self, "Overlay", "ShowCross", True, label = "Axis", typ=bool)
@@ -625,15 +624,6 @@ class OverlayScene(SceneObject):
 
     def callupdateGL(self):
         self.updateGL()
-
-    def addScene(self,scene):
-        callupdate = self.callupdateGL
-        self.active_layout.addWidget(wid.CheckBox(scene.name,
-                                                  wid.ObjectHolder(scene,
-                                                                   lambda self,state:
-                                                                   self.obj.setActive(state,callupdate)),
-                                                  self.callupdateGL,
-                                                  checked = scene.active))
 
     
 class MeshScene(BaseMeshSceneObject):
@@ -899,7 +889,7 @@ class SolutionScene(BaseFunctionSceneObject):
 
         addOption(self, "Colormap", "ColorMapMin", label="Min", typ=float, default_value=0.0)
         addOption(self, "Colormap", "ColorMapMax", label="Max" ,typ=float, default_value=1.0)
-        addOption(self, "Colormap", "Autoscale",typ='button', default_value=self.AutoScale)
+        addOption(self, "Colormap", "Autoscale",typ='button', default_value="AutoScale")
 
         self.qtWidget = None
         self.vao = None

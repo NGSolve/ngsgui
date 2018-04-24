@@ -57,6 +57,8 @@ class SceneToolBox(QtWidgets.QToolBox):
             if index is not None:
                 widget = self.widget(index)
                 widget.changeActive()
+                if widget.scene.active:
+                    self.setCurrentIndex(index)
                 self.setItemIcon(index, QtGui.QIcon(SceneToolBox.ic_visible if
                                                     widget.scene.active else SceneToolBox.ic_hidden))
         if event.buttons() == QtCore.Qt.MidButton:
