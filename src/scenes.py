@@ -128,11 +128,11 @@ def addOption(self, group, name, default_value, typ=None, update_on_change=False
 
             setattr(self, propname, value) 
             
-            if update_on_change:
-                self.update()
             if update_widget_on_change:
                 self.widgets.update()
             if redraw:
+                if update_on_change:
+                    self.update()
                 self.widgets.updateGLSignal.emit()
                 
             if update_gui:
@@ -351,7 +351,7 @@ class TextRenderer:
 
 class SceneObject():
     scene_counter = 1
-    def __init__(self,active=True, name = None):
+    def __init__(self,active=True, name = None, **kwargs):
         self.gl_initialized = False
         self.actions = {}
         self.active_action = None
@@ -484,13 +484,6 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
     def __init__(self, cf, mesh=None, order=3, gradient=None, cmapmin=None, cmapmax=None,
                  cmaplinear=False,**kwargs):
         self.cf = cf
-        if isinstance(cf, ngsolve.comp.GridFunction):
-#             if not gradient and cf.dim == 1:
-#                 gradient = ngsolve.grad(cf)
-            mesh = cf.space.mesh
-        else:
-            if mesh==None:
-                raise RuntimeError("A mesh is needed if the given function is no GridFunction")
 
         if gradient and cf.dim == 1:
             self.cf = ngsolve.CoefficientFunction((cf, gradient))
@@ -505,6 +498,9 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
 
         addOption(self, "Subdivision", "Subdivision", typ=int, default_value=1, min=0, update_on_change=True)
         addOption(self, "Subdivision", "Order", typ=int, default_value=2, min=1, max=4, update_on_change=True)
+
+        if 'sd' in kwargs:
+            self.setSubdivision(kwargs['sd'], False, False)
 
         n = self.getOrder()*(2**self.getSubdivision())+1
 

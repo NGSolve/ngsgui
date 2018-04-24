@@ -19,9 +19,10 @@ def Draw(obj, mesh=None, name=None, min=None, max=None, linear=False,**kwargs):
     if isinstance(obj, ngs.GridFunction):
         if name is None:
             name = obj.name
-        scene = G.scenes.SolutionScene(obj,name = name,cmapmin=min, cmapmax=max, cmaplinear=linear)
+        if mesh is None:
+            mesh = obj.space.mesh
     if isinstance(obj, ngs.CoefficientFunction):
-        scene = G.scenes.SolutionScene(obj, mesh, name=name,cmapmin=min, cmapmax=max, cmaplinear=linear)
+        scene = G.scenes.SolutionScene(obj, mesh, name=name,cmapmin=min, cmapmax=max, cmaplinear=linear, **kwargs)
     if scene:
         G.gui.draw(scene)
         return scene
