@@ -1379,6 +1379,7 @@ class SolutionScene(BaseFunctionSceneObject):
             return
 
         if self.getAutoscale():
+            comp = 0 if self.cf.dim==1 else self.getComponent()
             self.setColorMapMin( self.min_values[comp], redraw=False, update_gui=False )
             self.setColorMapMax( self.max_values[comp], redraw=False, update_gui=False )
 
