@@ -101,6 +101,7 @@ class Program(GLObject):
             convert_matrix = lambda m,size: (ctypes.c_float*(size**2))(*[m[j,i] for i in range(size) for j in range(size)])
             functions = {
                     GL_SAMPLER_1D:        lambda v: glUniform1i(loc, v),
+                    GL_SAMPLER_2D:        lambda v: glUniform1i(loc, v),
                     GL_INT_SAMPLER_BUFFER:lambda v: glUniform1i(loc, v),
                     GL_SAMPLER_BUFFER:    lambda v: glUniform1i(loc, v),
                     GL_BOOL:              lambda v: glUniform1i(loc, v),

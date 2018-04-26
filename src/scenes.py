@@ -649,6 +649,9 @@ class MeshScene(BaseMeshSceneObject):
         addOption(self, "Show", "ShowSurface", typ=bool, default_value=True, update_widget_on_change=True)
         addOption(self, "Show", "ShowElements", typ=bool, default_value=False, update_widget_on_change=True)
         addOption(self, "Show", "ShowEdges", typ=bool, default_value=False, update_widget_on_change=True)
+        addOption(self, "Numbers", "ShowPointNumbers", label="Points", typ=bool, default_value=False, update_widget_on_change=True)
+        addOption(self, "Numbers", "ShowEdgeNumbers", label="Edges", typ=bool, default_value=False, update_widget_on_change=True)
+        addOption(self, "Numbers", "ShowElementNumbers", label="Elements", typ=bool, default_value=False, update_widget_on_change=True)
         addOption(self, "", "GeomSubdivision", label="Subdivision", typ=int, default_value=5, min=1, max=20, update_widget_on_change=True)
         addOption(self, "", "Shrink", typ=float, default_value=1.0, min=0.0, max=1.0, step=0.01, update_widget_on_change=True)
 
@@ -667,6 +670,7 @@ class MeshScene(BaseMeshSceneObject):
 
         super().initGL()
 
+        self.numbers_program = Program('filter_elements.vert', 'numbers.geom', 'font.frag')
         self.bbnd_program = Program('filter_elements.vert', 'lines.tesc', 'lines.tese', 'mesh.frag')
         self.bbnd_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
         self.bbnd_colors.store([1,0,0,1] * len(self.mesh.GetBBoundaries()),
@@ -676,6 +680,8 @@ class MeshScene(BaseMeshSceneObject):
         self.bc_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
         self.bc_colors.store( [0,1,0,1]*len(self.mesh.GetBoundaries()),
                               data_format=GL_UNSIGNED_BYTE )
+
+        self.text_renderer = TextRenderer()
 
     def renderBBND(self, settings):
         glUseProgram(self.bbnd_program.id)
@@ -785,6 +791,65 @@ class MeshScene(BaseMeshSceneObject):
             glPatchParameteri(GL_PATCH_VERTICES, 1)
             glDrawArrays(GL_PATCHES, 0, self.mesh.ne)
 
+    def renderNumbers(self, settings):
+        glUseProgram(self.numbers_program.id)
+        model, view, projection = settings.model, settings.view, settings.projection
+        uniforms = self.numbers_program.uniforms
+        uniforms.set('P',projection)
+        uniforms.set('MV',view*model)
+
+        viewport = glGetIntegerv( GL_VIEWPORT )
+        screen_width = viewport[2]-viewport[0]
+        screen_height = viewport[3]-viewport[1]
+
+        font_size = 0
+        if not font_size in self.text_renderer.fonts:
+            self.text_renderer.addFont(font_size)
+        font = self.text_renderer.fonts[font_size]
+
+        glActiveTexture(GL_TEXTURE2)
+        font.tex.bind()
+        uniforms.set('font', 2)
+
+        uniforms.set('font_width_in_texture', font.width/font.tex_width)
+        uniforms.set('font_height_in_texture', font.height/font.tex_height)
+        uniforms.set('font_width_on_screen', 2*font.width/screen_width)
+        uniforms.set('font_height_on_screen', 2*font.height/screen_height)
+        uniforms.set('clipping_plane', settings.clipping_plane)
+
+        glActiveTexture(GL_TEXTURE0)
+        self.mesh_data.vertices.bind()
+        uniforms.set('mesh.vertices', 0)
+
+        glActiveTexture(GL_TEXTURE1)
+        self.mesh_data.elements.bind()
+        uniforms.set('mesh.elements', 1)
+
+        if self.getShowPointNumbers():
+            uniforms.set('mesh.dim', 0);
+            glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
+            glPolygonOffset (0,0)
+            glDrawArrays(GL_POINTS, 0, self.mesh.nv)
+
+        if self.getShowEdgeNumbers():
+            uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
+            uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
+            uniforms.set('mesh.surface_elements_offset', self.mesh_data.surface_elements_offset)
+            uniforms.set('mesh.dim', 1)
+            glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
+            glPolygonOffset (0,0)
+            glDrawArrays(GL_POINTS, 0, self.mesh_data.nedge_elements)
+
+        if self.getShowElementNumbers():
+            uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
+            uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
+            uniforms.set('mesh.surface_elements_offset', self.mesh_data.surface_elements_offset)
+            uniforms.set('mesh.dim', self.mesh.dim)
+            glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
+            glPolygonOffset (0,0)
+            glDrawArrays(GL_POINTS, 0, self.mesh.ne)
+
+
 
     @inmain_decorator(True)
     def update(self):
@@ -805,6 +870,8 @@ class MeshScene(BaseMeshSceneObject):
             self.renderBBND(settings)
 
         self.renderSurface(settings)
+
+        self.renderNumbers(settings)
 
     def updateBBNDColors(self):
         colors = []
