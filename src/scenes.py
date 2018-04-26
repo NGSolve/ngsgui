@@ -969,7 +969,7 @@ class SolutionScene(BaseFunctionSceneObject):
 
         addOption(self, "Colormap", "ColorMapMin", label="Min", typ=float, default_value=0.0)
         addOption(self, "Colormap", "ColorMapMax", label="Max" ,typ=float, default_value=1.0)
-        addOption(self, "Colormap", "Autoscale",typ='button', default_value="AutoScale")
+        addOption(self, "Colormap", "Autoscale",typ=bool, default_value=True)
 
         self.qtWidget = None
         self.vao = None
@@ -1040,17 +1040,14 @@ class SolutionScene(BaseFunctionSceneObject):
         self.vector_program = Program('mesh.vert', 'vector.geom', 'solution.frag')
         glBindVertexArray(0)
 
-    def _getValues(self, vb):
+    def _getValues(self, vb, setMinMax=True):
         cf = self.cf
         values = ngui.GetValues(cf, self.mesh, vb, 2**self.getSubdivision()-1, self.getOrder())
 
-        self.min_values = values["min"]
-        self.max_values = values["max"]
+        if setMinMax:
+            self.min_values = values["min"]
+            self.max_values = values["max"]
         return values
-
-    def AutoScale(self,**kwargs):
-        self.setColorMapMin(min(self.min_values))
-        self.setColorMapMax(max(self.max_values))
 
     @inmain_decorator(True)
     def update(self):
@@ -1081,7 +1078,7 @@ class SolutionScene(BaseFunctionSceneObject):
                 self.volume_values_imag.store(values["imag"])
 
             try:
-                values = self._getValues(ngsolve.BND)
+                values = self._getValues(ngsolve.BND, False)
                 self.surface_values.store(values["real"])
                 if self.cf.is_complex:
                     self.surface_values_imag.store(values["imag"])
@@ -1380,6 +1377,10 @@ class SolutionScene(BaseFunctionSceneObject):
     def render(self, settings):
         if not self.active:
             return
+
+        if self.getAutoscale():
+            self.setColorMapMin( self.min_values[comp], redraw=False, update_gui=False )
+            self.setColorMapMax( self.max_values[comp], redraw=False, update_gui=False )
 
         settings.colormap_min = self.getColorMapMin()
         settings.colormap_max = self.getColorMapMax()
