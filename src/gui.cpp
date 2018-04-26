@@ -119,14 +119,15 @@ void GetValues( const CoefficientFunction &cf, LocalHeap &lh, const TMIR &mir, F
         constexpr int n = SIMD<double>::Size();
         for (auto k : Range(nip)) {
             for (auto i : Range(ncomps)) {
-                float vreal, vimag;
+                float vreal = 0.0;
+                float vimag = 0.0;
                 ExtractRealImag( values(i, k/n), k%n, vreal, vimag );
                 auto index = getIndex(k,i);
                 values_real[index] = vreal;
                 if(is_complex)
                   values_imag[index] = vimag;
-                min[i] = min2(min[i], vreal);
-                max[i] = max2(max[i], vreal);
+                min[i] = min2(min[i], sqrt(vreal*vreal+vimag+vimag));
+                max[i] = max2(max[i], sqrt(vreal*vreal+vimag+vimag));
             }
         }
     }
@@ -136,14 +137,15 @@ void GetValues( const CoefficientFunction &cf, LocalHeap &lh, const TMIR &mir, F
         cf.Evaluate(mir, values);
         for (auto k : Range(nip)) {
             for (auto i : Range(ncomps)) {
-                float vreal, vimag;
+                float vreal = 0.0;
+                float vimag = 0.0;
                 ExtractRealImag( values(i, k), 0, vreal, vimag );
                 auto index = getIndex(k,i);
                 values_real[index] = vreal;
                 if(is_complex)
                   values_imag[index] = vimag;
-                min[i] = min2(min[i], vreal);
-                max[i] = max2(max[i], vreal);
+                min[i] = min2(min[i], sqrt(vreal*vreal+vimag+vimag));
+                max[i] = max2(max[i], sqrt(vreal*vreal+vimag+vimag));
             }
         }
     }
