@@ -354,6 +354,7 @@ class TextRenderer:
 
 class SceneObject():
     scene_counter = 1
+    @inmain_decorator(wait_for_return=True)
     def __init__(self,active=True, name = None, **kwargs):
         self.gl_initialized = False
         self.actions = {}
@@ -459,6 +460,7 @@ class SceneObject():
 
 class BaseMeshSceneObject(SceneObject):
     """Base class for all scenes that depend on a mesh"""
+    @inmain_decorator(wait_for_return=True)
     def __init__(self, mesh,**kwargs):
         super().__init__(**kwargs)
         self.mesh = mesh
@@ -486,6 +488,7 @@ class BaseMeshSceneObject(SceneObject):
 
 class BaseFunctionSceneObject(BaseMeshSceneObject):
     """Base class for all scenes that depend on a coefficient function and a mesh"""
+    @inmain_decorator(wait_for_return=True)
     def __init__(self, cf, mesh=None, order=3, gradient=None, cmapmin=None, cmapmax=None,
                  cmaplinear=False,**kwargs):
         self.cf = cf
@@ -526,6 +529,7 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
 
 class OverlayScene(SceneObject):
     """Class  for overlay objects (Colormap, coordinate system, logo)"""
+    @inmain_decorator(wait_for_return=True)
     def __init__(self,**kwargs):
         super().__init__(**kwargs)
         self.show_logo = True
@@ -640,6 +644,7 @@ class OverlayScene(SceneObject):
 
     
 class MeshScene(BaseMeshSceneObject):
+    @inmain_decorator(wait_for_return=True)
     def __init__(self, mesh, wireframe=True, surface=True, elements=False, **kwargs):
         super().__init__(mesh, **kwargs)
 
@@ -949,6 +954,7 @@ class MeshScene(BaseMeshSceneObject):
 
 
 class SolutionScene(BaseFunctionSceneObject):
+    @inmain_decorator(wait_for_return=True)
     def __init__(self, cf, *args, **kwargs):
         super().__init__(cf,*args, **kwargs)
 
@@ -1404,6 +1410,7 @@ class SolutionScene(BaseFunctionSceneObject):
                 self.renderVectors(settings)
 
 class GeometryScene(SceneObject):
+    @inmain_decorator(wait_for_return=True)
     def __init__(self, geo, *args, **kwargs):
         super().__init__(*args,**kwargs)
         self.geo = geo

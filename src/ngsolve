@@ -7,7 +7,6 @@ import ngsolve as ngs
 from ngsolve.gui.thread import inmain_decorator
 import netgen.meshing
 
-@inmain_decorator(wait_for_return=True)
 def Draw(obj, mesh=None, name=None, min=None, max=None, linear=False,**kwargs):
     """Draw a Mesh or a CoefficientFunction, this function is overridden by
     the new gui and returns the drawn scene."""
