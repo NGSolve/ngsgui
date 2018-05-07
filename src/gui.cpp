@@ -181,34 +181,32 @@ PYBIND11_MODULE(ngui, m) {
             if(cf->IsComplex())
                 res_imag.SetSize(ma->GetNE(vb)*values_per_element); // two entries for global min/max
 
-            try
-              {
-                for (auto el : ma->Elements(vb)) {
-                  HeapReset hr(lh);
-                  ElementTransformation & eltrans = ma->GetTrafo (el, lh);
-                  auto & mir = GetMappedIR( simd_ir, ma->GetDimension(), vb, eltrans, lh );
-                  size_t first = el.Nr()*values_per_element;
-                  size_t next = (el.Nr()+1)*values_per_element;
-                  if(cf->IsComplex())
-                    GetValues<SIMD<Complex>>( *cf, lh, mir, res_real.Range(first,next), res_imag.Range(first,next), min, max);
-                  else
-                    GetValues<SIMD<double>>( *cf, lh, mir, res_real.Range(first,next), res_imag, min, max);
-                }
-              }
-            catch(ExceptionNOSIMD e)
-              {
-                for (auto el : ma->Elements(vb)) {
-                  HeapReset hr(lh);
-                  ElementTransformation & eltrans = ma->GetTrafo (el, lh);
-                  auto & mir = GetMappedIR( ir, ma->GetDimension(), vb, eltrans, lh );
-                  size_t first = el.Nr()*values_per_element;
-                  size_t next = (el.Nr()+1)*values_per_element;
-                  if(cf->IsComplex())
-                    GetValues<Complex>( *cf, lh, mir, res_real.Range(first,next), res_imag.Range(first,next), min, max);
-                  else
-                    GetValues<double>( *cf, lh, mir, res_real.Range(first,next), res_imag, min, max);
-                }
-              }
+            bool use_simd = true;
+            ma->IterateElements(vb, lh,[&](auto el, LocalHeap& mlh) {
+                try
+                  {
+                    ElementTransformation & eltrans = ma->GetTrafo (el, mlh);
+                    auto & mir = GetMappedIR( simd_ir, ma->GetDimension(), vb, eltrans, mlh );
+                    size_t first = el.Nr()*values_per_element;
+                    size_t next = (el.Nr()+1)*values_per_element;
+                    if(cf->IsComplex())
+                      GetValues<SIMD<Complex>>( *cf, mlh, mir, res_real.Range(first,next), res_imag.Range(first,next), min, max);
+                    else
+                      GetValues<SIMD<double>>( *cf, mlh, mir, res_real.Range(first,next), res_imag, min, max);
+                  }
+                catch(ExceptionNOSIMD e)
+                  {
+                    use_simd = false;
+                    ElementTransformation & eltrans = ma->GetTrafo (el, mlh);
+                    auto & mir = GetMappedIR( ir, ma->GetDimension(), vb, eltrans, mlh );
+                    size_t first = el.Nr()*values_per_element;
+                    size_t next = (el.Nr()+1)*values_per_element;
+                    if(cf->IsComplex())
+                      GetValues<Complex>( *cf, mlh, mir, res_real.Range(first,next), res_imag.Range(first,next), min, max);
+                    else
+                      GetValues<double>( *cf, mlh, mir, res_real.Range(first,next), res_imag, min, max);
+                  }
+              });
           py::gil_scoped_acquire ac;
           py::dict res;
           res["real"] = MoveToNumpyArray(res_real);

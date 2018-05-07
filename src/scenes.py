@@ -2,7 +2,7 @@
 # from PySide2.QtCore import Qt
 # from OpenGL import *
 # from . import widgets
-# import ngsolve
+import ngsolve
 # from .gl import *
 # import numpy
 # import time
@@ -1048,7 +1048,8 @@ class SolutionScene(BaseFunctionSceneObject):
 
     def _getValues(self, vb, setMinMax=True):
         cf = self.cf
-        values = ngui.GetValues(cf, self.mesh, vb, 2**self.getSubdivision()-1, self.getOrder())
+        with ngsolve.TaskManager():
+            values = ngui.GetValues(cf, self.mesh, vb, 2**self.getSubdivision()-1, self.getOrder())
 
         if setMinMax:
             self.min_values = values["min"]
