@@ -186,6 +186,7 @@ class FloatValidator(QtGui.QValidator):
         return match.groups()[0] if match else text
 
 class ScienceSpinBox(QtWidgets.QDoubleSpinBox):
+    changed = QtCore.Signal(float)
     def __init__(self, *args, **kwargs):
         super().__init__(*args,**kwargs)
         maxval = sys.float_info.max
@@ -193,6 +194,7 @@ class ScienceSpinBox(QtWidgets.QDoubleSpinBox):
         self.validator = FloatValidator()
         self.setDecimals(1000)
         self.lastWheelStep = 1.
+        self.changed.connect(self.setValue)
 
     def validate(self,text,position):
         return self.validator.validate(text,position)
@@ -212,7 +214,7 @@ class ScienceSpinBox(QtWidgets.QDoubleSpinBox):
         step = self.lastWheelStep
 
         if event.modifiers() == QtCore.Qt.ControlModifier:
-            self.setValue(val*(10**s))
+            self.changed.emit(val*(10**s))
             self.lastWheelStep *= (10**s)
             event.accept()
             return
@@ -222,24 +224,8 @@ class ScienceSpinBox(QtWidgets.QDoubleSpinBox):
 
         newval = val + s*step
         oldval = 1 if self.value() == 0 else self.value()
-        self.setValue(0 if abs(newval/oldval) < 1e-10 else newval)
+        self.changed.emit(0 if abs(newval/oldval) < 1e-10 else newval)
         event.accept()
-
-
-    def stepBy(self,steps):
-        text = self.cleanText()
-        groups = self.validator._float_re.search(text).groups()
-        if steps == 10:
-            self.lineEdit().setText(self._format_float(float(text)*10))
-            return
-        elif steps == -10:
-            self.lineEdit().setText(self._format_float(float(text)/10))
-            return
-        else:
-            decimal = float(groups[1])
-            decimal += steps
-            new_string = "{:g}".format(decimal) + (groups[3] if groups[3] else "")
-        self.lineEdit().setText(new_string)
 
     def _format_float(self,value):
         """Modified form of the 'g' format specifier."""

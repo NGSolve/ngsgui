@@ -57,11 +57,11 @@ def addOption(self, group, name, default_value, typ=None, update_on_change=False
         typ = type(default_value)
 
     if typ is list:
-        cb = QtWidgets.QComboBox()
+        w = QtWidgets.QComboBox()
         assert type(values) is list
-        cb.addItems(values)
-        cb.currentIndexChanged[int].connect(lambda index: getattr(self,setter_name)(index))
-        self._widgets[group][name] = WidgetWithLabel(cb,label)
+        w.addItems(values)
+        w.currentIndexChanged[int].connect(lambda index: getattr(self,setter_name)(index))
+        self._widgets[group][name] = WidgetWithLabel(w,label)
 
     elif widget_type:
         w = widget_type(*args, **kwargs)
@@ -69,36 +69,33 @@ def addOption(self, group, name, default_value, typ=None, update_on_change=False
         self._widgets[group][name] = w
 
     elif typ==bool:
-        cb = QtWidgets.QCheckBox(label)
-
-        cb.setCheckState(QtCore.Qt.Checked if default_value else QtCore.Qt.Unchecked)
-        cb.stateChanged.connect(lambda value: getattr(self, setter_name)(bool(value)))
-        self._widgets[group][name] = WidgetWithLabel(cb)
+        w = QtWidgets.QCheckBox(label)
+        w.setCheckState(QtCore.Qt.Checked if default_value else QtCore.Qt.Unchecked)
+        w.stateChanged.connect(lambda value: getattr(self, setter_name)(bool(value)))
+        self._widgets[group][name] = WidgetWithLabel(w)
 
     elif typ==int:
-        box = QtWidgets.QSpinBox()
-        box.setValue(default_value)
-        box.valueChanged[int].connect(lambda value: getattr(self, setter_name)(value))
+        w = QtWidgets.QSpinBox()
+        w.setValue(default_value)
+        w.valueChanged[int].connect(lambda value: getattr(self, setter_name)(value))
         if "min" in kwargs:
-            box.setMinimum(kwargs["min"])
+            w.setMinimum(kwargs["min"])
         if "max" in kwargs:
-            box.setMaximum(kwargs["max"])
-        w = WidgetWithLabel(box, label)
-        self._widgets[group][name] = w 
+            w.setMaximum(kwargs["max"])
+        self._widgets[group][name] = WidgetWithLabel(w,label)
 
     elif typ==float:
-        box = wid.ScienceSpinBox()
-        box.setRange(-1e99, 1e99)
-        box.setValue(default_value)
-        box.valueChanged[float].connect(lambda value: getattr(self, setter_name)(value))
+        w = wid.ScienceSpinBox()
+        w.setRange(-1e99, 1e99)
+        w.setValue(default_value)
+        w.valueChanged[float].connect(lambda value: getattr(self, setter_name)(value))
         if "min" in kwargs:
-            box.setMinimum(kwargs["min"])
+            w.setMinimum(kwargs["min"])
         if "max" in kwargs:
-            box.setMaximum(kwargs["max"])
+            w.setMaximum(kwargs["max"])
         if "step" in kwargs:
-            box.setSingleStep(kwargs["step"])
-        w = WidgetWithLabel(box, label)
-        self._widgets[group][name] = w
+            w.setSingleStep(kwargs["step"])
+        self._widgets[group][name] = WidgetWithLabel(w, label)
 
     elif typ=="button":
         def doAction(self, redraw=True):
@@ -146,6 +143,7 @@ def addOption(self, group, name, default_value, typ=None, update_on_change=False
             setattr(cls, setter_name, setValue)
         if not hasattr(cls, 'get'+name):
             setattr(cls, 'get'+name, getValue)
+    return w
 
 import ngsolve
 import numpy
@@ -973,10 +971,13 @@ class SolutionScene(BaseFunctionSceneObject):
             addOption(self, "Complex", "ComplexEvalFunc", label="Func", typ=list, default_value=0, values=["real","imag","abs","arg"])
             addOption(self, "Complex", "ComplexPhaseShift", label="Value shift angle", typ=float, default_value=0.0)
 
-        addOption(self, "Colormap", "ColorMapMin", label="Min", typ=float, default_value=0.0)
-        addOption(self, "Colormap", "ColorMapMax", label="Max" ,typ=float, default_value=1.0)
-        addOption(self, "Colormap", "Autoscale",typ=bool, default_value=True)
+        boxmin = addOption(self, "Colormap", "ColorMapMin", label="Min", typ=float, default_value=0.0)
+        boxmax = addOption(self, "Colormap", "ColorMapMax", label="Max" ,typ=float, default_value=1.0)
+        autoscale = addOption(self, "Colormap", "Autoscale",typ=bool, default_value=True)
         addOption(self, "Colormap", "ColorMapLinear", label="Linear",typ=bool, default_value=False)
+
+        boxmin.changed.connect(lambda val: autoscale.stateChanged.emit(False))
+        boxmax.changed.connect(lambda val: autoscale.stateChanged.emit(False))
 
         self.qtWidget = None
         self.vao = None
