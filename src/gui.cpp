@@ -139,7 +139,7 @@ void GetValues( const CoefficientFunction &cf, LocalHeap &lh, const TMIR &mir, F
             for (auto i : Range(ncomps)) {
                 float vreal = 0.0;
                 float vimag = 0.0;
-                ExtractRealImag( values(i, k), 0, vreal, vimag );
+                ExtractRealImag( values(k,i), 0, vreal, vimag );
                 auto index = getIndex(k,i);
                 values_real[index] = vreal;
                 if(is_complex)
@@ -181,7 +181,7 @@ PYBIND11_MODULE(ngui, m) {
             if(cf->IsComplex())
                 res_imag.SetSize(ma->GetNE(vb)*values_per_element); // two entries for global min/max
 
-            bool use_simd = false;
+            bool use_simd = true;
             ma->IterateElements(vb, lh,[&](auto el, LocalHeap& mlh) {
                 if(use_simd)
                   {
