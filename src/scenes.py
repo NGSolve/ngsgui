@@ -194,9 +194,15 @@ class CMeshData:
         self.vertices.store(meshdata['vertices'])
         self.elements.store(meshdata["elements"])
         self.nedge_elements = meshdata["n_edge_elements"]
+        self.nedges = meshdata["n_edges"]
+        self.nperiodic_vertices = meshdata["n_periodic_vertices"]
+
+        self.edges_offset = meshdata["edges_offset"]
+        self.periodic_vertices_offset = meshdata["periodic_vertices_offset"]
         self.nsurface_elements = meshdata["n_surface_elements"]
         self.volume_elements_offset = meshdata["volume_elements_offset"]
         self.surface_elements_offset = meshdata["surface_elements_offset"]
+
         self.min = meshdata['min']
         self.max = meshdata['max']
 
@@ -645,6 +651,8 @@ class MeshScene(BaseMeshSceneObject):
         addOption(self, "Show", "ShowSurface", typ=bool, default_value=True, update_widget_on_change=True)
         addOption(self, "Show", "ShowElements", typ=bool, default_value=False, update_widget_on_change=True)
         addOption(self, "Show", "ShowEdges", typ=bool, default_value=False, update_widget_on_change=True)
+        addOption(self, "Show", "ShowEdgeElements", typ=bool, default_value=False, update_widget_on_change=True)
+        addOption(self, "Show", "ShowPeriodicVertices", typ=bool, default_value=False, update_widget_on_change=True)
         addOption(self, "Numbers", "ShowPointNumbers", label="Points", typ=bool, default_value=False, update_widget_on_change=True)
         addOption(self, "Numbers", "ShowEdgeNumbers", label="Edges", typ=bool, default_value=False, update_widget_on_change=True)
         addOption(self, "Numbers", "ShowElementNumbers", label="Elements", typ=bool, default_value=False, update_widget_on_change=True)
@@ -679,7 +687,7 @@ class MeshScene(BaseMeshSceneObject):
 
         self.text_renderer = TextRenderer()
 
-    def renderBBND(self, settings):
+    def renderEdges(self, settings):
         glUseProgram(self.bbnd_program.id)
         model,view,projection = settings.model, settings.view, settings.projection
         uniforms = self.bbnd_program.uniforms
@@ -710,10 +718,19 @@ class MeshScene(BaseMeshSceneObject):
         uniforms.set('light_diffuse', 0.0)
         uniforms.set('TessLevel', self.getGeomSubdivision())
         uniforms.set('wireframe', True)
-        glLineWidth(3)
-        glPatchParameteri(GL_PATCH_VERTICES, 1)
-        glDrawArrays(GL_PATCHES, 0, self.mesh_data.nedge_elements)
-        glLineWidth(1)
+        if self.getShowEdges():
+            glPatchParameteri(GL_PATCH_VERTICES, 1)
+            glDrawArrays(GL_PATCHES, 0, self.mesh_data.nedges)
+        if self.getShowEdgeElements():
+            glLineWidth(3)
+            glPatchParameteri(GL_PATCH_VERTICES, 1)
+            glDrawArrays(GL_PATCHES, self.mesh_data.nedges,self.mesh_data.nedge_elements)
+            glLineWidth(1)
+        if self.getShowPeriodicVertices():
+            glLineWidth(3)
+            glPatchParameteri(GL_PATCH_VERTICES, 1)
+            glDrawArrays(GL_PATCHES, self.mesh_data.nedge_elements+self.mesh_data.nedges, self.mesh_data.nperiodic_vertices)
+            glLineWidth(1)
 
 
     def renderSurface(self, settings):
@@ -834,7 +851,7 @@ class MeshScene(BaseMeshSceneObject):
             uniforms.set('mesh.dim', 1)
             glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
             glPolygonOffset (0,0)
-            glDrawArrays(GL_POINTS, 0, self.mesh_data.nedge_elements)
+            glDrawArrays(GL_POINTS, 0, self.mesh_data.nedges)
 
         if self.getShowElementNumbers():
             uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
@@ -862,8 +879,7 @@ class MeshScene(BaseMeshSceneObject):
         if not self.active:
             return
 
-        if self.getShowEdges():
-            self.renderBBND(settings)
+        self.renderEdges(settings)
 
         self.renderSurface(settings)
 

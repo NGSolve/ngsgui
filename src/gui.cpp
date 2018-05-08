@@ -247,7 +247,9 @@ PYBIND11_MODULE(ngui, m) {
         int surface_elements_size = 5; // 3 vertices, 1 boundary condition index, 1 curved index
         int volume_elements_size = 6; // 4 vertices, 1 material index, 1 curved index
 
+        int n_edges = 0;
         int n_edge_elements = 0;
+        int n_periodic_vertices = ma->GetNPairsPeriodicVertices();
         int n_surface_elements = 0;
         int n_volume_elements = 0;
 
@@ -256,10 +258,12 @@ PYBIND11_MODULE(ngui, m) {
           case 3:
             n_surface_elements = ma->GetNSE();
             n_volume_elements = ma->GetNE();
+            n_edges = ma->GetNEdges();
             n_edge_elements = ma->GetNE(BBND);
             break;
           case 2:
             n_surface_elements = ma->GetNE();
+            n_edges = ma->GetNEdges();
             n_edge_elements = ma->GetNE(BND);
             break;
           case 1:
@@ -267,7 +271,8 @@ PYBIND11_MODULE(ngui, m) {
             break;
         }
 
-        size_t elsize = edge_elements_size * n_edge_elements +
+
+        size_t elsize = edge_elements_size * (n_edge_elements + n_edges + n_periodic_vertices) +
                         surface_elements_size*n_surface_elements +
                         volume_elements_size*n_volume_elements;
         elements.SetAllocSize(2*elsize);
@@ -278,6 +283,21 @@ PYBIND11_MODULE(ngui, m) {
         // other entries: additional vertex indices (4th vertex for quads, 5th and other for prism, pyramid, hex)
         ngstd::Array<int> curve_info;
 
+        size_t size_elements_before = elements.Size();
+
+        if(ma->GetDimension()>=2) {
+            // Edges of mesh (skip this for dim==1, in this case edges are treated as volume elements below)
+            for (auto nr : Range(n_edges)) {
+                auto verts = ma->GetEdgePNums(nr);
+                for (auto i : Range(2))
+                    elements.Append(verts[i]);
+                elements.Append(0); // always use first color now
+                elements.Append(-1); // never curved
+
+            }
+            assert(elements.Size() == size_elements_before +n_edges*edge_elements_size);
+        }
+        size_elements_before = elements.Size();
         if(ma->GetDimension()>=1) {
             // 1d Elements
             IntegrationRule ir;
@@ -312,8 +332,24 @@ PYBIND11_MODULE(ngui, m) {
                 }
             }
 
-            assert(elements.Size() == n_edge_elements*edge_elements_size);
+            assert(elements.Size() == size_elements_before + n_edge_elements*edge_elements_size);
         }
+        size_elements_before = elements.Size();
+        if(ma->GetDimension()>=1) {
+            // 1d Elements
+            ngstd::Array<ngstd::INT<2>> pairs;
+            ma->GetPeriodicVertices ( pairs );
+            for (auto p : pairs) {
+                for (auto i : Range(2))
+                    elements.Append(p[i]);
+                elements.Append(0);
+                elements.Append(-1);
+
+            }
+            assert(elements.Size() == size_elements_before +n_periodic_vertices*edge_elements_size);
+        }
+
+        size_elements_before = elements.Size();
         if(ma->GetDimension()>=2) {
             // 2d Elements
             IntegrationRule ir_trig;
@@ -371,9 +407,10 @@ PYBIND11_MODULE(ngui, m) {
                 }
             }
 
-            assert(elements.Size() == n_surface_elements*surface_elements_size + n_edge_elements*edge_elements_size);
+            assert(elements.Size() == size_elements_before +n_surface_elements*surface_elements_size );
         }
 
+        size_elements_before = elements.Size();
         if(ma->GetDimension()==3) {
             // 3d Elements
             IntegrationRule ir;
@@ -418,6 +455,8 @@ PYBIND11_MODULE(ngui, m) {
                     }
                 }
             }
+
+            assert(elements.Size() == size_elements_before + n_volume_elements*volume_elements_size);
         }
 
 
@@ -428,14 +467,21 @@ PYBIND11_MODULE(ngui, m) {
 
         py::gil_scoped_acquire ac;
         py::dict res;
+        res["vertices"] = MoveToNumpyArray(vertices);
         res["elements"] = MoveToNumpyArray(elements);
+
         res["n_edge_elements"] = n_edge_elements;
+        res["n_edges"] = n_edges;
+        res["n_periodic_vertices"] = n_periodic_vertices;
         res["n_surface_elements"] = n_surface_elements;
         res["n_volume_elements"] = n_volume_elements;
-        res["volume_elements_offset"] = n_edge_elements * edge_elements_size +
+
+        res["edges_offset"] = n_edge_elements;
+        res["periodic_vertices_offset"] = n_edge_elements+n_edges;
+        res["surface_elements_offset"] = (n_periodic_vertices+n_edge_elements+n_edges) * edge_elements_size;
+        res["volume_elements_offset"] = (n_periodic_vertices+n_edge_elements+n_edges) * edge_elements_size +
           n_surface_elements*surface_elements_size;
-        res["surface_elements_offset"] = n_edge_elements * edge_elements_size;
-        res["vertices"] = MoveToNumpyArray(vertices);
+
         res["min"] = min;
         res["max"] = max;
         return res;
