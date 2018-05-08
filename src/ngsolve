@@ -7,7 +7,7 @@ import ngsolve as ngs
 from ngsolve.gui.thread import inmain_decorator
 import netgen.meshing
 
-def Draw(obj, mesh=None, name=None, min=None, max=None, linear=False,**kwargs):
+def Draw(obj, mesh=None, name=None, **kwargs):
     """Draw a Mesh or a CoefficientFunction, this function is overridden by
     the new gui and returns the drawn scene."""
     scene = None
@@ -21,7 +21,9 @@ def Draw(obj, mesh=None, name=None, min=None, max=None, linear=False,**kwargs):
         if mesh is None:
             mesh = obj.space.mesh
     if isinstance(obj, ngs.CoefficientFunction):
-        scene = G.scenes.SolutionScene(obj, mesh, name=name,cmapmin=min, cmapmax=max, cmaplinear=linear, **kwargs)
+        scene = G.scenes.SolutionScene(obj, mesh, name=name,
+                                       autoscale = kwargs["autoscale"] if "autoscale" in kwargs else not ("min" in kwargs or "max" in kwargs),
+                                       **kwargs)
     if scene:
         G.gui.draw(scene)
         return scene

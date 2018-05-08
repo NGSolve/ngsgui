@@ -95,6 +95,7 @@ def addOption(self, group, name, default_value, typ=None, update_on_change=False
             w.setMaximum(kwargs["max"])
         if "step" in kwargs:
             w.setSingleStep(kwargs["step"])
+            w.lastWheelStep = kwargs["step"]
         self._widgets[group][name] = WidgetWithLabel(w, label)
 
     elif typ=="button":
@@ -487,8 +488,7 @@ class BaseMeshSceneObject(SceneObject):
 class BaseFunctionSceneObject(BaseMeshSceneObject):
     """Base class for all scenes that depend on a coefficient function and a mesh"""
     @inmain_decorator(wait_for_return=True)
-    def __init__(self, cf, mesh=None, order=3, gradient=None, cmapmin=None, cmapmax=None,
-                 cmaplinear=False,**kwargs):
+    def __init__(self, cf, mesh=None, order=3, gradient=None,**kwargs):
         self.cf = cf
 
         if gradient and cf.dim == 1:
@@ -496,9 +496,6 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
             self.have_gradient = True
         else:
             self.have_gradient = False
-
-        self.colormap_min = cmapmin
-        self.colormap_max = cmapmax
 
         super().__init__(mesh,**kwargs)
 
@@ -512,17 +509,13 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
 
     def __getstate__(self):
         super_state = super().__getstate__()
-        return (super_state, self.cf, self.getSubdivision(), self.getOrder(),
-                self.colormap_min, self.colormap_max, self.colormap_linear)
+        return (super_state, self.cf, self.getSubdivision(), self.getOrder())
 
     def __setstate__(self, state):
         super().__setstate__(state[0])
         self.cf = state[1]
         self.setSubdivision(state[2])
         self.setOrder(state[3])
-        self.colormap_min = state[4]
-        self.colormap_max = state[5]
-        self.colormap_linear = state[6]
 
 
 class OverlayScene(SceneObject):
@@ -953,14 +946,14 @@ class MeshScene(BaseMeshSceneObject):
 
 class SolutionScene(BaseFunctionSceneObject):
     @inmain_decorator(wait_for_return=True)
-    def __init__(self, cf, *args, **kwargs):
-        super().__init__(cf,*args, **kwargs)
+    def __init__(self, cf, mesh, min=0,max=1, autoscale=True, linear=False, clippingPlane=True,*args, **kwargs):
+        super().__init__(cf,mesh,*args, **kwargs)
 
         if self.mesh.dim>1:
             addOption(self, "Show", "ShowSurface", typ=bool, default_value=True)
 
         if self.mesh.dim > 2:
-            addOption(self, "Show", "ShowClippingPlane", typ=bool, default_value=False)
+            addOption(self, "Show", "ShowClippingPlane", typ=bool, default_value=clippingPlane)
             addOption(self, "Show", "ShowIsoSurface", typ=bool, default_value=False)
 
         if cf.dim > 1:
@@ -971,10 +964,12 @@ class SolutionScene(BaseFunctionSceneObject):
             addOption(self, "Complex", "ComplexEvalFunc", label="Func", typ=list, default_value=0, values=["real","imag","abs","arg"])
             addOption(self, "Complex", "ComplexPhaseShift", label="Value shift angle", typ=float, default_value=0.0)
 
-        boxmin = addOption(self, "Colormap", "ColorMapMin", label="Min", typ=float, default_value=0.0)
-        boxmax = addOption(self, "Colormap", "ColorMapMax", label="Max" ,typ=float, default_value=1.0)
-        autoscale = addOption(self, "Colormap", "Autoscale",typ=bool, default_value=True)
-        addOption(self, "Colormap", "ColorMapLinear", label="Linear",typ=bool, default_value=False)
+        boxmin = addOption(self, "Colormap", "ColorMapMin", label="Min", typ=float, default_value=min,
+                           step=1 if min == 0 else 10**(math.floor(math.log10(abs(min)))))
+        boxmax = addOption(self, "Colormap", "ColorMapMax", label="Max" ,typ=float, default_value=max,
+                           step=1 if max == 0 else 10**(math.floor(math.log10(abs(max)))))
+        autoscale = addOption(self, "Colormap", "Autoscale",typ=bool, default_value=autoscale)
+        addOption(self, "Colormap", "ColorMapLinear", label="Linear",typ=bool, default_value=linear)
 
         boxmin.changed.connect(lambda val: autoscale.stateChanged.emit(False))
         boxmax.changed.connect(lambda val: autoscale.stateChanged.emit(False))
