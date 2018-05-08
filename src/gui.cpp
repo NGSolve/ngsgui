@@ -181,22 +181,28 @@ PYBIND11_MODULE(ngui, m) {
             if(cf->IsComplex())
                 res_imag.SetSize(ma->GetNE(vb)*values_per_element); // two entries for global min/max
 
-            bool use_simd = true;
+            bool use_simd = false;
             ma->IterateElements(vb, lh,[&](auto el, LocalHeap& mlh) {
-                try
+                if(use_simd)
                   {
-                    ElementTransformation & eltrans = ma->GetTrafo (el, mlh);
-                    auto & mir = GetMappedIR( simd_ir, ma->GetDimension(), vb, eltrans, mlh );
-                    size_t first = el.Nr()*values_per_element;
-                    size_t next = (el.Nr()+1)*values_per_element;
-                    if(cf->IsComplex())
-                      GetValues<SIMD<Complex>>( *cf, mlh, mir, res_real.Range(first,next), res_imag.Range(first,next), min, max);
-                    else
-                      GetValues<SIMD<double>>( *cf, mlh, mir, res_real.Range(first,next), res_imag, min, max);
+                    try
+                      {
+                        ElementTransformation & eltrans = ma->GetTrafo (el, mlh);
+                        auto & mir = GetMappedIR( simd_ir, ma->GetDimension(), vb, eltrans, mlh );
+                        size_t first = el.Nr()*values_per_element;
+                        size_t next = (el.Nr()+1)*values_per_element;
+                        if(cf->IsComplex())
+                          GetValues<SIMD<Complex>>( *cf, mlh, mir, res_real.Range(first,next), res_imag.Range(first,next), min, max);
+                        else
+                          GetValues<SIMD<double>>( *cf, mlh, mir, res_real.Range(first,next), res_imag, min, max);
+                      }
+                    catch(ExceptionNOSIMD e)
+                      {
+                        use_simd = false;
+                      }
                   }
-                catch(ExceptionNOSIMD e)
+                if(!use_simd)
                   {
-                    use_simd = false;
                     ElementTransformation & eltrans = ma->GetTrafo (el, mlh);
                     auto & mir = GetMappedIR( ir, ma->GetDimension(), vb, eltrans, mlh );
                     size_t first = el.Nr()*values_per_element;
