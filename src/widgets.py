@@ -192,6 +192,7 @@ class ScienceSpinBox(QtWidgets.QDoubleSpinBox):
         self.setRange(-maxval,maxval)
         self.validator = FloatValidator()
         self.setDecimals(1000)
+        self.lastWheelStep = 1.
 
     def validate(self,text,position):
         return self.validator.validate(text,position)
@@ -208,18 +209,21 @@ class ScienceSpinBox(QtWidgets.QDoubleSpinBox):
     def wheelEvent(self, event):
         s = 1.0 if event.angleDelta().y()>0 else -1.0
         val = self.value()
-        step = 1.0
+        step = self.lastWheelStep
 
         if event.modifiers() == QtCore.Qt.ControlModifier:
             self.setValue(val*(10**s))
+            self.lastWheelStep *= (10**s)
+            event.accept()
             return
 
         if event.modifiers() == QtCore.Qt.ShiftModifier:
-            if val!=0.0:
-                step = (10**(math.floor(math.log10(math.fabs(val)))-1))
-                step = (val//(10*step))*step
+            step /= 10
 
-        self.setValue(val+s*step)
+        newval = val + s*step
+        oldval = 1 if self.value() == 0 else self.value()
+        self.setValue(0 if abs(newval/oldval) < 1e-10 else newval)
+        event.accept()
 
 
     def stepBy(self,steps):
