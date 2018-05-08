@@ -976,6 +976,7 @@ class SolutionScene(BaseFunctionSceneObject):
         addOption(self, "Colormap", "ColorMapMin", label="Min", typ=float, default_value=0.0)
         addOption(self, "Colormap", "ColorMapMax", label="Max" ,typ=float, default_value=1.0)
         addOption(self, "Colormap", "Autoscale",typ=bool, default_value=True)
+        addOption(self, "Colormap", "ColorMapLinear", label="Linear",typ=bool, default_value=False)
 
         self.qtWidget = None
         self.vao = None
@@ -1392,6 +1393,7 @@ class SolutionScene(BaseFunctionSceneObject):
         else:
             settings.colormap_min = self.getColorMapMin()
             settings.colormap_max = self.getColorMapMax()
+        settings.colormap_linear = self.getColorMapLinear()
 
         if self.mesh.dim==1:
             self.render1D(settings)
