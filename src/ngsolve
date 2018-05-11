@@ -14,7 +14,7 @@ def Draw(obj, mesh=None, name=None, **kwargs):
     if isinstance(obj, netgen.meshing.NetgenGeometry):
         scene = G.scenes.GeometryScene(obj,name=name)
     if isinstance(obj,ngs.Mesh):
-        scene = G.scenes.MeshScene(obj, name=name)
+        scene = G.scenes.MeshScene(obj, name=name, **kwargs)
     if isinstance(obj, ngs.GridFunction):
         if name is None:
             name = obj.name

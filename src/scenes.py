@@ -642,20 +642,21 @@ class OverlayScene(SceneObject):
     
 class MeshScene(BaseMeshSceneObject):
     @inmain_decorator(wait_for_return=True)
-    def __init__(self, mesh, wireframe=True, surface=True, elements=False, **kwargs):
+    def __init__(self, mesh, wireframe=True, surface=True, elements=False, edgeElements=False, edges=False,
+                 showPeriodic=False, pointNumbers=False, edgeNumbers=False, elementNumbers=False, **kwargs):
         super().__init__(mesh, **kwargs)
 
         self.qtWidget = None
 
-        addOption(self, "Show", "ShowWireframe", typ=bool, default_value=True, update_widget_on_change=True)
-        addOption(self, "Show", "ShowSurface", typ=bool, default_value=True, update_widget_on_change=True)
-        addOption(self, "Show", "ShowElements", typ=bool, default_value=False, update_widget_on_change=True)
-        addOption(self, "Show", "ShowEdges", typ=bool, default_value=False, update_widget_on_change=True)
-        addOption(self, "Show", "ShowEdgeElements", typ=bool, default_value=False, update_widget_on_change=True)
-        addOption(self, "Show", "ShowPeriodicVertices", typ=bool, default_value=False, update_widget_on_change=True)
-        addOption(self, "Numbers", "ShowPointNumbers", label="Points", typ=bool, default_value=False, update_widget_on_change=True)
-        addOption(self, "Numbers", "ShowEdgeNumbers", label="Edges", typ=bool, default_value=False, update_widget_on_change=True)
-        addOption(self, "Numbers", "ShowElementNumbers", label="Elements", typ=bool, default_value=False, update_widget_on_change=True)
+        addOption(self, "Show", "ShowWireframe", typ=bool, default_value=wireframe, update_widget_on_change=True)
+        addOption(self, "Show", "ShowSurface", typ=bool, default_value=surface, update_widget_on_change=True)
+        addOption(self, "Show", "ShowElements", typ=bool, default_value=elements, update_widget_on_change=True)
+        addOption(self, "Show", "ShowEdges", typ=bool, default_value=edges, update_widget_on_change=True)
+        addOption(self, "Show", "ShowEdgeElements", typ=bool, default_value=edgeElements, update_widget_on_change=True)
+        addOption(self, "Show", "ShowPeriodicVertices", typ=bool, default_value=showPeriodic, update_widget_on_change=True)
+        addOption(self, "Numbers", "ShowPointNumbers", label="Points", typ=bool, default_value=pointNumbers, update_widget_on_change=True)
+        addOption(self, "Numbers", "ShowEdgeNumbers", label="Edges", typ=bool, default_value=edgeNumbers, update_widget_on_change=True)
+        addOption(self, "Numbers", "ShowElementNumbers", label="Elements", typ=bool, default_value=elementNumbers, update_widget_on_change=True)
         addOption(self, "", "GeomSubdivision", label="Subdivision", typ=int, default_value=5, min=1, max=20, update_widget_on_change=True)
         addOption(self, "", "Shrink", typ=float, default_value=1.0, min=0.0, max=1.0, step=0.01, update_widget_on_change=True)
 
