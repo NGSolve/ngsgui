@@ -185,7 +185,16 @@ class CMeshData:
         self.elements = Texture(GL_TEXTURE_BUFFER, GL_R32I)
         self.vertices = Texture(GL_TEXTURE_BUFFER, GL_RGB32F)
         mesh._opengl_data = self
+        self.timestamp = self.mesh().ngmesh.timestamp
         self.update()
+
+    def check_timestamp(self):
+        if self.timestamp != self.mesh().ngmesh.timestamp:
+            self.timestamp = self.mesh().ngmesh.timestamp
+            self.mesh().UpdateBuffers()
+            print("do update")
+            self.update()
+        return self
 
     @inmain_decorator(True)
     def update(self):
@@ -208,9 +217,9 @@ class CMeshData:
 
 def MeshData(mesh):
     """Helper function to avoid redundant copies of the same mesh on the GPU."""
-    try:
-        return mesh._opengl_data
-    except:
+    if hasattr(mesh,"_opengl_data"):
+        return mesh._opengl_data.check_timestamp()
+    else:
         return CMeshData(mesh)
 
 class CGeoData:
