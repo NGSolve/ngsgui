@@ -686,14 +686,6 @@ class MeshScene(BaseMeshSceneObject):
 
         self.numbers_program = Program('filter_elements.vert', 'numbers.geom', 'font.frag')
         self.bbnd_program = Program('filter_elements.vert', 'lines.tesc', 'lines.tese', 'mesh.frag')
-        self.bbnd_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
-        self.bbnd_colors.store([1,0,0,1] * len(self.mesh.GetBBoundaries()),
-                               data_format = GL_UNSIGNED_BYTE)
-
-        self.surface_program = Program('filter_elements.vert', 'tess.tesc', 'tess.tese', 'mesh.geom', 'mesh.frag')
-        self.bc_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
-        self.bc_colors.store( [0,1,0,1]*len(self.mesh.GetBoundaries()),
-                              data_format=GL_UNSIGNED_BYTE )
 
         self.text_renderer = TextRenderer()
 
@@ -884,6 +876,14 @@ class MeshScene(BaseMeshSceneObject):
             self.mat_colors = [0,255,0,255] * nmats
         self.tex_mat_color = Texture(GL_TEXTURE_1D, GL_RGBA)
         self.tex_mat_color.store(self.mat_colors, GL_UNSIGNED_BYTE, nmats)
+        self.bbnd_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
+        self.bbnd_colors.store([1,0,0,1] * len(self.mesh.GetBBoundaries()),
+                               data_format = GL_UNSIGNED_BYTE)
+
+        self.surface_program = Program('filter_elements.vert', 'tess.tesc', 'tess.tese', 'mesh.geom', 'mesh.frag')
+        self.bc_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
+        self.bc_colors.store( [0,1,0,1]*len(self.mesh.GetBoundaries()),
+                              data_format=GL_UNSIGNED_BYTE )
 
     def render(self, settings):
         if not self.active:
