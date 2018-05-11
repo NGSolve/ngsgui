@@ -151,7 +151,11 @@ class CodeEditor(QtWidgets.QPlainTextEdit):
                 exec(code,self.exec_locals)
             except Exception as e:
                 import sys
-                tb = sys.exc_info()[2].tb_next
+                count_frames = 0
+                tbc = sys.exc_info()[2]
+                while tbc is not None:
+                    tb = tbc
+                    tbc = tb.tb_next
                 self.show_exception(e,tb.tb_frame.f_lineno)
             self.active_thread = None
             self.gui.console.pushVariables(self.exec_locals)
