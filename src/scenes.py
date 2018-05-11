@@ -953,7 +953,7 @@ class MeshScene(BaseMeshSceneObject):
         self.updateBBNDColors()
         def showBBND():
             if self.mesh.dim == 3:
-                return self.getShowEdges()
+                return self.getShowEdgeElements()
             return False
         self.widgets.addGroup("BBoundaries", self.bbndcolors, connectedVisibility=showBBND)
 
