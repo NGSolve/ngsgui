@@ -185,13 +185,13 @@ class CMeshData:
         self.elements = Texture(GL_TEXTURE_BUFFER, GL_R32I)
         self.vertices = Texture(GL_TEXTURE_BUFFER, GL_RGB32F)
         mesh._opengl_data = self
-        self.timestamp = self.mesh().ngmesh.timestamp
+        self.timestamp = self.mesh().ngmesh._timestamp
         self.update()
 
     def check_timestamp(self):
-        if self.timestamp != self.mesh().ngmesh.timestamp:
-            self.timestamp = self.mesh().ngmesh.timestamp
-            self.mesh().UpdateBuffers()
+        if self.timestamp != self.mesh().ngmesh._timestamp:
+            self.timestamp = self.mesh().ngmesh._timestamp
+            self.mesh()._updateBuffers()
             print("do update")
             self.update()
         return self
