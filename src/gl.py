@@ -102,6 +102,9 @@ class Program(GLObject):
             functions = {
                     GL_SAMPLER_1D:        lambda v: glUniform1i(loc, v),
                     GL_SAMPLER_2D:        lambda v: glUniform1i(loc, v),
+                    GL_SAMPLER_3D:        lambda v: glUniform1i(loc,v),
+                    GL_INT_SAMPLER_3D:    lambda v: glUniform1i(loc,v),
+                    GL_UNSIGNED_INT_SAMPLER_3D: lambda v: glUniform1i(loc,v),
                     GL_INT_SAMPLER_BUFFER:lambda v: glUniform1i(loc, v),
                     GL_SAMPLER_BUFFER:    lambda v: glUniform1i(loc, v),
                     GL_BOOL:              lambda v: glUniform1i(loc, v),
@@ -116,6 +119,7 @@ class Program(GLObject):
                     GL_UNSIGNED_INT_VEC2: lambda v: glUniform2ui(loc, *v),
                     GL_UNSIGNED_INT_VEC3: lambda v: glUniform3ui(loc, *v),
                     GL_UNSIGNED_INT_VEC4: lambda v: glUniform4ui(loc, *v),
+                    GL_DOUBLE:            lambda v: glUniform1d(loc, v),
                     GL_FLOAT:             lambda v: glUniform1f(loc, v),
                     GL_FLOAT_VEC2:        lambda v: glUniform2f(loc, *v),
                     GL_FLOAT_VEC3:        lambda v: glUniform3f(loc, *v),
@@ -270,12 +274,14 @@ class Texture(GLObject):
         if self._type == GL_TEXTURE_BUFFER:
             self._buffer.bind()
 
-    def store(self, data, data_format=None, width=0, height=0):
+    def store(self, data, data_format=None, width=0, height=0, depth=0):
         self.bind()
         if self._type == GL_TEXTURE_1D:
             glTexImage1D(GL_TEXTURE_1D, 0, self._format, len(data), 0, self._format, data_format, data)
         if self._type == GL_TEXTURE_2D:
             glTexImage2D( GL_TEXTURE_2D, 0, self._format, width, height, 0, self._format, data_format, data )
+        if self._type == GL_TEXTURE_3D:
+            glTexImage3D(GL_TEXTURE_3D, 0, self._format, width, height, depth, 0, self._format, data_format, data)
         if self._type == GL_TEXTURE_BUFFER:
             data_size = ctypes.sizeof(ctypes.c_float)*len(data)
             glBufferData ( GL_TEXTURE_BUFFER, data_size, ctypes.c_void_p(), GL_DYNAMIC_DRAW ) # alloc
