@@ -254,9 +254,13 @@ class ArrayBuffer(GLObject):
         glBufferData(self._type, data, self._usage)
 
 class Texture(GLObject):
-    def __init__(self, buffer_type, format):
+    def __init__(self, buffer_type, format, format2=None):
         self._type = buffer_type
         self._format = format
+        if format2 is None:
+            self._format2 = self._format
+        else:
+            self._format2 = format2
         self._id = glGenTextures(1)
 
         if self._type == GL_TEXTURE_BUFFER:
@@ -281,7 +285,7 @@ class Texture(GLObject):
         if self._type == GL_TEXTURE_2D:
             glTexImage2D( GL_TEXTURE_2D, 0, self._format, width, height, 0, self._format, data_format, data )
         if self._type == GL_TEXTURE_3D:
-            glTexImage3D(GL_TEXTURE_3D, 0, self._format, width, height, depth, 0, self._format, data_format, data)
+            glTexImage3D(GL_TEXTURE_3D, 0, self._format, width, height, depth, 0, self._format2, data_format, data)
         if self._type == GL_TEXTURE_BUFFER:
             data_size = ctypes.sizeof(ctypes.c_float)*len(data)
             glBufferData ( GL_TEXTURE_BUFFER, data_size, ctypes.c_void_p(), GL_DYNAMIC_DRAW ) # alloc
