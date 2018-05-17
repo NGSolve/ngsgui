@@ -42,7 +42,7 @@ class WidgetWithLabel(QtWidgets.QWidget):
         else:
             self._value_widget.setValue(value)
 
-def addOption(self, group, name, default_value, typ=None, update_on_change=False, update_widget_on_change=False, widget_type=None, label=None, values=None, *args, **kwargs):
+def addOption(self, group, name, default_value, typ=None, update_on_change=False, update_widget_on_change=False, widget_type=None, label=None, values=None, on_change=None, *args, **kwargs):
     if not group in self._widgets:
         self._widgets[group] = {}
 
@@ -71,6 +71,8 @@ def addOption(self, group, name, default_value, typ=None, update_on_change=False
     elif typ==bool:
         w = QtWidgets.QCheckBox(label)
         w.setCheckState(QtCore.Qt.Checked if default_value else QtCore.Qt.Unchecked)
+        if on_change:
+            w.stateChanged.connect(on_change)
         w.stateChanged.connect(lambda value: getattr(self, setter_name)(bool(value)))
         self._widgets[group][name] = WidgetWithLabel(w)
 
@@ -547,6 +549,8 @@ class OverlayScene(SceneObject):
         addOption(self, "Overlay", "ShowCross", True, label = "Axis", typ=bool)
         addOption(self, "Overlay", "ShowVersion", True, label = "Version", typ=bool)
         addOption(self, "Overlay", "ShowColorBar", True, label = "Color bar", typ=bool)
+
+        addOption(self, "Rendering options", "FastRender", label='Fast mode', typ=bool, on_change=lambda val: setattr(self._rendering_params,'fastmode',val), default_value=False)
 
         addOption(self, "Clipping plane", "clipX", label='X', typ='button', default_value='_setClippingPlane', action="clipX")
         addOption(self, "Clipping plane", "clipY", label='Y', typ='button', default_value='_setClippingPlane', action="clipY")

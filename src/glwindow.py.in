@@ -217,6 +217,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.redraw_signal.connect(self.updateScenes)
 
         self.lastPos = QtCore.QPoint()
+        self.lastFastmode = self.rendering_parameters.fastmode
 
     @inmain_decorator(True)
     def updateGL(self,*args,**kwargs):
@@ -327,6 +328,7 @@ class GLWidget(QtOpenGL.QGLWidget):
 
     def mousePressEvent(self, event):
         self.lastPos = QtCore.QPoint(event.pos())
+        self.lastFastmode = self.rendering_parameters.fastmode
         self.rendering_parameters.fastmode = True
         if event.modifiers() == QtCore.Qt.ControlModifier:
             if event.button() == QtCore.Qt.MouseButton.RightButton:
@@ -347,7 +349,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.do_zoom = False
         self.do_move_clippingplane = False
         self.do_rotate_clippingplane = False
-        if self.rendering_parameters.fastmode:
+        if self.rendering_parameters.fastmode and not self.lastFastmode:
             self.rendering_parameters.fastmode = False
             self.updateGL()
 
