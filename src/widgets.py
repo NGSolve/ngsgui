@@ -140,8 +140,6 @@ class QColorButton(QtWidgets.QPushButton):
     def setColor(self, color):
         if color:
             self._color = color
-            self.colorChanged.emit()
-
             self.setStyleSheet("background-color: %s;" % self._color.name())
 
     def color(self):
@@ -161,10 +159,12 @@ class QColorButton(QtWidgets.QPushButton):
 
         if dlg.exec_():
             self.setColor(dlg.currentColor())
+            self.colorChanged.emit()
 
     def mousePressEvent(self, e):
         if e.button() == Qt.RightButton:
             self.setColor(None)
+            self.colorChanged.emit()
 
         return super(QColorButton, self).mousePressEvent(e)
 
@@ -260,6 +260,7 @@ class CollColors(QtWidgets.QWidget):
         self.initial_color = initial_color
 
         self.colorbtns = {}
+        self.checkboxes = []
         layouts = []
         self.coll = coll
 
@@ -270,12 +271,14 @@ class CollColors(QtWidgets.QWidget):
             else:
                 color.setAlpha(0)
             self.obj.setColor(color)
+            self.obj.colorChanged.emit()
 
         for item in coll:
             if not item in self.colorbtns:
                 btn = QColorButton(initial_color=initial_color)
                 btn.colorChanged.connect(self.colors_changed.emit)
                 cb_visible = QtWidgets.QCheckBox('visible',self)
+                self.checkboxes.append(cb_visible)
                 cb_visible.setCheckState(QtCore.Qt.Checked)
                 cb_visible.stateChanged.connect(ObjectHolder(btn,call_func))
                 self.colorbtns[item] = btn

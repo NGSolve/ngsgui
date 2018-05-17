@@ -249,9 +249,9 @@ class ArrayBuffer(GLObject):
     def bind(self):
         glBindBuffer(self._type, self.id)
 
-    def store(self, data):
+    def store(self, data, size=None):
         self.bind()
-        glBufferData(self._type, data, self._usage)
+        glBufferData(self._type, size if size else len(data) * ctypes.sizeof(ctypes.c_float), data, self._usage)
 
 class Texture(GLObject):
     def __init__(self, buffer_type, format, format2=None):
@@ -278,7 +278,7 @@ class Texture(GLObject):
         if self._type == GL_TEXTURE_BUFFER:
             self._buffer.bind()
 
-    def store(self, data, data_format=None, width=0, height=0, depth=0):
+    def store(self, data, data_format=None, width=0, height=0, depth=0, entry_size=None):
         self.bind()
         if self._type == GL_TEXTURE_1D:
             glTexImage1D(GL_TEXTURE_1D, 0, self._format, len(data), 0, self._format, data_format, data)
@@ -287,7 +287,10 @@ class Texture(GLObject):
         if self._type == GL_TEXTURE_3D:
             glTexImage3D(GL_TEXTURE_3D, 0, self._format, width, height, depth, 0, self._format2, data_format, data)
         if self._type == GL_TEXTURE_BUFFER:
-            data_size = ctypes.sizeof(ctypes.c_float)*len(data)
+            if entry_size is None:
+                data_size = ctypes.sizeof(ctypes.c_float)*len(data)
+            else:
+                data_size = entry_size * len(data)
             glBufferData ( GL_TEXTURE_BUFFER, data_size, ctypes.c_void_p(), GL_DYNAMIC_DRAW ) # alloc
             glBufferSubData( GL_TEXTURE_BUFFER, 0, data_size, data) # fill
 

@@ -99,6 +99,8 @@ class RenderingParameters:
         self.colormap_max = 1
         self.colormap_linear = False
 
+        self.fastmode = False
+
     @property
     def center(self):
         return 0.5*(self.min+self.max)
@@ -119,7 +121,7 @@ class RenderingParameters:
 
     @property
     def projection(self):
-        return glmath.Perspective(0.8, self.ratio, .1, 20.);
+        return glmath.Perspective(0.8, self.ratio, .1, 20.)
 
     @property
     def clipping_plane(self):
@@ -325,6 +327,7 @@ class GLWidget(QtOpenGL.QGLWidget):
 
     def mousePressEvent(self, event):
         self.lastPos = QtCore.QPoint(event.pos())
+        self.rendering_parameters.fastmode = True
         if event.modifiers() == QtCore.Qt.ControlModifier:
             if event.button() == QtCore.Qt.MouseButton.RightButton:
                 self.do_move_clippingplane = True
@@ -344,6 +347,9 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.do_zoom = False
         self.do_move_clippingplane = False
         self.do_rotate_clippingplane = False
+        if self.rendering_parameters.fastmode:
+            self.rendering_parameters.fastmode = False
+            self.updateGL()
 
     def mouseMoveEvent(self, event):
         dx = event.x() - self.lastPos.x()
