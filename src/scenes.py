@@ -236,7 +236,7 @@ class CGeoData:
 
     @inmain_decorator(True)
     def update(self):
-        geodata = ngui.GetGeoData(self.geo())
+        geodata = self.getGeoData()
         self.vertices.store(geodata["vertices"])
         self.triangles.store(geodata["triangles"])
         self.normals.store(geodata["normals"])
@@ -244,6 +244,9 @@ class CGeoData:
         self.min = geodata["min"]
         self.max = geodata["max"]
         self.ntriangles = len(geodata["triangles"])//4*3
+
+    def getGeoData(self):
+        return ngui.GetGeoData(self.geo())
 
 def GeoData(geo):
     try:
@@ -550,7 +553,8 @@ class OverlayScene(SceneObject):
         addOption(self, "Overlay", "ShowVersion", True, label = "Version", typ=bool)
         addOption(self, "Overlay", "ShowColorBar", True, label = "Color bar", typ=bool)
 
-        addOption(self, "Rendering options", "FastRender", label='Fast mode', typ=bool, on_change=lambda val: setattr(self._rendering_params,'fastmode',val), default_value=False)
+        import ngsolve.gui as G
+        addOption(self, "Rendering options", "FastRender", label='Fast mode', typ=bool, on_change=lambda val: setattr(self._rendering_params,'fastmode',val), default_value=G.gui.fastmode)
 
         addOption(self, "Clipping plane", "clipX", label='X', typ='button', default_value='_setClippingPlane', action="clipX")
         addOption(self, "Clipping plane", "clipY", label='Y', typ='button', default_value='_setClippingPlane', action="clipY")
@@ -1454,7 +1458,7 @@ class GeometryScene(SceneObject):
     @inmain_decorator(True)
     def update(self):
         super().update()
-        self.geo_data = GeoData(self.geo)
+        self.geo_data = self.getGeoData()
         self.surf_colors = { name : [0,0,255,255] for name in set(self.geo_data.surfnames)}
         self.colors.store([self.surf_colors[name][i] for name in self.geo_data.surfnames for i in range(4)],
                           data_format=GL_UNSIGNED_BYTE)
@@ -1470,6 +1474,9 @@ class GeometryScene(SceneObject):
         self.updateColors()
         self.widgets.addGroup("Surface Colors", self.colorpicker)
         return self.widgets
+
+    def getGeoData(self):
+        return GeoData(self.geo)
 
     def getBoundingBox(self):
         return self.geo_data.min, self.geo_data.max

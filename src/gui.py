@@ -211,6 +211,7 @@ class GUI():
                     if inspect.isclass(val):
                         if issubclass(val, GuiPlugin):
                             val.loadPlugin(self)
+        self.fastmode = False
 
     @inmain_decorator(wait_for_return=False)
     def update_setting_area(self):
@@ -222,6 +223,8 @@ class GUI():
     @inmain_decorator(wait_for_return=True)
     def make_window(self):
         self.activeGLWindow = window = glwindow.WindowTab(shared=self.common_context)
+        if self.fastmode:
+            window.glWidget.rendering_parameters.fastmode = True
         if self.common_context is None:
             self.common_context = window.glWidget
         self.window_tabber.addTab(window,"window" + str(self.window_tabber.count() + 1))
@@ -297,6 +300,9 @@ class GUI():
         self.console.pushVariables(globs)
         do_after_run()
         self.app.exec_()
+
+    def setFastMode(self, fastmode):
+        self.fastmode = fastmode
 
 class DummyObject:
     def __init__(self,*arg,**kwargs):

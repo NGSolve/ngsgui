@@ -50,4 +50,6 @@ if __name__ == "__main__":
                     G.gui.msgbox.show()
     ngs.Draw = Draw
     ngs.Redraw = Redraw
+    if "-fastmode" in sys.argv:
+        G.gui.setFastMode(True)
     G.gui.run(do_after_run)
