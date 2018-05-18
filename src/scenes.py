@@ -639,7 +639,7 @@ class OverlayScene(SceneObject):
             uniforms.set('dy', dy)
 
             glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
-            glDrawArrays(GL_QUADS, 0, 4)
+            glDrawArrays(GL_TRIANGLES, 0, 6)
             cmin = settings.colormap_min
             cmax = settings.colormap_max
             for i in range(5):

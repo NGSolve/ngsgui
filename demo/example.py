@@ -66,3 +66,4 @@ cf = x+1j*y
 # scene1 = GUI.MeshScene(mesh)
 # gui.draw(scene1)
 # gui.run()
+Draw(cf, mesh,'sldkf')
