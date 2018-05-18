@@ -243,7 +243,7 @@ class CGeoData:
         self.surfnames = geodata["surfnames"]
         self.min = geodata["min"]
         self.max = geodata["max"]
-        self.ntriangles = len(geodata["triangles"])//4*3
+        self.npoints = len(geodata["triangles"])//4*3
 
     def getGeoData(self):
         return ngui.GetGeoData(self.geo())
@@ -1512,4 +1512,4 @@ class GeometryScene(SceneObject):
         uniforms.set('light_ambient', 0.3)
         uniforms.set('light_diffuse', 0.7)
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL )
-        glDrawArrays(GL_TRIANGLES, 0, self.geo_data.ntriangles)
+        glDrawArrays(GL_TRIANGLES, 0, self.geo_data.npoints)
