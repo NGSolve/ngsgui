@@ -245,6 +245,23 @@ class Program(GLObject):
         self.attributes = Program.Attributes(self.id)
 
 
+class VertexArray(GLObject):
+    def __init__(self):
+        self._id = glGenVertexArrays(1)
+        self.bind()
+
+    def __enter__(self):
+        self.bind()
+
+    def __exit__(self):
+        self.unbind()
+
+    def bind(self):
+        glBindVertexArray(self.id)
+
+    def unbind(self):
+        glBindVertexArray(0)
+
 class ArrayBuffer(GLObject):
     def __init__(self, buffer_type=GL_ARRAY_BUFFER, usage=GL_STATIC_DRAW):
         self._type = buffer_type
