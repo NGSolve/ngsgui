@@ -9,7 +9,7 @@ import ngsolve
 # from . import glmath
 # from . import ngui
 
-from .gl import Texture, Program, ArrayBuffer
+from .gl import Texture, Program, ArrayBuffer, VertexArray
 from . import widgets as wid
 from .widgets import ArrangeH, ArrangeV
 from . import glmath
@@ -262,14 +262,15 @@ class TextRenderer:
     def __init__(self):
         self.fonts = {}
 
-        self.vao = glGenVertexArrays(1)
-        glBindVertexArray(self.vao)
+        self.vao = VertexArray()
         self.addFont(0)
 
         self.program = Program('font.vert', 'font.geom', 'font.frag')
         self.characters = ArrayBuffer(usage=GL_DYNAMIC_DRAW)
+        self.vao.unbind()
 
     def addFont(self, font_size):
+        self.vao.bind()
         font = TextRenderer.Font()
         font.size = font_size
 
@@ -312,14 +313,14 @@ class TextRenderer:
         glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST )
         glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST )
 
-        glBindVertexArray(0)
+        self.vao.unbind()
 
     def draw(self, rendering_params, text, pos, font_size=0, use_absolute_pos=True, alignment=QtCore.Qt.AlignTop|QtCore.Qt.AlignLeft):
 
         if not font_size in self.fonts:
             self.addFont(font_size)
 
-        glBindVertexArray(self.vao)
+        self.vao.bind()
         glUseProgram(self.program.id)
 
         viewport = glGetIntegerv( GL_VIEWPORT )
@@ -370,6 +371,7 @@ class TextRenderer:
 
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         glDrawArrays(GL_POINTS, 0, len(s))
+        self.vao.unbind()
 
 class SceneObject():
     scene_counter = 1
@@ -554,7 +556,8 @@ class OverlayScene(SceneObject):
         addOption(self, "Overlay", "ShowColorBar", True, label = "Color bar", typ=bool)
 
         import ngsolve.gui as G
-        addOption(self, "Rendering options", "FastRender", label='Fast mode', typ=bool, on_change=lambda val: setattr(self._rendering_params,'fastmode',val), default_value=G.gui.fastmode)
+        fastmode = hasattr(G.gui,'fastmode') and G.gui.fastmode
+        addOption(self, "Rendering options", "FastRender", label='Fast mode', typ=bool, on_change=lambda val: setattr(self._rendering_params,'fastmode',val), default_value=fastmode)
 
         addOption(self, "Clipping plane", "clipX", label='X', typ='button', default_value='_setClippingPlane', action="clipX")
         addOption(self, "Clipping plane", "clipY", label='Y', typ='button', default_value='_setClippingPlane', action="clipY")
@@ -582,8 +585,7 @@ class OverlayScene(SceneObject):
 
         self.text_renderer = TextRenderer()
 
-        self.vao = glGenVertexArrays(1)
-        glBindVertexArray(self.vao)
+        self.vao = VertexArray()
         self.cross_points = ArrayBuffer()
         points = [self.cross_shift + (self.cross_scale if i%7==3 else 0) for i in range(24)]
         self.cross_points.store(numpy.array(points, dtype=numpy.float32))
@@ -593,7 +595,7 @@ class OverlayScene(SceneObject):
 
         self.program.attributes.bind('pos', self.cross_points)
 
-        glBindVertexArray(0)
+        self.vao.unbind()
 
     def render(self, settings):
         if not self.active:
@@ -601,7 +603,7 @@ class OverlayScene(SceneObject):
 
         self.update()
         glUseProgram(self.program.id)
-        glBindVertexArray(self.vao)
+        self.vao.bind()
 
         glDisable(GL_DEPTH_TEST)
         if self.getShowCross():
@@ -627,7 +629,6 @@ class OverlayScene(SceneObject):
             self.text_renderer.draw(settings, "NGSolve " + ngsolve.__version__, [0.99,-0.99,0], alignment=QtCore.Qt.AlignRight|QtCore.Qt.AlignBottom)
 
         if self.getShowColorBar():
-            glBindVertexArray(0)
             glUseProgram(self.colorbar_program.id)
             uniforms = self.colorbar_program.uniforms
             x0,y0 = -0.6, 0.82
@@ -638,7 +639,7 @@ class OverlayScene(SceneObject):
             uniforms.set('dy', dy)
 
             glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
-            glDrawArrays(GL_QUADS, 0, 4)
+            glDrawArrays(GL_TRIANGLES, 0, 6)
             cmin = settings.colormap_min
             cmax = settings.colormap_max
             for i in range(5):
@@ -647,7 +648,7 @@ class OverlayScene(SceneObject):
                 self.text_renderer.draw(settings, f'{val:.2g}'.replace("e+", "e"), [x,y0-0.03,0], alignment=QtCore.Qt.AlignCenter|QtCore.Qt.AlignTop)
 
         glEnable(GL_DEPTH_TEST)
-        glBindVertexArray(0)
+        self.vao.unbind()
 
     @inmain_decorator(True)
     def update(self):
@@ -692,12 +693,14 @@ class MeshScene(BaseMeshSceneObject):
 
         super().initGL()
 
+        self.vao = VertexArray()
         self.numbers_program = Program('filter_elements.vert', 'numbers.geom', 'font.frag')
         self.bbnd_program = Program('filter_elements.vert', 'lines.tesc', 'lines.tese', 'mesh.frag')
 
         self.text_renderer = TextRenderer()
 
     def renderEdges(self, settings):
+        self.vao.bind()
         glUseProgram(self.bbnd_program.id)
         model,view,projection = settings.model, settings.view, settings.projection
         uniforms = self.bbnd_program.uniforms
@@ -742,9 +745,11 @@ class MeshScene(BaseMeshSceneObject):
             glDrawArrays(GL_PATCHES, self.mesh_data.nedge_elements+self.mesh_data.nedges, self.mesh_data.nperiodic_vertices)
             glLineWidth(1)
 
+        self.vao.unbind()
 
     def renderSurface(self, settings):
         glUseProgram(self.surface_program.id)
+        self.vao.bind()
         model, view, projection = settings.model, settings.view, settings.projection
         uniforms = self.surface_program.uniforms
         uniforms.set('P',projection)
@@ -813,9 +818,11 @@ class MeshScene(BaseMeshSceneObject):
             glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
             glPatchParameteri(GL_PATCH_VERTICES, 1)
             glDrawArrays(GL_PATCHES, 0, self.mesh.ne)
+        self.vao.unbind()
 
     def renderNumbers(self, settings):
         glUseProgram(self.numbers_program.id)
+        self.vao.bind()
         model, view, projection = settings.model, settings.view, settings.projection
         uniforms = self.numbers_program.uniforms
         uniforms.set('P',projection)
@@ -871,6 +878,7 @@ class MeshScene(BaseMeshSceneObject):
             glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
             glPolygonOffset (0,0)
             glDrawArrays(GL_POINTS, 0, self.mesh.ne)
+        self.vao.unbind()
 
 
 
@@ -1047,35 +1055,26 @@ class SolutionScene(BaseFunctionSceneObject):
         self._have_filter = False
 
         # 1d solution (line)
-        self.line_vao = glGenVertexArrays(1)
-        glBindVertexArray(self.line_vao)
+        self.line_vao = VertexArray()
         self.line_program = Program('solution1d.vert', 'solution1d.frag')
-        glBindVertexArray(0)
 
         # solution on surface mesh
-        self.surface_vao = glGenVertexArrays(1)
-        glBindVertexArray(self.surface_vao)
+        self.surface_vao = VertexArray()
         self.surface_program = Program('filter_elements.vert', 'tess.tesc', 'tess.tese', 'solution.geom', 'solution.frag')
-        glBindVertexArray(0)
 
         # solution on clipping plane
-        self.clipping_vao = glGenVertexArrays(1)
-        glBindVertexArray(self.clipping_vao)
+        self.clipping_vao = VertexArray()
         self.clipping_program = Program('mesh.vert', 'clipping.geom', 'solution.frag')
         glUseProgram(self.clipping_program.id)
-        glBindVertexArray(0)
 
         # iso-surface
-        self.iso_surface_vao = glGenVertexArrays(1)
-        glBindVertexArray(self.iso_surface_vao)
+        self.iso_surface_vao = VertexArray()
         self.iso_surface_program = Program('mesh.vert', 'isosurface.geom', 'solution.frag')
-        glBindVertexArray(0)
 
         # vectors (currently one per element)
-        self.vector_vao = glGenVertexArrays(1)
-        glBindVertexArray(self.vector_vao)
+        self.vector_vao = VertexArray()
         self.vector_program = Program('mesh.vert', 'vector.geom', 'solution.frag')
-        glBindVertexArray(0)
+        self.vector_vao.unbind()
 
     def _getValues(self, vb, setMinMax=True):
         cf = self.cf
@@ -1168,7 +1167,7 @@ class SolutionScene(BaseFunctionSceneObject):
         model, view, projection = settings.model, settings.view, settings.projection
 
         # surface mesh
-        glBindVertexArray(self.line_vao)
+        self.line_vao.bind()
         glUseProgram(self.line_program.id)
 
         uniforms = self.line_program.uniforms
@@ -1205,13 +1204,14 @@ class SolutionScene(BaseFunctionSceneObject):
         glEnable(GL_POLYGON_OFFSET_FILL)
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         glDrawArrays(GL_LINES, 0, self.mesh_data.nedge_elements*(2*(2**self.getSubdivision()*self.getOrder()+1)-2))
-        glBindVertexArray(self.line_vao)
+        self.line_vao.bind()
 
     def renderSurface(self, settings):
         model, view, projection = settings.model, settings.view, settings.projection
 
         # surface mesh
         glUseProgram(self.surface_program.id)
+        self.surface_vao.bind()
 
         uniforms = self.surface_program.uniforms
         uniforms.set('P',projection)
@@ -1265,12 +1265,13 @@ class SolutionScene(BaseFunctionSceneObject):
         glPatchParameteri(GL_PATCH_VERTICES, 1)
         glDrawArrays(GL_PATCHES, 0, self.mesh_data.nsurface_elements)
         glDisable(GL_POLYGON_OFFSET_FILL)
+        self.surface_vao.unbind()
 
     def renderIsoSurface(self, settings):
         self._filterElements(settings, 1)
         model, view, projection = settings.model, settings.view, settings.projection
         glUseProgram(self.iso_surface_program.id)
-        glBindVertexArray(self.iso_surface_vao)
+        self.iso_surface_vao.bind()
 
         uniforms = self.iso_surface_program.uniforms
         uniforms.set('P',projection)
@@ -1312,11 +1313,12 @@ class SolutionScene(BaseFunctionSceneObject):
         instances = (self.getOrder()*(2**self.getSubdivision()))**3
         self.iso_surface_program.attributes.bind('element', self.filter_buffer)
         glDrawTransformFeedbackInstanced(GL_POINTS, self.filter_feedback, instances)
-        glBindVertexArray(0)
+        self.iso_surface_vao.unbind()
 
     def renderVectors(self, settings):
         model, view, projection = settings.model, settings.view, settings.projection
         glUseProgram(self.vector_program.id)
+        self.vector_vao.bind()
 
         uniforms = self.vector_program.uniforms
         uniforms.set('P',projection)
@@ -1351,13 +1353,13 @@ class SolutionScene(BaseFunctionSceneObject):
 
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         glDrawArrays(GL_POINTS, 0, self.mesh.ne)
-        glBindVertexArray(0)
+        self.vector_vao.unbind()
 
     def renderClippingPlane(self, settings):
         self._filterElements(settings, 0)
         model, view, projection = settings.model, settings.view, settings.projection
         glUseProgram(self.clipping_program.id)
-        glBindVertexArray(self.clipping_vao)
+        self.clipping_vao.bind()
 
         uniforms = self.clipping_program.uniforms
         uniforms.set('P',projection)
@@ -1409,7 +1411,7 @@ class SolutionScene(BaseFunctionSceneObject):
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         self.clipping_program.attributes.bind('element', self.filter_buffer)
         glDrawTransformFeedback(GL_POINTS, self.filter_feedback)
-        glBindVertexArray(0)
+        self.clipping_vao.unbind()
 
 
     def render(self, settings):
@@ -1454,6 +1456,7 @@ class GeometryScene(SceneObject):
         super().initGL()
         self.program = Program('geo.vert', 'mesh.frag')
         self.colors = Texture(GL_TEXTURE_1D, GL_RGBA)
+        self.vao = VertexArray()
 
     @inmain_decorator(True)
     def update(self):
@@ -1485,6 +1488,7 @@ class GeometryScene(SceneObject):
         if not self.active:
             return
         glUseProgram(self.program.id)
+        self.vao.bind()
         model, view, projection = settings.model, settings.view, settings.projection
         uniforms = self.program.uniforms
         uniforms.set('P', projection)
@@ -1513,3 +1517,4 @@ class GeometryScene(SceneObject):
         uniforms.set('light_diffuse', 0.7)
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL )
         glDrawArrays(GL_TRIANGLES, 0, self.geo_data.npoints)
+        self.vao.unbind()
