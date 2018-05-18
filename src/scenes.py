@@ -554,7 +554,8 @@ class OverlayScene(SceneObject):
         addOption(self, "Overlay", "ShowColorBar", True, label = "Color bar", typ=bool)
 
         import ngsolve.gui as G
-        addOption(self, "Rendering options", "FastRender", label='Fast mode', typ=bool, on_change=lambda val: setattr(self._rendering_params,'fastmode',val), default_value=G.gui.fastmode)
+        fastmode = hasattr(G.gui,'fastmode') and G.gui.fastmode
+        addOption(self, "Rendering options", "FastRender", label='Fast mode', typ=bool, on_change=lambda val: setattr(self._rendering_params,'fastmode',val), default_value=fastmode)
 
         addOption(self, "Clipping plane", "clipX", label='X', typ='button', default_value='_setClippingPlane', action="clipX")
         addOption(self, "Clipping plane", "clipY", label='Y', typ='button', default_value='_setClippingPlane', action="clipY")
