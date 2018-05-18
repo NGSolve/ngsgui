@@ -233,6 +233,11 @@ class Program(GLObject):
 
             glTransformFeedbackVaryings(self.id, len(feedback), buff, GL_INTERLEAVED_ATTRIBS)
         glLinkProgram(self.id)
+
+        glValidateProgram( self.id )
+        if glGetProgramiv( self.id, GL_VALIDATE_STATUS ) != GL_TRUE:
+            raise RuntimeError( glGetProgramInfoLog( self.id ))
+
         if glGetProgramiv(self.id, GL_LINK_STATUS) != GL_TRUE:
                 raise RuntimeError(glGetProgramInfoLog(self.id))
 
