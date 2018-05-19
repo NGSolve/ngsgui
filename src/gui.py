@@ -5,8 +5,10 @@ from . widgets import ArrangeV
 from .thread import inthread, inmain_decorator
 import ngui
 
+import sys
 import inspect
 import time
+import re
 
 from PySide2 import QtWidgets, QtCore, QtGui
 
@@ -54,6 +56,27 @@ class MenuWithDict(QtWidgets.QMenu):
 
     def __getitem__(self, index):
         return self._dict[index]
+
+class Receiver(QtCore.QObject):
+    received = QtCore.Signal(str)
+
+    def __init__(self,pipe, *args,**kwargs):
+        super().__init__(*args,**kwargs)
+        self.pipe = pipe
+        self.ansi_escape = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
+
+    def run(self):
+        while True:
+            self.received.emit(self.ansi_escape.sub("",os.read(self.pipe,1024).decode("ascii")))
+
+class OutputBuffer(QtWidgets.QTextEdit):
+    def __init__(self,*args,**kwargs):
+        super().__init__(*args,**kwargs)
+
+    def append_text(self, text):
+        self.moveCursor(QtGui.QTextCursor.End)
+        self.insertPlainText(text)
+
 
 class MainWindow(QtWidgets.QWidget):
     def __init__(self, *args, **kwargs):
@@ -185,13 +208,16 @@ class GUI():
         self.window_tabber.tabCloseRequested.connect(_remove_tab)
         window_splitter.addWidget(self.window_tabber)
         self.console = NGSJupyterWidget(multikernel_manager = self.multikernel_manager)
-        window_splitter.addWidget(self.console)
+        self.outputBuffer = OutputBuffer()
+        self.output_tabber = QtWidgets.QTabWidget()
+        self.output_tabber.addTab(self.console,"Console")
+        self.output_tabber.addTab(self.outputBuffer, "Output")
+        window_splitter.addWidget(self.output_tabber)
         menu_splitter.setSizes([100, 10000])
         toolbox_splitter.setSizes([0, 85000])
         window_splitter.setSizes([70000, 30000])
         self.mainWidget.setLayout(ArrangeV(menu_splitter))
         menu_splitter.show()
-        self.console.show()
         self.mainWidget.setWindowTitle("NGSolve")
         # crawl for plugins
         try:
@@ -298,6 +324,17 @@ class GUI():
         self.mainWidget.show()
         globs = inspect.stack()[1][0].f_globals
         self.console.pushVariables(globs)
+        stdout_fileno = sys.stdout.fileno()
+        stdout_save = os.dup(stdout_fileno)
+        stdout_pipe = os.pipe()
+        os.dup2(stdout_pipe[1], stdout_fileno)
+        os.close(stdout_pipe[1])
+        receiver = Receiver(stdout_pipe[0])
+        receiver.received.connect(self.outputBuffer.append_text)
+        self.stdoutThread = QtCore.QThread()
+        receiver.moveToThread(self.stdoutThread)
+        self.stdoutThread.started.connect(receiver.run)
+        self.stdoutThread.start()
         do_after_run()
         self.app.exec_()
 
