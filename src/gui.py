@@ -158,8 +158,19 @@ Developed by Joachim Schoeberl at
     def clearTerminal(self):
         self._control.clear()
 
+def _noexec(gui, val):
+    gui.executeFileOnStartup = not val
+def _fastmode(gui,val):
+    gui.fastmode = val
+def _noOutputpipe(gui,val):
+    gui.pipeOutput = not val
+
 import ngsolve
 class GUI():
+    # functions to modify the gui with flags. If the flag is not set, the function is called with False as argument
+    flags = { "-noexec" : _noexec,
+              "-fastmode" : _fastmode,
+              "-noOutputpipe" : _noOutputpipe}
     def __init__(self):
         self.app = QtWidgets.QApplication([])
         ngui.SetLocale()
@@ -238,7 +249,17 @@ class GUI():
                     if inspect.isclass(val):
                         if issubclass(val, GuiPlugin):
                             val.loadPlugin(self)
-        self.fastmode = False
+
+    def parseFlags(self, flags):
+        flag = {val.split("=")[0] : (val.split("=")[1] if len(val.split("="))>1 else True) for val in flags}
+        for key, func in self.flags.items():
+            if key in flag:
+                func(self,flag[key])
+            else:
+                func(self, False)
+        for val in flags:
+            if val in self.flags:
+                self.flags[val](self)
 
     @inmain_decorator(wait_for_return=False)
     def update_setting_area(self):
@@ -312,11 +333,11 @@ class GUI():
                 txt += line
         return txt
 
-    def loadPythonFile(self, filename, execute = False):
+    def loadPythonFile(self, filename):
         editTab = code_editor.CodeEditor(filename=filename,gui=self,parent=self.window_tabber)
         pos = self.window_tabber.addTab(editTab,filename)
         editTab.windowTitleChanged.connect(lambda txt: self.window_tabber.setTabText(pos, txt))
-        if execute:
+        if self.executeFileOnStartup:
             editTab.computation_started_at = 0
             editTab.run()
 
@@ -325,17 +346,18 @@ class GUI():
         self.mainWidget.show()
         globs = inspect.stack()[1][0].f_globals
         self.console.pushVariables(globs)
-        stdout_fileno = sys.stdout.fileno()
-        stdout_save = os.dup(stdout_fileno)
-        stdout_pipe = os.pipe()
-        os.dup2(stdout_pipe[1], stdout_fileno)
-        os.close(stdout_pipe[1])
-        receiver = Receiver(stdout_pipe[0])
-        receiver.received.connect(self.outputBuffer.append_text)
-        self.stdoutThread = QtCore.QThread()
-        receiver.moveToThread(self.stdoutThread)
-        self.stdoutThread.started.connect(receiver.run)
-        self.stdoutThread.start()
+        if self.pipeOutput:
+            stdout_fileno = sys.stdout.fileno()
+            stdout_save = os.dup(stdout_fileno)
+            stdout_pipe = os.pipe()
+            os.dup2(stdout_pipe[1], stdout_fileno)
+            os.close(stdout_pipe[1])
+            receiver = Receiver(stdout_pipe[0])
+            receiver.received.connect(self.outputBuffer.append_text)
+            self.stdoutThread = QtCore.QThread()
+            receiver.moveToThread(self.stdoutThread)
+            self.stdoutThread.started.connect(receiver.run)
+            self.stdoutThread.start()
         do_after_run()
         self.app.exec_()
 

@@ -42,7 +42,7 @@ if __name__ == "__main__":
             if os.path.isfile(option):
                 name,ext = os.path.splitext(option)
                 if ext == ".py":
-                    G.gui.loadPythonFile(option, not "-noexec" in sys.argv)
+                    G.gui.loadPythonFile(option)
                     file_loaded = True
                 else:
                     G.gui.msgbox = QtWidgets.QMessageBox(text = "Cannot load file type: " + ext)
@@ -50,6 +50,5 @@ if __name__ == "__main__":
                     G.gui.msgbox.show()
     ngs.Draw = Draw
     ngs.Redraw = Redraw
-    if "-fastmode" in sys.argv:
-        G.gui.setFastMode(True)
+    G.gui.parseFlags(sys.argv[1:])
     G.gui.run(do_after_run)
