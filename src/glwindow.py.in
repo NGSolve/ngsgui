@@ -182,6 +182,7 @@ class WindowTab(QtWidgets.QWidget):
     def isGLWindow(self):
         return True
 
+    @inmain_decorator(True)
     def draw(self, scene):
         self.glWidget.makeCurrent()
         scene.setWindow(self)

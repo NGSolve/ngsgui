@@ -25,36 +25,36 @@ class MultiQtKernelManager(MultiKernelManager):
                                             config = True,
                                             help = """kernel manager class""")
 
+def createMenu(self, name):
+    menu = self.addMenu(name)
+    menu._dict = {}
+    self._dict[name] = menu
+    return menu
+QtWidgets.QMenu.createMenu = createMenu
+
+def getitem(self, index):
+    if index not in self._dict:
+        return self.createMenu(index)
+    return self._dict[index]
+
+QtWidgets.QMenu.__getitem__ = getitem
+
+import inspect
 class MenuBarWithDict(QtWidgets.QMenuBar):
     def __init__(self,*args, **kwargs):
         super().__init__(*args,**kwargs)
         self._dict = {}
 
     @inmain_decorator(wait_for_return=True)
-    def addMenu(self, name, *args, **kwargs):
-        menu = MenuWithDict(super().addMenu(name,*args,**kwargs))
+    def createMenu(self, name, *args, **kwargs):
+        menu = super().addMenu(name,*args,**kwargs)
+        menu._dict = {}
         self._dict[name] = menu
         return menu
 
     def __getitem__(self, index):
         if index not in self._dict:
-            return self.addMenu(index)
-        return self._dict[index]
-
-class MenuWithDict(QtWidgets.QMenu):
-    def __new__(self, menu):
-        return menu
-
-    def __init__(self,menu):
-        self._dict = {}
-
-    @inmain_decorator(wait_for_return=True)
-    def addMenu(self, name, *args, **kwargs):
-        menu = MenuWithDict(super().addMenu(name,*args,**kwargs))
-        self._dict["name"] = menu
-        return menu
-
-    def __getitem__(self, index):
+            return self.createMenu(index)
         return self._dict[index]
 
 class Receiver(QtCore.QObject):
@@ -72,6 +72,7 @@ class Receiver(QtCore.QObject):
 class OutputBuffer(QtWidgets.QTextEdit):
     def __init__(self,*args,**kwargs):
         super().__init__(*args,**kwargs)
+        self.setReadOnly(True)
 
     def append_text(self, text):
         self.moveCursor(QtGui.QTextCursor.End)
@@ -167,9 +168,9 @@ class GUI():
         self.mainWidget = MainWindow()
         self.menuBar = MenuBarWithDict()
         self.activeGLWindow = None
-        fileMenu = self.menuBar.addMenu("&File")
-        loadMenu = fileMenu.addMenu("&Load")
-        saveMenu = fileMenu.addMenu("&Save")
+        fileMenu = self.menuBar.createMenu("&File")
+        loadMenu = fileMenu.createMenu("&Load")
+        saveMenu = fileMenu.createMenu("&Save")
         saveSolution = saveMenu.addAction("&Solution")
         loadSolution = loadMenu.addAction("&Solution")
         loadSolution.triggered.connect(self.loadSolution)
@@ -181,7 +182,7 @@ class GUI():
                 self.loadPythonFile(filename)
         loadPython = loadMenu.addAction("&Python File", shortcut = "l+y")
         loadPython.triggered.connect(selectPythonFile)
-        createMenu = self.menuBar.addMenu("&Create")
+        createMenu = self.menuBar.createMenu("&Create")
         newWindowAction = createMenu.addAction("New &Window")
         newWindowAction.triggered.connect(self.make_window)
         menu_splitter = QtWidgets.QSplitter(parent=self.mainWidget)
