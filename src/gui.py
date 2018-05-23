@@ -224,6 +224,7 @@ class GUI():
         self.output_tabber = QtWidgets.QTabWidget()
         self.output_tabber.addTab(self.console,"Console")
         self.output_tabber.addTab(self.outputBuffer, "Output")
+        self.output_tabber.setCurrentIndex(1)
         window_splitter.addWidget(self.output_tabber)
         menu_splitter.setSizes([100, 10000])
         toolbox_splitter.setSizes([0, 85000])
@@ -257,9 +258,6 @@ class GUI():
                 func(self,flag[key])
             else:
                 func(self, False)
-        for val in flags:
-            if val in self.flags:
-                self.flags[val](self)
 
     @inmain_decorator(wait_for_return=False)
     def update_setting_area(self):
