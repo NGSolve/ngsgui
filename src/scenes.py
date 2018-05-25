@@ -630,6 +630,7 @@ class OverlayScene(SceneObject):
 
         if self.getShowColorBar():
             glUseProgram(self.colorbar_program.id)
+            self.vao.bind()
             uniforms = self.colorbar_program.uniforms
             x0,y0 = -0.6, 0.82
             dx,dy = 1.2, 0.03
