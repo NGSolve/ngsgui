@@ -174,6 +174,8 @@ class GUI():
     def __init__(self):
         self.app = QtWidgets.QApplication([])
         ngui.SetLocale()
+        self.fastmode = False
+        self.pipeOutput = False
         self.common_context = None
         self.multikernel_manager = MultiQtKernelManager()
         self.mainWidget = MainWindow()
