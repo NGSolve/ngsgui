@@ -244,7 +244,8 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.redraw_mutex.lock()
         self.makeCurrent()
         for scene in self.scenes:
-            scene.update()
+            if scene.active:
+                scene.update()
         self.redraw_update_done.wakeAll()
         self.redraw_mutex.unlock()
         self.update()

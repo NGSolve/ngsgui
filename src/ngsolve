@@ -36,6 +36,8 @@ def Redraw(blocking=True,**kwargs):
         G.gui.redraw()
 
 if __name__ == "__main__":
+    ngs.Draw = Draw
+    ngs.Redraw = Redraw
     G.gui = G.GUI()
     def do_after_run():
         for option in sys.argv[1:]:
@@ -48,7 +50,5 @@ if __name__ == "__main__":
                     G.gui.msgbox = QtWidgets.QMessageBox(text = "Cannot load file type: " + ext)
                     G.gui.msgbox.setWindowTitle("File loading error")
                     G.gui.msgbox.show()
-    ngs.Draw = Draw
-    ngs.Redraw = Redraw
     G.gui.parseFlags(sys.argv[1:])
     G.gui.run(do_after_run)
