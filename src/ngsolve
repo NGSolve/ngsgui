@@ -24,6 +24,8 @@ def Draw(obj, mesh=None, name=None, **kwargs):
         scene = G.scenes.SolutionScene(obj, mesh, name=name,
                                        autoscale = kwargs["autoscale"] if "autoscale" in kwargs else not ("min" in kwargs or "max" in kwargs),
                                        **kwargs)
+    if isinstance(obj, G.scenes.SceneObject):
+        scene = obj
     if scene:
         G.gui.draw(scene)
         return scene
