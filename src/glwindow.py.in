@@ -276,6 +276,8 @@ class GLWidget(QtOpenGL.QGLWidget):
         box_min[:] = 1e99
         box_max[:] = -1e99
         for scene in self.scenes:
+            if not scene.active:
+                continue
             s_min, s_max = scene.getBoundingBox()
             for i in range(3):
                 box_min[i] = min(s_min[i], box_min[i])
