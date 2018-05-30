@@ -1018,8 +1018,8 @@ class SolutionScene(BaseFunctionSceneObject):
         autoscale = addOption(self, "Colormap", "Autoscale",typ=bool, default_value=autoscale)
         addOption(self, "Colormap", "ColorMapLinear", label="Linear",typ=bool, default_value=linear)
 
-        boxmin.changed.connect(lambda val: autoscale.stateChanged.emit(False))
-        boxmax.changed.connect(lambda val: autoscale.stateChanged.emit(False))
+        boxmin._value_widget.changed.connect(lambda val: autoscale._value_widget.stateChanged.emit(False))
+        boxmax._value_widget.changed.connect(lambda val: autoscale._value_widget.stateChanged.emit(False))
 
         self.qtWidget = None
         self.vao = None
