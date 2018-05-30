@@ -130,7 +130,7 @@ def addOption(self, group, name, default_value, typ=None, update_on_change=False
             setattr(self, propname, value) 
             
             if update_widget_on_change:
-                self.widgets.update()
+                self.updateWidgets()
             if redraw:
                 if update_on_change:
                     self.update()
@@ -146,7 +146,7 @@ def addOption(self, group, name, default_value, typ=None, update_on_change=False
             setattr(cls, setter_name, setValue)
         if not hasattr(cls, 'get'+name):
             setattr(cls, 'get'+name, getValue)
-    return w
+    return self._widgets[group][name]
 
 import ngsolve
 import numpy
@@ -406,6 +406,10 @@ class SceneObject():
     def update(self):
         self.initGL()
 
+    @inmain_decorator(True)
+    def updateWidgets(self):
+        self.widgets.update()
+    
     def render(self, settings):
         pass
 
