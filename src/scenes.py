@@ -970,7 +970,7 @@ class MeshScene(BaseMeshSceneObject):
             if self.mesh.dim == 3:
                 return self.getShowSurface()
             elif self.mesh.dim == 2:
-                return self.getShowEdges()
+                return self.getShowEdgeElements()
             return False
         self.widgets.addGroup("Boundary Conditions", self.bndcolors, connectedVisibility = showBND)
 
