@@ -9,7 +9,7 @@ import ngsolve
 # from . import glmath
 # from . import ngui
 
-from .gl import Texture, Program, ArrayBuffer, VertexArray
+from .gl import Texture, GetProgram, ArrayBuffer, VertexArray
 from . import widgets as wid
 from .widgets import ArrangeH, ArrangeV
 from . import glmath
@@ -265,7 +265,6 @@ class TextRenderer:
         self.vao = VertexArray()
         self.addFont(0)
 
-        self.program = Program('font.vert', 'font.geom', 'font.frag')
         self.characters = ArrayBuffer(usage=GL_DYNAMIC_DRAW)
         self.vao.unbind()
 
@@ -321,7 +320,7 @@ class TextRenderer:
             self.addFont(font_size)
 
         self.vao.bind()
-        glUseProgram(self.program.id)
+        prog = GetProgram('font.vert', 'font.geom', 'font.frag')
 
         viewport = glGetIntegerv( GL_VIEWPORT )
         screen_width = viewport[2]-viewport[0]
@@ -330,7 +329,7 @@ class TextRenderer:
         font = self.fonts[font_size]
         font.tex.bind()
 
-        uniforms = self.program.uniforms
+        uniforms = prog.uniforms
         uniforms.set('font_width_in_texture', font.width/font.tex_width)
         uniforms.set('font_height_in_texture', font.height/font.tex_height)
         uniforms.set('font_width_on_screen', 2*font.width/screen_width)
@@ -365,7 +364,7 @@ class TextRenderer:
         s = numpy.array(list(text.encode('ascii', 'ignore')), dtype=numpy.uint8)
         self.characters.store(s)
 
-        char_id = glGetAttribLocation(self.program.id, b'char_')
+        char_id = glGetAttribLocation(prog.id, b'char_')
         glVertexAttribIPointer(char_id, 1, GL_UNSIGNED_BYTE, 0, ctypes.c_void_p());
         glEnableVertexAttribArray( char_id )
 
@@ -594,8 +593,7 @@ class OverlayScene(SceneObject):
         points = [self.cross_shift + (self.cross_scale if i%7==3 else 0) for i in range(24)]
         self.cross_points.store(numpy.array(points, dtype=numpy.float32))
 
-        self.program = Program('cross.vert','cross.frag')
-        self.colorbar_program = Program('colorbar.vert','colorbar.frag')
+        self.program = GetProgram('cross.vert','cross.frag')
 
         self.program.attributes.bind('pos', self.cross_points)
 
@@ -633,9 +631,9 @@ class OverlayScene(SceneObject):
             self.text_renderer.draw(settings, "NGSolve " + ngsolve.__version__, [0.99,-0.99,0], alignment=QtCore.Qt.AlignRight|QtCore.Qt.AlignBottom)
 
         if self.getShowColorBar():
-            glUseProgram(self.colorbar_program.id)
+            prog = GetProgram('colorbar.vert','colorbar.frag')
             self.vao.bind()
-            uniforms = self.colorbar_program.uniforms
+            uniforms = prog.uniforms
             x0,y0 = -0.6, 0.82
             dx,dy = 1.2, 0.03
             uniforms.set('x0', x0)
@@ -699,16 +697,14 @@ class MeshScene(BaseMeshSceneObject):
         super().initGL()
 
         self.vao = VertexArray()
-        self.numbers_program = Program('filter_elements.vert', 'numbers.geom', 'font.frag')
-        self.bbnd_program = Program('filter_elements.vert', 'lines.tesc', 'lines.tese', 'mesh.frag')
 
         self.text_renderer = TextRenderer()
 
     def renderEdges(self, settings):
         self.vao.bind()
-        glUseProgram(self.bbnd_program.id)
+        prog = GetProgram('filter_elements.vert', 'lines.tesc', 'lines.tese', 'mesh.frag')
         model,view,projection = settings.model, settings.view, settings.projection
-        uniforms = self.bbnd_program.uniforms
+        uniforms = prog.uniforms
         uniforms.set('P',projection)
         uniforms.set('MV',view*model)
 
@@ -753,10 +749,10 @@ class MeshScene(BaseMeshSceneObject):
         self.vao.unbind()
 
     def renderSurface(self, settings):
-        glUseProgram(self.surface_program.id)
+        prog = GetProgram('filter_elements.vert', 'tess.tesc', 'tess.tese', 'mesh.geom', 'mesh.frag')
         self.vao.bind()
         model, view, projection = settings.model, settings.view, settings.projection
-        uniforms = self.surface_program.uniforms
+        uniforms = prog.uniforms
         uniforms.set('P',projection)
         uniforms.set('MV',view*model)
 
@@ -826,10 +822,10 @@ class MeshScene(BaseMeshSceneObject):
         self.vao.unbind()
 
     def renderNumbers(self, settings):
-        glUseProgram(self.numbers_program.id)
+        prog = GetProgram('filter_elements.vert', 'numbers.geom', 'font.frag')
         self.vao.bind()
         model, view, projection = settings.model, settings.view, settings.projection
-        uniforms = self.numbers_program.uniforms
+        uniforms = prog.uniforms
         uniforms.set('P',projection)
         uniforms.set('MV',view*model)
 
@@ -901,7 +897,6 @@ class MeshScene(BaseMeshSceneObject):
         self.bbnd_colors.store([1,0,0,1] * len(self.mesh.GetBBoundaries()),
                                data_format = GL_UNSIGNED_BYTE)
 
-        self.surface_program = Program('filter_elements.vert', 'tess.tesc', 'tess.tese', 'mesh.geom', 'mesh.frag')
         self.bc_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
         self.bc_colors.store( [0,1,0,1]*len(self.mesh.GetBoundaries()),
                               data_format=GL_UNSIGNED_BYTE )
@@ -1045,9 +1040,6 @@ class SolutionScene(BaseFunctionSceneObject):
         self.surface_values = Texture(GL_TEXTURE_BUFFER, formats[self.cf.dim])
         self.surface_values_imag = Texture(GL_TEXTURE_BUFFER, formats[self.cf.dim])
 
-        # to filter elements (eg. elements intersecting with clipping plane or iso-surface)
-        self.filter_program = Program('filter_elements.vert', 'filter_elements.geom', feedback=['element'])
-
         self.filter_buffer = ArrayBuffer()
         self.filter_buffer.bind()
         glBufferData(GL_ARRAY_BUFFER, 1000000, ctypes.c_void_p(), GL_STATIC_DRAW)
@@ -1061,24 +1053,18 @@ class SolutionScene(BaseFunctionSceneObject):
 
         # 1d solution (line)
         self.line_vao = VertexArray()
-        self.line_program = Program('solution1d.vert', 'solution1d.frag')
 
         # solution on surface mesh
         self.surface_vao = VertexArray()
-        self.surface_program = Program('filter_elements.vert', 'tess.tesc', 'tess.tese', 'solution.geom', 'solution.frag')
 
         # solution on clipping plane
         self.clipping_vao = VertexArray()
-        self.clipping_program = Program('mesh.vert', 'clipping.geom', 'solution.frag')
-        glUseProgram(self.clipping_program.id)
 
         # iso-surface
         self.iso_surface_vao = VertexArray()
-        self.iso_surface_program = Program('mesh.vert', 'isosurface.geom', 'solution.frag')
 
         # vectors (currently one per element)
         self.vector_vao = VertexArray()
-        self.vector_program = Program('mesh.vert', 'vector.geom', 'solution.frag')
         self.vector_vao.unbind()
 
     def _getValues(self, vb, setMinMax=True):
@@ -1130,8 +1116,8 @@ class SolutionScene(BaseFunctionSceneObject):
 
     def _filterElements(self, settings, filter_type):
         glEnable(GL_RASTERIZER_DISCARD)
-        glUseProgram(self.filter_program.id)
-        uniforms = self.filter_program.uniforms
+        prog = GetProgram('filter_elements.vert', 'filter_elements.geom', feedback=['element'])
+        uniforms = prog.uniforms
         uniforms.set('clipping_plane', settings.clipping_plane)
         glActiveTexture(GL_TEXTURE0)
         self.mesh_data.vertices.bind()
@@ -1173,9 +1159,9 @@ class SolutionScene(BaseFunctionSceneObject):
 
         # surface mesh
         self.line_vao.bind()
-        glUseProgram(self.line_program.id)
+        prog = GetProgram('solution1d.vert', 'solution1d.frag')
 
-        uniforms = self.line_program.uniforms
+        uniforms = prog.uniforms
         uniforms.set('P',projection)
         uniforms.set('MV',view*model)
 
@@ -1215,10 +1201,10 @@ class SolutionScene(BaseFunctionSceneObject):
         model, view, projection = settings.model, settings.view, settings.projection
 
         # surface mesh
-        glUseProgram(self.surface_program.id)
+        prog = GetProgram('filter_elements.vert', 'tess.tesc', 'tess.tese', 'solution.geom', 'solution.frag', ORDER=self.getOrder())
         self.surface_vao.bind()
 
-        uniforms = self.surface_program.uniforms
+        uniforms = prog.uniforms
         uniforms.set('P',projection)
         uniforms.set('MV',view*model)
 
@@ -1275,10 +1261,10 @@ class SolutionScene(BaseFunctionSceneObject):
     def renderIsoSurface(self, settings):
         self._filterElements(settings, 1)
         model, view, projection = settings.model, settings.view, settings.projection
-        glUseProgram(self.iso_surface_program.id)
+        prog = GetProgram('mesh.vert', 'isosurface.geom', 'solution.frag', ORDER=self.getOrder())
         self.iso_surface_vao.bind()
 
-        uniforms = self.iso_surface_program.uniforms
+        uniforms = prog.uniforms
         uniforms.set('P',projection)
         uniforms.set('MV',view*model)
         uniforms.set('colormap_min', settings.colormap_min)
@@ -1316,16 +1302,16 @@ class SolutionScene(BaseFunctionSceneObject):
 
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         instances = (self.getOrder()*(2**self.getSubdivision()))**3
-        self.iso_surface_program.attributes.bind('element', self.filter_buffer)
+        prog.attributes.bind('element', self.filter_buffer)
         glDrawTransformFeedbackInstanced(GL_POINTS, self.filter_feedback, instances)
         self.iso_surface_vao.unbind()
 
     def renderVectors(self, settings):
         model, view, projection = settings.model, settings.view, settings.projection
-        glUseProgram(self.vector_program.id)
+        prog = GetProgram('mesh.vert', 'vector.geom', 'solution.frag', ORDER=self.getOrder())
         self.vector_vao.bind()
 
-        uniforms = self.vector_program.uniforms
+        uniforms = prog.uniforms
         uniforms.set('P',projection)
         uniforms.set('MV',view*model)
         uniforms.set('colormap_min', 1e99)
@@ -1363,10 +1349,10 @@ class SolutionScene(BaseFunctionSceneObject):
     def renderClippingPlane(self, settings):
         self._filterElements(settings, 0)
         model, view, projection = settings.model, settings.view, settings.projection
-        glUseProgram(self.clipping_program.id)
+        prog = GetProgram('mesh.vert', 'clipping.geom', 'solution.frag', ORDER=self.getOrder())
         self.clipping_vao.bind()
 
-        uniforms = self.clipping_program.uniforms
+        uniforms = prog.uniforms
         uniforms.set('P',projection)
         uniforms.set('MV',view*model)
         uniforms.set('colormap_min', settings.colormap_min)
@@ -1414,7 +1400,7 @@ class SolutionScene(BaseFunctionSceneObject):
 
 
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
-        self.clipping_program.attributes.bind('element', self.filter_buffer)
+        prog.attributes.bind('element', self.filter_buffer)
         glDrawTransformFeedback(GL_POINTS, self.filter_feedback)
         self.clipping_vao.unbind()
 
@@ -1459,7 +1445,6 @@ class GeometryScene(SceneObject):
         if self.gl_initialized:
             return
         super().initGL()
-        self.program = Program('geo.vert', 'mesh.frag')
         self.colors = Texture(GL_TEXTURE_1D, GL_RGBA)
         self.vao = VertexArray()
 
@@ -1492,10 +1477,10 @@ class GeometryScene(SceneObject):
     def render(self, settings):
         if not self.active:
             return
-        glUseProgram(self.program.id)
+        prog = GetProgram('geo.vert', 'mesh.frag')
         self.vao.bind()
         model, view, projection = settings.model, settings.view, settings.projection
-        uniforms = self.program.uniforms
+        uniforms = prog.uniforms
         uniforms.set('P', projection)
         uniforms.set('MV', view*model)
 

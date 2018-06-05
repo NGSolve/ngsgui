@@ -3,6 +3,14 @@ import array
 import ctypes
 import time
 import ngsolve
+import numpy
+import pickle
+import io
+import base64
+import zlib
+import os
+import glob
+import hashlib
 
 from . import glmath, shader
 
@@ -24,23 +32,12 @@ class Shader(GLObject):
 
     includes = {}
 
-    def __init__(self, filename=None, string=None, shader_type=None):
-        import os, glob
+    def __init__(self, code=None, filename=None, shader_type=None, **replacements):
 
         shaderpath = os.path.join(os.path.dirname(__file__), 'shader')
-        if filename:
-            fullpath = os.path.join(shaderpath, filename)
-            self._code = open(fullpath,'r').read()
-        if string:
-            fullpath = ""
-            self._code = string
-
-        for incfile in glob.glob(os.path.join(shaderpath, '*.inc')):
-            Shader.includes[os.path.basename(incfile)] = open(incfile,'r').read()
-
-        for token in Shader.includes:
-            self._code = self._code.replace('{include '+token+'}', Shader.includes[token])
-
+        if code == None:
+            code = readShaderFile(filename, **replacements)
+        self._code = code
         shader_types = {
                 'vert': GL_VERTEX_SHADER,
                 'frag': GL_FRAGMENT_SHADER,
@@ -63,7 +60,39 @@ class Shader(GLObject):
             numerated_shader_code = ""
             for i,line in enumerate(self._code.split('\n')):
                 numerated_shader_code += str(i)+":\t"+line+'\n'
-            raise RuntimeError('Error when compiling ' + fullpath + ': '+glGetShaderInfoLog(self.id).decode()+'\ncompiled code:\n'+numerated_shader_code)
+            raise RuntimeError('Error when compiling ' + filename + ': '+glGetShaderInfoLog(self.id).decode()+'\ncompiled code:\n'+numerated_shader_code)
+
+def readShaderFile(filename, **replacements):
+    shaderpath = os.path.join(os.path.dirname(__file__), 'shader')
+    fullpath = os.path.join(shaderpath, filename)
+    code = open(fullpath,'r').read()
+
+    for incfile in glob.glob(os.path.join(shaderpath, '*.inc')):
+        Shader.includes[os.path.basename(incfile)] = open(incfile,'r').read()
+
+    for token in Shader.includes:
+        code = code.replace('{include '+token+'}', Shader.includes[token])
+
+    for token in replacements:
+        code = code.replace('{'+token+'}', str(replacements[token]))
+
+    return code
+
+def getProgramHash(*filenames, **replacements):
+    res = ""
+    h = hashlib.sha256()
+    for filename in sorted(filenames):
+        h.update((filename + readShaderFile(filename, **replacements)).encode('ascii'))
+    return h.hexdigest()
+
+def compileProgram(*filenames, feedback=[], **replacements ):
+    print('compiling shader', filenames, feedback, replacements)
+    shaders = []
+    for f in filenames:
+        code = readShaderFile(f, **replacements)
+        shaders.append(Shader(code, f))
+
+    return Program(shaders, feedback=feedback)
 
 class Program(GLObject):
     class Uniforms:
@@ -210,29 +239,32 @@ class Program(GLObject):
         def __contains__(self, name):
             return name.encode('ascii', 'ignore') in self.attributes
 
-    def __init__(self, *shader_files, feedback=[]):
+    def __init__(self, shaders=[], feedback=[], binary=None):
         self.locations = {}
-        self._shaders = []
-
+        self._shaders = shaders
         self._id = glCreateProgram()
-        for f in shader_files:
-            shader = Shader(f)
-            self._shaders.append(shader)
-            glAttachShader(self.id, shader.id)
 
-        if len(feedback):
+        if binary:
+            from OpenGL.arrays import GLbyteArray
+            p,format = binary
+            glProgramBinary( self.id, format, p, len(p))
+        else:
+            for shader in shaders:
+                glAttachShader(self.id, shader.id)
 
-            feedback = [ctypes.create_string_buffer(name.encode('ascii', 'ignore')) for name in feedback]
+            if len(feedback):
 
-            LP_c_char = ctypes.POINTER(ctypes.c_char)
-            LP_LP_c_char = ctypes.POINTER(LP_c_char)
+                feedback = [ctypes.create_string_buffer(name.encode('ascii', 'ignore')) for name in feedback]
 
-            buff = (LP_c_char * (len(feedback)))()
-            for i, arg in enumerate(feedback):
-                buff[i] = arg
+                LP_c_char = ctypes.POINTER(ctypes.c_char)
+                LP_LP_c_char = ctypes.POINTER(LP_c_char)
 
-            glTransformFeedbackVaryings(self.id, len(feedback), buff, GL_INTERLEAVED_ATTRIBS)
-        glLinkProgram(self.id)
+                buff = (LP_c_char * (len(feedback)))()
+                for i, arg in enumerate(feedback):
+                    buff[i] = arg
+
+                glTransformFeedbackVaryings(self.id, len(feedback), buff, GL_INTERLEAVED_ATTRIBS)
+            glLinkProgram(self.id)
 
         glValidateProgram( self.id )
         if glGetProgramiv( self.id, GL_VALIDATE_STATUS ) != GL_TRUE:
@@ -247,6 +279,49 @@ class Program(GLObject):
         self.uniforms = Program.Uniforms(self.id)
         self.attributes = Program.Attributes(self.id)
 
+def GetProgram(*shader_files, feedback=[], **replacements):
+    cache = GetProgram._cache
+
+    key = str(tuple([tuple(sorted(shader_files))]+feedback+list(zip(replacements.keys(), replacements.values()))))
+    key = key.replace('(','').replace(')','').replace(',','-').replace("'","").replace(' ','')
+
+    if key in cache:
+        prog = cache[key]
+    else:
+        # try to find on-disk cached shader
+        settings = GetProgram._settings
+        h = getProgramHash(*shader_files, **replacements)
+        if str(h) == settings.value(key+'/hash'):
+            # load program from binary blob
+            enc = settings.value(key+'/program')
+            binary = numpy.frombuffer(base64.b64decode(enc), dtype=numpy.int8)
+            binary = zlib.decompress(binary)
+            format = int(settings.value(key+'/format'))
+            prog = Program(binary=(binary,format))
+            cache[key] = prog
+        else:
+            # no cached version - recompile shader 
+            prog = compileProgram(*shader_files, feedback=feedback, **replacements )
+            cache[key] = prog
+
+            # get binary blob and store it on disk
+            size = glGetProgramiv( prog.id, GL_PROGRAM_BINARY_LENGTH )
+            result = numpy.zeros(size,dtype=numpy.uint8)
+            size2 = GLint()
+            format = GLenum()
+            res = glGetProgramBinary( prog.id, size, size2, format, result )
+            s = len(result)
+            result = zlib.compress(result)
+            enc = base64.b64encode(result).decode('ascii')
+            settings.setValue(key+'/format', str(format.value))
+            settings.setValue(key+'/program', enc)
+            settings.setValue(key+'/hash', str(h))
+
+    glUseProgram(prog.id)
+    return prog
+
+GetProgram._cache = {}
+GetProgram._settings = QtCore.QSettings('ngsolve','shaders')
 
 class VertexArray(GLObject):
     def __init__(self):
