@@ -24,6 +24,8 @@ class GLObject:
     def id(self):
         return self._id
 
+
+
 class Shader(GLObject):
     # map to fake 'include' directives like in C
     # Used for instance for generated code to evaluate shape functions:
@@ -279,8 +281,8 @@ class Program(GLObject):
         self.uniforms = Program.Uniforms(self.id)
         self.attributes = Program.Attributes(self.id)
 
-def GetProgram(*shader_files, feedback=[], **replacements):
-    cache = GetProgram._cache
+def getProgram(*shader_files, feedback=[], **replacements):
+    cache = getProgram._cache
 
     key = str(tuple([tuple(sorted(shader_files))]+feedback+list(zip(replacements.keys(), replacements.values()))))
     key = key.replace('(','').replace(')','').replace(',','-').replace("'","").replace(' ','')
@@ -289,7 +291,7 @@ def GetProgram(*shader_files, feedback=[], **replacements):
         prog = cache[key]
     else:
         # try to find on-disk cached shader
-        settings = GetProgram._settings
+        settings = getProgram._settings
         h = getProgramHash(*shader_files, **replacements)
         if str(h) == settings.value(key+'/hash'):
             # load program from binary blob
@@ -320,8 +322,8 @@ def GetProgram(*shader_files, feedback=[], **replacements):
     glUseProgram(prog.id)
     return prog
 
-GetProgram._cache = {}
-GetProgram._settings = QtCore.QSettings('ngsolve','shaders')
+getProgram._cache = {}
+getProgram._settings = QtCore.QSettings('ngsolve','shaders')
 
 class VertexArray(GLObject):
     def __init__(self):

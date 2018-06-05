@@ -9,7 +9,7 @@ import ngsolve
 # from . import glmath
 # from . import ngui
 
-from .gl import Texture, GetProgram, ArrayBuffer, VertexArray
+from .gl import Texture, getProgram, ArrayBuffer, VertexArray
 from . import widgets as wid
 from .widgets import ArrangeH, ArrangeV
 from . import glmath
@@ -320,7 +320,7 @@ class TextRenderer:
             self.addFont(font_size)
 
         self.vao.bind()
-        prog = GetProgram('font.vert', 'font.geom', 'font.frag')
+        prog = getProgram('font.vert', 'font.geom', 'font.frag')
 
         viewport = glGetIntegerv( GL_VIEWPORT )
         screen_width = viewport[2]-viewport[0]
@@ -593,7 +593,7 @@ class OverlayScene(SceneObject):
         points = [self.cross_shift + (self.cross_scale if i%7==3 else 0) for i in range(24)]
         self.cross_points.store(numpy.array(points, dtype=numpy.float32))
 
-        self.program = GetProgram('cross.vert','cross.frag')
+        self.program = getProgram('cross.vert','cross.frag')
 
         self.program.attributes.bind('pos', self.cross_points)
 
@@ -631,7 +631,7 @@ class OverlayScene(SceneObject):
             self.text_renderer.draw(settings, "NGSolve " + ngsolve.__version__, [0.99,-0.99,0], alignment=QtCore.Qt.AlignRight|QtCore.Qt.AlignBottom)
 
         if self.getShowColorBar():
-            prog = GetProgram('colorbar.vert','colorbar.frag')
+            prog = getProgram('colorbar.vert','colorbar.frag')
             self.vao.bind()
             uniforms = prog.uniforms
             x0,y0 = -0.6, 0.82
@@ -702,7 +702,7 @@ class MeshScene(BaseMeshSceneObject):
 
     def renderEdges(self, settings):
         self.vao.bind()
-        prog = GetProgram('filter_elements.vert', 'lines.tesc', 'lines.tese', 'mesh.frag')
+        prog = getProgram('filter_elements.vert', 'lines.tesc', 'lines.tese', 'mesh.frag')
         model,view,projection = settings.model, settings.view, settings.projection
         uniforms = prog.uniforms
         uniforms.set('P',projection)
@@ -749,7 +749,7 @@ class MeshScene(BaseMeshSceneObject):
         self.vao.unbind()
 
     def renderSurface(self, settings):
-        prog = GetProgram('filter_elements.vert', 'tess.tesc', 'tess.tese', 'mesh.geom', 'mesh.frag')
+        prog = getProgram('filter_elements.vert', 'tess.tesc', 'tess.tese', 'mesh.geom', 'mesh.frag')
         self.vao.bind()
         model, view, projection = settings.model, settings.view, settings.projection
         uniforms = prog.uniforms
@@ -822,7 +822,7 @@ class MeshScene(BaseMeshSceneObject):
         self.vao.unbind()
 
     def renderNumbers(self, settings):
-        prog = GetProgram('filter_elements.vert', 'numbers.geom', 'font.frag')
+        prog = getProgram('filter_elements.vert', 'numbers.geom', 'font.frag')
         self.vao.bind()
         model, view, projection = settings.model, settings.view, settings.projection
         uniforms = prog.uniforms
@@ -1116,7 +1116,7 @@ class SolutionScene(BaseFunctionSceneObject):
 
     def _filterElements(self, settings, filter_type):
         glEnable(GL_RASTERIZER_DISCARD)
-        prog = GetProgram('filter_elements.vert', 'filter_elements.geom', feedback=['element'])
+        prog = getProgram('filter_elements.vert', 'filter_elements.geom', feedback=['element'])
         uniforms = prog.uniforms
         uniforms.set('clipping_plane', settings.clipping_plane)
         glActiveTexture(GL_TEXTURE0)
@@ -1159,7 +1159,7 @@ class SolutionScene(BaseFunctionSceneObject):
 
         # surface mesh
         self.line_vao.bind()
-        prog = GetProgram('solution1d.vert', 'solution1d.frag')
+        prog = getProgram('solution1d.vert', 'solution1d.frag')
 
         uniforms = prog.uniforms
         uniforms.set('P',projection)
@@ -1201,7 +1201,7 @@ class SolutionScene(BaseFunctionSceneObject):
         model, view, projection = settings.model, settings.view, settings.projection
 
         # surface mesh
-        prog = GetProgram('filter_elements.vert', 'tess.tesc', 'tess.tese', 'solution.geom', 'solution.frag', ORDER=self.getOrder())
+        prog = getProgram('filter_elements.vert', 'tess.tesc', 'tess.tese', 'solution.geom', 'solution.frag', ORDER=self.getOrder())
         self.surface_vao.bind()
 
         uniforms = prog.uniforms
@@ -1261,7 +1261,7 @@ class SolutionScene(BaseFunctionSceneObject):
     def renderIsoSurface(self, settings):
         self._filterElements(settings, 1)
         model, view, projection = settings.model, settings.view, settings.projection
-        prog = GetProgram('mesh.vert', 'isosurface.geom', 'solution.frag', ORDER=self.getOrder())
+        prog = getProgram('mesh.vert', 'isosurface.geom', 'solution.frag', ORDER=self.getOrder())
         self.iso_surface_vao.bind()
 
         uniforms = prog.uniforms
@@ -1308,7 +1308,7 @@ class SolutionScene(BaseFunctionSceneObject):
 
     def renderVectors(self, settings):
         model, view, projection = settings.model, settings.view, settings.projection
-        prog = GetProgram('mesh.vert', 'vector.geom', 'solution.frag', ORDER=self.getOrder())
+        prog = getProgram('mesh.vert', 'vector.geom', 'solution.frag', ORDER=self.getOrder())
         self.vector_vao.bind()
 
         uniforms = prog.uniforms
@@ -1349,7 +1349,7 @@ class SolutionScene(BaseFunctionSceneObject):
     def renderClippingPlane(self, settings):
         self._filterElements(settings, 0)
         model, view, projection = settings.model, settings.view, settings.projection
-        prog = GetProgram('mesh.vert', 'clipping.geom', 'solution.frag', ORDER=self.getOrder())
+        prog = getProgram('mesh.vert', 'clipping.geom', 'solution.frag', ORDER=self.getOrder())
         self.clipping_vao.bind()
 
         uniforms = prog.uniforms
@@ -1477,7 +1477,7 @@ class GeometryScene(SceneObject):
     def render(self, settings):
         if not self.active:
             return
-        prog = GetProgram('geo.vert', 'mesh.frag')
+        prog = getProgram('geo.vert', 'mesh.frag')
         self.vao.bind()
         model, view, projection = settings.model, settings.view, settings.projection
         uniforms = prog.uniforms
