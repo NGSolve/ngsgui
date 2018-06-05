@@ -5,10 +5,7 @@ from . widgets import ArrangeV
 from .thread import inthread, inmain_decorator
 import ngui
 
-import sys
-import inspect
-import time
-import re
+import sys, textwrap, inspect, time, re
 
 from PySide2 import QtWidgets, QtCore, QtGui
 
@@ -71,9 +68,7 @@ class Receiver(QtCore.QObject):
         print("killme")
 
     def run(self):
-        while True:
-            if self.kill:
-                break
+        while not self.kill:
             self.received.emit(self.ansi_escape.sub("",os.read(self.pipe,1024).decode("ascii")))
         self.kill = False
 
@@ -173,12 +168,21 @@ def _fastmode(gui,val):
 def _noOutputpipe(gui,val):
     gui.pipeOutput = not val
 
+def _showHelp(gui, val):
+    if val:
+        print("Available flags:")
+        for flag, tup in gui.flags.items():
+            print(flag)
+            print(textwrap.indent(tup[1],"  "))
+        quit()
+
 import ngsolve
 class GUI():
     # functions to modify the gui with flags. If the flag is not set, the function is called with False as argument
-    flags = { "-noexec" : _noexec,
-              "-fastmode" : _fastmode,
-              "-noOutputpipe" : _noOutputpipe}
+    flags = { "-noexec" : (_noexec, "Do not execute loaded Python file on startup"),
+              "-fastmode" : (_fastmode, "Use fastmode for drawing large scenes faster"),
+              "-noOutputpipe" : (_noOutputpipe, "Do not pipe the std output to the output window in the gui"),
+              "-help" : (_showHelp, "Show this help function")}
     def __init__(self):
         self.app = QtWidgets.QApplication([])
         ngui.SetLocale()
@@ -263,11 +267,11 @@ class GUI():
 
     def parseFlags(self, flags):
         flag = {val.split("=")[0] : (val.split("=")[1] if len(val.split("="))>1 else True) for val in flags}
-        for key, func in self.flags.items():
+        for key, tup in self.flags.items():
             if key in flag:
-                func(self,flag[key])
+                tup[0](self,flag[key])
             else:
-                func(self, False)
+                tup[0](self, False)
 
     @inmain_decorator(wait_for_return=False)
     def update_setting_area(self):
