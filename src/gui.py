@@ -373,8 +373,9 @@ class GUI():
         do_after_run()
         import time
         def onQuit():
-            receiver.SetKill()
-            self.stdoutThread.exit()
+            if self.pipeOutput:
+                receiver.SetKill()
+                self.stdoutThread.exit()
         self.app.aboutToQuit.connect(onQuit)
         sys.exit(self.app.exec_())
 
