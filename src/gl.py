@@ -83,12 +83,14 @@ def readShaderFile(filename, **replacements):
 def getProgramHash(*filenames, **replacements):
     res = ""
     h = hashlib.sha256()
+    h.update(glGetString(GL_VENDOR))
+    h.update(glGetString(GL_VERSION))
+    h.update(glGetString(GL_RENDERER))
     for filename in sorted(filenames):
         h.update((filename + readShaderFile(filename, **replacements)).encode('ascii'))
     return h.hexdigest()
 
 def compileProgram(*filenames, feedback=[], **replacements ):
-    print('compiling shader', filenames, feedback, replacements)
     shaders = []
     for f in filenames:
         code = readShaderFile(f, **replacements)
