@@ -64,10 +64,18 @@ class Receiver(QtCore.QObject):
         super().__init__(*args,**kwargs)
         self.pipe = pipe
         self.ansi_escape = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
+        self.kill = False
+
+    def SetKill(self):
+        self.kill = True
+        print("killme")
 
     def run(self):
         while True:
+            if self.kill:
+                break
             self.received.emit(self.ansi_escape.sub("",os.read(self.pipe,1024).decode("ascii")))
+        self.kill = False
 
 class OutputBuffer(QtWidgets.QTextEdit):
     def __init__(self,*args,**kwargs):
@@ -359,7 +367,12 @@ class GUI():
             self.stdoutThread.started.connect(receiver.run)
             self.stdoutThread.start()
         do_after_run()
-        self.app.exec_()
+        import time
+        def onQuit():
+            receiver.SetKill()
+            self.stdoutThread.exit()
+        self.app.aboutToQuit.connect(onQuit)
+        sys.exit(self.app.exec_())
 
     def setFastMode(self, fastmode):
         self.fastmode = fastmode
