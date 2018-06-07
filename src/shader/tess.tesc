@@ -22,8 +22,9 @@ out VertexData
 void main()
 {
     outData[gl_InvocationID].element = inData[0].element;
-    float level=0;
+    float level=1;
 
+    /*
     if(mesh.dim== 1) {
       Element1d el = getElement1d(mesh, inData[0].element);
       level = el.curved_index>=0 ? TessLevel : 1;
@@ -53,6 +54,7 @@ void main()
               level = 0;
       }
     }
+    */
 
 
     if (gl_InvocationID == 0) {

@@ -3,7 +3,7 @@ from . import glwindow
 from . import code_editor
 from . widgets import ArrangeV
 from .thread import inthread, inmain_decorator
-import ngui
+from . import ngui
 
 import sys, textwrap, inspect, time, re
 

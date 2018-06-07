@@ -2,8 +2,9 @@ from ngsolve import *
 from netgen.geom2d import unit_square
 from netgen.csg import *
 import ngsolve.gui as GUI
+from ngsolve.gui.ngui import *
 
-ngsglobals.msg_level = 7
+ngsglobals.msg_level = 0
 nrefinements = 2
 
 def MakeGeometry():
@@ -26,44 +27,53 @@ def MakeGeometry():
 
 
 mesh = Mesh(unit_cube.GenerateMesh(maxh=0.2))
+Draw(mesh)
+# verts,els = GetMeshData2(mesh)
+# for b in els:
+#     for c in els[b]:
+#         if len(c.data):
+#             print(c.type, c.size, c.curved, len(c.data)//c.size)
+#     print(b.type, b.size, b.curved)
+# print(b.data)
+
 # ngmesh = MakeGeometry().GenerateMesh(maxh=0.3)
 # mesh = Mesh(ngmesh)
-for i in range(nrefinements):
-    print('refine')
-    mesh.Refine()
-
-# mesh.Curve(2)
-print(mesh.ne,'elements')
-# Draw(mesh)
-
-n = 5
-cf = cos(n*x)*cos(n*y)*cos(n*z)
-cf = x+1j*y
-# cf = (x-0.5)**2+(y-0.5)**2+(z-0.5)**2
-
-# gui = GUI.GUI()
-# scene = GUI.SolutionScene(cf, mesh,name="Solution")
-# scene1 = GUI.MeshScene(mesh,name="Mesh", wireframe=True, elements=False, surface=True)
-# scene2 = GUI.MeshScene(mesh,surface=False, wireframe=False, elements=True, name="Elements")
-# gui.draw(scene)
-# gui.draw(scene1)
-# # gui.draw(scene2)
-# win1 = gui.make_window()
-# win1.draw(scene2)
-# gui.run()
-
-# scene1 = GUI.MeshScene(mesh,name="Mesh")
-# scene2 = GUI.MeshScene(mesh,surface=False, wireframe=False, elements=True, name="Elements")
-# win1 = gui.make_window(console=locals())
-# win1.draw(scene)
-# win2 = gui.make_window()
-# win1.draw(scene1)
-# win2.draw(scene2)
-# gui.run()
-
-
-
-# scene1 = GUI.MeshScene(mesh)
-# gui.draw(scene1)
-# gui.run()
-Draw(cf, mesh,'sldkf')
+# for i in range(nrefinements):
+#     print('refine')
+#     mesh.Refine()
+# 
+# # mesh.Curve(2)
+# print(mesh.ne,'elements')
+# # Draw(mesh)
+# 
+# n = 5
+# cf = cos(n*x)*cos(n*y)*cos(n*z)
+# cf = x+1j*y
+# # cf = (x-0.5)**2+(y-0.5)**2+(z-0.5)**2
+# 
+# # gui = GUI.GUI()
+# # scene = GUI.SolutionScene(cf, mesh,name="Solution")
+# # scene1 = GUI.MeshScene(mesh,name="Mesh", wireframe=True, elements=False, surface=True)
+# # scene2 = GUI.MeshScene(mesh,surface=False, wireframe=False, elements=True, name="Elements")
+# # gui.draw(scene)
+# # gui.draw(scene1)
+# # # gui.draw(scene2)
+# # win1 = gui.make_window()
+# # win1.draw(scene2)
+# # gui.run()
+# 
+# # scene1 = GUI.MeshScene(mesh,name="Mesh")
+# # scene2 = GUI.MeshScene(mesh,surface=False, wireframe=False, elements=True, name="Elements")
+# # win1 = gui.make_window(console=locals())
+# # win1.draw(scene)
+# # win2 = gui.make_window()
+# # win1.draw(scene1)
+# # win2.draw(scene2)
+# # gui.run()
+# 
+# 
+# 
+# # scene1 = GUI.MeshScene(mesh)
+# # gui.draw(scene1)
+# # gui.run()
+# Draw(cf, mesh,'sldkf')

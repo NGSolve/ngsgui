@@ -121,7 +121,7 @@ class RenderingParameters:
 
     @property
     def projection(self):
-        return glmath.Perspective(0.8, self.ratio, .1, 20.)
+        return glmath.Perspective(0.8, self.ratio, .1, 20)
 
     @property
     def clipping_plane(self):

@@ -4,7 +4,7 @@
 # from . import widgets
 import ngsolve
 # from .gl import *
-# import numpy
+import numpy
 # import time
 # from . import glmath
 # from . import ngui
@@ -216,6 +216,17 @@ class CMeshData:
 
         self.min = meshdata['min']
         self.max = meshdata['max']
+
+
+        new_els = {}
+        verts,new_els = ngui.GetMeshData2(self.mesh())
+        self.vertices.store(verts)
+        for vb in new_els:
+            for ei in new_els[vb]:
+                ei.tex = Texture(GL_TEXTURE_BUFFER, GL_R32I)
+                ei.tex.store(numpy.array(ei.data, dtype=numpy.int32))
+        self.new_els = new_els
+
 
 def MeshData(mesh):
     """Helper function to avoid redundant copies of the same mesh on the GPU."""
@@ -733,8 +744,14 @@ class MeshScene(BaseMeshSceneObject):
         uniforms.set('TessLevel', self.getGeomSubdivision())
         uniforms.set('wireframe', True)
         if self.getShowEdges():
+#             glEnable( GL_LINE_SMOOTH );
+#             glEnable( GL_BLEND );
+#             glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
+#             glPolygonOffset (-1.0, -1.0)
+#             glEnable(GL_POLYGON_OFFSET_LINE)
             glPatchParameteri(GL_PATCH_VERTICES, 1)
             glDrawArrays(GL_PATCHES, 0, self.mesh_data.nedges)
+            glDisable(GL_POLYGON_OFFSET_LINE)
         if self.getShowEdgeElements():
             glLineWidth(3)
             glPatchParameteri(GL_PATCH_VERTICES, 1)
@@ -782,6 +799,11 @@ class MeshScene(BaseMeshSceneObject):
 
 
         if self.getShowSurface():
+            print('draw')
+            glActiveTexture(GL_TEXTURE1)
+            els = self.mesh_data.new_els[ngsolve.BND][0]
+            els.tex.bind()
+            uniforms.set('mesh.elements', 1)
             uniforms.set('light_ambient', 0.3)
             uniforms.set('light_diffuse', 0.7)
             uniforms.set('TessLevel', self.getGeomSubdivision())
@@ -790,7 +812,7 @@ class MeshScene(BaseMeshSceneObject):
             glPolygonOffset (2, 2)
             glEnable(GL_POLYGON_OFFSET_FILL)
             glPatchParameteri(GL_PATCH_VERTICES, 1)
-            glDrawArrays(GL_PATCHES, 0, self.mesh_data.nsurface_elements)
+            glDrawArrays(GL_PATCHES, 0, len(els.data)//els.size)
             glDisable(GL_POLYGON_OFFSET_FILL)
 
         if self.getShowWireframe():
@@ -798,8 +820,11 @@ class MeshScene(BaseMeshSceneObject):
             uniforms.set('light_diffuse', 0.0)
             uniforms.set('TessLevel', self.getGeomSubdivision())
             uniforms.set('wireframe', True)
+#             glEnable( GL_LINE_SMOOTH );
+#             glEnable( GL_BLEND );
+#             glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
             glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
-            glPolygonOffset (1, 1)
+            glPolygonOffset (0, 0)
             glEnable(GL_POLYGON_OFFSET_LINE)
             glPatchParameteri(GL_PATCH_VERTICES, 1)
             glDrawArrays(GL_PATCHES, 0, self.mesh_data.nsurface_elements)

@@ -66,7 +66,21 @@ void AddPoint( int face_index, vec3 lam, Element3d tet, Element2d trig, vec3 cen
 
 
 void main() {
+        Element2d el;
+        int size = 5;
+        int offset = inData[0].element*size;
 
+        el.index = texelFetch(mesh.elements, offset +1).r;
+        for (int i=0; i<3; i++) {
+            el.vertices[i] = texelFetch(mesh.elements, size*inData[0].element+i+2).r;
+            el.pos[i] = texelFetch(mesh.vertices, el.vertices[i]).xyz;
+        }
+        el.nverts = 3;
+        calcNormals(el);
+        AddTrig(el, 0,1,2, 0);
+
+
+    /*
     if(mesh.dim==2) {
         Element2d el = getElement2d(mesh, inData[0].element);
         AddTrig(el, 0,1,2, 0);
@@ -85,5 +99,6 @@ void main() {
             EndPrimitive();
         }
     }
+    */
 
 }
