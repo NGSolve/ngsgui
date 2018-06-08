@@ -765,8 +765,7 @@ class MeshScene(BaseMeshSceneObject):
 
         self.vao.unbind()
 
-    def renderSurface(self, settings):
-        prog = getProgram('filter_elements.vert', 'tess.tesc', 'tess.tese', 'mesh.geom', 'mesh.frag')
+    def _setSurfaceUniforms(self, settings, prog):
         self.vao.bind()
         model, view, projection = settings.model, settings.view, settings.projection
         uniforms = prog.uniforms
@@ -776,12 +775,6 @@ class MeshScene(BaseMeshSceneObject):
         glActiveTexture(GL_TEXTURE0)
         self.mesh_data.vertices.bind()
         uniforms.set('mesh.vertices', 0)
-
-        glActiveTexture(GL_TEXTURE1)
-        self.mesh_data.elements.bind()
-        uniforms.set('mesh.elements', 1)
-
-
         uniforms.set('clipping_plane', settings.clipping_plane)
         uniforms.set('do_clipping', True);
         uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
@@ -797,38 +790,106 @@ class MeshScene(BaseMeshSceneObject):
             self.tex_mat_color.bind()
         uniforms.set('colors', 3)
 
+    def renderSurface(self, settings):
+#         prog = getProgram('filter_elements.vert', 'tess.tesc', 'tess.tese', 'mesh.geom', 'mesh.frag')
+#         self.vao.bind()
+#         model, view, projection = settings.model, settings.view, settings.projection
+#         uniforms = prog.uniforms
+#         uniforms.set('P',projection)
+#         uniforms.set('MV',view*model)
+# 
+#         glActiveTexture(GL_TEXTURE0)
+#         self.mesh_data.vertices.bind()
+#         uniforms.set('mesh.vertices', 0)
+# 
+#         glActiveTexture(GL_TEXTURE1)
+#         self.mesh_data.elements.bind()
+#         uniforms.set('mesh.elements', 1)
+# 
+# 
+#         uniforms.set('clipping_plane', settings.clipping_plane)
+#         uniforms.set('do_clipping', True);
+#         uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
+#         uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
+#         uniforms.set('mesh.surface_elements_offset', self.mesh_data.surface_elements_offset)
+#         uniforms.set('mesh.dim', 2);
+#         uniforms.set('shrink_elements', self.getShrink())
+#         uniforms.set('clip_whole_elements', False)
+#         glActiveTexture(GL_TEXTURE3)
+#         if self.mesh.dim == 3:
+#             self.bc_colors.bind()
+#         elif self.mesh.dim == 2:
+#             self.tex_mat_color.bind()
+#         uniforms.set('colors', 3)
 
+
+        dims = {
+                ngsolve.ET.SEGM: 1,
+                ngsolve.ET.TRIG: 2,
+                ngsolve.ET.QUAD: 2,
+                ngsolve.ET.TET: 3,
+                ngsolve.ET.PYRAMID: 3,
+                ngsolve.ET.PRISM: 3,
+                ngsolve.ET.HEX: 3
+                }
+        nverts = {
+                ngsolve.ET.SEGM: 2,
+                ngsolve.ET.TRIG: 3,
+                ngsolve.ET.QUAD: 4,
+                ngsolve.ET.TET: 4,
+                ngsolve.ET.PYRAMID: 5,
+                ngsolve.ET.PRISM: 6,
+                ngsolve.ET.HEX: 8
+                }
+        shader_args = lambda els : {
+                'ELEMENT_TYPE':str(els.type)[3:],
+                'ELEMENT_SIZE':str(els.size),
+                'ELEMENT_N_VERTICES':nverts[els.type],
+                'DIM':dims[els.type],
+                'CURVED':str(els.curved).lower(),
+                'ORDER':1,
+                'ELEMENT_TYPE_NAME':str(els.type).replace('.','_')
+                }
         if self.getShowSurface():
             print('draw')
-            glActiveTexture(GL_TEXTURE1)
-            els = self.mesh_data.new_els[ngsolve.BND][0]
-            els.tex.bind()
-            uniforms.set('mesh.elements', 1)
-            uniforms.set('light_ambient', 0.3)
-            uniforms.set('light_diffuse', 0.7)
-            uniforms.set('TessLevel', self.getGeomSubdivision())
-            uniforms.set('wireframe', False)
-            glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
-            glPolygonOffset (2, 2)
-            glEnable(GL_POLYGON_OFFSET_FILL)
-            glPatchParameteri(GL_PATCH_VERTICES, 1)
-            glDrawArrays(GL_PATCHES, 0, len(els.data)//els.size)
-            glDisable(GL_POLYGON_OFFSET_FILL)
+            for els in self.mesh_data.new_els[ngsolve.BND]:
+                prog = getProgram('filter_elements.vert', 'tess.tesc', 'tess.tese', 'mesh.geom', 'mesh.frag', **shader_args(els))
+                print(els.type, int(els.type))
+                uniforms = prog.uniforms
+                self._setSurfaceUniforms(settings, prog)
+                glActiveTexture(GL_TEXTURE1)
+                uniforms.set('mesh.elements', 1)
+                uniforms.set('light_ambient', 0.3)
+                uniforms.set('light_diffuse', 0.7)
+                uniforms.set('TessLevel', self.getGeomSubdivision())
+                uniforms.set('wireframe', False)
+                glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
+                glPolygonOffset (2, 2)
+                glEnable(GL_POLYGON_OFFSET_FILL)
+                glPatchParameteri(GL_PATCH_VERTICES, 1)
+                els.tex.bind()
+                glDrawArrays(GL_PATCHES, 0, len(els.data)//els.size)
+                glDisable(GL_POLYGON_OFFSET_FILL)
 
         if self.getShowWireframe():
-            uniforms.set('light_ambient', 0.0)
-            uniforms.set('light_diffuse', 0.0)
-            uniforms.set('TessLevel', self.getGeomSubdivision())
-            uniforms.set('wireframe', True)
-#             glEnable( GL_LINE_SMOOTH );
-#             glEnable( GL_BLEND );
-#             glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
-            glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
-            glPolygonOffset (0, 0)
-            glEnable(GL_POLYGON_OFFSET_LINE)
-            glPatchParameteri(GL_PATCH_VERTICES, 1)
-            glDrawArrays(GL_PATCHES, 0, self.mesh_data.nsurface_elements)
-            glDisable(GL_POLYGON_OFFSET_LINE)
+            for els in self.mesh_data.new_els[ngsolve.BND]:
+                prog = getProgram('filter_elements.vert', 'tess.tesc', 'tess.tese', 'mesh.geom', 'mesh.frag', **shader_args(els))
+                print(els.type, int(els.type))
+                uniforms = prog.uniforms
+                self._setSurfaceUniforms(settings, prog)
+                glActiveTexture(GL_TEXTURE1)
+                uniforms.set('light_ambient', 0.0)
+                uniforms.set('light_diffuse', 0.0)
+                uniforms.set('TessLevel', 1)
+                uniforms.set('wireframe', True)
+                glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
+                glPolygonOffset (0, 0)
+                glEnable(GL_POLYGON_OFFSET_LINE)
+                glPatchParameteri(GL_PATCH_VERTICES, 1)
+                els.tex.bind()
+                print(len(els.data)//els.size, els.size)
+                glDrawArrays(GL_PATCHES, 0, len(els.data)//els.size)
+                glDisable(GL_POLYGON_OFFSET_LINE)
 
         if self.getShowElements():
             uniforms.set('clip_whole_elements', True)

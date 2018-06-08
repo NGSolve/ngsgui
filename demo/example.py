@@ -27,12 +27,12 @@ def MakeGeometry():
 
 
 mesh = Mesh(unit_cube.GenerateMesh(maxh=0.2))
-Draw(mesh)
-# verts,els = GetMeshData2(mesh)
-# for b in els:
-#     for c in els[b]:
-#         if len(c.data):
-#             print(c.type, c.size, c.curved, len(c.data)//c.size)
+# Draw(mesh)
+verts,els = GetMeshData2(mesh)
+for b in els:
+    for c in els[b]:
+        if len(c.data):
+            print(c.type, c.size, c.curved, len(c.data)//c.size)
 #     print(b.type, b.size, b.curved)
 # print(b.data)
 
