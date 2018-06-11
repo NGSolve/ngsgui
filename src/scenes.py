@@ -999,7 +999,7 @@ class SolutionScene(BaseFunctionSceneObject):
             addOption(self, "Show", "ShowIsoSurface", typ=bool, default_value=False)
 
         if cf.dim > 1:
-            addOption(self, "Show", "Component", label="Component", typ=int, default_value=0)
+            addOption(self, "Show", "Component", label="Component", typ=int, default_value=0, min=0, max=cf.dim-1)
             addOption(self, "Show", "ShowVectors", typ=bool, default_value=False)
 
         if self.cf.is_complex:
