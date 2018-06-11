@@ -166,7 +166,7 @@ PYBIND11_MODULE(ngui, m) {
             Array<float> min(ncomps);
             Array<float> max(ncomps);
             min = std::numeric_limits<float>::max();
-            max = std::numeric_limits<float>::min();
+            max = std::numeric_limits<float>::lowest();
 
             IntegrationRule ir = GetReferenceRule( dim, order, subdivision );
             SIMD_IntegrationRule simd_ir(ir);
@@ -495,9 +495,9 @@ PYBIND11_MODULE(ngui, m) {
             Array<float> min = {std::numeric_limits<float>::max(),
                                      std::numeric_limits<float>::max(),
                                      std::numeric_limits<float>::max()};
-            Array<float> max = {std::numeric_limits<float>::min(),
-                                     std::numeric_limits<float>::min(),
-                                     std::numeric_limits<float>::min()};
+            Array<float> max = {std::numeric_limits<float>::lowest(),
+                                     std::numeric_limits<float>::lowest(),
+                                     std::numeric_limits<float>::lowest()};
             Array<string> surfnames;
 
             auto csg_geo = dynamic_pointer_cast<netgen::CSGeometry>(geo);
