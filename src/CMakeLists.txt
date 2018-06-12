@@ -1,8 +1,7 @@
 add_ngsolve_python_module(ngui gui.cpp)
-install(TARGETS ngui DESTINATION .)
 target_link_libraries(ngui ngcomp)
 
-install(TARGETS ngui DESTINATION ngsolve/gui)
+install(TARGETS ngui DESTINATION ${NGSOLVE_INSTALL_DIR_PYTHON}/ngsolve/gui)
 
 add_subdirectory(icons)
 
