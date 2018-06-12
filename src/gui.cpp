@@ -124,10 +124,15 @@ void GetValues( const CoefficientFunction &cf, LocalHeap &lh, const TMIR &mir, F
                 ExtractRealImag( values(i, k/n), k%n, vreal, vimag );
                 auto index = getIndex(k,i);
                 values_real[index] = vreal;
-                if(is_complex)
+                if(is_complex) {
                   values_imag[index] = vimag;
-                min[i] = min2(min[i], sqrt(vreal*vreal+vimag+vimag));
-                max[i] = max2(max[i], sqrt(vreal*vreal+vimag+vimag));
+                  min[i] = min2(min[i], sqrt(vreal*vreal+vimag+vimag));
+                  max[i] = max2(max[i], sqrt(vreal*vreal+vimag+vimag));
+                }
+                else {
+                  min[i] = min2(min[i], vreal);
+                  max[i] = max2(max[i], vreal);
+                }
             }
         }
     }
@@ -142,10 +147,15 @@ void GetValues( const CoefficientFunction &cf, LocalHeap &lh, const TMIR &mir, F
                 ExtractRealImag( values(k,i), 0, vreal, vimag );
                 auto index = getIndex(k,i);
                 values_real[index] = vreal;
-                if(is_complex)
+                if(is_complex) {
                   values_imag[index] = vimag;
-                min[i] = min2(min[i], sqrt(vreal*vreal+vimag+vimag));
-                max[i] = max2(max[i], sqrt(vreal*vreal+vimag+vimag));
+                  min[i] = min2(min[i], sqrt(vreal*vreal+vimag+vimag));
+                  max[i] = max2(max[i], sqrt(vreal*vreal+vimag+vimag));
+                }
+                else {
+                  min[i] = min2(min[i], vreal);
+                  max[i] = max2(max[i], vreal);
+                }
             }
         }
     }
