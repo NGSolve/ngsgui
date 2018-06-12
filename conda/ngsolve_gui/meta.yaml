@@ -11,6 +11,8 @@ requirements:
     - python 3*
     - pyside2
     - ngsolve 6.2
+    - pyopengl
+    - numpy
 
 source:
   git_url: ../../
