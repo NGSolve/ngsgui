@@ -13,7 +13,7 @@ requirements:
     - ngsolve 6.2
 
 source:
-  git_url: git@data.asc.tuwien.ac.at:matthias/netgen_new_visualization.git
+  git_url: ../../
 
 about:
   home: https://ngsolve.org
