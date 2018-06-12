@@ -10,8 +10,8 @@ configure_file(glwindow.py.in glwindow.py @ONLY)
 
 install(FILES __init__.py gl.py gui.py ${CMAKE_CURRENT_BINARY_DIR}/glwindow.py plugin.py
   settings.py widgets.py glmath.py
-  scenes.py thread.py DESTINATION ngsolve/gui)
+  scenes.py thread.py DESTINATION ${NGSOLVE_INSTALL_DIR_PYTHON}/ngsolve/gui)
 
-install(PROGRAMS ngsolve DESTINATION ../../../bin)
+install(PROGRAMS ngsolve DESTINATION ${NGSOLVE_INSTALL_DIR_BIN})
 add_subdirectory(shader)
 add_subdirectory(code_editor)
