@@ -281,13 +281,14 @@ class GUI():
             self.toolbox_splitter.setSizes([15000, 85000])
 
     @inmain_decorator(wait_for_return=True)
-    def make_window(self):
+    def make_window(self, name=None):
         self.activeGLWindow = window = glwindow.WindowTab(shared=self.common_context)
         if self.fastmode:
             window.glWidget.rendering_parameters.fastmode = True
         if self.common_context is None:
             self.common_context = window.glWidget
-        self.window_tabber.addTab(window,"window" + str(self.window_tabber.count() + 1))
+        name = name or "window" + str(self.window_tabber.count() + 1)
+        self.window_tabber.addTab(window,name)
         self.window_tabber.setCurrentWidget(window)
         return window
 
@@ -327,6 +328,21 @@ class GUI():
 
     @inmain_decorator(wait_for_return=True)
     def draw(self, *args, **kwargs):
+        if 'tab' in kwargs:
+            tab_found = False
+            tab = kwargs['tab']
+            del kwargs['tab']
+            for i in range(self.window_tabber.count()):
+                if self.window_tabber.tabText(i) == tab:
+                    # tab already exists -> activate it
+                    tab_found = True
+                    wid = self.window_tabber.widget(i)
+                    self.activeGLWindow = wid
+                    self.window_tabber.setCurrentWidget(wid)
+            if not tab_found:
+                # create new tab with given name
+                self.make_window(name=tab)
+
         self.getActiveGLWindow().draw(*args,**kwargs)
 
     @inmain_decorator(wait_for_return=False)

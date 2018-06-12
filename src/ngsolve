@@ -7,7 +7,7 @@ import ngsolve as ngs
 from ngsolve.gui.thread import inmain_decorator
 import netgen.meshing
 
-def Draw(obj, mesh=None, name=None, **kwargs):
+def Draw(obj, mesh=None, name=None, tab=None, **kwargs):
     """Draw a Mesh or a CoefficientFunction, this function is overridden by
     the new gui and returns the drawn scene."""
     scene = None
@@ -27,7 +27,7 @@ def Draw(obj, mesh=None, name=None, **kwargs):
     if isinstance(obj, G.scenes.SceneObject):
         scene = obj
     if scene:
-        G.gui.draw(scene)
+        G.gui.draw(scene, tab=tab)
         return scene
     print("Cannot draw object of type ",type(obj))
 
