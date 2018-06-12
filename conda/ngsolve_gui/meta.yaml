@@ -1,0 +1,21 @@
+package:
+  name: ngsolve_gui
+  version: 6.2
+
+requirements:
+  build:
+    - python 3*
+    - ngsolve 6.2
+    - cmake
+  run:
+    - python 3*
+    - pyside2
+    - ngsolve 6.2
+
+source:
+  git_url: git@data.asc.tuwien.ac.at:matthias/netgen_new_visualization.git
+
+about:
+  home: https://ngsolve.org
+  license: LGPL
+  summary: "Visualization for NGSolve"
