@@ -4,7 +4,7 @@
 # from . import widgets
 import ngsolve
 # from .gl import *
-# import numpy
+import numpy
 # import time
 # from . import glmath
 # from . import ngui
@@ -16,243 +16,10 @@ from . import glmath
 from . import ngui
 import math, cmath
 from .thread import inmain_decorator
+from .gl_interface import getOpenGLData
 
 from PySide2 import QtWidgets, QtCore, QtGui
 from OpenGL.GL import *
-class WidgetWithLabel(QtWidgets.QWidget):
-    def __init__(self, widget, label=None):
-        super().__init__()
-        self._value_widget = widget
-
-        if label==None:
-            l = ArrangeV(widget) 
-            l.setMargin(0)
-            self.setLayout(l)
-        else:
-            l= QtWidgets.QLabel(label)
-            lay = ArrangeH( l, widget )
-            lay.setMargin(0)
-            self.setLayout(lay)
-
-    def setValue(self, value):
-        if isinstance(self._value_widget, QtWidgets.QCheckBox):
-            self._value_widget.setCheckState(QtCore.Qt.Checked if value else QtCore.Qt.Unchecked)
-        elif isinstance(self._value_widget, QtWidgets.QComboBox):
-            self._value_widget.setCurrentIndex(value)
-        else:
-            self._value_widget.setValue(value)
-
-def addOption(self, group, name, default_value, typ=None, update_on_change=False, update_widget_on_change=False, widget_type=None, label=None, values=None, on_change=None, *args, **kwargs):
-    if not group in self._widgets:
-        self._widgets[group] = {}
-
-    label = label or name
-    propname = "_"+name
-    widgetname = "_"+name+"Widget"
-    setter_name = "set"+name
-
-    setattr(self, propname, default_value) 
-
-    if typ==None and widget_type==None:
-        typ = type(default_value)
-
-    if typ is list:
-        w = QtWidgets.QComboBox()
-        assert type(values) is list
-        w.addItems(values)
-        w.currentIndexChanged[int].connect(lambda index: getattr(self,setter_name)(index))
-        self._widgets[group][name] = WidgetWithLabel(w,label)
-
-    elif widget_type:
-        w = widget_type(*args, **kwargs)
-        w.setValue(default_value)
-        self._widgets[group][name] = w
-
-    elif typ==bool:
-        w = QtWidgets.QCheckBox(label)
-        w.setCheckState(QtCore.Qt.Checked if default_value else QtCore.Qt.Unchecked)
-        if on_change:
-            w.stateChanged.connect(on_change)
-        w.stateChanged.connect(lambda value: getattr(self, setter_name)(bool(value)))
-        self._widgets[group][name] = WidgetWithLabel(w)
-
-    elif typ==int:
-        w = QtWidgets.QSpinBox()
-        w.setValue(default_value)
-        w.valueChanged[int].connect(lambda value: getattr(self, setter_name)(value))
-        if "min" in kwargs:
-            w.setMinimum(kwargs["min"])
-        if "max" in kwargs:
-            w.setMaximum(kwargs["max"])
-        self._widgets[group][name] = WidgetWithLabel(w,label)
-
-    elif typ==float:
-        w = wid.ScienceSpinBox()
-        w.setRange(-1e99, 1e99)
-        w.setValue(default_value)
-        w.valueChanged[float].connect(lambda value: getattr(self, setter_name)(value))
-        if "min" in kwargs:
-            w.setMinimum(kwargs["min"])
-        if "max" in kwargs:
-            w.setMaximum(kwargs["max"])
-        if "step" in kwargs:
-            w.setSingleStep(kwargs["step"])
-            w.lastWheelStep = kwargs["step"]
-        self._widgets[group][name] = WidgetWithLabel(w, label)
-
-    elif typ=="button":
-        def doAction(self, redraw=True):
-            getattr(self,default_value)(*args, **kwargs)
-            if update_on_change:
-                self.update()
-            if redraw:
-                self.widgets.updateGLSignal.emit()
-
-        cls = type(self)
-
-        if not hasattr(cls, name):
-            setattr(cls, name, doAction)
-
-        w = wid.Button(label, getattr(self, name))
-        self._widgets[group][name] = w
-
-    else:
-        raise RuntimeError("unknown type: ", typ)
-
-    if typ!='button':
-        def getValue(self):
-            return getattr(self, propname)
-
-        def setValue(self, value, redraw=True, update_gui=True):
-            if getattr(self, propname) == value:
-                return
-
-            setattr(self, propname, value) 
-            
-            if update_widget_on_change:
-                self.updateWidgets()
-            if redraw:
-                if update_on_change:
-                    self.update()
-                self.widgets.updateGLSignal.emit()
-                
-            if update_gui:
-                widget = self._widgets[group][name]
-                widget.setValue(value)
-
-        cls = type(self)
-
-        if not hasattr(cls, setter_name):
-            setattr(cls, setter_name, setValue)
-        if not hasattr(cls, 'get'+name):
-            setattr(cls, 'get'+name, getValue)
-    return self._widgets[group][name]
-
-import ngsolve
-import numpy
-import ctypes
-
-
-class CMeshData:
-    """Helper class to avoid redundant copies of the same mesh on the GPU."""
-
-    """
-    Vertex data:
-        vec3 pos
-
-    Surface elements:
-        int v0,v1,v2;
-        int curved_id; // to fetch curved element data, negative if element is not curved
-
-    Surface curved elements:
-        vec3 pos[3];     // Additional points for P2 interpolation
-        vec3 normal[3];  // Normals for outer vertices
-
-    Volume elements:
-        int v0,v1,v2,v3;
-        int curved_id; // to fetch curved element data, negative if element is not curved
-
-    Volume curved elements:
-        vec3 pos[6]; // Additional points for p2 interpolation
-
-    Solution data (volume or surface):
-        float values[N];   // N depends on order, subdivision
-        vec3 gradients[N]; // N depends on order, subdivision
-
-    """
-
-    def __init__(self, mesh):
-        import weakref
-        self.mesh = weakref.ref(mesh)
-        self.elements = Texture(GL_TEXTURE_BUFFER, GL_R32I)
-        self.vertices = Texture(GL_TEXTURE_BUFFER, GL_RGB32F)
-        mesh._opengl_data = self
-        self.timestamp = self.mesh().ngmesh._timestamp
-        self.update()
-
-    def check_timestamp(self):
-        if self.timestamp != self.mesh().ngmesh._timestamp:
-            self.timestamp = self.mesh().ngmesh._timestamp
-            self.mesh()._updateBuffers()
-            print("do update")
-            self.update()
-        return self
-
-    @inmain_decorator(True)
-    def update(self):
-        meshdata = ngui.GetMeshData(self.mesh())
-
-        self.vertices.store(meshdata['vertices'])
-        self.elements.store(meshdata["elements"])
-        self.nedge_elements = meshdata["n_edge_elements"]
-        self.nedges = meshdata["n_edges"]
-        self.nperiodic_vertices = meshdata["n_periodic_vertices"]
-
-        self.edges_offset = meshdata["edges_offset"]
-        self.periodic_vertices_offset = meshdata["periodic_vertices_offset"]
-        self.nsurface_elements = meshdata["n_surface_elements"]
-        self.volume_elements_offset = meshdata["volume_elements_offset"]
-        self.surface_elements_offset = meshdata["surface_elements_offset"]
-
-        self.min = meshdata['min']
-        self.max = meshdata['max']
-
-def MeshData(mesh):
-    """Helper function to avoid redundant copies of the same mesh on the GPU."""
-    if hasattr(mesh,"_opengl_data"):
-        return mesh._opengl_data.check_timestamp()
-    else:
-        return CMeshData(mesh)
-
-class CGeoData:
-    def __init__(self, geo):
-        import weakref
-        self.geo = weakref.ref(geo)
-        self.vertices = Texture(GL_TEXTURE_BUFFER, GL_RGB32F)
-        self.triangles = Texture(GL_TEXTURE_BUFFER, GL_RGBA32I)
-        self.normals = Texture(GL_TEXTURE_BUFFER, GL_RGB32F)
-        geo._opengl_data = self
-        self.update()
-
-    @inmain_decorator(True)
-    def update(self):
-        geodata = self.getGeoData()
-        self.vertices.store(geodata["vertices"])
-        self.triangles.store(geodata["triangles"])
-        self.normals.store(geodata["normals"])
-        self.surfnames = geodata["surfnames"]
-        self.min = geodata["min"]
-        self.max = geodata["max"]
-        self.npoints = len(geodata["triangles"])//4*3
-
-    def getGeoData(self):
-        return ngui.GetGeoData(self.geo())
-
-def GeoData(geo):
-    try:
-        return geo._opengl_data
-    except:
-        return CGeoData(geo)
 
 
 class TextRenderer:
@@ -482,6 +249,113 @@ class SceneObject():
         if self.active_action:
             self.actions[self.active_action](point)
 
+    def addOption(self, group, name, default_value, typ=None, update_on_change=False, update_widget_on_change=False, widget_type=None, label=None, values=None, on_change=None, *args, **kwargs):
+        if not group in self._widgets:
+            self._widgets[group] = {}
+
+        label = label or name
+        propname = "_"+name
+        widgetname = "_"+name+"Widget"
+        setter_name = "set"+name
+
+        setattr(self, propname, default_value)
+
+        if typ==None and widget_type==None:
+            typ = type(default_value)
+
+        if typ is list:
+            w = QtWidgets.QComboBox()
+            assert type(values) is list
+            w.addItems(values)
+            w.currentIndexChanged[int].connect(lambda index: getattr(self,setter_name)(index))
+            self._widgets[group][name] = wid.WidgetWithLabel(w,label)
+
+        elif widget_type:
+            w = widget_type(*args, **kwargs)
+            w.setValue(default_value)
+            self._widgets[group][name] = w
+
+        elif typ==bool:
+            w = QtWidgets.QCheckBox(label)
+            w.setCheckState(QtCore.Qt.Checked if default_value else QtCore.Qt.Unchecked)
+            if on_change:
+                w.stateChanged.connect(on_change)
+            w.stateChanged.connect(lambda value: getattr(self, setter_name)(bool(value)))
+            self._widgets[group][name] = wid.WidgetWithLabel(w)
+
+        elif typ==int:
+            w = QtWidgets.QSpinBox()
+            w.setValue(default_value)
+            w.valueChanged[int].connect(lambda value: getattr(self, setter_name)(value))
+            if "min" in kwargs:
+                w.setMinimum(kwargs["min"])
+            if "max" in kwargs:
+                w.setMaximum(kwargs["max"])
+            self._widgets[group][name] = wid.WidgetWithLabel(w,label)
+
+        elif typ==float:
+            w = wid.ScienceSpinBox()
+            w.setRange(-1e99, 1e99)
+            w.setValue(default_value)
+            w.valueChanged[float].connect(lambda value: getattr(self, setter_name)(value))
+            if "min" in kwargs:
+                w.setMinimum(kwargs["min"])
+            if "max" in kwargs:
+                w.setMaximum(kwargs["max"])
+            if "step" in kwargs:
+                w.setSingleStep(kwargs["step"])
+                w.lastWheelStep = kwargs["step"]
+            self._widgets[group][name] = wid.WidgetWithLabel(w, label)
+
+        elif typ=="button":
+            def doAction(self, redraw=True):
+                getattr(self,default_value)(*args, **kwargs)
+                if update_on_change:
+                    self.update()
+                if redraw:
+                    self.widgets.updateGLSignal.emit()
+
+            cls = type(self)
+
+            if not hasattr(cls, name):
+                setattr(cls, name, doAction)
+
+            w = wid.Button(label, getattr(self, name))
+            self._widgets[group][name] = w
+
+        else:
+            raise RuntimeError("unknown type: ", typ)
+
+        if typ!='button':
+            def getValue(self):
+                return getattr(self, propname)
+
+            def setValue(self, value, redraw=True, update_gui=True):
+                if getattr(self, propname) == value:
+                    return
+
+                setattr(self, propname, value)
+
+                if update_widget_on_change:
+                    self.updateWidgets()
+                if redraw:
+                    if update_on_change:
+                        self.update()
+                    self.widgets.updateGLSignal.emit()
+
+                if update_gui:
+                    widget = self._widgets[group][name]
+                    widget.setValue(value)
+
+            cls = type(self)
+
+            if not hasattr(cls, setter_name):
+                setattr(cls, setter_name, setValue)
+            if not hasattr(cls, 'get'+name):
+                setattr(cls, 'get'+name, getValue)
+        return self._widgets[group][name]
+
+
 class BaseMeshSceneObject(SceneObject):
     """Base class for all scenes that depend on a mesh"""
     @inmain_decorator(wait_for_return=True)
@@ -497,7 +371,7 @@ class BaseMeshSceneObject(SceneObject):
     @inmain_decorator(True)
     def update(self):
         super().update()
-        self.mesh_data = MeshData(self.mesh)
+        self.mesh_data = getOpenGLData(self.mesh)
 
     def __getstate__(self):
         super_state = super().__getstate__()
@@ -524,8 +398,8 @@ class BaseFunctionSceneObject(BaseMeshSceneObject):
 
         super().__init__(mesh,**kwargs)
 
-        addOption(self, "Subdivision", "Subdivision", typ=int, default_value=1, min=0, update_on_change=True)
-        addOption(self, "Subdivision", "Order", typ=int, default_value=2, min=1, max=4, update_on_change=True)
+        self.addOption( "Subdivision", "Subdivision", typ=int, default_value=1, min=0, update_on_change=True)
+        self.addOption( "Subdivision", "Order", typ=int, default_value=2, min=1, max=4, update_on_change=True)
 
         if 'sd' in kwargs:
             self.setSubdivision(kwargs['sd'], False, False)
@@ -554,18 +428,18 @@ class OverlayScene(SceneObject):
         self.cross_shift = -0.10
         self.updateGL = lambda : None
 
-        addOption(self, "Overlay", "ShowCross", True, label = "Axis", typ=bool)
-        addOption(self, "Overlay", "ShowVersion", True, label = "Version", typ=bool)
-        addOption(self, "Overlay", "ShowColorBar", True, label = "Color bar", typ=bool)
+        self.addOption( "Overlay", "ShowCross", True, label = "Axis", typ=bool)
+        self.addOption( "Overlay", "ShowVersion", True, label = "Version", typ=bool)
+        self.addOption( "Overlay", "ShowColorBar", True, label = "Color bar", typ=bool)
 
         import ngsolve.gui as G
         fastmode = hasattr(G.gui,'fastmode') and G.gui.fastmode
-        addOption(self, "Rendering options", "FastRender", label='Fast mode', typ=bool, on_change=lambda val: setattr(self._rendering_params,'fastmode',val), default_value=fastmode)
+        self.addOption( "Rendering options", "FastRender", label='Fast mode', typ=bool, on_change=lambda val: setattr(self._rendering_params,'fastmode',val), default_value=fastmode)
 
-        addOption(self, "Clipping plane", "clipX", label='X', typ='button', default_value='_setClippingPlane', action="clipX")
-        addOption(self, "Clipping plane", "clipY", label='Y', typ='button', default_value='_setClippingPlane', action="clipY")
-        addOption(self, "Clipping plane", "clipZ", label='Z', typ='button', default_value='_setClippingPlane', action="clipZ")
-        addOption(self, "Clipping plane", "clipFlip", label='flip', typ='button', default_value='_setClippingPlane', action="clipFlip")
+        self.addOption( "Clipping plane", "clipX", label='X', typ='button', default_value='_setClippingPlane', action="clipX")
+        self.addOption( "Clipping plane", "clipY", label='Y', typ='button', default_value='_setClippingPlane', action="clipY")
+        self.addOption( "Clipping plane", "clipZ", label='Z', typ='button', default_value='_setClippingPlane', action="clipZ")
+        self.addOption( "Clipping plane", "clipFlip", label='flip', typ='button', default_value='_setClippingPlane', action="clipFlip")
 
     def _setClippingPlane(self, action):
         if action == "clipX":
@@ -669,17 +543,17 @@ class MeshScene(BaseMeshSceneObject):
 
         self.qtWidget = None
 
-        addOption(self, "Show", "ShowWireframe", typ=bool, default_value=wireframe, update_widget_on_change=True)
-        addOption(self, "Show", "ShowSurface", typ=bool, default_value=surface, update_widget_on_change=True)
-        addOption(self, "Show", "ShowElements", typ=bool, default_value=elements, update_widget_on_change=True)
-        addOption(self, "Show", "ShowEdges", typ=bool, default_value=edges, update_widget_on_change=True)
-        addOption(self, "Show", "ShowEdgeElements", typ=bool, default_value=edgeElements, update_widget_on_change=True)
-        addOption(self, "Show", "ShowPeriodicVertices", typ=bool, default_value=showPeriodic, update_widget_on_change=True)
-        addOption(self, "Numbers", "ShowPointNumbers", label="Points", typ=bool, default_value=pointNumbers, update_widget_on_change=True)
-        addOption(self, "Numbers", "ShowEdgeNumbers", label="Edges", typ=bool, default_value=edgeNumbers, update_widget_on_change=True)
-        addOption(self, "Numbers", "ShowElementNumbers", label="Elements", typ=bool, default_value=elementNumbers, update_widget_on_change=True)
-        addOption(self, "", "GeomSubdivision", label="Subdivision", typ=int, default_value=5, min=1, max=20, update_widget_on_change=True)
-        addOption(self, "", "Shrink", typ=float, default_value=1.0, min=0.0, max=1.0, step=0.01, update_widget_on_change=True)
+        self.addOption( "Show", "ShowWireframe", typ=bool, default_value=wireframe, update_widget_on_change=True)
+        self.addOption( "Show", "ShowSurface", typ=bool, default_value=surface, update_widget_on_change=True)
+        self.addOption( "Show", "ShowElements", typ=bool, default_value=elements, update_widget_on_change=True)
+        self.addOption( "Show", "ShowEdges", typ=bool, default_value=edges, update_widget_on_change=True)
+        self.addOption( "Show", "ShowEdgeElements", typ=bool, default_value=edgeElements, update_widget_on_change=True)
+        self.addOption( "Show", "ShowPeriodicVertices", typ=bool, default_value=showPeriodic, update_widget_on_change=True)
+        self.addOption( "Numbers", "ShowPointNumbers", label="Points", typ=bool, default_value=pointNumbers, update_widget_on_change=True)
+        self.addOption( "Numbers", "ShowEdgeNumbers", label="Edges", typ=bool, default_value=edgeNumbers, update_widget_on_change=True)
+        self.addOption( "Numbers", "ShowElementNumbers", label="Elements", typ=bool, default_value=elementNumbers, update_widget_on_change=True)
+        self.addOption( "", "GeomSubdivision", label="Subdivision", typ=int, default_value=5, min=1, max=20, update_widget_on_change=True)
+        self.addOption( "", "Shrink", typ=float, default_value=1.0, min=0.0, max=1.0, step=0.01, update_widget_on_change=True)
 
     def __getstate__(self):
         super_state = super().__getstate__()
@@ -992,26 +866,26 @@ class SolutionScene(BaseFunctionSceneObject):
         super().__init__(cf,mesh,*args, **kwargs)
 
         if self.mesh.dim>1:
-            addOption(self, "Show", "ShowSurface", typ=bool, default_value=True)
+            self.addOption( "Show", "ShowSurface", typ=bool, default_value=True)
 
         if self.mesh.dim > 2:
-            addOption(self, "Show", "ShowClippingPlane", typ=bool, default_value=clippingPlane)
-            addOption(self, "Show", "ShowIsoSurface", typ=bool, default_value=False)
+            self.addOption( "Show", "ShowClippingPlane", typ=bool, default_value=clippingPlane)
+            self.addOption( "Show", "ShowIsoSurface", typ=bool, default_value=False)
 
         if cf.dim > 1:
-            addOption(self, "Show", "Component", label="Component", typ=int, default_value=0, min=0, max=cf.dim-1)
-            addOption(self, "Show", "ShowVectors", typ=bool, default_value=False)
+            self.addOption( "Show", "Component", label="Component", typ=int, default_value=0, min=0, max=cf.dim-1)
+            self.addOption( "Show", "ShowVectors", typ=bool, default_value=False)
 
         if self.cf.is_complex:
-            addOption(self, "Complex", "ComplexEvalFunc", label="Func", typ=list, default_value=0, values=["real","imag","abs","arg"])
-            addOption(self, "Complex", "ComplexPhaseShift", label="Value shift angle", typ=float, default_value=0.0)
+            self.addOption( "Complex", "ComplexEvalFunc", label="Func", typ=list, default_value=0, values=["real","imag","abs","arg"])
+            self.addOption( "Complex", "ComplexPhaseShift", label="Value shift angle", typ=float, default_value=0.0)
 
-        boxmin = addOption(self, "Colormap", "ColorMapMin", label="Min", typ=float, default_value=min,
+        boxmin = self.addOption( "Colormap", "ColorMapMin", label="Min", typ=float, default_value=min,
                            step=1 if min == 0 else 10**(math.floor(math.log10(abs(min)))))
-        boxmax = addOption(self, "Colormap", "ColorMapMax", label="Max" ,typ=float, default_value=max,
+        boxmax = self.addOption( "Colormap", "ColorMapMax", label="Max" ,typ=float, default_value=max,
                            step=1 if max == 0 else 10**(math.floor(math.log10(abs(max)))))
-        autoscale = addOption(self, "Colormap", "Autoscale",typ=bool, default_value=autoscale)
-        addOption(self, "Colormap", "ColorMapLinear", label="Linear",typ=bool, default_value=linear)
+        autoscale = self.addOption( "Colormap", "Autoscale",typ=bool, default_value=autoscale)
+        self.addOption( "Colormap", "ColorMapLinear", label="Linear",typ=bool, default_value=linear)
 
         boxmin._value_widget.changed.connect(lambda val: autoscale._value_widget.stateChanged.emit(False))
         boxmax._value_widget.changed.connect(lambda val: autoscale._value_widget.stateChanged.emit(False))
@@ -1451,7 +1325,7 @@ class GeometryScene(SceneObject):
     @inmain_decorator(True)
     def update(self):
         super().update()
-        self.geo_data = self.getGeoData()
+        self.geo_data = self.getOpenGLData(self.geo)
         self.surf_colors = { name : [0,0,255,255] for name in set(self.geo_data.surfnames)}
         self.colors.store([self.surf_colors[name][i] for name in self.geo_data.surfnames for i in range(4)],
                           data_format=GL_UNSIGNED_BYTE)

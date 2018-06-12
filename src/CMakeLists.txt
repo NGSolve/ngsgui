@@ -9,7 +9,7 @@ add_subdirectory(icons)
 configure_file(glwindow.py.in glwindow.py @ONLY)
 
 install(FILES __init__.py gl.py gui.py ${CMAKE_CURRENT_BINARY_DIR}/glwindow.py plugin.py
-  settings.py widgets.py glmath.py
+  settings.py widgets.py glmath.py gl_interface.py
   scenes.py thread.py DESTINATION ngsolve/gui)
 
 install(PROGRAMS ngsolve DESTINATION ../../../bin)

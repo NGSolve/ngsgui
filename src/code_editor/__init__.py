@@ -121,6 +121,8 @@ class CodeEditor(QtWidgets.QPlainTextEdit):
         self.msgbox = QtWidgets.QMessageBox(text = type(e).__name__ + ": " + str(e))
         self.msgbox.setWindowTitle("Exception caught!")
         self.msgbox.show()
+        if self.gui._dontCatchExceptions:
+            raise e
 
     def contextMenuEvent(self, event):
         # is there a selection

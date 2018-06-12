@@ -176,13 +176,17 @@ def _showHelp(gui, val):
             print(textwrap.indent(tup[1],"  "))
         quit()
 
+def _dontCatchExceptions(gui, val):
+    gui._dontCatchExceptions = val
+
 import ngsolve
 class GUI():
     # functions to modify the gui with flags. If the flag is not set, the function is called with False as argument
     flags = { "-noexec" : (_noexec, "Do not execute loaded Python file on startup"),
               "-fastmode" : (_fastmode, "Use fastmode for drawing large scenes faster"),
               "-noOutputpipe" : (_noOutputpipe, "Do not pipe the std output to the output window in the gui"),
-              "-help" : (_showHelp, "Show this help function")}
+              "-help" : (_showHelp, "Show this help function"),
+              "-dontCatchExceptions" : (_dontCatchExceptions, "Do not catch exceptions")}
     def __init__(self):
         self.app = QtWidgets.QApplication([])
         ngui.SetLocale()
