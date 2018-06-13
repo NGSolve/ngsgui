@@ -3,9 +3,8 @@ from . import glwindow
 from . import code_editor
 from . widgets import ArrangeV
 from .thread import inthread, inmain_decorator
-import ngui
 
-import sys, textwrap, inspect, time, re
+import sys, textwrap, inspect, time, re, pkgutil, ngsolve, ngui
 
 from PySide2 import QtWidgets, QtCore, QtGui
 
@@ -179,7 +178,6 @@ def _showHelp(gui, val):
 def _dontCatchExceptions(gui, val):
     gui._dontCatchExceptions = val
 
-import ngsolve
 class GUI():
     # functions to modify the gui with flags. If the flag is not set, the function is called with False as argument
     flags = { "-noexec" : (_noexec, "Do not execute loaded Python file on startup"),
@@ -190,13 +188,15 @@ class GUI():
     def __init__(self):
         self.app = QtWidgets.QApplication([])
         ngui.SetLocale()
-        self.fastmode = False
-        self.pipeOutput = False
         self.common_context = None
         self.multikernel_manager = MultiQtKernelManager()
-        self.mainWidget = MainWindow()
+        self.createMenu()
+        self.createLayout()
+        self.mainWidget.setWindowTitle("NGSolve")
+        self.crawlPlugins()
+
+    def createMenu(self):
         self.menuBar = MenuBarWithDict()
-        self.activeGLWindow = None
         fileMenu = self.menuBar.createMenu("&File")
         loadMenu = fileMenu.createMenu("&Load")
         saveMenu = fileMenu.createMenu("&Save")
@@ -214,6 +214,10 @@ class GUI():
         createMenu = self.menuBar.createMenu("&Create")
         newWindowAction = createMenu.addAction("New &Window")
         newWindowAction.triggered.connect(self.make_window)
+
+    def createLayout(self):
+        self.mainWidget = MainWindow()
+        self.activeGLWindow = None
         menu_splitter = QtWidgets.QSplitter(parent=self.mainWidget)
         menu_splitter.setOrientation(QtCore.Qt.Vertical)
         menu_splitter.addWidget(self.menuBar)
@@ -248,16 +252,15 @@ class GUI():
         toolbox_splitter.setSizes([0, 85000])
         window_splitter.setSizes([70000, 30000])
         self.mainWidget.setLayout(ArrangeV(menu_splitter))
-        menu_splitter.show()
-        self.mainWidget.setWindowTitle("NGSolve")
-        # crawl for plugins
+        # menu_splitter.show()
+
+    def crawlPlugins(self):
         try:
             from . import plugins as plu
             plugins_exist = True
         except ImportError:
             plugins_exist = False
         if plugins_exist:
-            import pkgutil
             prefix = plu.__name__ + "."
             plugins = []
             for importer, modname, ispkg in pkgutil.iter_modules(plu.__path__,prefix):
@@ -391,7 +394,6 @@ class GUI():
             self.stdoutThread.started.connect(receiver.run)
             self.stdoutThread.start()
         do_after_run()
-        import time
         def onQuit():
             if self.pipeOutput:
                 receiver.SetKill()
