@@ -1,16 +1,5 @@
 from OpenGL.GL import *
-import array
-import ctypes
-import time
-import ngsolve
-import numpy
-import pickle
-import io
-import base64
-import zlib
-import os
-import glob
-import hashlib
+import array, ctypes, time, ngsolve, numpy, pickle, io, base64, zlib, os, glob, hashlib
 
 from . import glmath, shader
 
