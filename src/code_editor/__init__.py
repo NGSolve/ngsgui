@@ -177,7 +177,7 @@ class CodeEditor(QtWidgets.QPlainTextEdit):
         self.buttonArea.setGeometry(QtCore.QRect(cr.left(), cr.top(), cr.right(), self.buttonAreaHeight()))
 
     def buttonAreaHeight(self):
-        return 30
+        return 35
 
     def highlightCurrentLine(self):
         selection = QtWidgets.QTextEdit.ExtraSelection()
