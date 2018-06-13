@@ -1,6 +1,5 @@
 
 from . import syntax
-from .text_finder import TextFinder
 from .button_area import ButtonArea
 from .text_partition import Lines, Selection
 from ngsolve.gui.widgets import ArrangeH, ArrangeV

@@ -1,6 +1,8 @@
 
 from PySide2 import QtWidgets, QtCore, QtGui
 from ngsolve.gui.widgets import ArrangeH, ArrangeV
+from ngsolve.gui.config import icon_path
+from .text_finder import TextFinder
 
 class ButtonArea(QtWidgets.QWidget):
     def __init__(self, editor, *args, **kwargs):
@@ -10,12 +12,12 @@ class ButtonArea(QtWidgets.QWidget):
         pal.setColor(QtGui.QPalette.Background,QtCore.Qt.black)
         self.setPalette(pal)
         savebtn = QtWidgets.QPushButton()
-        savebtn.setIcon(QtGui.QIcon("@ICON_INSTALL_PATH@/save.png"))
+        savebtn.setIcon(QtGui.QIcon(icon_path + "/save.png"))
         savebtn.setIconSize(QtCore.QSize(25,25))
         savebtn.clicked.connect(self.editor.save)
         savebtn.setToolTip("Save")
         runbtn = QtWidgets.QPushButton()
-        runbtn.setIcon(QtGui.QIcon("@ICON_INSTALL_PATH@/run.png"))
+        runbtn.setIcon(QtGui.QIcon(icon_path + "/run.png"))
         runbtn.setIconSize(QtCore.QSize(55,55))
         runbtn.setToolTip("Run")
         runbtn.clicked.connect(self.editor.run)
