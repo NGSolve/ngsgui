@@ -6,6 +6,7 @@ import copy
 from .widgets import ArrangeV, ArrangeH
 from .thread import inthread, inmain_decorator
 from qtconsole.inprocess import QtInProcessRichJupyterWidget
+from .config import icon_path
 
 import time
 from ngsolve.bla import Vector
@@ -31,8 +32,8 @@ class ToolBoxItem(QtWidgets.QWidget):
         self.window.glWidget.updateGL()
 
 class SceneToolBox(QtWidgets.QToolBox):
-    ic_visible = "@ICON_INSTALL_PATH@/visible.png"
-    ic_hidden = "@ICON_INSTALL_PATH@/hidden.png"
+    ic_visible = icon_path + "/visible.png"
+    ic_hidden = icon_path + "/hidden.png"
     def __init__(self, window):
         super().__init__()
         self.window = window
