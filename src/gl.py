@@ -415,3 +415,121 @@ class Query(GLObject):
             ready = glGetQueryObjectiv(self.id,GL_QUERY_RESULT_AVAILABLE)
         self.value = glGetQueryObjectuiv(self.id, GL_QUERY_RESULT )
         glDeleteQueries( [self.id] )
+
+
+class TextRenderer:
+    class Font:
+        pass
+
+    def __init__(self):
+        self.fonts = {}
+
+        self.vao = VertexArray()
+        self.addFont(0)
+
+        self.characters = ArrayBuffer(usage=GL_DYNAMIC_DRAW)
+        self.vao.unbind()
+
+    def addFont(self, font_size):
+        self.vao.bind()
+        font = TextRenderer.Font()
+        font.size = font_size
+
+        db = QtGui.QFontDatabase()
+        qfont = db.systemFont(db.FixedFont)
+        if font_size>0:
+            qfont.setPointSize(font_size)
+        else:
+            self.fonts[0] = font
+
+        self.fonts[qfont.pointSize()] = font
+
+        metrics = QtGui.QFontMetrics(qfont)
+
+        font.width = metrics.maxWidth()
+        font.height = metrics.height()
+
+        font.tex_width = (1+128-32)*metrics.maxWidth()
+        font.tex_width = (font.tex_width+3)//4*4 # should be multiple of 4
+        font.tex_height = metrics.height()
+        for i in range(32,128):
+            c = bytes([i]).decode()
+
+        image = QtGui.QImage(font.tex_width, font.tex_height, QtGui.QImage.Format_Grayscale8)
+        image.fill(QtCore.Qt.black)
+
+        painter = QtGui.QPainter()
+        painter.begin(image)
+        painter.setFont(qfont)
+        painter.setPen(QtCore.Qt.white)
+        for i in range(32,128):
+            w = metrics.maxWidth()
+            text = bytes([i]).decode()
+            painter.drawText((i-32)*w,0, (i+1-32)*w, font.height, QtCore.Qt.AlignTop | QtCore.Qt.AlignLeft, text)
+        painter.end()
+        Z = numpy.array(image.bits()).reshape(font.tex_height, font.tex_width)
+
+        font.tex = Texture(GL_TEXTURE_2D, GL_RED)
+        font.tex.store(Z, GL_UNSIGNED_BYTE, Z.shape[1], Z.shape[0] )
+        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST )
+        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST )
+
+        self.vao.unbind()
+
+    def draw(self, rendering_params, text, pos, font_size=0, use_absolute_pos=True, alignment=QtCore.Qt.AlignTop|QtCore.Qt.AlignLeft):
+
+        if not font_size in self.fonts:
+            self.addFont(font_size)
+
+        self.vao.bind()
+        prog = getProgram('font.vert', 'font.geom', 'font.frag')
+
+        viewport = glGetIntegerv( GL_VIEWPORT )
+        screen_width = viewport[2]-viewport[0]
+        screen_height = viewport[3]-viewport[1]
+
+        font = self.fonts[font_size]
+        font.tex.bind()
+
+        uniforms = prog.uniforms
+        uniforms.set('font_width_in_texture', font.width/font.tex_width)
+        uniforms.set('font_height_in_texture', font.height/font.tex_height)
+        uniforms.set('font_width_on_screen', 2*font.width/screen_width)
+        uniforms.set('font_height_on_screen', 2*font.height/screen_height)
+
+        if not use_absolute_pos:
+            x = ngsolve.bla.Vector(4)
+            for i in range(3):
+                x[i] = pos[i]
+            x[3] = 1.0
+            model, view, projection = rendering_params.model, rendering_params.view, rendering_params.projection
+            x = projection*view*model*x
+            for i in range(3):
+                pos[i] = x[i]/x[3]
+
+
+        text_width = len(text)*2*font.width/screen_width
+        text_height = 2*font.height/screen_height
+
+        if alignment&QtCore.Qt.AlignRight:
+            pos[0] -= text_width
+        if alignment&QtCore.Qt.AlignBottom:
+            pos[1] += text_height
+
+        if alignment&QtCore.Qt.AlignCenter:
+            pos[0] -= 0.5*text_width
+        if alignment&QtCore.Qt.AlignVCenter:
+            pos[1] += 0.5*text_height
+
+        uniforms.set('start_pos', pos)
+
+        s = numpy.array(list(text.encode('ascii', 'ignore')), dtype=numpy.uint8)
+        self.characters.store(s)
+
+        char_id = glGetAttribLocation(prog.id, b'char_')
+        glVertexAttribIPointer(char_id, 1, GL_UNSIGNED_BYTE, 0, ctypes.c_void_p());
+        glEnableVertexAttribArray( char_id )
+
+        glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
+        glDrawArrays(GL_POINTS, 0, len(s))
+        self.vao.unbind()

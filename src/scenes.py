@@ -1,15 +1,8 @@
-# from PySide2 import QtCore, QtGui, QtWidgets, QtOpenGL
-# from PySide2.QtCore import Qt
-# from OpenGL import *
-# from . import widgets
-import ngsolve
-# from .gl import *
-import numpy
-# import time
-# from . import glmath
-# from . import ngui
 
-from .gl import Texture, getProgram, ArrayBuffer, VertexArray
+import ngsolve
+import numpy
+
+from .gl import Texture, getProgram, ArrayBuffer, VertexArray, TextRenderer
 from . import widgets as wid
 from .widgets import ArrangeH, ArrangeV
 from . import glmath
@@ -22,124 +15,16 @@ from PySide2 import QtWidgets, QtCore, QtGui
 from OpenGL.GL import *
 
 
-class TextRenderer:
-    class Font:
-        pass
+class BaseScene():
+    """Base class for drawing opengl objects.
 
-    def __init__(self):
-        self.fonts = {}
-
-        self.vao = VertexArray()
-        self.addFont(0)
-
-        self.characters = ArrayBuffer(usage=GL_DYNAMIC_DRAW)
-        self.vao.unbind()
-
-    def addFont(self, font_size):
-        self.vao.bind()
-        font = TextRenderer.Font()
-        font.size = font_size
-
-        db = QtGui.QFontDatabase()
-        qfont = db.systemFont(db.FixedFont)
-        if font_size>0:
-            qfont.setPointSize(font_size)
-        else:
-            self.fonts[0] = font
-
-        self.fonts[qfont.pointSize()] = font
-
-        metrics = QtGui.QFontMetrics(qfont)
-
-        font.width = metrics.maxWidth()
-        font.height = metrics.height()
-
-        font.tex_width = (1+128-32)*metrics.maxWidth()
-        font.tex_width = (font.tex_width+3)//4*4 # should be multiple of 4
-        font.tex_height = metrics.height()
-        for i in range(32,128):
-            c = bytes([i]).decode()
-
-        image = QtGui.QImage(font.tex_width, font.tex_height, QtGui.QImage.Format_Grayscale8)
-        image.fill(QtCore.Qt.black)
-
-        painter = QtGui.QPainter()
-        painter.begin(image)
-        painter.setFont(qfont)
-        painter.setPen(QtCore.Qt.white)
-        for i in range(32,128):
-            w = metrics.maxWidth()
-            text = bytes([i]).decode()
-            painter.drawText((i-32)*w,0, (i+1-32)*w, font.height, QtCore.Qt.AlignTop | QtCore.Qt.AlignLeft, text)
-        painter.end()
-        Z = numpy.array(image.bits()).reshape(font.tex_height, font.tex_width)
-
-        font.tex = Texture(GL_TEXTURE_2D, GL_RED)
-        font.tex.store(Z, GL_UNSIGNED_BYTE, Z.shape[1], Z.shape[0] )
-        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST )
-        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST )
-
-        self.vao.unbind()
-
-    def draw(self, rendering_params, text, pos, font_size=0, use_absolute_pos=True, alignment=QtCore.Qt.AlignTop|QtCore.Qt.AlignLeft):
-
-        if not font_size in self.fonts:
-            self.addFont(font_size)
-
-        self.vao.bind()
-        prog = getProgram('font.vert', 'font.geom', 'font.frag')
-
-        viewport = glGetIntegerv( GL_VIEWPORT )
-        screen_width = viewport[2]-viewport[0]
-        screen_height = viewport[3]-viewport[1]
-
-        font = self.fonts[font_size]
-        font.tex.bind()
-
-        uniforms = prog.uniforms
-        uniforms.set('font_width_in_texture', font.width/font.tex_width)
-        uniforms.set('font_height_in_texture', font.height/font.tex_height)
-        uniforms.set('font_width_on_screen', 2*font.width/screen_width)
-        uniforms.set('font_height_on_screen', 2*font.height/screen_height)
-
-        if not use_absolute_pos:
-            x = ngsolve.bla.Vector(4)
-            for i in range(3):
-                x[i] = pos[i]
-            x[3] = 1.0
-            model, view, projection = rendering_params.model, rendering_params.view, rendering_params.projection
-            x = projection*view*model*x
-            for i in range(3):
-                pos[i] = x[i]/x[3]
-
-
-        text_width = len(text)*2*font.width/screen_width
-        text_height = 2*font.height/screen_height
-
-        if alignment&QtCore.Qt.AlignRight:
-            pos[0] -= text_width
-        if alignment&QtCore.Qt.AlignBottom:
-            pos[1] += text_height
-
-        if alignment&QtCore.Qt.AlignCenter:
-            pos[0] -= 0.5*text_width
-        if alignment&QtCore.Qt.AlignVCenter:
-            pos[1] += 0.5*text_height
-
-        uniforms.set('start_pos', pos)
-
-        s = numpy.array(list(text.encode('ascii', 'ignore')), dtype=numpy.uint8)
-        self.characters.store(s)
-
-        char_id = glGetAttribLocation(prog.id, b'char_')
-        glVertexAttribIPointer(char_id, 1, GL_UNSIGNED_BYTE, 0, ctypes.c_void_p());
-        glEnableVertexAttribArray( char_id )
-
-        glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
-        glDrawArrays(GL_POINTS, 0, len(s))
-        self.vao.unbind()
-
-class SceneObject():
+Parameters
+----------
+active : bool = True
+  Specifies if scene should be visible.
+name : str = type(self).__name__ + scene_counter
+  Name of scene in right hand side menu.
+"""
     scene_counter = 1
     @inmain_decorator(wait_for_return=True)
     def __init__(self,active=True, name = None, **kwargs):
@@ -149,8 +34,8 @@ class SceneObject():
         self.active = active
         self._widgets = {}
         if name is None:
-            self.name = type(self).__name__.split('.')[-1] + str(SceneObject.scene_counter)
-            SceneObject.scene_counter += 1
+            self.name = type(self).__name__.split('.')[-1] + str(BaseScene.scene_counter)
+            BaseScene.scene_counter += 1
         else:
             self.name = name
         self.toolboxupdate = lambda me: None
@@ -166,17 +51,21 @@ class SceneObject():
         self.gl_initialized = False
 
     def initGL(self):
+        """Called once after the scene is created and initializes all OpenGL objects."""
         self.gl_initialized = True
 
     @inmain_decorator(True)
     def update(self):
+        """Called on startup and if underlying object changes, reloads data on GPU if drawn object changed"""
         self.initGL()
 
     @inmain_decorator(True)
     def updateWidgets(self):
+        """Updates scene widgets"""
         self.widgets.update()
     
     def render(self, settings):
+        """Render scene, must be overloaded by derived class"""
         pass
 
     def deferRendering(self):
@@ -185,6 +74,8 @@ class SceneObject():
         return 0
 
     def getBoundingBox(self):
+        """Returns bounding box of scene object, The center of the drawn scene will be in the
+center of this box. Rotation will be around this center."""
         box_min = ngsolve.bla.Vector(3)
         box_max = ngsolve.bla.Vector(3)
         box_min[:] = 1e99
@@ -192,11 +83,9 @@ class SceneObject():
         return box_min,box_max
 
     def setActive(self, active, updateGL):
+        """Toggle visibility of scene"""
         self.active = active
         updateGL()
-
-    def setWindow(self,window):
-        self.window = window
 
     def getQtWidget(self, updateGL, params):
         self.widgets = wid.OptionWidgets(updateGL=updateGL)
@@ -239,6 +128,19 @@ class SceneObject():
         return self.widgets
 
     def addAction(self,action,name=None):
+        """Add double click action. Adds a checkbox to the widget to activate/deactivate the action.
+If double clicked on a point in the drawing domain, the action function is executed with the coordinates
+of the clicked point in the scene.
+
+Parameters
+----------
+action : function
+  Action must take in a tuple of the 3 coordinates returned from clicking in the 3D drawing domain.
+  for example : action = lambda p: print(p)
+  would print the coordinates of the clicked point
+name : str = "action" + consecutive number
+  Name of the action. The checkbox in the right hand menu is label accordingly.
+"""
         if name is None:
             name = "Action" + str(len(self.actions)+1)
         self.actions[name] = action
@@ -356,7 +258,7 @@ class SceneObject():
         return self._widgets[group][name]
 
 
-class BaseMeshSceneObject(SceneObject):
+class BaseMeshScene(BaseScene):
     """Base class for all scenes that depend on a mesh"""
     @inmain_decorator(wait_for_return=True)
     def __init__(self, mesh,**kwargs):
@@ -384,40 +286,7 @@ class BaseMeshSceneObject(SceneObject):
     def getBoundingBox(self):
         return self.mesh_data.min, self.mesh_data.max
 
-class BaseFunctionSceneObject(BaseMeshSceneObject):
-    """Base class for all scenes that depend on a coefficient function and a mesh"""
-    @inmain_decorator(wait_for_return=True)
-    def __init__(self, cf, mesh=None, order=3, gradient=None,**kwargs):
-        self.cf = cf
-
-        if gradient and cf.dim == 1:
-            self.cf = ngsolve.CoefficientFunction((cf, gradient))
-            self.have_gradient = True
-        else:
-            self.have_gradient = False
-
-        super().__init__(mesh,**kwargs)
-
-        self.addOption( "Subdivision", "Subdivision", typ=int, default_value=1, min=0, update_on_change=True)
-        self.addOption( "Subdivision", "Order", typ=int, default_value=2, min=1, max=4, update_on_change=True)
-
-        if 'sd' in kwargs:
-            self.setSubdivision(kwargs['sd'], False, False)
-
-        n = self.getOrder()*(2**self.getSubdivision())+1
-
-    def __getstate__(self):
-        super_state = super().__getstate__()
-        return (super_state, self.cf, self.getSubdivision(), self.getOrder())
-
-    def __setstate__(self, state):
-        super().__setstate__(state[0])
-        self.cf = state[1]
-        self.setSubdivision(state[2])
-        self.setOrder(state[3])
-
-
-class OverlayScene(SceneObject):
+class OverlayScene(BaseScene):
     """Class  for overlay objects (Colormap, coordinate system, logo)"""
     @inmain_decorator(wait_for_return=True)
     def __init__(self,**kwargs):
@@ -535,7 +404,7 @@ class OverlayScene(SceneObject):
         self.updateGL()
 
     
-class MeshScene(BaseMeshSceneObject):
+class MeshScene(BaseMeshScene):
     @inmain_decorator(wait_for_return=True)
     def __init__(self, mesh, wireframe=True, surface=True, elements=False, edgeElements=False, edges=False,
                  showPeriodic=False, pointNumbers=False, edgeNumbers=False, elementNumbers=False, **kwargs):
@@ -860,10 +729,26 @@ class MeshScene(BaseMeshSceneObject):
         return self.widgets
 
 
-class SolutionScene(BaseFunctionSceneObject):
+class SolutionScene(BaseMeshScene):
     @inmain_decorator(wait_for_return=True)
-    def __init__(self, cf, mesh, min=0,max=1, autoscale=True, linear=False, clippingPlane=True,*args, **kwargs):
-        super().__init__(cf,mesh,*args, **kwargs)
+    def __init__(self, cf, mesh, min=0,max=1, autoscale=True, linear=False, clippingPlane=True,
+                 order=3,gradient=None, *args, **kwargs):
+        self.cf = cf
+
+        if gradient and cf.dim == 1:
+            self.cf = ngsolve.CoefficientFunction((cf, gradient))
+            self.have_gradient = True
+        else:
+            self.have_gradient = False
+        super().__init__(mesh,*args, **kwargs)
+
+
+        self.addOption( "Subdivision", "Subdivision", typ=int, default_value=1, min=0, update_on_change=True)
+        self.addOption( "Subdivision", "Order", typ=int, default_value=2, min=1, max=4, update_on_change=True)
+
+        if 'sd' in kwargs:
+            self.setSubdivision(kwargs['sd'], False, False)
+
 
         if self.mesh.dim>1:
             self.addOption( "Show", "ShowSurface", typ=bool, default_value=True)
@@ -1309,7 +1194,7 @@ class SolutionScene(BaseFunctionSceneObject):
             if self.getShowVectors():
                 self.renderVectors(settings)
 
-class GeometryScene(SceneObject):
+class GeometryScene(BaseScene):
     @inmain_decorator(wait_for_return=True)
     def __init__(self, geo, *args, **kwargs):
         super().__init__(*args,**kwargs)

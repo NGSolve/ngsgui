@@ -185,7 +185,7 @@ class WindowTab(QtWidgets.QWidget):
     @inmain_decorator(True)
     def draw(self, scene):
         self.glWidget.makeCurrent()
-        scene.setWindow(self)
+        scene.window = self
         scene.update()
         self.glWidget.addScene(scene)
         self.toolbox.addScene(scene)
