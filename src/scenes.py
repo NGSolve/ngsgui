@@ -851,7 +851,6 @@ class SolutionScene(BaseMeshScene):
         if self.mesh.dim==2:
             try:
                 values = self._getValues(ngsolve.VOL)
-                print("values = ", values)
                 self.surface_values.store(values["real"])
                 if self.cf.is_complex:
                     self.surface_values_imag.store(values["imag"])
