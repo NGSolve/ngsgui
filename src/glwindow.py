@@ -15,6 +15,7 @@ from math import exp
 
 from PySide2 import QtWidgets, QtOpenGL, QtCore, QtGui
 from OpenGL import GL
+import pickle
 
 
 class ToolBoxItem(QtWidgets.QWidget):
@@ -31,6 +32,14 @@ class ToolBoxItem(QtWidgets.QWidget):
     def changeActive(self):
         self.scene.active = not self.scene.active
         self.window.glWidget.updateGL()
+
+    def mousePressEvent(self, event):
+        drag = QtGui.QDrag(self)
+        mime_data = QtCore.QMimeData()
+        dump = pickle.dumps(self.scene)
+        mime_data.setData("scene", dump)
+        drag.setMimeData(mime_data)
+        drag.start()
 
 class SceneToolBox(QtWidgets.QToolBox):
     ic_visible = icon_path + "/visible.png"
@@ -316,6 +325,7 @@ class GLWidget(QtOpenGL.QGLWidget):
                 box_max[i] = max(s_max[i], box_max[i])
         self._rendering_parameters.min = box_min
         self._rendering_parameters.max = box_max
+        self.updateGL()
 
     def mouseDoubleClickEvent(self, event):
         import OpenGL.GLU
@@ -422,4 +432,79 @@ class GLWidget(QtOpenGL.QGLWidget):
     def freeResources(self):
         self.makeCurrent()
 
+class WindowTabBar(QtWidgets.QTabBar):
+    def __init__(self, tabber, *args,**kwargs):
+        super().__init__(*args,**kwargs)
+        self.tabber = tabber
+        self.setAcceptDrops(True)
 
+    def dragEnterEvent(self,event):
+        if event.mimeData().hasFormat("scene"):
+            event.accept()
+
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasFormat("scene"):
+            index = self.tabAt(event.pos())
+            self.tabber.setCurrentIndex(index)
+            self.tabber.activeGLWindow = self.tabber.currentWidget()
+            event.accept()
+
+    def dropEvent(self, event):
+        if event.mimeData().hasFormat("scene"):
+            scene = self.tabber.draw(pickle.loads(event.mimeData().data("scene").data()))
+            event.accept()
+
+class WindowTabber(QtWidgets.QTabWidget):
+    def __init__(self,commonContext, *args, **kwargs):
+        super().__init__(*args,**kwargs)
+        self._commonContext = commonContext
+        self.setTabBar(WindowTabBar(self))
+        self.setTabsClosable(True)
+        self._activeGLWindow = None
+        self.tabCloseRequested.connect(self._remove_tab)
+        self._fastmode = False
+
+    def _getActiveGLWindow(self):
+        if not self._activeGLWindow:
+            self.make_window()
+        return self._activeGLWindow
+    def _setActiveGLWindow(self, win):
+        self.setCurrentWidget(win)
+        self._activeGLWindow = win
+    activeGLWindow = property(_getActiveGLWindow, _setActiveGLWindow)
+
+    @inmain_decorator(True)
+    def _remove_tab(self, index):
+        if self.widget(index).isGLWindow():
+            if self.activeGLWindow == self.widget(index):
+                self.activeGLWindow = None
+                for i in range(self.count()):
+                    if isinstance(self.widget(self.count()-i-1), WindowTab):
+                        self.activeGLWindow = self.widget(self.count()-i-1)
+                        break
+            self.removeTab(index)
+
+    def draw(self, *args, **kwargs):
+        if 'tab' in kwargs:
+            tab_found = False
+            tab = kwargs['tab']
+            del kwargs['tab']
+            for i in range(self.count()):
+                if self.tabText(i) == tab:
+                    # tab already exists -> activate it
+                    tab_found = True
+                    self.activeGLWindow = self.widget(i)
+            if not tab_found:
+                # create new tab with given name
+                self.make_window(name=tab)
+        self.activeGLWindow.draw(*args,**kwargs)
+
+    @inmain_decorator(True)
+    def make_window(self, name=None):
+        window = WindowTab()
+        window.create(sharedContext=self._commonContext)
+        if self._fastmode:
+            window.glWidget._rendering_parameters.fastmode = True
+        name = name or "window" + str(self.count() + 1)
+        self.addTab(window, name)
+        self.activeGLWindow = window

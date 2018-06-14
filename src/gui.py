@@ -163,7 +163,7 @@ Developed by Joachim Schoeberl at
 def _noexec(gui, val):
     gui.executeFileOnStartup = not val
 def _fastmode(gui,val):
-    gui.fastmode = val
+    gui.window_tabber._fastmode = val
 def _noOutputpipe(gui,val):
     gui.pipeOutput = not val
 
@@ -189,11 +189,11 @@ class GUI():
         self.app = QtWidgets.QApplication([])
         ngui.SetLocale()
         self.multikernel_manager = MultiQtKernelManager()
+        self._commonContext = glwindow.GLWidget()
         self.createMenu()
         self.createLayout()
         self.mainWidget.setWindowTitle("NGSolve")
         self.crawlPlugins()
-        self.common_context = glwindow.GLWidget()
 
     def createMenu(self):
         self.menuBar = MenuBarWithDict()
@@ -213,7 +213,7 @@ class GUI():
         loadPython.triggered.connect(selectPythonFile)
         createMenu = self.menuBar.createMenu("&Create")
         newWindowAction = createMenu.addAction("New &Window")
-        newWindowAction.triggered.connect(self.make_window)
+        newWindowAction.triggered.connect(lambda :self.window_tabber.make_window())
 
     def createLayout(self):
         self.mainWidget = MainWindow()
@@ -229,14 +229,8 @@ class GUI():
         window_splitter = QtWidgets.QSplitter(parent=toolbox_splitter)
         toolbox_splitter.addWidget(window_splitter)
         window_splitter.setOrientation(QtCore.Qt.Vertical)
-        self.window_tabber = QtWidgets.QTabWidget(parent=window_splitter)
-        self.window_tabber.setTabsClosable(True)
-        def _remove_tab(index):
-            if self.window_tabber.widget(index).isGLWindow():
-                if self.activeGLWindow == self.window_tabber.widget(index):
-                    self.activeGLWindow = None
-            self.window_tabber.removeTab(index)
-        self.window_tabber.tabCloseRequested.connect(_remove_tab)
+        self.window_tabber = glwindow.WindowTabber(commonContext = self._commonContext,
+                                                   parent=window_splitter)
         window_splitter.addWidget(self.window_tabber)
         self.console = NGSJupyterWidget(multikernel_manager = self.multikernel_manager)
         self.outputBuffer = OutputBuffer()
@@ -284,19 +278,6 @@ class GUI():
         else:
             self.toolbox_splitter.setSizes([15000, 85000])
 
-    @inmain_decorator(wait_for_return=True)
-    def make_window(self, name=None):
-        self.activeGLWindow = window = glwindow.WindowTab()
-        window.create(sharedContext=self.common_context)
-        if self.fastmode:
-            window.glWidget.rendering_parameters.fastmode = True
-        if self.common_context is None:
-            self.common_context = window.glWidget
-        name = name or "window" + str(self.window_tabber.count() + 1)
-        self.window_tabber.addTab(window,name)
-        self.window_tabber.setCurrentWidget(window)
-        return window
-
     def saveSolution(self):
         import pickle
         filename, filt = QtWidgets.QFileDialog.getSaveFileName(caption="Save Solution",
@@ -321,7 +302,7 @@ class GUI():
             print(tabs)
         for tab,name in tabs:
             if isinstance(tab, glwindow.WindowTab):
-                tab.create(self.common_context)
+                tab.create(self._commonContext)
             if isinstance(tab, code_editor.CodeEditor):
                 tab.gui = self
             self.window_tabber.addTab(tab, name)
@@ -331,37 +312,17 @@ class GUI():
             setting.gui = self
             self.settings_toolbox.addSettings(setting)
 
-    def getActiveGLWindow(self):
-        if self.activeGLWindow is None:
-            self.make_window()
-        return self.activeGLWindow
-
     @inmain_decorator(wait_for_return=True)
     def draw(self, *args, **kwargs):
-        if 'tab' in kwargs:
-            tab_found = False
-            tab = kwargs['tab']
-            del kwargs['tab']
-            for i in range(self.window_tabber.count()):
-                if self.window_tabber.tabText(i) == tab:
-                    # tab already exists -> activate it
-                    tab_found = True
-                    wid = self.window_tabber.widget(i)
-                    self.activeGLWindow = wid
-                    self.window_tabber.setCurrentWidget(wid)
-            if not tab_found:
-                # create new tab with given name
-                self.make_window(name=tab)
-
-        self.getActiveGLWindow().draw(*args,**kwargs)
+        self.window_tabber.draw(*args,**kwargs)
 
     @inmain_decorator(wait_for_return=False)
     def redraw(self):
-        self.getActiveGLWindow().glWidget.updateScenes()
+        self.window_tabber.activeGLWindow.glWidget.updateScenes()
 
     @inmain_decorator(wait_for_return=True)
     def redraw_blocking(self):
-        self.getActiveGLWindow().glWidget.updateScenes()
+        self.window_tabber.activeGLWindow.glWidget.updateScenes()
 
     @inmain_decorator(wait_for_return=True)
     def _loadFile(self, filename):
