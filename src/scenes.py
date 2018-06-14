@@ -38,7 +38,6 @@ name : str = type(self).__name__ + scene_counter
             BaseScene.scene_counter += 1
         else:
             self.name = name
-        # self.toolboxupdate = lambda me: None
         self.createOptions()
         self.createQtWidget()
 
@@ -50,16 +49,19 @@ name : str = type(self).__name__ + scene_counter
         values = {}
         for key, group in self._widgets.items():
             for name in group:
-                values[name] = getattr(self, "get" + name)()
-        return (self.name, self._active, values)
+                if hasattr(self, "get" + name):
+                    values[name] = getattr(self, "get" + name)()
+        return (self.name, self.active, values)
 
     def __setstate__(self,state):
-        self.name = state[0]
-        self._active = state[1]
-        # TODO: can we pickle actions somehow?
-        self._actions = {}
+        self.window = None
         self._gl_initialized = False
+        self._actions = {}
+        self._active_action = None
+        self.name = state[0]
+        self.active = state[1]
         self._initial_values = state[2]
+        # TODO: can we pickle actions somehow?
         self.createOptions()
         self.createQtWidget()
 
@@ -162,7 +164,6 @@ name : str = "action" + consecutive number
             name = "Action" + str(len(self._actions)+1)
         self._actions[name] = action
         self._active_action = name
-        self.toolboxupdate(self)
 
     def doubleClickAction(self,point):
         if self._active_action:
@@ -225,55 +226,56 @@ name : str = "action" + consecutive number
                 w.setSingleStep(kwargs["step"])
                 w.lastWheelStep = kwargs["step"]
             self._widgets[group][name] = wid.WidgetWithLabel(w, label)
-
-        elif typ=="button":
-            def doAction(self, redraw=True):
-                getattr(self,default_value)(*args, **kwargs)
-                if update_on_change:
-                    self.update()
-                if redraw:
-                    self.widgets.updateGLSignal.emit()
-
-            cls = type(self)
-
-            if not hasattr(cls, name):
-                setattr(cls, name, doAction)
-
-            w = wid.Button(label, getattr(self, name))
-            self._widgets[group][name] = w
-
         else:
             raise RuntimeError("unknown type: ", typ)
 
-        if typ!='button':
-            def getValue(self):
-                return getattr(self, propname)
+        def getValue(self):
+            return getattr(self, propname)
 
-            def setValue(self, value, redraw=True, update_gui=True):
-                if getattr(self, propname) == value:
-                    return
+        def setValue(self, value, redraw=True, update_gui=True):
+            if getattr(self, propname) == value:
+                return
 
-                setattr(self, propname, value)
+            setattr(self, propname, value)
 
-                if update_widget_on_change:
-                    self.updateWidgets()
-                if redraw:
-                    if update_on_change:
-                        self.update()
-                    self.widgets.updateGLSignal.emit()
+            if update_widget_on_change:
+                self.updateWidgets()
+            if redraw:
+                if update_on_change:
+                    self.update()
+                self.widgets.updateGLSignal.emit()
 
-                if update_gui:
-                    widget = self._widgets[group][name]
-                    widget.setValue(value)
+            if update_gui:
+                widget = self._widgets[group][name]
+                widget.setValue(value)
 
-            cls = type(self)
+        cls = type(self)
 
-            if not hasattr(cls, setter_name):
-                setattr(cls, setter_name, setValue)
-            if not hasattr(cls, 'get'+name):
-                setattr(cls, 'get'+name, getValue)
+        if not hasattr(cls, setter_name):
+            setattr(cls, setter_name, setValue)
+        if not hasattr(cls, 'get'+name):
+            setattr(cls, 'get'+name, getValue)
         return self._widgets[group][name]
 
+    def addButton(self, group, name, function_name, update_on_change=False, label = None,*args,**kwargs):
+        if not group in self._widgets:
+            self._widgets[group] = {}
+        if not label:
+            label = name
+        def doAction(self, redraw=True):
+            getattr(self,function_name)(*args, **kwargs)
+            if update_on_change:
+                self.update()
+            if redraw:
+                self.widgets.updateGLSignal.emit()
+
+        cls = type(self)
+
+        if not hasattr(cls, name):
+            setattr(cls, name, doAction)
+
+        w = wid.Button(label, getattr(self, name))
+        self._widgets[group][name] = w
 
 class BaseMeshScene(BaseScene):
     """Base class for all scenes that depend on a mesh"""
@@ -304,19 +306,22 @@ class BaseMeshScene(BaseScene):
 class OverlayScene(BaseScene):
     """Class  for overlay objects (Colormap, coordinate system, logo)"""
     @inmain_decorator(wait_for_return=True)
-    def __init__(self,**kwargs):
+    def __init__(self,rendering_parameters=None,**kwargs):
         import ngsolve.gui as G
+        self._rendering_parameters = rendering_parameters
         self._initial_values = { "ShowCross" : True,
                                  "ShowVersion" : True,
                                  "ShowColorBar" : True,
-                                 "FastRender" : hasattr(G.gui,'fastmode') and G.gui.fastmode,
-                                 "clipX" : '_setClippingPlane',
-                                 "clipY" : '_setClippingPlane',
-                                 "clipZ" : '_setClippingPlane',
-                                 "clipFlip" : '_setClippingPlane' }
+                                 "FastRender" : hasattr(G.gui,'fastmode') and G.gui.fastmode}
         super().__init__(**kwargs)
-        self.cross_scale = 0.3
-        self.cross_shift = -0.10
+
+    def __getstate__(self):
+        superstate = super().__getstate__()
+        return (superstate,self._rendering_parameters)
+
+    def __setstate__(self, state):
+        super().__setstate__(state[0])
+        self._rendering_parameters = state[1]
 
     @inmain_decorator(True)
     def createOptions(self):
@@ -325,10 +330,19 @@ class OverlayScene(BaseScene):
         self.addOption( "Overlay", "ShowVersion", label = "Version", typ=bool)
         self.addOption( "Overlay", "ShowColorBar", label = "Color bar", typ=bool)
         self.addOption( "Rendering options", "FastRender", label='Fast mode', typ=bool, on_change=lambda val: setattr(self._rendering_params,'fastmode',val))
-        self.addOption( "Clipping plane", "clipX", label='X', typ='button', action="clipX")
-        self.addOption( "Clipping plane", "clipY", label='Y', typ='button', action="clipY")
-        self.addOption( "Clipping plane", "clipZ", label='Z', typ='button', action="clipZ")
-        self.addOption( "Clipping plane", "clipFlip", label='flip', typ='button', action="clipFlip")
+        self.addButton( "Clipping plane", "clipX", "_setClippingPlane", label='X',action="clipX")
+        self.addButton( "Clipping plane", "clipY", "_setClippingPlane", label='Y',action="clipY")
+        self.addButton( "Clipping plane", "clipZ", "_setClippingPlane", label='Z',action="clipZ")
+        self.addButton( "Clipping plane", "clipFlip", "_setClippingPlane", label='flip', action="clipFlip")
+        self.cross_scale = 0.3
+        self.cross_shift = -0.10
+
+    def copyOptionsFrom(self, other):
+        self.setShowCross(other.getShowCross())
+        self.setShowVersion(other.getShowVersion())
+        self.setShowColorBar(other.getShowColorBar())
+        self.setFastRender(other.getFastRender())
+        self._rendering_parameters.__dict__.update(other._rendering_parameters.__dict__)
 
     def _setClippingPlane(self, action):
         if action == "clipX":
@@ -422,9 +436,7 @@ class MeshScene(BaseMeshScene):
     @inmain_decorator(wait_for_return=True)
     def __init__(self, mesh, wireframe=True, surface=True, elements=False, edgeElements=False, edges=False,
                  showPeriodic=False, pointNumbers=False, edgeNumbers=False, elementNumbers=False, **kwargs):
-        self.tex_mat_colors = self.tex_bc_colors = self.tex_bbnd_colors = None
-        super().__init__(mesh, **kwargs)
-        self._initial_values = { "ShowWireFrame" : wireframe,
+        self._initial_values = { "ShowWireframe" : wireframe,
                                  "ShowSurface" : surface,
                                  "ShowElements" : elements,
                                  "ShowEdges" : edges,
@@ -435,21 +447,26 @@ class MeshScene(BaseMeshScene):
                                  "ShowElementNumbers" : elementNumbers,
                                  "GeomSubdivision" : 5,
                                  "Shrink" : 1. }
+        self.tex_mat_colors = self.tex_bc_colors = self.tex_bbnd_colors = None
+        super().__init__(mesh, **kwargs)
                                  
     @inmain_decorator(True)
     def createOptions(self):
         super().createOptions()
         self.addOption( "Show", "ShowWireframe", typ=bool, update_widget_on_change=True)
         self.addOption( "Show", "ShowSurface", typ=bool, update_widget_on_change=True)
-        self.addOption( "Show", "ShowElements", typ=bool, update_widget_on_change=True)
-        self.addOption( "Show", "ShowEdges", typ=bool, update_widget_on_change=True)
+        if self.mesh.dim > 2:
+            self.addOption( "Show", "ShowElements", typ=bool, update_widget_on_change=True)
+            self.addOption( "Show", "ShowEdges", typ=bool, update_widget_on_change=True)
         self.addOption( "Show", "ShowEdgeElements", typ=bool, update_widget_on_change=True)
         self.addOption( "Show", "ShowPeriodicVertices", typ=bool, update_widget_on_change=True)
         self.addOption( "Numbers", "ShowPointNumbers", label="Points", typ=bool, update_widget_on_change=True)
         self.addOption( "Numbers", "ShowEdgeNumbers", label="Edges", typ=bool, update_widget_on_change=True)
-        self.addOption( "Numbers", "ShowElementNumbers", label="Elements", typ=bool, update_widget_on_change=True)
+        if self.mesh.dim > 2:
+            self.addOption( "Numbers", "ShowElementNumbers", label="Elements", typ=bool, update_widget_on_change=True)
         self.addOption( "", "GeomSubdivision", label="Subdivision", typ=int, min=1, max=20, update_widget_on_change=True)
-        self.addOption( "", "Shrink", typ=float, min=0.0, max=1.0, step=0.01, update_widget_on_change=True)
+        if self.mesh.dim > 2:
+            self.addOption( "", "Shrink", typ=float, min=0.0, max=1.0, step=0.01, update_widget_on_change=True)
 
     def __getstate__(self):
         super_state = super().__getstate__()
@@ -501,7 +518,7 @@ class MeshScene(BaseMeshScene):
         uniforms.set('light_diffuse', 0.0)
         uniforms.set('TessLevel', self.getGeomSubdivision())
         uniforms.set('wireframe', True)
-        if self.getShowEdges():
+        if self.mesh.dim > 2 and self.getShowEdges():
             glPatchParameteri(GL_PATCH_VERTICES, 1)
             glDrawArrays(GL_PATCHES, 0, self.mesh_data.nedges)
         if self.getShowEdgeElements():
@@ -540,7 +557,8 @@ class MeshScene(BaseMeshScene):
         uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
         uniforms.set('mesh.surface_elements_offset', self.mesh_data.surface_elements_offset)
         uniforms.set('mesh.dim', 2);
-        uniforms.set('shrink_elements', self.getShrink())
+        if self.mesh.dim > 2:
+            uniforms.set('shrink_elements', self.getShrink())
         uniforms.set('clip_whole_elements', False)
         glActiveTexture(GL_TEXTURE3)
         if self.mesh.dim == 3:
@@ -574,7 +592,7 @@ class MeshScene(BaseMeshScene):
             glDrawArrays(GL_PATCHES, 0, self.mesh_data.nsurface_elements)
             glDisable(GL_POLYGON_OFFSET_LINE)
 
-        if self.getShowElements():
+        if self.mesh.dim > 2 and self.getShowElements():
             uniforms.set('clip_whole_elements', True)
             uniforms.set('do_clipping', False);
             uniforms.set('light_ambient', 0.3)
@@ -640,7 +658,7 @@ class MeshScene(BaseMeshScene):
             glPolygonOffset (0,0)
             glDrawArrays(GL_POINTS, 0, self.mesh_data.nedges)
 
-        if self.getShowElementNumbers():
+        if self.mesh.dim > 2 and self.getShowElementNumbers():
             uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
             uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
             uniforms.set('mesh.surface_elements_offset', self.mesh_data.surface_elements_offset)
@@ -714,7 +732,7 @@ class MeshScene(BaseMeshScene):
             elif self.mesh.dim == 2:
                 return self.getShowSurface()
             elif self.mesh.dim == 1:
-                return self.getShowEdges()
+                return self.getShowEdgeElements()
             return False
         self.widgets.addGroup("Materials", self.matcolors, connectedVisibility = showVOL)
 

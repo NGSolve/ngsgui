@@ -286,7 +286,8 @@ class GUI():
 
     @inmain_decorator(wait_for_return=True)
     def make_window(self, name=None):
-        self.activeGLWindow = window = glwindow.WindowTab(shared=self.common_context)
+        self.activeGLWindow = window = glwindow.WindowTab()
+        window.create(sharedContext=self.common_context)
         if self.fastmode:
             window.glWidget.rendering_parameters.fastmode = True
         if self.common_context is None:
@@ -304,7 +305,7 @@ class GUI():
             filename += ".sol"
         tabs = []
         for i in range(self.window_tabber.count()):
-            tabs.append(self.window_tabber.widget(i))
+            tabs.append((self.window_tabber.widget(i),self.window_tabber.tabBar().tabText(i)))
         settings = self.settings_toolbox.settings
         with open(filename,"wb") as f:
             pickle.dump((tabs,settings), f)
@@ -316,9 +317,14 @@ class GUI():
         if not filename[-4:] == ".sol":
             filename += ".sol"
         with open(filename, "rb") as f:
-            tabs, settings = pickle.load(f)
-        for tab in tabs:
-            self.window_tabber.addTab(tab, "window" + str(self.window_tabber.count()))
+            tabs,settings = pickle.load(f)
+            print(tabs)
+        for tab,name in tabs:
+            if isinstance(tab, glwindow.WindowTab):
+                tab.create(self.common_context)
+            if isinstance(tab, code_editor.CodeEditor):
+                tab.gui = self
+            self.window_tabber.addTab(tab, name)
             tab.show()
             self.window_tabber.setCurrentWidget(tab)
         for setting in settings:

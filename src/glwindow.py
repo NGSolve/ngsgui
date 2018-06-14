@@ -7,6 +7,7 @@ from .widgets import ArrangeV, ArrangeH
 from .thread import inthread, inmain_decorator
 from qtconsole.inprocess import QtInProcessRichJupyterWidget
 from .config import icon_path
+import numpy as np
 
 import time
 from ngsolve.bla import Vector
@@ -102,6 +103,25 @@ class RenderingParameters:
 
         self.fastmode = False
 
+    def __getstate__(self):
+        return (np.array(self.rotmat), self.zoom, self.ratio, self.dx, self.dy, np.array(self.min),
+                np.array(self.max), np.array(self.clipping_rotmat), np.array(self.clipping_normal),
+                np.array(self.clipping_point), self.clipping_dist, self.colormap_min, self.colormap_max,
+                self.colormap_linear, self.fastmode)
+
+    def __setstate__(self,state):
+        self.__init__()
+        rotmat, self.zoom, self.ratio, self.dx, self.dy, _min, _max, cl_rotmat, cl_normal, cl_point, self.clipping_dist, self.colormap_min, self.colormap_max, self.colormap_linear, self.fastmode = state
+        for i in range(4):
+            for j in range(4):
+                self.rotmat[i,j] = rotmat[i,j]
+                self.clipping_rotmat[i,j] = cl_rotmat[i,j]
+            self.clipping_normal[i] = cl_normal[i]
+        for i in range(3):
+            self.min[i] = _min[i]
+            self.max[i] = _max[i]
+            self.clipping_point[i] = cl_point[i]
+
     @property
     def center(self):
         return 0.5*(self.min+self.max)
@@ -149,14 +169,12 @@ class RenderingParameters:
             self.clipping_point[i] = point[i]
 
 class WindowTab(QtWidgets.QWidget):
-    def __init__(self, shared, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.shared = shared
+        self._startup_scenes = []
 
-        if shared:
-            self.glWidget = GLWidget(shared=shared)
-        else:
-            self.glWidget = GLWidget()
+    def create(self,sharedContext):
+        self.glWidget = GLWidget(shared=sharedContext)
         self.glWidget.makeCurrent()
 
         buttons = QtWidgets.QVBoxLayout()
@@ -177,8 +195,21 @@ class WindowTab(QtWidgets.QWidget):
         splitter.setOrientation(QtCore.Qt.Horizontal)
         splitter.setSizes([75000, 25000])
         self.setLayout(ArrangeH(splitter))
-        self.overlay = scenes.OverlayScene(name="Global options")
+        self.overlay = scenes.OverlayScene(name="Global options",
+                                           rendering_parameters=self.glWidget._rendering_parameters)
         self.draw(self.overlay)
+        for scene in self._startup_scenes:
+            if isinstance(scene, scenes.OverlayScene):
+                self.overlay.copyOptionsFrom(scene)
+            else:
+                self.draw(scene)
+
+    def __getstate__(self):
+        return (self.glWidget.scenes,)
+
+    def __setstate__(self,state):
+        self.__init__()
+        self._startup_scenes = state[0]
 
     def isGLWindow(self):
         return True
@@ -211,7 +242,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.do_move_clippingplane = False
         self.do_rotate_clippingplane = False
         self.old_time = time.time()
-        self.rendering_parameters = RenderingParameters()
+        self._rendering_parameters = RenderingParameters()
 
         self.redraw_update_done = QtCore.QWaitCondition()
         self.redraw_mutex = QtCore.QMutex()
@@ -219,17 +250,17 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.redraw_signal.connect(self.updateScenes)
 
         self.lastPos = QtCore.QPoint()
-        self.lastFastmode = self.rendering_parameters.fastmode
+        self.lastFastmode = self._rendering_parameters.fastmode
 
     @inmain_decorator(True)
     def updateGL(self,*args,**kwargs):
         super().updateGL(*args,**kwargs)
 
     def ZoomReset(self):
-        self.rendering_parameters.rotmat = glmath.Identity()
-        self.rendering_parameters.zoom = 0.0
-        self.rendering_parameters.dx = 0.0
-        self.rendering_parameters.dy = 0.0
+        self._rendering_parameters.rotmat = glmath.Identity()
+        self._rendering_parameters.zoom = 0.0
+        self._rendering_parameters.dx = 0.0
+        self._rendering_parameters.dy = 0.0
         self.updateGL()
 
     def minimumSizeHint(self):
@@ -264,7 +295,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         GL.glEnable(GL.GL_BLEND);
         GL.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
         with mygl.Query(GL.GL_PRIMITIVES_GENERATED) as q:
-            rp = copy.copy(self.rendering_parameters)
+            rp = copy.copy(self._rendering_parameters)
             for scene in self.scenes:
                 scene.render(rp) #model, view, projection)
         # print('\rtotal trigs drawn ' + str(q.value)+' '*10, end='')
@@ -283,8 +314,8 @@ class GLWidget(QtOpenGL.QGLWidget):
             for i in range(3):
                 box_min[i] = min(s_min[i], box_min[i])
                 box_max[i] = max(s_max[i], box_max[i])
-        self.rendering_parameters.min = box_min
-        self.rendering_parameters.max = box_max
+        self._rendering_parameters.min = box_min
+        self._rendering_parameters.max = box_max
 
     def mouseDoubleClickEvent(self, event):
         import OpenGL.GLU
@@ -293,7 +324,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         y = viewport[3]-event.pos().y()
         GL.glReadBuffer(GL.GL_FRONT);
         z = GL.glReadPixels(x, y, 1, 1, GL.GL_DEPTH_COMPONENT, GL.GL_FLOAT)
-        params = self.rendering_parameters
+        params = self._rendering_parameters
         p = OpenGL.GLU.gluUnProject(
                 x,y,z,
                 (params.view*params.model).T.NumPy(),
@@ -329,12 +360,12 @@ class GLWidget(QtOpenGL.QGLWidget):
 
     def resizeGL(self, width, height):
         GL.glViewport(0, 0, width, height)
-        self.rendering_parameters.ratio = width/height
+        self._rendering_parameters.ratio = width/height
 
     def mousePressEvent(self, event):
         self.lastPos = QtCore.QPoint(event.pos())
-        self.lastFastmode = self.rendering_parameters.fastmode
-        self.rendering_parameters.fastmode = True
+        self.lastFastmode = self._rendering_parameters.fastmode
+        self._rendering_parameters.fastmode = True
         if event.modifiers() == QtCore.Qt.ControlModifier:
             if event.button() == QtCore.Qt.MouseButton.RightButton:
                 self.do_move_clippingplane = True
@@ -354,14 +385,14 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.do_zoom = False
         self.do_move_clippingplane = False
         self.do_rotate_clippingplane = False
-        if self.rendering_parameters.fastmode and not self.lastFastmode:
-            self.rendering_parameters.fastmode = False
+        if self._rendering_parameters.fastmode and not self.lastFastmode:
+            self._rendering_parameters.fastmode = False
             self.updateGL()
 
     def mouseMoveEvent(self, event):
         dx = event.x() - self.lastPos.x()
         dy = event.y() - self.lastPos.y()
-        param = self.rendering_parameters
+        param = self._rendering_parameters
         if self.do_rotate:
             param.rotmat = glmath.RotateY(-dx/50.0)*param.rotmat
             param.rotmat = glmath.RotateX(-dy/50.0)*param.rotmat
@@ -385,7 +416,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.updateGL()
 
     def wheelEvent(self, event):
-        self.rendering_parameters.zoom -= event.angleDelta().y()/10
+        self._rendering_parameters.zoom -= event.angleDelta().y()/10
         self.updateGL()
 
     def freeResources(self):
