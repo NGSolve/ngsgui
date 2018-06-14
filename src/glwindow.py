@@ -20,7 +20,7 @@ class ToolBoxItem(QtWidgets.QWidget):
     def __init__(self, window, scene, *args, **kwargs):
         super().__init__(*args, **kwargs)
         layout = QtWidgets.QVBoxLayout()
-        for item in scene.getQtWidget(window.glWidget.updateGL, window.glWidget.rendering_parameters).groups:
+        for item in scene.widgets.groups:
             layout.addWidget(item)
         self.setLayout(layout)
         self.layout().setAlignment(QtCore.Qt.AlignTop)

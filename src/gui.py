@@ -188,12 +188,12 @@ class GUI():
     def __init__(self):
         self.app = QtWidgets.QApplication([])
         ngui.SetLocale()
-        self.common_context = None
         self.multikernel_manager = MultiQtKernelManager()
         self.createMenu()
         self.createLayout()
         self.mainWidget.setWindowTitle("NGSolve")
         self.crawlPlugins()
+        self.common_context = glwindow.GLWidget()
 
     def createMenu(self):
         self.menuBar = MenuBarWithDict()
@@ -233,9 +233,6 @@ class GUI():
         self.window_tabber.setTabsClosable(True)
         def _remove_tab(index):
             if self.window_tabber.widget(index).isGLWindow():
-                if self.common_context == self.window_tabber.widget(index).glWidget:
-                    # cannot delete window with openGL context
-                    return
                 if self.activeGLWindow == self.window_tabber.widget(index):
                     self.activeGLWindow = None
             self.window_tabber.removeTab(index)
