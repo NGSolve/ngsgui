@@ -326,3 +326,26 @@ class CollColors(QtWidgets.QWidget):
 
     def getColors(self):
         return [QtGui.QColor(self.colorbtns[item]._color) for item in self.coll]
+
+class WidgetWithLabel(QtWidgets.QWidget):
+    def __init__(self, widget, label=None):
+        super().__init__()
+        self._value_widget = widget
+
+        if label==None:
+            l = ArrangeV(widget)
+            l.setMargin(0)
+            self.setLayout(l)
+        else:
+            l= QtWidgets.QLabel(label)
+            lay = ArrangeH( l, widget )
+            lay.setMargin(0)
+            self.setLayout(lay)
+
+    def setValue(self, value):
+        if isinstance(self._value_widget, QtWidgets.QCheckBox):
+            self._value_widget.setCheckState(QtCore.Qt.Checked if value else QtCore.Qt.Unchecked)
+        elif isinstance(self._value_widget, QtWidgets.QComboBox):
+            self._value_widget.setCurrentIndex(value)
+        else:
+            self._value_widget.setValue(value)

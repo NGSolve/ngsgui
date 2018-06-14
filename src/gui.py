@@ -3,9 +3,8 @@ from . import glwindow
 from . import code_editor
 from . widgets import ArrangeV
 from .thread import inthread, inmain_decorator
-import ngui
 
-import sys, textwrap, inspect, time, re
+import sys, textwrap, inspect, time, re, pkgutil, ngsolve, ngui
 
 from PySide2 import QtWidgets, QtCore, QtGui
 
@@ -176,23 +175,28 @@ def _showHelp(gui, val):
             print(textwrap.indent(tup[1],"  "))
         quit()
 
-import ngsolve
+def _dontCatchExceptions(gui, val):
+    gui._dontCatchExceptions = val
+
 class GUI():
     # functions to modify the gui with flags. If the flag is not set, the function is called with False as argument
     flags = { "-noexec" : (_noexec, "Do not execute loaded Python file on startup"),
               "-fastmode" : (_fastmode, "Use fastmode for drawing large scenes faster"),
               "-noOutputpipe" : (_noOutputpipe, "Do not pipe the std output to the output window in the gui"),
-              "-help" : (_showHelp, "Show this help function")}
+              "-help" : (_showHelp, "Show this help function"),
+              "-dontCatchExceptions" : (_dontCatchExceptions, "Do not catch exceptions")}
     def __init__(self):
         self.app = QtWidgets.QApplication([])
         ngui.SetLocale()
-        self.fastmode = False
-        self.pipeOutput = False
-        self.common_context = None
         self.multikernel_manager = MultiQtKernelManager()
-        self.mainWidget = MainWindow()
+        self.createMenu()
+        self.createLayout()
+        self.mainWidget.setWindowTitle("NGSolve")
+        self.crawlPlugins()
+        self.common_context = glwindow.GLWidget()
+
+    def createMenu(self):
         self.menuBar = MenuBarWithDict()
-        self.activeGLWindow = None
         fileMenu = self.menuBar.createMenu("&File")
         loadMenu = fileMenu.createMenu("&Load")
         saveMenu = fileMenu.createMenu("&Save")
@@ -210,6 +214,10 @@ class GUI():
         createMenu = self.menuBar.createMenu("&Create")
         newWindowAction = createMenu.addAction("New &Window")
         newWindowAction.triggered.connect(self.make_window)
+
+    def createLayout(self):
+        self.mainWidget = MainWindow()
+        self.activeGLWindow = None
         menu_splitter = QtWidgets.QSplitter(parent=self.mainWidget)
         menu_splitter.setOrientation(QtCore.Qt.Vertical)
         menu_splitter.addWidget(self.menuBar)
@@ -225,9 +233,6 @@ class GUI():
         self.window_tabber.setTabsClosable(True)
         def _remove_tab(index):
             if self.window_tabber.widget(index).isGLWindow():
-                if self.common_context == self.window_tabber.widget(index).glWidget:
-                    # cannot delete window with openGL context
-                    return
                 if self.activeGLWindow == self.window_tabber.widget(index):
                     self.activeGLWindow = None
             self.window_tabber.removeTab(index)
@@ -244,16 +249,15 @@ class GUI():
         toolbox_splitter.setSizes([0, 85000])
         window_splitter.setSizes([70000, 30000])
         self.mainWidget.setLayout(ArrangeV(menu_splitter))
-        menu_splitter.show()
-        self.mainWidget.setWindowTitle("NGSolve")
-        # crawl for plugins
+        # menu_splitter.show()
+
+    def crawlPlugins(self):
         try:
             from . import plugins as plu
             plugins_exist = True
         except ImportError:
             plugins_exist = False
         if plugins_exist:
-            import pkgutil
             prefix = plu.__name__ + "."
             plugins = []
             for importer, modname, ispkg in pkgutil.iter_modules(plu.__path__,prefix):
@@ -282,7 +286,8 @@ class GUI():
 
     @inmain_decorator(wait_for_return=True)
     def make_window(self, name=None):
-        self.activeGLWindow = window = glwindow.WindowTab(shared=self.common_context)
+        self.activeGLWindow = window = glwindow.WindowTab()
+        window.create(sharedContext=self.common_context)
         if self.fastmode:
             window.glWidget.rendering_parameters.fastmode = True
         if self.common_context is None:
@@ -300,7 +305,7 @@ class GUI():
             filename += ".sol"
         tabs = []
         for i in range(self.window_tabber.count()):
-            tabs.append(self.window_tabber.widget(i))
+            tabs.append((self.window_tabber.widget(i),self.window_tabber.tabBar().tabText(i)))
         settings = self.settings_toolbox.settings
         with open(filename,"wb") as f:
             pickle.dump((tabs,settings), f)
@@ -312,9 +317,14 @@ class GUI():
         if not filename[-4:] == ".sol":
             filename += ".sol"
         with open(filename, "rb") as f:
-            tabs, settings = pickle.load(f)
-        for tab in tabs:
-            self.window_tabber.addTab(tab, "window" + str(self.window_tabber.count()))
+            tabs,settings = pickle.load(f)
+            print(tabs)
+        for tab,name in tabs:
+            if isinstance(tab, glwindow.WindowTab):
+                tab.create(self.common_context)
+            if isinstance(tab, code_editor.CodeEditor):
+                tab.gui = self
+            self.window_tabber.addTab(tab, name)
             tab.show()
             self.window_tabber.setCurrentWidget(tab)
         for setting in settings:
@@ -387,7 +397,6 @@ class GUI():
             self.stdoutThread.started.connect(receiver.run)
             self.stdoutThread.start()
         do_after_run()
-        import time
         def onQuit():
             if self.pipeOutput:
                 receiver.SetKill()

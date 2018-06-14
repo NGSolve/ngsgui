@@ -259,7 +259,7 @@ PYBIND11_MODULE(ngui, m) {
 
         int n_edges = 0;
         int n_edge_elements = 0;
-        int n_periodic_vertices = ma->GetNPairsPeriodicVertices();
+        int n_periodic_vertices = ma->GetNPeriodicNodes(NT_VERTEX);
         int n_surface_elements = 0;
         int n_volume_elements = 0;
 
@@ -345,19 +345,13 @@ PYBIND11_MODULE(ngui, m) {
             assert(elements.Size() == size_elements_before + n_edge_elements*edge_elements_size);
         }
         size_elements_before = elements.Size();
-        if(ma->GetDimension()>=1) {
-            // 1d Elements
-            ngstd::Array<ngstd::INT<2>> pairs;
-            ma->GetPeriodicVertices ( pairs );
-            for (auto p : pairs) {
-                for (auto i : Range(2))
-                    elements.Append(p[i]);
-                elements.Append(0);
-                elements.Append(-1);
-
-            }
+        if(ma->GetDimension()>=1)
+          {
+            for(auto idnr : Range(ma->GetNPeriodicIdentifications()))
+              for (const auto& pair : ma->GetPeriodicNodes(NT_VERTEX, idnr))
+                elements.Append({pair[0],pair[1],0,-1});
             assert(elements.Size() == size_elements_before +n_periodic_vertices*edge_elements_size);
-        }
+          }
 
         size_elements_before = elements.Size();
         if(ma->GetDimension()>=2) {
