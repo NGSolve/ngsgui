@@ -29,10 +29,10 @@ name : str = type(self).__name__ + scene_counter
     @inmain_decorator(wait_for_return=True)
     def __init__(self,active=True, name = None, **kwargs):
         self.window = None
-        self.gl_initialized = False
-        self.actions = {}
-        self.active_action = None
-        self.active = active
+        self._gl_initialized = False
+        self._actions = {}
+        self._active_action = None
+        self._active = active
         if name is None:
             self.name = type(self).__name__.split('.')[-1] + str(BaseScene.scene_counter)
             BaseScene.scene_counter += 1
@@ -52,14 +52,14 @@ name : str = type(self).__name__ + scene_counter
             for name in group:
                 values.append(getattr(self, "get" + name)())
             widget_values.append(values)
-        return (self.name, self.active, widget_values)
+        return (self.name, self._active, widget_values)
 
     def __setstate__(self,state):
         self.name = state[0]
-        self.active = state[1]
+        self._active = state[1]
         # TODO: can we pickle actions somehow?
-        self.actions = {}
-        self.gl_initialized = False
+        self._actions = {}
+        self._gl_initialized = False
         self.createOptions()
         self.createQtWidget()
         for i, (key, group) in enumerate(self._widgets.items()):
@@ -68,12 +68,12 @@ name : str = type(self).__name__ + scene_counter
 
     def initGL(self):
         """Called once after the scene is created and initializes all OpenGL objects."""
-        self.gl_initialized = True
+        self._gl_initialized = True
 
     @inmain_decorator(True)
     def update(self):
         """Called on startup and if underlying object changes, reloads data on GPU if drawn object changed"""
-        if not self.gl_initialized:
+        if not self._gl_initialized:
             self.initGL()
 
     @inmain_decorator(True)
@@ -99,10 +99,13 @@ center of this box. Rotation will be around this center."""
         box_max[:] = -1e99
         return box_min,box_max
 
-    def setActive(self, active):
+    def _setActive(self, _active):
         """Toggle visibility of scene"""
-        self.active = active
+        self._active = _active
         self._updateGL()
+    def _getActive(self):
+        return self._active
+    active = property(_getActive,_setActive)
 
     def createQtWidget(self):
         self.widgets = wid.OptionWidgets(updateGL=self._updateGL)
@@ -123,11 +126,11 @@ center of this box. Rotation will be around this center."""
                     if self.scene.active_action == self.name:
                         self.scene.active_action = None
 
-        if self.actions:
+        if self._actions:
             layout = QtWidgets.QVBoxLayout()
-            for name,action in self.actions.items():
+            for name,action in self._actions.items():
                 cb = QtWidgets.QCheckBox(name)
-                if self.active_action == name:
+                if self._active_action == name:
                     cb.setCheckState(QtCore.Qt.Checked)
                 cb.stateChanged.connect(cbHolder(cb,self,name))
                 self.actionCheckboxes.append(cb)
@@ -158,14 +161,14 @@ name : str = "action" + consecutive number
   Name of the action. The checkbox in the right hand menu is label accordingly.
 """
         if name is None:
-            name = "Action" + str(len(self.actions)+1)
-        self.actions[name] = action
-        self.active_action = name
+            name = "Action" + str(len(self._actions)+1)
+        self._actions[name] = action
+        self._active_action = name
         self.toolboxupdate(self)
 
     def doubleClickAction(self,point):
-        if self.active_action:
-            self.actions[self.active_action](point)
+        if self._active_action:
+            self._actions[self._active_action](point)
 
     def addOption(self, group, name, default_value, typ=None, update_on_change=False, update_widget_on_change=False, widget_type=None, label=None, values=None, on_change=None, *args, **kwargs):
         if not group in self._widgets:
