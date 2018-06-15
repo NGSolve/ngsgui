@@ -10,6 +10,8 @@ from . import ngui
 import math, cmath
 from .thread import inmain_decorator
 from .gl_interface import getOpenGLData
+from .gui import GUI
+import netgen.meshing
 
 from PySide2 import QtWidgets, QtCore, QtGui
 from OpenGL.GL import *
@@ -277,6 +279,8 @@ name : str = "action" + consecutive number
         w = wid.Button(label, getattr(self, name))
         self._widgets[group][name] = w
 
+GUI.sceneCreators.append((BaseScene,lambda scene,*args,**kwargs: scene))
+
 class BaseMeshScene(BaseScene):
     """Base class for all scenes that depend on a mesh"""
     @inmain_decorator(wait_for_return=True)
@@ -431,7 +435,6 @@ class OverlayScene(BaseScene):
         self.cross_points.store(numpy.array(points, dtype=numpy.float32))
 
 
-    
 class MeshScene(BaseMeshScene):
     @inmain_decorator(wait_for_return=True)
     def __init__(self, mesh, wireframe=True, surface=True, elements=False, edgeElements=False, edges=False,
@@ -758,9 +761,11 @@ class MeshScene(BaseMeshScene):
             return False
         self.widgets.addGroup("BBoundaries", self.bbndcolors, connectedVisibility=showBBND)
 
+GUI.sceneCreators.append((ngsolve.Mesh, MeshScene))
+
 class SolutionScene(BaseMeshScene):
     @inmain_decorator(wait_for_return=True)
-    def __init__(self, cf, mesh, min=0,max=1, autoscale=True, linear=False, clippingPlane=True,
+    def __init__(self, cf, mesh, name=None, min=0,max=1, autoscale=True, linear=False, clippingPlane=True,
                  order=3,gradient=None, *args, **kwargs):
         self.cf = cf
         self.vao = None
@@ -783,7 +788,7 @@ class SolutionScene(BaseMeshScene):
             self.have_gradient = True
         else:
             self.have_gradient = False
-        super().__init__(mesh,*args, **kwargs)
+        super().__init__(mesh,*args, name=name, **kwargs)
 
     @inmain_decorator(True)
     def createOptions(self):
@@ -1225,6 +1230,21 @@ class SolutionScene(BaseMeshScene):
             if self.getShowVectors():
                 self.renderVectors(settings)
 
+def _createCFScene(cf, mesh, *args, **kwargs):
+    return SolutionScene(cf, mesh, *args,
+                         autoscale = kwargs["autoscale"] if "autoscale" in kwargs else not ("min" in kwargs or "max" in kwargs),
+                         **kwargs)
+
+def _createGFScene(gf, mesh=None, name=None, *args, **kwargs):
+    if not mesh:
+        mesh = gf.space.mesh
+    if not name:
+        name = gf.name
+    return _createCFScene(gf,mesh,*args, name=name, **kwargs)
+
+GUI.sceneCreators.append((ngsolve.GridFunction, _createGFScene))
+GUI.sceneCreators.append((ngsolve.CoefficientFunction, _createCFScene))
+
 class GeometryScene(BaseScene):
     @inmain_decorator(wait_for_return=True)
     def __init__(self, geo, *args, **kwargs):
@@ -1297,3 +1317,5 @@ class GeometryScene(BaseScene):
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL )
         glDrawArrays(GL_TRIANGLES, 0, self.geo_data.npoints)
         self.vao.unbind()
+
+GUI.sceneCreators.append((netgen.meshing.NetgenGeometry,GeometryScene))

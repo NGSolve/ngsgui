@@ -3,6 +3,8 @@ from . import glwindow
 from . import code_editor
 from . widgets import ArrangeV
 from .thread import inthread, inmain_decorator
+from . import scenes
+import collections
 
 import sys, textwrap, inspect, time, re, pkgutil, ngsolve, ngui
 
@@ -185,6 +187,8 @@ class GUI():
               "-noOutputpipe" : (_noOutputpipe, "Do not pipe the std output to the output window in the gui"),
               "-help" : (_showHelp, "Show this help function"),
               "-dontCatchExceptions" : (_dontCatchExceptions, "Do not catch exceptions")}
+    # use a list of tuples instead of a dict to be able to sort it
+    sceneCreators = []
     def __init__(self):
         self.app = QtWidgets.QApplication([])
         ngui.SetLocale()

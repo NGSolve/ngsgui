@@ -4,28 +4,16 @@
 import sys, os
 import ngsolve.gui as G
 import ngsolve as ngs
-from ngsolve.gui.thread import inmain_decorator
 import netgen.meshing
 
-def Draw(obj, mesh=None, name=None, tab=None, **kwargs):
+def Draw(obj, *args, tab=None, **kwargs):
     """Draw a Mesh or a CoefficientFunction, this function is overridden by
     the new gui and returns the drawn scene."""
     scene = None
-    if isinstance(obj, netgen.meshing.NetgenGeometry):
-        scene = G.scenes.GeometryScene(obj,name=name)
-    if isinstance(obj,ngs.Mesh):
-        scene = G.scenes.MeshScene(obj, name=name, **kwargs)
-    if isinstance(obj, ngs.GridFunction):
-        if name is None:
-            name = obj.name
-        if mesh is None:
-            mesh = obj.space.mesh
-    if isinstance(obj, ngs.CoefficientFunction):
-        scene = G.scenes.SolutionScene(obj, mesh, name=name,
-                                       autoscale = kwargs["autoscale"] if "autoscale" in kwargs else not ("min" in kwargs or "max" in kwargs),
-                                       **kwargs)
-    if isinstance(obj, G.scenes.BaseScene):
-        scene = obj
+    for _type, creator in G.GUI.sceneCreators:
+        if isinstance(obj,_type):
+            scene = creator(obj, *args, **kwargs)
+            break
     if scene:
         G.gui.draw(scene, tab=tab)
         return scene
