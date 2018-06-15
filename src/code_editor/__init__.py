@@ -85,7 +85,7 @@ class CodeEditor(QtWidgets.QPlainTextEdit):
                 self.selectCurrentLine()
                 Selection(self).commentOrUncomment()
         self.comment_action.triggered.connect(_comment)
-        self.comment_action.setShortcut(QtGui.QKeySequence("Ctrl+c"))
+        self.comment_action.setShortcut(QtGui.QKeySequence("Ctrl+d"))
         self.addAction(self.comment_action)
         self.active_thread = None
 

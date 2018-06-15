@@ -247,7 +247,13 @@ class GUI():
         toolbox_splitter.setSizes([0, 85000])
         window_splitter.setSizes([70000, 30000])
         self.mainWidget.setLayout(ArrangeV(menu_splitter))
-        # menu_splitter.show()
+        self.mainWidget.console_action = console_action = QtWidgets.QAction("Activate Console")
+        def activateConsole():
+            self.output_tabber.setCurrentWidget(self.console)
+            self.console._control.setFocus()
+        console_action.triggered.connect(activateConsole)
+        console_action.setShortcut(QtGui.QKeySequence("Ctrl+j"))
+        self.mainWidget.addAction(console_action)
 
     def crawlPlugins(self):
         try:
