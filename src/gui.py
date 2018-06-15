@@ -247,13 +247,26 @@ class GUI():
         toolbox_splitter.setSizes([0, 85000])
         window_splitter.setSizes([70000, 30000])
         self.mainWidget.setLayout(ArrangeV(menu_splitter))
-        self.mainWidget.console_action = console_action = QtWidgets.QAction("Activate Console")
+
+        # global shortkeys:
         def activateConsole():
             self.output_tabber.setCurrentWidget(self.console)
             self.console._control.setFocus()
+        self.mainWidget._console_action = console_action = QtWidgets.QAction("Activate Console")
         console_action.triggered.connect(activateConsole)
         console_action.setShortcut(QtGui.QKeySequence("Ctrl+j"))
         self.mainWidget.addAction(console_action)
+
+        def switchTabWindow(direction):
+            self.window_tabber.setCurrentIndex((self.window_tabber.currentIndex() + direction)%self.window_tabber.count())
+        self.mainWidget._next_tab_action = next_tab = QtWidgets.QAction("Next Tab")
+        next_tab.triggered.connect(lambda : switchTabWindow(1))
+        next_tab.setShortcut(QtGui.QKeySequence("Ctrl+w"))
+        self.mainWidget._last_tab_action = last_tab = QtWidgets.QAction("Last Tab")
+        last_tab.triggered.connect(lambda : switchTabWindow(-1))
+        last_tab.setShortcut(QtGui.QKeySequence("Ctrl+q"))
+        self.mainWidget.addAction(next_tab)
+        self.mainWidget.addAction(last_tab)
 
     def crawlPlugins(self):
         try:
