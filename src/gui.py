@@ -1,12 +1,11 @@
 
-from . import glwindow
-from . import code_editor
+from . import glwindow, ngui, code_editor
 from . widgets import ArrangeV
 from .thread import inthread, inmain_decorator
 from .menu import MenuBarWithDict
 from .console import NGSJupyterWidget, MultiQtKernelManager
 
-import sys, textwrap, inspect, re, pkgutil, ngsolve, ngui, pickle, os
+import sys, textwrap, inspect, re, pkgutil, ngsolve, pickle, os
 
 from PySide2 import QtWidgets, QtCore, QtGui
 
