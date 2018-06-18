@@ -9,12 +9,17 @@ uniform Mesh mesh;
 uniform sampler1D colors;
 uniform float shrink_elements;
 
-layout(triangles) in;
-layout(triangle_strip, max_vertices=12) out;
-
 #define ELEMENT_TYPE {ELEMENT_TYPE}
 #define {ELEMENT_TYPE_NAME}
 #define ELEMENT_SIZE {ELEMENT_SIZE}
+
+layout(triangles) in;
+#ifdef ET_SEGM
+layout(line_strip, max_vertices=12) out;
+#else
+layout(triangle_strip, max_vertices=12) out;
+#endif
+
 const int dim = {DIM};
 // const int et = {ELEMENT_TYPE};
 const int order = {ORDER};
@@ -93,6 +98,15 @@ ELEMENT_TYPE getElement(Mesh mesh, int elnr ) {
     el.normal = cross(el.pos[1]-el.pos[0], el.pos[2]-el.pos[0]);
 #endif
     return el;
+}
+
+void Draw(SEGM el) {
+    outData.edgedist = vec3(0,0,0);
+    outData.color = vec4(texelFetch(colors, el.index, 0));
+    outData.normal = vec3(0,0,1);
+    AddPoint(el.pos[0]);
+    AddPoint(el.pos[1]);
+    EndPrimitive();
 }
 
 void Draw(TRIG el) {
