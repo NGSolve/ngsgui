@@ -6,6 +6,8 @@ import copy
 from .widgets import ArrangeV, ArrangeH
 from .thread import inthread, inmain_decorator
 from qtconsole.inprocess import QtInProcessRichJupyterWidget
+from .config import icon_path
+import numpy as np
 
 import time
 from ngsolve.bla import Vector
@@ -13,13 +15,14 @@ from math import exp
 
 from PySide2 import QtWidgets, QtOpenGL, QtCore, QtGui
 from OpenGL import GL
+import pickle
 
 
 class ToolBoxItem(QtWidgets.QWidget):
     def __init__(self, window, scene, *args, **kwargs):
         super().__init__(*args, **kwargs)
         layout = QtWidgets.QVBoxLayout()
-        for item in scene.getQtWidget(window.glWidget.updateGL, window.glWidget.rendering_parameters).groups:
+        for item in scene.widgets.groups:
             layout.addWidget(item)
         self.setLayout(layout)
         self.layout().setAlignment(QtCore.Qt.AlignTop)
@@ -30,9 +33,17 @@ class ToolBoxItem(QtWidgets.QWidget):
         self.scene.active = not self.scene.active
         self.window.glWidget.updateGL()
 
+    def mousePressEvent(self, event):
+        drag = QtGui.QDrag(self)
+        mime_data = QtCore.QMimeData()
+        dump = pickle.dumps(self.scene)
+        mime_data.setData("scene", dump)
+        drag.setMimeData(mime_data)
+        drag.start()
+
 class SceneToolBox(QtWidgets.QToolBox):
-    ic_visible = "@ICON_INSTALL_PATH@/visible.png"
-    ic_hidden = "@ICON_INSTALL_PATH@/hidden.png"
+    ic_visible = icon_path + "/visible.png"
+    ic_hidden = icon_path + "/hidden.png"
     def __init__(self, window):
         super().__init__()
         self.window = window
@@ -101,6 +112,25 @@ class RenderingParameters:
 
         self.fastmode = False
 
+    def __getstate__(self):
+        return (np.array(self.rotmat), self.zoom, self.ratio, self.dx, self.dy, np.array(self.min),
+                np.array(self.max), np.array(self.clipping_rotmat), np.array(self.clipping_normal),
+                np.array(self.clipping_point), self.clipping_dist, self.colormap_min, self.colormap_max,
+                self.colormap_linear, self.fastmode)
+
+    def __setstate__(self,state):
+        self.__init__()
+        rotmat, self.zoom, self.ratio, self.dx, self.dy, _min, _max, cl_rotmat, cl_normal, cl_point, self.clipping_dist, self.colormap_min, self.colormap_max, self.colormap_linear, self.fastmode = state
+        for i in range(4):
+            for j in range(4):
+                self.rotmat[i,j] = rotmat[i,j]
+                self.clipping_rotmat[i,j] = cl_rotmat[i,j]
+            self.clipping_normal[i] = cl_normal[i]
+        for i in range(3):
+            self.min[i] = _min[i]
+            self.max[i] = _max[i]
+            self.clipping_point[i] = cl_point[i]
+
     @property
     def center(self):
         return 0.5*(self.min+self.max)
@@ -148,14 +178,12 @@ class RenderingParameters:
             self.clipping_point[i] = point[i]
 
 class WindowTab(QtWidgets.QWidget):
-    def __init__(self, shared, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.shared = shared
+        self._startup_scenes = []
 
-        if shared:
-            self.glWidget = GLWidget(shared=shared)
-        else:
-            self.glWidget = GLWidget()
+    def create(self,sharedContext):
+        self.glWidget = GLWidget(shared=sharedContext)
         self.glWidget.makeCurrent()
 
         buttons = QtWidgets.QVBoxLayout()
@@ -176,8 +204,21 @@ class WindowTab(QtWidgets.QWidget):
         splitter.setOrientation(QtCore.Qt.Horizontal)
         splitter.setSizes([75000, 25000])
         self.setLayout(ArrangeH(splitter))
-        self.overlay = scenes.OverlayScene(name="Global options")
+        self.overlay = scenes.OverlayScene(name="Global options",
+                                           rendering_parameters=self.glWidget._rendering_parameters)
         self.draw(self.overlay)
+        for scene in self._startup_scenes:
+            if isinstance(scene, scenes.OverlayScene):
+                self.overlay.copyOptionsFrom(scene)
+            else:
+                self.draw(scene)
+
+    def __getstate__(self):
+        return (self.glWidget.scenes,)
+
+    def __setstate__(self,state):
+        self.__init__()
+        self._startup_scenes = state[0]
 
     def isGLWindow(self):
         return True
@@ -185,7 +226,7 @@ class WindowTab(QtWidgets.QWidget):
     @inmain_decorator(True)
     def draw(self, scene):
         self.glWidget.makeCurrent()
-        scene.setWindow(self)
+        scene.window = self
         scene.update()
         self.glWidget.addScene(scene)
         self.toolbox.addScene(scene)
@@ -210,7 +251,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.do_move_clippingplane = False
         self.do_rotate_clippingplane = False
         self.old_time = time.time()
-        self.rendering_parameters = RenderingParameters()
+        self._rendering_parameters = RenderingParameters()
 
         self.redraw_update_done = QtCore.QWaitCondition()
         self.redraw_mutex = QtCore.QMutex()
@@ -218,17 +259,17 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.redraw_signal.connect(self.updateScenes)
 
         self.lastPos = QtCore.QPoint()
-        self.lastFastmode = self.rendering_parameters.fastmode
+        self.lastFastmode = self._rendering_parameters.fastmode
 
     @inmain_decorator(True)
     def updateGL(self,*args,**kwargs):
         super().updateGL(*args,**kwargs)
 
     def ZoomReset(self):
-        self.rendering_parameters.rotmat = glmath.Identity()
-        self.rendering_parameters.zoom = 0.0
-        self.rendering_parameters.dx = 0.0
-        self.rendering_parameters.dy = 0.0
+        self._rendering_parameters.rotmat = glmath.Identity()
+        self._rendering_parameters.zoom = 0.0
+        self._rendering_parameters.dx = 0.0
+        self._rendering_parameters.dy = 0.0
         self.updateGL()
 
     def minimumSizeHint(self):
@@ -263,7 +304,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         GL.glEnable(GL.GL_BLEND);
         GL.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
         with mygl.Query(GL.GL_PRIMITIVES_GENERATED) as q:
-            rp = copy.copy(self.rendering_parameters)
+            rp = copy.copy(self._rendering_parameters)
             for scene in self.scenes:
                 scene.render(rp) #model, view, projection)
         # print('\rtotal trigs drawn ' + str(q.value)+' '*10, end='')
@@ -282,8 +323,9 @@ class GLWidget(QtOpenGL.QGLWidget):
             for i in range(3):
                 box_min[i] = min(s_min[i], box_min[i])
                 box_max[i] = max(s_max[i], box_max[i])
-        self.rendering_parameters.min = box_min
-        self.rendering_parameters.max = box_max
+        self._rendering_parameters.min = box_min
+        self._rendering_parameters.max = box_max
+        self.updateGL()
 
     def mouseDoubleClickEvent(self, event):
         import OpenGL.GLU
@@ -292,7 +334,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         y = viewport[3]-event.pos().y()
         GL.glReadBuffer(GL.GL_FRONT);
         z = GL.glReadPixels(x, y, 1, 1, GL.GL_DEPTH_COMPONENT, GL.GL_FLOAT)
-        params = self.rendering_parameters
+        params = self._rendering_parameters
         p = OpenGL.GLU.gluUnProject(
                 x,y,z,
                 (params.view*params.model).T.NumPy(),
@@ -328,12 +370,12 @@ class GLWidget(QtOpenGL.QGLWidget):
 
     def resizeGL(self, width, height):
         GL.glViewport(0, 0, width, height)
-        self.rendering_parameters.ratio = width/height
+        self._rendering_parameters.ratio = width/height
 
     def mousePressEvent(self, event):
         self.lastPos = QtCore.QPoint(event.pos())
-        self.lastFastmode = self.rendering_parameters.fastmode
-        self.rendering_parameters.fastmode = True
+        self.lastFastmode = self._rendering_parameters.fastmode
+        self._rendering_parameters.fastmode = True
         if event.modifiers() == QtCore.Qt.ControlModifier:
             if event.button() == QtCore.Qt.MouseButton.RightButton:
                 self.do_move_clippingplane = True
@@ -353,14 +395,14 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.do_zoom = False
         self.do_move_clippingplane = False
         self.do_rotate_clippingplane = False
-        if self.rendering_parameters.fastmode and not self.lastFastmode:
-            self.rendering_parameters.fastmode = False
+        if self._rendering_parameters.fastmode and not self.lastFastmode:
+            self._rendering_parameters.fastmode = False
             self.updateGL()
 
     def mouseMoveEvent(self, event):
         dx = event.x() - self.lastPos.x()
         dy = event.y() - self.lastPos.y()
-        param = self.rendering_parameters
+        param = self._rendering_parameters
         if self.do_rotate:
             param.rotmat = glmath.RotateY(-dx/50.0)*param.rotmat
             param.rotmat = glmath.RotateX(-dy/50.0)*param.rotmat
@@ -384,10 +426,90 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.updateGL()
 
     def wheelEvent(self, event):
-        self.rendering_parameters.zoom -= event.angleDelta().y()/10
+        self._rendering_parameters.zoom -= event.angleDelta().y()/10
         self.updateGL()
 
     def freeResources(self):
         self.makeCurrent()
 
+class WindowTabBar(QtWidgets.QTabBar):
+    def __init__(self, tabber, *args,**kwargs):
+        super().__init__(*args,**kwargs)
+        self.tabber = tabber
+        self.setAcceptDrops(True)
 
+    def dragEnterEvent(self,event):
+        if event.mimeData().hasFormat("scene"):
+            event.accept()
+
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasFormat("scene"):
+            index = self.tabAt(event.pos())
+            self.tabber.setCurrentIndex(index)
+            self.tabber.activeGLWindow = self.tabber.currentWidget()
+            event.accept()
+
+    def dropEvent(self, event):
+        if event.mimeData().hasFormat("scene"):
+            scene = self.tabber.draw(pickle.loads(event.mimeData().data("scene").data()))
+            event.accept()
+
+class WindowTabber(QtWidgets.QTabWidget):
+    def __init__(self,commonContext, *args, **kwargs):
+        super().__init__(*args,**kwargs)
+        self._commonContext = commonContext
+        self.setTabBar(WindowTabBar(self))
+        self.setTabsClosable(True)
+        self._activeGLWindow = None
+        self.tabCloseRequested.connect(self._remove_tab)
+        self._fastmode = False
+
+    def _getActiveGLWindow(self):
+        if not self._activeGLWindow:
+            self.make_window()
+        return self._activeGLWindow
+    def _setActiveGLWindow(self, win):
+        self.setCurrentWidget(win)
+        self._activeGLWindow = win
+    activeGLWindow = property(_getActiveGLWindow, _setActiveGLWindow)
+
+    @inmain_decorator(True)
+    def _remove_tab(self, index):
+        if self.widget(index).isGLWindow():
+            if self.activeGLWindow == self.widget(index):
+                self.activeGLWindow = None
+                for i in range(self.count()):
+                    if isinstance(self.widget(self.count()-i-1), WindowTab):
+                        self.activeGLWindow = self.widget(self.count()-i-1)
+                        break
+            self.removeTab(index)
+
+    def draw(self, *args, **kwargs):
+        if 'tab' in kwargs:
+            tab_found = False
+            tab = kwargs['tab']
+            del kwargs['tab']
+            for i in range(self.count()):
+                if self.tabText(i) == tab:
+                    # tab already exists -> activate it
+                    tab_found = True
+                    self.activeGLWindow = self.widget(i)
+            if not tab_found:
+                # create new tab with given name
+                self.make_window(name=tab)
+        self.activeGLWindow.draw(*args,**kwargs)
+
+    def setCurrentIndex(self, index):
+        super().setCurrentIndex(index)
+        if isinstance(self.currentWidget(), WindowTab):
+            self.activeGLWindow = self.currentWidget()
+
+    @inmain_decorator(True)
+    def make_window(self, name=None):
+        window = WindowTab()
+        window.create(sharedContext=self._commonContext)
+        if self._fastmode:
+            window.glWidget._rendering_parameters.fastmode = True
+        name = name or "window" + str(self.count() + 1)
+        self.addTab(window, name)
+        self.activeGLWindow = window

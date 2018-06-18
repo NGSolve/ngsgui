@@ -1,426 +1,89 @@
-# from PySide2 import QtCore, QtGui, QtWidgets, QtOpenGL
-# from PySide2.QtCore import Qt
-# from OpenGL import *
-# from . import widgets
-import ngsolve
-# from .gl import *
-import numpy
-# import time
-# from . import glmath
-# from . import ngui
 
-from .gl import Texture, getProgram, ArrayBuffer, VertexArray
+import ngsolve
+import numpy
+
+from .gl import Texture, getProgram, ArrayBuffer, VertexArray, TextRenderer
 from . import widgets as wid
 from .widgets import ArrangeH, ArrangeV
 from . import glmath
 from . import ngui
 import math, cmath
 from .thread import inmain_decorator
+from .gl_interface import getOpenGLData
+from .gui import GUI
+import netgen.meshing
 
 from PySide2 import QtWidgets, QtCore, QtGui
 from OpenGL.GL import *
-class WidgetWithLabel(QtWidgets.QWidget):
-    def __init__(self, widget, label=None):
-        super().__init__()
-        self._value_widget = widget
 
-        if label==None:
-            l = ArrangeV(widget) 
-            l.setMargin(0)
-            self.setLayout(l)
-        else:
-            l= QtWidgets.QLabel(label)
-            lay = ArrangeH( l, widget )
-            lay.setMargin(0)
-            self.setLayout(lay)
 
-    def setValue(self, value):
-        if isinstance(self._value_widget, QtWidgets.QCheckBox):
-            self._value_widget.setCheckState(QtCore.Qt.Checked if value else QtCore.Qt.Unchecked)
-        elif isinstance(self._value_widget, QtWidgets.QComboBox):
-            self._value_widget.setCurrentIndex(value)
-        else:
-            self._value_widget.setValue(value)
+class BaseScene():
+    """Base class for drawing opengl objects.
 
-def addOption(self, group, name, default_value, typ=None, update_on_change=False, update_widget_on_change=False, widget_type=None, label=None, values=None, on_change=None, *args, **kwargs):
-    if not group in self._widgets:
-        self._widgets[group] = {}
-
-    label = label or name
-    propname = "_"+name
-    widgetname = "_"+name+"Widget"
-    setter_name = "set"+name
-
-    setattr(self, propname, default_value) 
-
-    if typ==None and widget_type==None:
-        typ = type(default_value)
-
-    if typ is list:
-        w = QtWidgets.QComboBox()
-        assert type(values) is list
-        w.addItems(values)
-        w.currentIndexChanged[int].connect(lambda index: getattr(self,setter_name)(index))
-        self._widgets[group][name] = WidgetWithLabel(w,label)
-
-    elif widget_type:
-        w = widget_type(*args, **kwargs)
-        w.setValue(default_value)
-        self._widgets[group][name] = w
-
-    elif typ==bool:
-        w = QtWidgets.QCheckBox(label)
-        w.setCheckState(QtCore.Qt.Checked if default_value else QtCore.Qt.Unchecked)
-        if on_change:
-            w.stateChanged.connect(on_change)
-        w.stateChanged.connect(lambda value: getattr(self, setter_name)(bool(value)))
-        self._widgets[group][name] = WidgetWithLabel(w)
-
-    elif typ==int:
-        w = QtWidgets.QSpinBox()
-        w.setValue(default_value)
-        w.valueChanged[int].connect(lambda value: getattr(self, setter_name)(value))
-        if "min" in kwargs:
-            w.setMinimum(kwargs["min"])
-        if "max" in kwargs:
-            w.setMaximum(kwargs["max"])
-        self._widgets[group][name] = WidgetWithLabel(w,label)
-
-    elif typ==float:
-        w = wid.ScienceSpinBox()
-        w.setRange(-1e99, 1e99)
-        w.setValue(default_value)
-        w.valueChanged[float].connect(lambda value: getattr(self, setter_name)(value))
-        if "min" in kwargs:
-            w.setMinimum(kwargs["min"])
-        if "max" in kwargs:
-            w.setMaximum(kwargs["max"])
-        if "step" in kwargs:
-            w.setSingleStep(kwargs["step"])
-            w.lastWheelStep = kwargs["step"]
-        self._widgets[group][name] = WidgetWithLabel(w, label)
-
-    elif typ=="button":
-        def doAction(self, redraw=True):
-            getattr(self,default_value)(*args, **kwargs)
-            if update_on_change:
-                self.update()
-            if redraw:
-                self.widgets.updateGLSignal.emit()
-
-        cls = type(self)
-
-        if not hasattr(cls, name):
-            setattr(cls, name, doAction)
-
-        w = wid.Button(label, getattr(self, name))
-        self._widgets[group][name] = w
-
-    else:
-        raise RuntimeError("unknown type: ", typ)
-
-    if typ!='button':
-        def getValue(self):
-            return getattr(self, propname)
-
-        def setValue(self, value, redraw=True, update_gui=True):
-            if getattr(self, propname) == value:
-                return
-
-            setattr(self, propname, value) 
-            
-            if update_widget_on_change:
-                self.updateWidgets()
-            if redraw:
-                if update_on_change:
-                    self.update()
-                self.widgets.updateGLSignal.emit()
-                
-            if update_gui:
-                widget = self._widgets[group][name]
-                widget.setValue(value)
-
-        cls = type(self)
-
-        if not hasattr(cls, setter_name):
-            setattr(cls, setter_name, setValue)
-        if not hasattr(cls, 'get'+name):
-            setattr(cls, 'get'+name, getValue)
-    return self._widgets[group][name]
-
-import ngsolve
-import numpy
-import ctypes
-
-
-class CMeshData:
-    """Helper class to avoid redundant copies of the same mesh on the GPU."""
-
-    """
-    Vertex data:
-        vec3 pos
-
-    Surface elements:
-        int v0,v1,v2;
-        int curved_id; // to fetch curved element data, negative if element is not curved
-
-    Surface curved elements:
-        vec3 pos[3];     // Additional points for P2 interpolation
-        vec3 normal[3];  // Normals for outer vertices
-
-    Volume elements:
-        int v0,v1,v2,v3;
-        int curved_id; // to fetch curved element data, negative if element is not curved
-
-    Volume curved elements:
-        vec3 pos[6]; // Additional points for p2 interpolation
-
-    Solution data (volume or surface):
-        float values[N];   // N depends on order, subdivision
-        vec3 gradients[N]; // N depends on order, subdivision
-
-    """
-
-    def __init__(self, mesh):
-        import weakref
-        self.mesh = weakref.ref(mesh)
-        self.elements = Texture(GL_TEXTURE_BUFFER, GL_R32I)
-        self.vertices = Texture(GL_TEXTURE_BUFFER, GL_RGB32F)
-        mesh._opengl_data = self
-        self.timestamp = self.mesh().ngmesh._timestamp
-        self.update()
-
-    def check_timestamp(self):
-        if self.timestamp != self.mesh().ngmesh._timestamp:
-            self.timestamp = self.mesh().ngmesh._timestamp
-            self.mesh()._updateBuffers()
-            print("do update")
-            self.update()
-        return self
-
-    @inmain_decorator(True)
-    def update(self):
-        meshdata = ngui.GetMeshData(self.mesh())
-
-        self.vertices.store(meshdata['vertices'])
-        self.elements.store(meshdata["elements"])
-        self.nedge_elements = meshdata["n_edge_elements"]
-        self.nedges = meshdata["n_edges"]
-        self.nperiodic_vertices = meshdata["n_periodic_vertices"]
-
-        self.edges_offset = meshdata["edges_offset"]
-        self.periodic_vertices_offset = meshdata["periodic_vertices_offset"]
-        self.nsurface_elements = meshdata["n_surface_elements"]
-        self.volume_elements_offset = meshdata["volume_elements_offset"]
-        self.surface_elements_offset = meshdata["surface_elements_offset"]
-
-        self.min = meshdata['min']
-        self.max = meshdata['max']
-
-
-        new_els = {}
-        verts,new_els = ngui.GetMeshData2(self.mesh())
-        self.vertices.store(verts)
-        for vb in new_els:
-            for ei in new_els[vb]:
-                ei.tex = Texture(GL_TEXTURE_BUFFER, GL_R32I)
-                ei.tex.store(numpy.array(ei.data, dtype=numpy.int32))
-        self.new_els = new_els
-
-
-def MeshData(mesh):
-    """Helper function to avoid redundant copies of the same mesh on the GPU."""
-    if hasattr(mesh,"_opengl_data"):
-        return mesh._opengl_data.check_timestamp()
-    else:
-        return CMeshData(mesh)
-
-class CGeoData:
-    def __init__(self, geo):
-        import weakref
-        self.geo = weakref.ref(geo)
-        self.vertices = Texture(GL_TEXTURE_BUFFER, GL_RGB32F)
-        self.triangles = Texture(GL_TEXTURE_BUFFER, GL_RGBA32I)
-        self.normals = Texture(GL_TEXTURE_BUFFER, GL_RGB32F)
-        geo._opengl_data = self
-        self.update()
-
-    @inmain_decorator(True)
-    def update(self):
-        geodata = self.getGeoData()
-        self.vertices.store(geodata["vertices"])
-        self.triangles.store(geodata["triangles"])
-        self.normals.store(geodata["normals"])
-        self.surfnames = geodata["surfnames"]
-        self.min = geodata["min"]
-        self.max = geodata["max"]
-        self.npoints = len(geodata["triangles"])//4*3
-
-    def getGeoData(self):
-        return ngui.GetGeoData(self.geo())
-
-def GeoData(geo):
-    try:
-        return geo._opengl_data
-    except:
-        return CGeoData(geo)
-
-
-class TextRenderer:
-    class Font:
-        pass
-
-    def __init__(self):
-        self.fonts = {}
-
-        self.vao = VertexArray()
-        self.addFont(0)
-
-        self.characters = ArrayBuffer(usage=GL_DYNAMIC_DRAW)
-        self.vao.unbind()
-
-    def addFont(self, font_size):
-        self.vao.bind()
-        font = TextRenderer.Font()
-        font.size = font_size
-
-        db = QtGui.QFontDatabase()
-        qfont = db.systemFont(db.FixedFont)
-        if font_size>0:
-            qfont.setPointSize(font_size)
-        else:
-            self.fonts[0] = font
-
-        self.fonts[qfont.pointSize()] = font
-
-        metrics = QtGui.QFontMetrics(qfont)
-
-        font.width = metrics.maxWidth()
-        font.height = metrics.height()
-
-        font.tex_width = (1+128-32)*metrics.maxWidth()
-        font.tex_width = (font.tex_width+3)//4*4 # should be multiple of 4
-        font.tex_height = metrics.height()
-        for i in range(32,128):
-            c = bytes([i]).decode()
-
-        image = QtGui.QImage(font.tex_width, font.tex_height, QtGui.QImage.Format_Grayscale8)
-        image.fill(QtCore.Qt.black)
-
-        painter = QtGui.QPainter()
-        painter.begin(image)
-        painter.setFont(qfont)
-        painter.setPen(QtCore.Qt.white)
-        for i in range(32,128):
-            w = metrics.maxWidth()
-            text = bytes([i]).decode()
-            painter.drawText((i-32)*w,0, (i+1-32)*w, font.height, QtCore.Qt.AlignTop | QtCore.Qt.AlignLeft, text)
-        painter.end()
-        Z = numpy.array(image.bits()).reshape(font.tex_height, font.tex_width)
-
-        font.tex = Texture(GL_TEXTURE_2D, GL_RED)
-        font.tex.store(Z, GL_UNSIGNED_BYTE, Z.shape[1], Z.shape[0] )
-        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST )
-        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST )
-
-        self.vao.unbind()
-
-    def draw(self, rendering_params, text, pos, font_size=0, use_absolute_pos=True, alignment=QtCore.Qt.AlignTop|QtCore.Qt.AlignLeft):
-
-        if not font_size in self.fonts:
-            self.addFont(font_size)
-
-        self.vao.bind()
-        prog = getProgram('font.vert', 'font.geom', 'font.frag')
-
-        viewport = glGetIntegerv( GL_VIEWPORT )
-        screen_width = viewport[2]-viewport[0]
-        screen_height = viewport[3]-viewport[1]
-
-        font = self.fonts[font_size]
-        font.tex.bind()
-
-        uniforms = prog.uniforms
-        uniforms.set('font_width_in_texture', font.width/font.tex_width)
-        uniforms.set('font_height_in_texture', font.height/font.tex_height)
-        uniforms.set('font_width_on_screen', 2*font.width/screen_width)
-        uniforms.set('font_height_on_screen', 2*font.height/screen_height)
-
-        if not use_absolute_pos:
-            x = ngsolve.bla.Vector(4)
-            for i in range(3):
-                x[i] = pos[i]
-            x[3] = 1.0
-            model, view, projection = rendering_params.model, rendering_params.view, rendering_params.projection
-            x = projection*view*model*x
-            for i in range(3):
-                pos[i] = x[i]/x[3]
-
-
-        text_width = len(text)*2*font.width/screen_width
-        text_height = 2*font.height/screen_height
-
-        if alignment&QtCore.Qt.AlignRight:
-            pos[0] -= text_width
-        if alignment&QtCore.Qt.AlignBottom:
-            pos[1] += text_height
-
-        if alignment&QtCore.Qt.AlignCenter:
-            pos[0] -= 0.5*text_width
-        if alignment&QtCore.Qt.AlignVCenter:
-            pos[1] += 0.5*text_height
-
-        uniforms.set('start_pos', pos)
-
-        s = numpy.array(list(text.encode('ascii', 'ignore')), dtype=numpy.uint8)
-        self.characters.store(s)
-
-        char_id = glGetAttribLocation(prog.id, b'char_')
-        glVertexAttribIPointer(char_id, 1, GL_UNSIGNED_BYTE, 0, ctypes.c_void_p());
-        glEnableVertexAttribArray( char_id )
-
-        glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
-        glDrawArrays(GL_POINTS, 0, len(s))
-        self.vao.unbind()
-
-class SceneObject():
+Parameters
+----------
+active : bool = True
+  Specifies if scene should be visible.
+name : str = type(self).__name__ + scene_counter
+  Name of scene in right hand side menu.
+"""
     scene_counter = 1
     @inmain_decorator(wait_for_return=True)
     def __init__(self,active=True, name = None, **kwargs):
-        self.gl_initialized = False
-        self.actions = {}
-        self.active_action = None
-        self.active = active
-        self._widgets = {}
+        self.window = None
+        self._gl_initialized = False
+        self._actions = {}
+        self._active_action = None
+        self._active = active
         if name is None:
-            self.name = type(self).__name__.split('.')[-1] + str(SceneObject.scene_counter)
-            SceneObject.scene_counter += 1
+            self.name = type(self).__name__.split('.')[-1] + str(BaseScene.scene_counter)
+            BaseScene.scene_counter += 1
         else:
             self.name = name
-        self.toolboxupdate = lambda me: None
+        self.createOptions()
+        self.createQtWidget()
+
+    @inmain_decorator(True)
+    def createOptions(self):
+        self._widgets = {}
 
     def __getstate__(self):
-        return (self.name, self.active)
+        values = {}
+        for key, group in self._widgets.items():
+            for name in group:
+                if hasattr(self, "get" + name):
+                    values[name] = getattr(self, "get" + name)()
+        return (self.name, self.active, values)
 
     def __setstate__(self,state):
+        self.window = None
+        self._gl_initialized = False
+        self._actions = {}
+        self._active_action = None
         self.name = state[0]
         self.active = state[1]
+        self._initial_values = state[2]
         # TODO: can we pickle actions somehow?
-        self.actions = {}
-        self.gl_initialized = False
+        self.createOptions()
+        self.createQtWidget()
 
     def initGL(self):
-        self.gl_initialized = True
+        """Called once after the scene is created and initializes all OpenGL objects."""
+        self._gl_initialized = True
 
     @inmain_decorator(True)
     def update(self):
-        self.initGL()
+        """Called on startup and if underlying object changes, reloads data on GPU if drawn object changed"""
+        if not self._gl_initialized:
+            self.initGL()
 
     @inmain_decorator(True)
     def updateWidgets(self):
+        """Updates scene widgets"""
         self.widgets.update()
     
     def render(self, settings):
+        """Render scene, must be overloaded by derived class"""
         pass
 
     def deferRendering(self):
@@ -429,25 +92,26 @@ class SceneObject():
         return 0
 
     def getBoundingBox(self):
+        """Returns bounding box of scene object, The center of the drawn scene will be in the
+center of this box. Rotation will be around this center."""
         box_min = ngsolve.bla.Vector(3)
         box_max = ngsolve.bla.Vector(3)
         box_min[:] = 1e99
         box_max[:] = -1e99
         return box_min,box_max
 
-    def setActive(self, active, updateGL):
-        self.active = active
-        updateGL()
+    def _setActive(self, _active):
+        """Toggle visibility of scene"""
+        self._active = _active
+        self._updateGL()
+    def _getActive(self):
+        return self._active
+    active = property(_getActive,_setActive)
 
-    def setWindow(self,window):
-        self.window = window
-
-    def getQtWidget(self, updateGL, params):
-        self.widgets = wid.OptionWidgets(updateGL=updateGL)
-        self._rendering_params = params
-
+    @inmain_decorator(True)
+    def createQtWidget(self):
+        self.widgets = wid.OptionWidgets(updateGL=self._updateGL)
         self.actionCheckboxes = []
-
         class cbHolder:
             def __init__(self,cb,scene,name):
                 self.scene = scene
@@ -464,11 +128,11 @@ class SceneObject():
                     if self.scene.active_action == self.name:
                         self.scene.active_action = None
 
-        if self.actions:
+        if self._actions:
             layout = QtWidgets.QVBoxLayout()
-            for name,action in self.actions.items():
+            for name,action in self._actions.items():
                 cb = QtWidgets.QCheckBox(name)
-                if self.active_action == name:
+                if self._active_action == name:
                     cb.setCheckState(QtCore.Qt.Checked)
                 cb.stateChanged.connect(cbHolder(cb,self,name))
                 self.actionCheckboxes.append(cb)
@@ -480,103 +144,209 @@ class SceneObject():
         for group in self._widgets:
             self.widgets.addGroup(group,*self._widgets[group].values())
 
-        return self.widgets
+    def _updateGL(self):
+        if self.window:
+            self.window.glWidget.updateGL()
 
     def addAction(self,action,name=None):
+        """Add double click action. Adds a checkbox to the widget to activate/deactivate the action.
+If double clicked on a point in the drawing domain, the action function is executed with the coordinates
+of the clicked point in the scene.
+
+Parameters
+----------
+action : function
+  Action must take in a tuple of the 3 coordinates returned from clicking in the 3D drawing domain.
+  for example : action = lambda p: print(p)
+  would print the coordinates of the clicked point
+name : str = "action" + consecutive number
+  Name of the action. The checkbox in the right hand menu is label accordingly.
+"""
         if name is None:
-            name = "Action" + str(len(self.actions)+1)
-        self.actions[name] = action
-        self.active_action = name
-        self.toolboxupdate(self)
+            name = "Action" + str(len(self._actions)+1)
+        self._actions[name] = action
+        self._active_action = name
 
     def doubleClickAction(self,point):
-        if self.active_action:
-            self.actions[self.active_action](point)
+        if self._active_action:
+            self._actions[self._active_action](point)
 
-class BaseMeshSceneObject(SceneObject):
+    def addOption(self, group, name, typ=None, update_on_change=False, update_widget_on_change=False, widget_type=None, label=None, values=None, on_change=None, *args, **kwargs):
+        if not group in self._widgets:
+            self._widgets[group] = {}
+        default_value = self._initial_values[name]
+        label = label or name
+        propname = "_"+name
+        widgetname = "_"+name+"Widget"
+        setter_name = "set"+name
+
+        setattr(self, propname, default_value)
+
+        if typ==None and widget_type==None:
+            typ = type(default_value)
+
+        if typ is list:
+            w = QtWidgets.QComboBox()
+            assert type(values) is list
+            w.addItems(values)
+            w.currentIndexChanged[int].connect(lambda index: getattr(self,setter_name)(index))
+            self._widgets[group][name] = wid.WidgetWithLabel(w,label)
+
+        elif widget_type:
+            w = widget_type(*args, **kwargs)
+            w.setValue(default_value)
+            self._widgets[group][name] = w
+
+        elif typ==bool:
+            w = QtWidgets.QCheckBox(label)
+            w.setCheckState(QtCore.Qt.Checked if default_value else QtCore.Qt.Unchecked)
+            if on_change:
+                w.stateChanged.connect(on_change)
+            w.stateChanged.connect(lambda value: getattr(self, setter_name)(bool(value)))
+            self._widgets[group][name] = wid.WidgetWithLabel(w)
+
+        elif typ==int:
+            w = QtWidgets.QSpinBox()
+            w.setValue(default_value)
+            w.valueChanged[int].connect(lambda value: getattr(self, setter_name)(value))
+            if "min" in kwargs:
+                w.setMinimum(kwargs["min"])
+            if "max" in kwargs:
+                w.setMaximum(kwargs["max"])
+            self._widgets[group][name] = wid.WidgetWithLabel(w,label)
+
+        elif typ==float:
+            w = wid.ScienceSpinBox()
+            w.setRange(-1e99, 1e99)
+            w.setValue(default_value)
+            w.valueChanged[float].connect(lambda value: getattr(self, setter_name)(value))
+            if "min" in kwargs:
+                w.setMinimum(kwargs["min"])
+            if "max" in kwargs:
+                w.setMaximum(kwargs["max"])
+            if "step" in kwargs:
+                w.setSingleStep(kwargs["step"])
+                w.lastWheelStep = kwargs["step"]
+            self._widgets[group][name] = wid.WidgetWithLabel(w, label)
+        else:
+            raise RuntimeError("unknown type: ", typ)
+
+        def getValue(self):
+            return getattr(self, propname)
+
+        def setValue(self, value, redraw=True, update_gui=True):
+            if getattr(self, propname) == value:
+                return
+
+            setattr(self, propname, value)
+
+            if update_widget_on_change:
+                self.updateWidgets()
+            if redraw:
+                if update_on_change:
+                    self.update()
+                self.widgets.updateGLSignal.emit()
+
+            if update_gui:
+                widget = self._widgets[group][name]
+                widget.setValue(value)
+
+        cls = type(self)
+
+        if not hasattr(cls, setter_name):
+            setattr(cls, setter_name, setValue)
+        if not hasattr(cls, 'get'+name):
+            setattr(cls, 'get'+name, getValue)
+        return self._widgets[group][name]
+
+    def addButton(self, group, name, function_name, update_on_change=False, label = None,*args,**kwargs):
+        if not group in self._widgets:
+            self._widgets[group] = {}
+        if not label:
+            label = name
+        def doAction(self, redraw=True):
+            getattr(self,function_name)(*args, **kwargs)
+            if update_on_change:
+                self.update()
+            if redraw:
+                self.widgets.updateGLSignal.emit()
+
+        cls = type(self)
+
+        if not hasattr(cls, name):
+            setattr(cls, name, doAction)
+
+        w = wid.Button(label, getattr(self, name))
+        self._widgets[group][name] = w
+
+GUI.sceneCreators.append((BaseScene,lambda scene,*args,**kwargs: scene))
+
+class BaseMeshScene(BaseScene):
     """Base class for all scenes that depend on a mesh"""
     @inmain_decorator(wait_for_return=True)
     def __init__(self, mesh,**kwargs):
-        super().__init__(**kwargs)
         self.mesh = mesh
+        super().__init__(**kwargs)
 
     def initGL(self):
-        if self.gl_initialized:
-            return
         super().initGL()
 
     @inmain_decorator(True)
     def update(self):
         super().update()
-        self.mesh_data = MeshData(self.mesh)
+        self.mesh_data = getOpenGLData(self.mesh)
 
     def __getstate__(self):
         super_state = super().__getstate__()
         return (super_state, self.mesh)
 
     def __setstate__(self,state):
-        super().__setstate__(state[0])
         self.mesh = state[1]
+        super().__setstate__(state[0])
 
     def getBoundingBox(self):
         return self.mesh_data.min, self.mesh_data.max
 
-class BaseFunctionSceneObject(BaseMeshSceneObject):
-    """Base class for all scenes that depend on a coefficient function and a mesh"""
+class OverlayScene(BaseScene):
+    """Class  for overlay objects (Colormap, coordinate system, logo)"""
     @inmain_decorator(wait_for_return=True)
-    def __init__(self, cf, mesh=None, order=3, gradient=None,**kwargs):
-        self.cf = cf
-
-        if gradient and cf.dim == 1:
-            self.cf = ngsolve.CoefficientFunction((cf, gradient))
-            self.have_gradient = True
-        else:
-            self.have_gradient = False
-
-        super().__init__(mesh,**kwargs)
-
-        addOption(self, "Subdivision", "Subdivision", typ=int, default_value=1, min=0, update_on_change=True)
-        addOption(self, "Subdivision", "Order", typ=int, default_value=2, min=1, max=4, update_on_change=True)
-
-        if 'sd' in kwargs:
-            self.setSubdivision(kwargs['sd'], False, False)
-
-        n = self.getOrder()*(2**self.getSubdivision())+1
+    def __init__(self,rendering_parameters=None,**kwargs):
+        import ngsolve.gui as G
+        self._rendering_parameters = rendering_parameters
+        self._initial_values = { "ShowCross" : True,
+                                 "ShowVersion" : True,
+                                 "ShowColorBar" : True,
+                                 "FastRender" : hasattr(G.gui,'fastmode') and G.gui.fastmode}
+        super().__init__(**kwargs)
 
     def __getstate__(self):
-        super_state = super().__getstate__()
-        return (super_state, self.cf, self.getSubdivision(), self.getOrder())
+        superstate = super().__getstate__()
+        return (superstate,self._rendering_parameters)
 
     def __setstate__(self, state):
         super().__setstate__(state[0])
-        self.cf = state[1]
-        self.setSubdivision(state[2])
-        self.setOrder(state[3])
+        self._rendering_parameters = state[1]
 
-
-class OverlayScene(SceneObject):
-    """Class  for overlay objects (Colormap, coordinate system, logo)"""
-    @inmain_decorator(wait_for_return=True)
-    def __init__(self,**kwargs):
-        super().__init__(**kwargs)
-        self.show_logo = True
-        self.show_cross = True
+    @inmain_decorator(True)
+    def createOptions(self):
+        super().createOptions()
+        self.addOption( "Overlay", "ShowCross", label = "Axis", typ=bool)
+        self.addOption( "Overlay", "ShowVersion", label = "Version", typ=bool)
+        self.addOption( "Overlay", "ShowColorBar", label = "Color bar", typ=bool)
+        self.addOption( "Rendering options", "FastRender", label='Fast mode', typ=bool, on_change=lambda val: setattr(self._rendering_params,'fastmode',val))
+        self.addButton( "Clipping plane", "clipX", "_setClippingPlane", label='X',action="clipX")
+        self.addButton( "Clipping plane", "clipY", "_setClippingPlane", label='Y',action="clipY")
+        self.addButton( "Clipping plane", "clipZ", "_setClippingPlane", label='Z',action="clipZ")
+        self.addButton( "Clipping plane", "clipFlip", "_setClippingPlane", label='flip', action="clipFlip")
         self.cross_scale = 0.3
         self.cross_shift = -0.10
-        self.updateGL = lambda : None
 
-        addOption(self, "Overlay", "ShowCross", True, label = "Axis", typ=bool)
-        addOption(self, "Overlay", "ShowVersion", True, label = "Version", typ=bool)
-        addOption(self, "Overlay", "ShowColorBar", True, label = "Color bar", typ=bool)
-
-        import ngsolve.gui as G
-        fastmode = hasattr(G.gui,'fastmode') and G.gui.fastmode
-        addOption(self, "Rendering options", "FastRender", label='Fast mode', typ=bool, on_change=lambda val: setattr(self._rendering_params,'fastmode',val), default_value=fastmode)
-
-        addOption(self, "Clipping plane", "clipX", label='X', typ='button', default_value='_setClippingPlane', action="clipX")
-        addOption(self, "Clipping plane", "clipY", label='Y', typ='button', default_value='_setClippingPlane', action="clipY")
-        addOption(self, "Clipping plane", "clipZ", label='Z', typ='button', default_value='_setClippingPlane', action="clipZ")
-        addOption(self, "Clipping plane", "clipFlip", label='flip', typ='button', default_value='_setClippingPlane', action="clipFlip")
+    def copyOptionsFrom(self, other):
+        self.setShowCross(other.getShowCross())
+        self.setShowVersion(other.getShowVersion())
+        self.setShowColorBar(other.getShowColorBar())
+        self.setFastRender(other.getFastRender())
+        self._rendering_parameters.__dict__.update(other._rendering_parameters.__dict__)
 
     def _setClippingPlane(self, action):
         if action == "clipX":
@@ -588,25 +358,18 @@ class OverlayScene(SceneObject):
         if action == "clipFlip":
             self._rendering_params.setClippingPlaneNormal(-1.0*self._rendering_params.getClippingPlaneNormal())
 
-
     def deferRendering(self):
         return 99
 
     def initGL(self):
-        if self.gl_initialized:
-            return
         super().initGL()
 
         self.text_renderer = TextRenderer()
 
         self.vao = VertexArray()
         self.cross_points = ArrayBuffer()
-        points = [self.cross_shift + (self.cross_scale if i%7==3 else 0) for i in range(24)]
-        self.cross_points.store(numpy.array(points, dtype=numpy.float32))
 
         self.program = getProgram('cross.vert','cross.frag')
-
-        self.program.attributes.bind('pos', self.cross_points)
 
         self.vao.unbind()
 
@@ -624,6 +387,7 @@ class OverlayScene(SceneObject):
             mvp = glmath.Translate(-1+0.15/settings.ratio,-0.85,0)*projection*view*glmath.Translate(0,0,-5)*settings.rotmat
 
             self.program.uniforms.set('MVP',mvp)
+            self.program.attributes.bind('pos', self.cross_points)
             coords = glmath.Identity()
             for i in range(3):
                 for j in range(3):
@@ -667,47 +431,61 @@ class OverlayScene(SceneObject):
     @inmain_decorator(True)
     def update(self):
         super().update()
+        points = [self.cross_shift + (self.cross_scale if i%7==3 else 0) for i in range(24)]
+        self.cross_points.store(numpy.array(points, dtype=numpy.float32))
 
-    def callupdateGL(self):
-        self.updateGL()
 
-    
-class MeshScene(BaseMeshSceneObject):
+class MeshScene(BaseMeshScene):
     @inmain_decorator(wait_for_return=True)
     def __init__(self, mesh, wireframe=True, surface=True, elements=False, edgeElements=False, edges=False,
                  showPeriodic=False, pointNumbers=False, edgeNumbers=False, elementNumbers=False, **kwargs):
+        self._initial_values = { "ShowWireframe" : wireframe,
+                                 "ShowSurface" : surface,
+                                 "ShowElements" : elements,
+                                 "ShowEdges" : edges,
+                                 "ShowEdgeElements" : edgeElements,
+                                 "ShowPeriodicVertices" : showPeriodic,
+                                 "ShowPointNumbers" : pointNumbers,
+                                 "ShowEdgeNumbers" : edgeNumbers,
+                                 "ShowElementNumbers" : elementNumbers,
+                                 "GeomSubdivision" : 5,
+                                 "Shrink" : 1. }
+        self.tex_mat_colors = self.tex_bc_colors = self.tex_bbnd_colors = None
         super().__init__(mesh, **kwargs)
-
-        self.qtWidget = None
-
-        addOption(self, "Show", "ShowWireframe", typ=bool, default_value=wireframe, update_widget_on_change=True)
-        addOption(self, "Show", "ShowSurface", typ=bool, default_value=surface, update_widget_on_change=True)
-        addOption(self, "Show", "ShowElements", typ=bool, default_value=elements, update_widget_on_change=True)
-        addOption(self, "Show", "ShowEdges", typ=bool, default_value=edges, update_widget_on_change=True)
-        addOption(self, "Show", "ShowEdgeElements", typ=bool, default_value=edgeElements, update_widget_on_change=True)
-        addOption(self, "Show", "ShowPeriodicVertices", typ=bool, default_value=showPeriodic, update_widget_on_change=True)
-        addOption(self, "Numbers", "ShowPointNumbers", label="Points", typ=bool, default_value=pointNumbers, update_widget_on_change=True)
-        addOption(self, "Numbers", "ShowEdgeNumbers", label="Edges", typ=bool, default_value=edgeNumbers, update_widget_on_change=True)
-        addOption(self, "Numbers", "ShowElementNumbers", label="Elements", typ=bool, default_value=elementNumbers, update_widget_on_change=True)
-        addOption(self, "", "GeomSubdivision", label="Subdivision", typ=int, default_value=5, min=1, max=20, update_widget_on_change=True)
-        addOption(self, "", "Shrink", typ=float, default_value=1.0, min=0.0, max=1.0, step=0.01, update_widget_on_change=True)
+                                 
+    @inmain_decorator(True)
+    def createOptions(self):
+        super().createOptions()
+        self.addOption( "Show", "ShowWireframe", typ=bool, update_widget_on_change=True)
+        self.addOption( "Show", "ShowSurface", typ=bool, update_widget_on_change=True)
+        if self.mesh.dim > 2:
+            self.addOption( "Show", "ShowElements", typ=bool, update_widget_on_change=True)
+            self.addOption( "Show", "ShowEdges", typ=bool, update_widget_on_change=True)
+        self.addOption( "Show", "ShowEdgeElements", typ=bool, update_widget_on_change=True)
+        self.addOption( "Show", "ShowPeriodicVertices", typ=bool, update_widget_on_change=True)
+        self.addOption( "Numbers", "ShowPointNumbers", label="Points", typ=bool, update_widget_on_change=True)
+        self.addOption( "Numbers", "ShowEdgeNumbers", label="Edges", typ=bool, update_widget_on_change=True)
+        if self.mesh.dim > 2:
+            self.addOption( "Numbers", "ShowElementNumbers", label="Elements", typ=bool, update_widget_on_change=True)
+        self.addOption( "", "GeomSubdivision", label="Subdivision", typ=int, min=1, max=20, update_widget_on_change=True)
+        if self.mesh.dim > 2:
+            self.addOption( "", "Shrink", typ=float, min=0.0, max=1.0, step=0.01, update_widget_on_change=True)
 
     def __getstate__(self):
         super_state = super().__getstate__()
-        return (super_state, self.show_wireframe, self.show_surface, self.show_elements)
+        return (super_state,)
 
     def __setstate__(self, state):
+        self.tex_mat_colors = self.tex_bc_colors = self.tex_bbnd_colors = None
         super().__setstate__(state[0])
-        self.show_wireframe, self.show_surface, self.show_elements = state[1:]
-        self.qtWidget = None
 
     def initGL(self):
-        if self.gl_initialized:
-            return
-
         super().initGL()
 
         self.vao = VertexArray()
+        self.tex_mat_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
+        self.tex_bbnd_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
+        self.tex_bc_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
 
         self.text_renderer = TextRenderer()
 
@@ -729,11 +507,11 @@ class MeshScene(BaseMeshSceneObject):
 
         glActiveTexture(GL_TEXTURE3)
         if self.mesh.dim == 3:
-            self.bbnd_colors.bind()
+            self.tex_bbnd_colors.bind()
         elif self.mesh.dim == 2:
-            self.bc_colors.bind()
+            self.tex_bc_colors.bind()
         else: # dim == 1
-            self.tex_mat_color.bind()
+            self.tex_mat_colors.bind()
         uniforms.set('colors', 3)
 
         uniforms.set('do_clipping', False);
@@ -743,12 +521,7 @@ class MeshScene(BaseMeshSceneObject):
         uniforms.set('light_diffuse', 0.0)
         uniforms.set('TessLevel', self.getGeomSubdivision())
         uniforms.set('wireframe', True)
-        if self.getShowEdges():
-#             glEnable( GL_LINE_SMOOTH );
-#             glEnable( GL_BLEND );
-#             glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
-#             glPolygonOffset (-1.0, -1.0)
-#             glEnable(GL_POLYGON_OFFSET_LINE)
+        if self.mesh.dim > 2 and self.getShowEdges():
             glPatchParameteri(GL_PATCH_VERTICES, 1)
             glDrawArrays(GL_PATCHES, 0, self.mesh_data.nedges)
             glDisable(GL_POLYGON_OFFSET_LINE)
@@ -781,13 +554,14 @@ class MeshScene(BaseMeshSceneObject):
         uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
         uniforms.set('mesh.surface_elements_offset', self.mesh_data.surface_elements_offset)
         uniforms.set('mesh.dim', 2);
-        uniforms.set('shrink_elements', self.getShrink())
+        if self.mesh.dim > 2:
+            uniforms.set('shrink_elements', self.getShrink())
         uniforms.set('clip_whole_elements', False)
         glActiveTexture(GL_TEXTURE3)
         if self.mesh.dim == 3:
-            self.bc_colors.bind()
+            self.tex_bc_colors.bind()
         elif self.mesh.dim == 2:
-            self.tex_mat_color.bind()
+            self.tex_mat_colors.bind()
         uniforms.set('colors', 3)
 
     def renderSurface(self, settings):
@@ -891,7 +665,7 @@ class MeshScene(BaseMeshSceneObject):
                 glDrawArrays(GL_PATCHES, 0, len(els.data)//els.size)
                 glDisable(GL_POLYGON_OFFSET_LINE)
 
-        if self.getShowElements():
+        if self.mesh.dim > 2 and self.getShowElements():
             uniforms.set('clip_whole_elements', True)
             uniforms.set('do_clipping', False);
             uniforms.set('light_ambient', 0.3)
@@ -900,7 +674,7 @@ class MeshScene(BaseMeshSceneObject):
             uniforms.set('wireframe', False)
             uniforms.set('mesh.dim', 3);
             glActiveTexture(GL_TEXTURE3)
-            self.tex_mat_color.bind()
+            self.tex_mat_colors.bind()
             uniforms.set('colors', 3)
             glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
             glPatchParameteri(GL_PATCH_VERTICES, 1)
@@ -957,7 +731,7 @@ class MeshScene(BaseMeshSceneObject):
             glPolygonOffset (0,0)
             glDrawArrays(GL_POINTS, 0, self.mesh_data.nedges)
 
-        if self.getShowElementNumbers():
+        if self.mesh.dim > 2 and self.getShowElementNumbers():
             uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
             uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
             uniforms.set('mesh.surface_elements_offset', self.mesh_data.surface_elements_offset)
@@ -972,62 +746,50 @@ class MeshScene(BaseMeshSceneObject):
     @inmain_decorator(True)
     def update(self):
         super().update()
-        nmats = len(self.mesh.GetMaterials())
-        if self.mesh.dim == 3:
-            self.mat_colors = [0,0,255,255] * nmats
-        else:
-            self.mat_colors = [0,255,0,255] * nmats
-        self.tex_mat_color = Texture(GL_TEXTURE_1D, GL_RGBA)
-        self.tex_mat_color.store(self.mat_colors, GL_UNSIGNED_BYTE, nmats)
-        self.bbnd_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
-        self.bbnd_colors.store([1,0,0,1] * len(self.mesh.GetBBoundaries()),
-                               data_format = GL_UNSIGNED_BYTE)
-
-        self.bc_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
-        self.bc_colors.store( [0,1,0,1]*len(self.mesh.GetBoundaries()),
-                              data_format=GL_UNSIGNED_BYTE )
+        self.tex_mat_colors.store(self.mat_colors, GL_UNSIGNED_BYTE)
+        self.tex_bbnd_colors.store(self.bbnd_colors, data_format = GL_UNSIGNED_BYTE)
+        self.tex_bc_colors.store( self.bc_colors, data_format=GL_UNSIGNED_BYTE )
 
     def render(self, settings):
         if not self.active:
             return
-
         self.renderEdges(settings)
-
         self.renderSurface(settings)
-
         self.renderNumbers(settings)
 
     def updateBBNDColors(self):
-        colors = []
+        self.bbnd_colors = colors = []
         for c in self.bbndcolors.getColors():
             colors.append(c.red())
             colors.append(c.green())
             colors.append(c.blue())
             colors.append(c.alpha())
-        self.bbnd_colors.store(colors, width=len(colors), data_format=GL_UNSIGNED_BYTE)
+        if self.tex_bbnd_colors:
+            self.tex_bbnd_colors.store(colors, width=len(colors), data_format=GL_UNSIGNED_BYTE)
 
     def updateBndColors(self):
-        colors = []
+        self.bc_colors = colors = []
         for c in self.bndcolors.getColors():
             colors.append(c.red())
             colors.append(c.green())
             colors.append(c.blue())
             colors.append(c.alpha())
-        self.bc_colors.store( colors, width=len(colors), data_format=GL_UNSIGNED_BYTE )
+        if self.tex_bc_colors:
+            self.tex_bc_colors.store( colors, width=len(colors), data_format=GL_UNSIGNED_BYTE )
 
     def updateMatColors(self):
-        colors = []
+        self.mat_colors = colors = []
         for c in self.matcolors.getColors():
             colors.append(c.red())
             colors.append(c.green())
             colors.append(c.blue())
             colors.append(c.alpha())
-        self.mat_colors = colors
-        self.tex_mat_color.store(self.mat_colors, GL_UNSIGNED_BYTE, len(self.mesh.GetMaterials()))
+        if self.tex_mat_colors:
+            self.tex_mat_colors.store(self.mat_colors, GL_UNSIGNED_BYTE, len(self.mesh.GetMaterials()))
 
-    def getQtWidget(self, updateGL, params):
-        super().getQtWidget(updateGL, params)
-
+    @inmain_decorator(True)
+    def createQtWidget(self):
+        super().createQtWidget()
         mats = self.mesh.GetMaterials()
         bnds = self.mesh.GetBoundaries()
         if self.mesh.dim == 3:
@@ -1035,7 +797,7 @@ class MeshScene(BaseMeshSceneObject):
         initial_mat_color = (0,0,255,255) if self.mesh.dim == 3 else (0,255,0,255)
         self.matcolors = wid.CollColors(self.mesh.GetMaterials(),initial_color=initial_mat_color)
         self.matcolors.colors_changed.connect(self.updateMatColors)
-        self.matcolors.colors_changed.connect(updateGL)
+        self.matcolors.colors_changed.connect(self._updateGL)
         self.updateMatColors()
         def showVOL():
             if self.mesh.dim == 3:
@@ -1043,13 +805,13 @@ class MeshScene(BaseMeshSceneObject):
             elif self.mesh.dim == 2:
                 return self.getShowSurface()
             elif self.mesh.dim == 1:
-                return self.getShowEdges()
+                return self.getShowEdgeElements()
             return False
         self.widgets.addGroup("Materials", self.matcolors, connectedVisibility = showVOL)
 
         self.bndcolors = wid.CollColors(self.mesh.GetBoundaries(), initial_color=(0,255,0,255))
         self.bndcolors.colors_changed.connect(self.updateBndColors)
-        self.bndcolors.colors_changed.connect(updateGL)
+        self.bndcolors.colors_changed.connect(self._updateGL)
         self.updateBndColors()
         def showBND():
             if self.mesh.dim == 3:
@@ -1061,7 +823,7 @@ class MeshScene(BaseMeshSceneObject):
 
         self.bbndcolors = wid.CollColors(self.mesh.GetBBoundaries(), initial_color=(0,0,0,255))
         self.bbndcolors.colors_changed.connect(self.updateBBNDColors)
-        self.bbndcolors.colors_changed.connect(updateGL)
+        self.bbndcolors.colors_changed.connect(self._updateGL)
         self.updateBBNDColors()
         def showBBND():
             if self.mesh.dim == 3:
@@ -1069,55 +831,76 @@ class MeshScene(BaseMeshSceneObject):
             return False
         self.widgets.addGroup("BBoundaries", self.bbndcolors, connectedVisibility=showBBND)
 
-        return self.widgets
+GUI.sceneCreators.append((ngsolve.Mesh, MeshScene))
 
-
-class SolutionScene(BaseFunctionSceneObject):
+class SolutionScene(BaseMeshScene):
     @inmain_decorator(wait_for_return=True)
-    def __init__(self, cf, mesh, min=0,max=1, autoscale=True, linear=False, clippingPlane=True,*args, **kwargs):
-        super().__init__(cf,mesh,*args, **kwargs)
+    def __init__(self, cf, mesh, name=None, min=0,max=1, autoscale=True, linear=False, clippingPlane=True,
+                 order=3,gradient=None, *args, **kwargs):
+        self.cf = cf
+        self.vao = None
+        self._initial_values = {"Order" : order,
+                                "ColorMapMin" : min,
+                                "ColorMapMax" : max,
+                                "Autoscale" : autoscale,
+                                "ColorMapLinear" : linear,
+                                "ShowClippingPlane" : clippingPlane,
+                                "Subdivision" : kwargs['sd'] if "sd" in kwargs else 1,
+                                "ShowIsoSurface" : False,
+                                "ShowVectors" : False,
+                                "ShowSurface" : True,
+                                "Component" : 0,
+                                "ComplexEvalFunc" : 0,
+                                "ComplexPhaseShift" : 0.0 }
+
+        if gradient and cf.dim == 1:
+            self.cf = ngsolve.CoefficientFunction((cf, gradient))
+            self.have_gradient = True
+        else:
+            self.have_gradient = False
+        super().__init__(mesh,*args, name=name, **kwargs)
+
+    @inmain_decorator(True)
+    def createOptions(self):
+        super().createOptions()
+        self.addOption( "Subdivision", "Subdivision", typ=int, min=0, update_on_change=True)
+        self.addOption( "Subdivision", "Order", typ=int, min=1, max=4, update_on_change=True)
 
         if self.mesh.dim>1:
-            addOption(self, "Show", "ShowSurface", typ=bool, default_value=True)
+            self.addOption( "Show", "ShowSurface", typ=bool)
 
         if self.mesh.dim > 2:
-            addOption(self, "Show", "ShowClippingPlane", typ=bool, default_value=clippingPlane)
-            addOption(self, "Show", "ShowIsoSurface", typ=bool, default_value=False)
+            self.addOption( "Show", "ShowClippingPlane", typ=bool)
+            self.addOption( "Show", "ShowIsoSurface", typ=bool)
 
-        if cf.dim > 1:
-            addOption(self, "Show", "Component", label="Component", typ=int, default_value=0)
-            addOption(self, "Show", "ShowVectors", typ=bool, default_value=False)
+        if self.cf.dim > 1:
+            self.addOption( "Show", "Component", label="Component", typ=int, min=0, max=self.cf.dim-1)
+            self.addOption( "Show", "ShowVectors", typ=bool)
 
         if self.cf.is_complex:
-            addOption(self, "Complex", "ComplexEvalFunc", label="Func", typ=list, default_value=0, values=["real","imag","abs","arg"])
-            addOption(self, "Complex", "ComplexPhaseShift", label="Value shift angle", typ=float, default_value=0.0)
+            self.addOption( "Complex", "ComplexEvalFunc", label="Func", typ=list,
+                            values=["real","imag","abs","arg"])
+            self.addOption( "Complex", "ComplexPhaseShift", label="Value shift angle", typ=float)
 
-        boxmin = addOption(self, "Colormap", "ColorMapMin", label="Min", typ=float, default_value=min,
-                           step=1 if min == 0 else 10**(math.floor(math.log10(abs(min)))))
-        boxmax = addOption(self, "Colormap", "ColorMapMax", label="Max" ,typ=float, default_value=max,
-                           step=1 if max == 0 else 10**(math.floor(math.log10(abs(max)))))
-        autoscale = addOption(self, "Colormap", "Autoscale",typ=bool, default_value=autoscale)
-        addOption(self, "Colormap", "ColorMapLinear", label="Linear",typ=bool, default_value=linear)
+        boxmin = self.addOption( "Colormap", "ColorMapMin", label="Min", typ=float, step=1)
+        boxmax = self.addOption( "Colormap", "ColorMapMax", label="Max" ,typ=float, step=1)
+        autoscale = self.addOption( "Colormap", "Autoscale",typ=bool)
+        self.addOption( "Colormap", "ColorMapLinear", label="Linear",typ=bool)
 
         boxmin._value_widget.changed.connect(lambda val: autoscale._value_widget.stateChanged.emit(False))
         boxmax._value_widget.changed.connect(lambda val: autoscale._value_widget.stateChanged.emit(False))
 
-        self.qtWidget = None
-        self.vao = None
 
     def __getstate__(self):
         super_state = super().__getstate__()
-        return (super_state, self.show_surface, self.show_clipping_plane)
+        return (super_state,self.cf)
 
     def __setstate__(self,state):
+        self.cf = state[1]
         super().__setstate__(state[0])
-        self.show_surface, self.show_clipping_plane = state[1:]
-        self.qtWidget = None
         self.vao = None
 
     def initGL(self):
-        if self.gl_initialized:
-            return
         super().initGL()
 
         formats = [None, GL_R32F, GL_RG32F, GL_RGB32F, GL_RGBA32F];
@@ -1127,13 +910,6 @@ class SolutionScene(BaseFunctionSceneObject):
         self.surface_values_imag = Texture(GL_TEXTURE_BUFFER, formats[self.cf.dim])
 
         self.filter_buffer = ArrayBuffer()
-        self.filter_buffer.bind()
-        glBufferData(GL_ARRAY_BUFFER, 1000000, ctypes.c_void_p(), GL_STATIC_DRAW)
-
-        self.filter_feedback = glGenTransformFeedbacks(1)
-        glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, self.filter_feedback)
-        glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, self.filter_buffer.id)
-        glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, 0)
 
         self._have_filter = False
 
@@ -1151,7 +927,6 @@ class SolutionScene(BaseFunctionSceneObject):
 
         # vectors (currently one per element)
         self.vector_vao = VertexArray()
-        self.vector_vao.unbind()
 
     def _getValues(self, vb, setMinMax=True):
         cf = self.cf
@@ -1167,6 +942,8 @@ class SolutionScene(BaseFunctionSceneObject):
     def update(self):
         super().update()
         self._have_filter = False
+        self.filter_buffer.bind()
+        glBufferData(GL_ARRAY_BUFFER, 1000000, ctypes.c_void_p(), GL_STATIC_DRAW)
         if self.mesh.dim==1:
             try:
                 values = self._getValues(ngsolve.VOL)
@@ -1182,7 +959,8 @@ class SolutionScene(BaseFunctionSceneObject):
                 if self.cf.is_complex:
                     self.surface_values_imag.store(values["imag"])
             except Exception as e:
-                print("Cannot evaluate given function on surface elements: "+e)
+                raise e
+                print("Cannot evaluate given function on surface elements: "+str(e))
                 self.show_surface = False
 
         if self.mesh.dim==3:
@@ -1197,7 +975,7 @@ class SolutionScene(BaseFunctionSceneObject):
                 if self.cf.is_complex:
                     self.surface_values_imag.store(values["imag"])
             except Exception as e:
-                print("Cannot evaluate given function on surface elements"+e)
+                print("Cannot evaluate given function on surface elements"+str(e))
                 self.show_surface = False
 
     def _filterElements(self, settings, filter_type):
@@ -1231,6 +1009,7 @@ class SolutionScene(BaseFunctionSceneObject):
         uniforms.set('mesh.surface_elements_offset', self.mesh_data.surface_elements_offset)
         uniforms.set('filter_type', filter_type)
 
+        self.filter_feedback = glGenTransformFeedbacks(1)
         glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, self.filter_feedback)
         glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, self.filter_buffer.id)
         glBeginTransformFeedback(GL_POINTS)
@@ -1521,35 +1300,49 @@ class SolutionScene(BaseFunctionSceneObject):
             if self.getShowVectors():
                 self.renderVectors(settings)
 
-class GeometryScene(SceneObject):
+def _createCFScene(cf, mesh, *args, **kwargs):
+    return SolutionScene(cf, mesh, *args,
+                         autoscale = kwargs["autoscale"] if "autoscale" in kwargs else not ("min" in kwargs or "max" in kwargs),
+                         **kwargs)
+
+def _createGFScene(gf, mesh=None, name=None, *args, **kwargs):
+    if not mesh:
+        mesh = gf.space.mesh
+    if not name:
+        name = gf.name
+    return _createCFScene(gf,mesh,*args, name=name, **kwargs)
+
+GUI.sceneCreators.append((ngsolve.GridFunction, _createGFScene))
+GUI.sceneCreators.append((ngsolve.CoefficientFunction, _createCFScene))
+
+class GeometryScene(BaseScene):
     @inmain_decorator(wait_for_return=True)
     def __init__(self, geo, *args, **kwargs):
         super().__init__(*args,**kwargs)
         self.geo = geo
 
     def initGL(self):
-        if self.gl_initialized:
-            return
         super().initGL()
-        self.colors = Texture(GL_TEXTURE_1D, GL_RGBA)
+        self.tex_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
         self.vao = VertexArray()
 
     @inmain_decorator(True)
     def update(self):
         super().update()
-        self.geo_data = self.getGeoData()
+        self.geo_data = self.getOpenGLData(self.geo)
         self.surf_colors = { name : [0,0,255,255] for name in set(self.geo_data.surfnames)}
-        self.colors.store([self.surf_colors[name][i] for name in self.geo_data.surfnames for i in range(4)],
+        self.tex_colors.store([self.surf_colors[name][i] for name in self.geo_data.surfnames for i in range(4)],
                           data_format=GL_UNSIGNED_BYTE)
 
     def updateColors(self):
-        self.colors.store(sum(([color.red(), color.green(), color.blue(), color.alpha()] for color in self.colorpicker.getColors()),[]),data_format=GL_UNSIGNED_BYTE)
+        self.tex_colors.store(sum(([color.red(), color.green(), color.blue(), color.alpha()] for color in self.colorpicker.getColors()),[]),data_format=GL_UNSIGNED_BYTE)
 
-    def getQtWidget(self, updateGL, params):
-        super().getQtWidget(updateGL, params)
+    @inmain_decorator(True)
+    def createQtWidget(self):
+        super().createQtWidget()
         self.colorpicker = wid.CollColors(self.surf_colors.keys(), initial_color = (0,0,255,255))
         self.colorpicker.colors_changed.connect(self.updateColors)
-        self.colorpicker.colors_changed.connect(updateGL)
+        self.colorpicker.colors_changed.connect(self._updateGL)
         self.updateColors()
         self.widgets.addGroup("Surface Colors", self.colorpicker)
         return self.widgets
@@ -1583,7 +1376,7 @@ class GeometryScene(SceneObject):
         uniforms.set('normals',2)
 
         glActiveTexture(GL_TEXTURE3)
-        self.colors.bind()
+        self.tex_colors.bind()
         uniforms.set('colors',3)
 
         uniforms.set('wireframe',False)
@@ -1594,3 +1387,5 @@ class GeometryScene(SceneObject):
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL )
         glDrawArrays(GL_TRIANGLES, 0, self.geo_data.npoints)
         self.vao.unbind()
+
+GUI.sceneCreators.append((netgen.meshing.NetgenGeometry,GeometryScene))

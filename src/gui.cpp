@@ -235,10 +235,15 @@ void GetValues( const CoefficientFunction &cf, LocalHeap &lh, const TMIR &mir, F
                 ExtractRealImag( values(i, k/n), k%n, vreal, vimag );
                 auto index = getIndex(k,i);
                 values_real[index] = vreal;
-                if(is_complex)
+                if(is_complex) {
                   values_imag[index] = vimag;
-                min[i] = min2(min[i], sqrt(vreal*vreal+vimag+vimag));
-                max[i] = max2(max[i], sqrt(vreal*vreal+vimag+vimag));
+                  min[i] = min2(min[i], sqrt(vreal*vreal+vimag+vimag));
+                  max[i] = max2(max[i], sqrt(vreal*vreal+vimag+vimag));
+                }
+                else {
+                  min[i] = min2(min[i], vreal);
+                  max[i] = max2(max[i], vreal);
+                }
             }
         }
     }
@@ -253,10 +258,15 @@ void GetValues( const CoefficientFunction &cf, LocalHeap &lh, const TMIR &mir, F
                 ExtractRealImag( values(k,i), 0, vreal, vimag );
                 auto index = getIndex(k,i);
                 values_real[index] = vreal;
-                if(is_complex)
+                if(is_complex) {
                   values_imag[index] = vimag;
-                min[i] = min2(min[i], sqrt(vreal*vreal+vimag+vimag));
-                max[i] = max2(max[i], sqrt(vreal*vreal+vimag+vimag));
+                  min[i] = min2(min[i], sqrt(vreal*vreal+vimag+vimag));
+                  max[i] = max2(max[i], sqrt(vreal*vreal+vimag+vimag));
+                }
+                else {
+                  min[i] = min2(min[i], vreal);
+                  max[i] = max2(max[i], vreal);
+                }
             }
         }
     }
@@ -287,7 +297,7 @@ PYBIND11_MODULE(ngui, m) {
             Array<float> min(ncomps);
             Array<float> max(ncomps);
             min = std::numeric_limits<float>::max();
-            max = std::numeric_limits<float>::min();
+            max = std::numeric_limits<float>::lowest();
 
             IntegrationRule ir = GetReferenceRule( dim==2?ET_TRIG:ET_TET, order, subdivision );
             SIMD_IntegrationRule simd_ir(ir);
@@ -558,7 +568,7 @@ PYBIND11_MODULE(ngui, m) {
 
         int n_edges = 0;
         int n_edge_elements = 0;
-        int n_periodic_vertices = ma->GetNPairsPeriodicVertices();
+        int n_periodic_vertices = ma->GetNPeriodicNodes(NT_VERTEX);
         int n_surface_elements = 0;
         int n_volume_elements = 0;
 
@@ -644,19 +654,13 @@ PYBIND11_MODULE(ngui, m) {
             assert(elements.Size() == size_elements_before + n_edge_elements*edge_elements_size);
         }
         size_elements_before = elements.Size();
-        if(ma->GetDimension()>=1) {
-            // 1d Elements
-            ngstd::Array<ngstd::INT<2>> pairs;
-            ma->GetPeriodicVertices ( pairs );
-            for (auto p : pairs) {
-                for (auto i : Range(2))
-                    elements.Append(p[i]);
-                elements.Append(0);
-                elements.Append(-1);
-
-            }
+        if(ma->GetDimension()>=1)
+          {
+            for(auto idnr : Range(ma->GetNPeriodicIdentifications()))
+              for (const auto& pair : ma->GetPeriodicNodes(NT_VERTEX, idnr))
+                elements.Append({pair[0],pair[1],0,-1});
             assert(elements.Size() == size_elements_before +n_periodic_vertices*edge_elements_size);
-        }
+          }
 
         size_elements_before = elements.Size();
         if(ma->GetDimension()>=2) {
@@ -804,9 +808,9 @@ PYBIND11_MODULE(ngui, m) {
             Array<float> min = {std::numeric_limits<float>::max(),
                                      std::numeric_limits<float>::max(),
                                      std::numeric_limits<float>::max()};
-            Array<float> max = {std::numeric_limits<float>::min(),
-                                     std::numeric_limits<float>::min(),
-                                     std::numeric_limits<float>::min()};
+            Array<float> max = {std::numeric_limits<float>::lowest(),
+                                     std::numeric_limits<float>::lowest(),
+                                     std::numeric_limits<float>::lowest()};
             Array<string> surfnames;
 
             auto csg_geo = dynamic_pointer_cast<netgen::CSGeometry>(geo);

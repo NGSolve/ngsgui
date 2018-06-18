@@ -1,6 +1,5 @@
 
 from . import syntax
-from .text_finder import TextFinder
 from .button_area import ButtonArea
 from .text_partition import Lines, Selection
 from ngsolve.gui.widgets import ArrangeH, ArrangeV
@@ -51,19 +50,25 @@ class LineNumberArea(QtWidgets.QWidget):
 
 
 class CodeEditor(QtWidgets.QPlainTextEdit):
-    def __init__(self, filename, gui, *args, **kwargs):
+    def __init__(self, filename=None, gui=None, *args, **kwargs):
         super().__init__(*args,**kwargs)
         self.gui = gui
         self.filename = filename
-        self.setWindowTitle(filename)
+        if filename:
+            self.setWindowTitle(filename)
+        else:
+            self.setWindowTitle("unsaved file")
         self.buttonArea = ButtonArea(self)
         self.lineNumberArea = LineNumberArea(self)
         self.blockCountChanged.connect(self.lineNumberArea.updateWidth)
         self.updateRequest.connect(self.lineNumberArea.update)
         self.cursorPositionChanged.connect(self.highlightCurrentLine)
         self._lines = Lines(self)
-        with open(filename,"r") as f:
-            txt = f.read()
+        if filename:
+            with open(filename,"r") as f:
+                txt = f.read()
+        else:
+            txt = ""
         self.highlighter = syntax.PythonHighlighter(self.document())
         self.text = txt
         self.highlightCurrentLine()
@@ -80,9 +85,16 @@ class CodeEditor(QtWidgets.QPlainTextEdit):
                 self.selectCurrentLine()
                 Selection(self).commentOrUncomment()
         self.comment_action.triggered.connect(_comment)
-        self.comment_action.setShortcut(QtGui.QKeySequence("Ctrl+c"))
+        self.comment_action.setShortcut(QtGui.QKeySequence("Ctrl+d"))
         self.addAction(self.comment_action)
         self.active_thread = None
+
+    def __getstate__(self):
+        return (self.text,)
+
+    def __setstate__(self,state):
+        self.__init__()
+        self.text = state[0]
 
     @property
     @inmain_decorator(wait_for_return=True)
@@ -121,6 +133,8 @@ class CodeEditor(QtWidgets.QPlainTextEdit):
         self.msgbox = QtWidgets.QMessageBox(text = type(e).__name__ + ": " + str(e))
         self.msgbox.setWindowTitle("Exception caught!")
         self.msgbox.show()
+        if self.gui._dontCatchExceptions:
+            raise e
 
     def contextMenuEvent(self, event):
         # is there a selection
@@ -135,10 +149,19 @@ class CodeEditor(QtWidgets.QPlainTextEdit):
         menu.exec_(event.globalPos())
 
     def save(self):
+        if not self.filename:
+            self.saveAs()
+            return
         if self.windowTitle()[0] == "*":
             with open(self.filename,"w") as f:
                 f.write(self.text)
             self.setWindowTitle(self.windowTitle()[2:])
+
+    def saveAs(self):
+        filename, filt = QtWidgets.QFileDialog.getSaveFileName(caption="Save as",
+                                                               filter=".py")
+        self.filename = filename
+        self.save()
 
     def run(self, code=None, reset_exec_locals = True, computation_started_at = 0):
         self.computation_started_at = computation_started_at
@@ -176,7 +199,7 @@ class CodeEditor(QtWidgets.QPlainTextEdit):
         self.buttonArea.setGeometry(QtCore.QRect(cr.left(), cr.top(), cr.right(), self.buttonAreaHeight()))
 
     def buttonAreaHeight(self):
-        return 30
+        return 35
 
     def highlightCurrentLine(self):
         selection = QtWidgets.QTextEdit.ExtraSelection()

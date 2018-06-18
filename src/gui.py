@@ -3,56 +3,12 @@ from . import glwindow
 from . import code_editor
 from . widgets import ArrangeV
 from .thread import inthread, inmain_decorator
-from . import ngui
+from .menu import MenuBarWithDict
+from .console import NGSJupyterWidget, MultiQtKernelManager
 
-import sys, textwrap, inspect, time, re
+import sys, textwrap, inspect, re, pkgutil, ngsolve, ngui, pickle, os
 
 from PySide2 import QtWidgets, QtCore, QtGui
-
-from jupyter_client.multikernelmanager import MultiKernelManager
-from qtconsole.inprocess import QtInProcessRichJupyterWidget
-from traitlets import DottedObjectName
-
-import os
-os.environ['Qt_API'] = 'pyside2'
-from IPython.lib import guisupport
-
-class MultiQtKernelManager(MultiKernelManager):
-    kernel_manager_class = DottedObjectName("qtconsole.inprocess.QtInProcessKernelManager",
-                                            config = True,
-                                            help = """kernel manager class""")
-
-def createMenu(self, name):
-    menu = self.addMenu(name)
-    menu._dict = {}
-    self._dict[name] = menu
-    return menu
-QtWidgets.QMenu.createMenu = createMenu
-
-def getitem(self, index):
-    if index not in self._dict:
-        return self.createMenu(index)
-    return self._dict[index]
-
-QtWidgets.QMenu.__getitem__ = getitem
-
-import inspect
-class MenuBarWithDict(QtWidgets.QMenuBar):
-    def __init__(self,*args, **kwargs):
-        super().__init__(*args,**kwargs)
-        self._dict = {}
-
-    @inmain_decorator(wait_for_return=True)
-    def createMenu(self, name, *args, **kwargs):
-        menu = super().addMenu(name,*args,**kwargs)
-        menu._dict = {}
-        self._dict[name] = menu
-        return menu
-
-    def __getitem__(self, index):
-        if index not in self._dict:
-            return self.createMenu(index)
-        return self._dict[index]
 
 class Receiver(QtCore.QObject):
     received = QtCore.Signal(str)
@@ -81,31 +37,6 @@ class OutputBuffer(QtWidgets.QTextEdit):
         self.moveCursor(QtGui.QTextCursor.End)
         self.insertPlainText(text)
 
-
-class MainWindow(QtWidgets.QWidget):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args,**kwargs)
-        self.last = time.time()
-
-    @inmain_decorator(wait_for_return=True)
-    def redraw(self, blocking = True):
-        if time.time() - self.last < 0.02:
-            return
-        for window in (self.window_tabber.widget(index) for index in range(self.window_tabber.count())):
-            if window.isGLWindow():
-                if blocking:
-                    self.glWidget.redraw_mutex.lock()
-                    self.glWidget.redraw_signal.emit()
-                    self.glWidget.redraw_update_done.wait(self.glWidget.redraw_mutex)
-                    self.glWidget.redraw_mutex.unlock()
-                else:
-                    self.glWidget.redraw_signal.emit()
-        self.last = time.time()
-
-    def keyPressEvent(self, event):
-        if event.key() == 16777216:
-            self.close()
-
 class SettingsToolBox(QtWidgets.QToolBox):
     def __init__(self, *args, **kwargs):
         super().__init__(*args,**kwargs)
@@ -120,51 +51,11 @@ class SettingsToolBox(QtWidgets.QToolBox):
         self.addItem(widget, sett.name)
         self.setCurrentIndex(len(self.settings)-1)
 
-class NGSJupyterWidget(QtInProcessRichJupyterWidget):
-    def __init__(self, multikernel_manager,*args, **kwargs):
-        super().__init__(*args,**kwargs)
-        self.banner = """NGSolve %s
-Developed by Joachim Schoeberl at
-2010-xxxx Vienna University of Technology
-2006-2010 RWTH Aachen University
-1996-2006 Johannes Kepler University Linz
-
-""" % ngsolve.__version__
-        if multikernel_manager is not None:
-            self.kernel_id = multikernel_manager.start_kernel()
-            self.kernel_manager = multikernel_manager.get_kernel(self.kernel_id)
-        else:
-            self.kernel_manager = QtInProcessKernelManager()
-            self.kernel_manager.start_kernel()
-        self.kernel_manager.kernel.gui = 'qt'
-        self.kernel_client = self.kernel_manager.client()
-        self.kernel_client.start_channels()
-        class dummyioloop():
-            def call_later(self,a,b):
-                return
-            def stop(self):
-                return
-        self.kernel_manager.kernel.io_loop = dummyioloop()
-
-        def stop():
-            self.kernel_client.stop_channels()
-            self.kernel_manager.shutdown_kernel()
-            # this function is qt5 compatible as well
-            guisupport.get_app_qt4().exit()
-        self.exit_requested.connect(stop)
-
-    @inmain_decorator(wait_for_return=True)
-    def pushVariables(self, varDict):
-        self.kernel_manager.kernel.shell.push(varDict)
-
-    @inmain_decorator(wait_for_return=True)
-    def clearTerminal(self):
-        self._control.clear()
 
 def _noexec(gui, val):
     gui.executeFileOnStartup = not val
 def _fastmode(gui,val):
-    gui.fastmode = val
+    gui.window_tabber._fastmode = val
 def _noOutputpipe(gui,val):
     gui.pipeOutput = not val
 
@@ -176,28 +67,33 @@ def _showHelp(gui, val):
             print(textwrap.indent(tup[1],"  "))
         quit()
 
-import ngsolve
+def _dontCatchExceptions(gui, val):
+    gui._dontCatchExceptions = val
+
 class GUI():
     # functions to modify the gui with flags. If the flag is not set, the function is called with False as argument
     flags = { "-noexec" : (_noexec, "Do not execute loaded Python file on startup"),
               "-fastmode" : (_fastmode, "Use fastmode for drawing large scenes faster"),
               "-noOutputpipe" : (_noOutputpipe, "Do not pipe the std output to the output window in the gui"),
-              "-help" : (_showHelp, "Show this help function")}
+              "-help" : (_showHelp, "Show this help function"),
+              "-dontCatchExceptions" : (_dontCatchExceptions, "Do not catch exceptions")}
+    # use a list of tuples instead of a dict to be able to sort it
+    sceneCreators = []
     def __init__(self):
         self.app = QtWidgets.QApplication([])
         ngui.SetLocale()
-        self.fastmode = False
-        self.pipeOutput = False
-        self.common_context = None
         self.multikernel_manager = MultiQtKernelManager()
-        self.mainWidget = MainWindow()
+        self._commonContext = glwindow.GLWidget()
+        self.createMenu()
+        self.createLayout()
+        self.mainWidget.setWindowTitle("NGSolve")
+        self.crawlPlugins()
+
+    def createMenu(self):
         self.menuBar = MenuBarWithDict()
-        self.activeGLWindow = None
-        fileMenu = self.menuBar.createMenu("&File")
-        loadMenu = fileMenu.createMenu("&Load")
-        saveMenu = fileMenu.createMenu("&Save")
-        saveSolution = saveMenu.addAction("&Solution")
-        loadSolution = loadMenu.addAction("&Solution")
+        filemenu = self.menuBar.addMenu("&File")
+        saveSolution = filemenu["&Save"].addAction("&Solution")
+        loadSolution = filemenu["&Load"].addAction("&Solution")
         loadSolution.triggered.connect(self.loadSolution)
         saveSolution.triggered.connect(self.saveSolution)
         def selectPythonFile():
@@ -205,11 +101,14 @@ class GUI():
                                                                    filter = "Python files (*.py)")
             if filename:
                 self.loadPythonFile(filename)
-        loadPython = loadMenu.addAction("&Python File", shortcut = "l+y")
+        loadPython = filemenu["&Load"].addAction("&Python File", shortcut = "l+y")
         loadPython.triggered.connect(selectPythonFile)
-        createMenu = self.menuBar.createMenu("&Create")
-        newWindowAction = createMenu.addAction("New &Window")
-        newWindowAction.triggered.connect(self.make_window)
+        newWindowAction = self.menuBar["&Create"].addAction("New &Window")
+        newWindowAction.triggered.connect(lambda :self.window_tabber.make_window())
+
+    def createLayout(self):
+        self.mainWidget = QtWidgets.QWidget()
+        self.activeGLWindow = None
         menu_splitter = QtWidgets.QSplitter(parent=self.mainWidget)
         menu_splitter.setOrientation(QtCore.Qt.Vertical)
         menu_splitter.addWidget(self.menuBar)
@@ -221,17 +120,8 @@ class GUI():
         window_splitter = QtWidgets.QSplitter(parent=toolbox_splitter)
         toolbox_splitter.addWidget(window_splitter)
         window_splitter.setOrientation(QtCore.Qt.Vertical)
-        self.window_tabber = QtWidgets.QTabWidget(parent=window_splitter)
-        self.window_tabber.setTabsClosable(True)
-        def _remove_tab(index):
-            if self.window_tabber.widget(index).isGLWindow():
-                if self.common_context == self.window_tabber.widget(index).glWidget:
-                    # cannot delete window with openGL context
-                    return
-                if self.activeGLWindow == self.window_tabber.widget(index):
-                    self.activeGLWindow = None
-            self.window_tabber.removeTab(index)
-        self.window_tabber.tabCloseRequested.connect(_remove_tab)
+        self.window_tabber = glwindow.WindowTabber(commonContext = self._commonContext,
+                                                   parent=window_splitter)
         window_splitter.addWidget(self.window_tabber)
         self.console = NGSJupyterWidget(multikernel_manager = self.multikernel_manager)
         self.outputBuffer = OutputBuffer()
@@ -244,16 +134,34 @@ class GUI():
         toolbox_splitter.setSizes([0, 85000])
         window_splitter.setSizes([70000, 30000])
         self.mainWidget.setLayout(ArrangeV(menu_splitter))
-        menu_splitter.show()
-        self.mainWidget.setWindowTitle("NGSolve")
-        # crawl for plugins
+
+        # global shortkeys:
+        def activateConsole():
+            self.output_tabber.setCurrentWidget(self.console)
+            self.console._control.setFocus()
+        self.mainWidget._console_action = console_action = QtWidgets.QAction("Activate Console")
+        console_action.triggered.connect(activateConsole)
+        console_action.setShortcut(QtGui.QKeySequence("Ctrl+j"))
+        self.mainWidget.addAction(console_action)
+
+        def switchTabWindow(direction):
+            self.window_tabber.setCurrentIndex((self.window_tabber.currentIndex() + direction)%self.window_tabber.count())
+        self.mainWidget._next_tab_action = next_tab = QtWidgets.QAction("Next Tab")
+        next_tab.triggered.connect(lambda : switchTabWindow(1))
+        next_tab.setShortcut(QtGui.QKeySequence("Ctrl+w"))
+        self.mainWidget._last_tab_action = last_tab = QtWidgets.QAction("Last Tab")
+        last_tab.triggered.connect(lambda : switchTabWindow(-1))
+        last_tab.setShortcut(QtGui.QKeySequence("Ctrl+q"))
+        self.mainWidget.addAction(next_tab)
+        self.mainWidget.addAction(last_tab)
+
+    def crawlPlugins(self):
         try:
             from . import plugins as plu
             plugins_exist = True
         except ImportError:
             plugins_exist = False
         if plugins_exist:
-            import pkgutil
             prefix = plu.__name__ + "."
             plugins = []
             for importer, modname, ispkg in pkgutil.iter_modules(plu.__path__,prefix):
@@ -280,62 +188,49 @@ class GUI():
         else:
             self.toolbox_splitter.setSizes([15000, 85000])
 
-    @inmain_decorator(wait_for_return=True)
-    def make_window(self):
-        self.activeGLWindow = window = glwindow.WindowTab(shared=self.common_context)
-        if self.fastmode:
-            window.glWidget.rendering_parameters.fastmode = True
-        if self.common_context is None:
-            self.common_context = window.glWidget
-        self.window_tabber.addTab(window,"window" + str(self.window_tabber.count() + 1))
-        self.window_tabber.setCurrentWidget(window)
-        return window
-
     def saveSolution(self):
-        import pickle
         filename, filt = QtWidgets.QFileDialog.getSaveFileName(caption="Save Solution",
                                                                filter = "Solution Files (*.sol)")
         if not filename[-4:] == ".sol":
             filename += ".sol"
         tabs = []
         for i in range(self.window_tabber.count()):
-            tabs.append(self.window_tabber.widget(i))
+            tabs.append((self.window_tabber.widget(i),self.window_tabber.tabBar().tabText(i)))
         settings = self.settings_toolbox.settings
         with open(filename,"wb") as f:
             pickle.dump((tabs,settings), f)
 
     def loadSolution(self):
-        import pickle
         filename, filt = QtWidgets.QFileDialog.getOpenFileName(caption="Load Solution",
                                                                filter = "Solution Files (*.sol)")
         if not filename[-4:] == ".sol":
             filename += ".sol"
         with open(filename, "rb") as f:
-            tabs, settings = pickle.load(f)
-        for tab in tabs:
-            self.window_tabber.addTab(tab, "window" + str(self.window_tabber.count()))
+            tabs,settings = pickle.load(f)
+            print(tabs)
+        for tab,name in tabs:
+            if isinstance(tab, glwindow.WindowTab):
+                tab.create(self._commonContext)
+            if isinstance(tab, code_editor.CodeEditor):
+                tab.gui = self
+            self.window_tabber.addTab(tab, name)
             tab.show()
             self.window_tabber.setCurrentWidget(tab)
         for setting in settings:
             setting.gui = self
             self.settings_toolbox.addSettings(setting)
 
-    def getActiveGLWindow(self):
-        if self.activeGLWindow is None:
-            self.make_window()
-        return self.activeGLWindow
-
     @inmain_decorator(wait_for_return=True)
     def draw(self, *args, **kwargs):
-        self.getActiveGLWindow().draw(*args,**kwargs)
+        self.window_tabber.draw(*args,**kwargs)
 
     @inmain_decorator(wait_for_return=False)
     def redraw(self):
-        self.getActiveGLWindow().glWidget.updateScenes()
+        self.window_tabber.activeGLWindow.glWidget.updateScenes()
 
     @inmain_decorator(wait_for_return=True)
     def redraw_blocking(self):
-        self.getActiveGLWindow().glWidget.updateScenes()
+        self.window_tabber.activeGLWindow.glWidget.updateScenes()
 
     @inmain_decorator(wait_for_return=True)
     def _loadFile(self, filename):
@@ -354,7 +249,6 @@ class GUI():
             editTab.run()
 
     def run(self,do_after_run=lambda : None):
-        import os, threading
         self.mainWidget.show()
         globs = inspect.stack()[1][0].f_globals
         self.console.pushVariables(globs)
@@ -371,7 +265,6 @@ class GUI():
             self.stdoutThread.started.connect(receiver.run)
             self.stdoutThread.start()
         do_after_run()
-        import time
         def onQuit():
             if self.pipeOutput:
                 receiver.SetKill()

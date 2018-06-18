@@ -1,6 +1,8 @@
 
 from PySide2 import QtWidgets, QtCore, QtGui
 from ngsolve.gui.widgets import ArrangeH, ArrangeV
+from ngsolve.gui.config import icon_path
+from .text_finder import TextFinder
 
 class ButtonArea(QtWidgets.QWidget):
     def __init__(self, editor, *args, **kwargs):
@@ -10,13 +12,13 @@ class ButtonArea(QtWidgets.QWidget):
         pal.setColor(QtGui.QPalette.Background,QtCore.Qt.black)
         self.setPalette(pal)
         savebtn = QtWidgets.QPushButton()
-        savebtn.setIcon(QtGui.QIcon("@ICON_INSTALL_PATH@/save.png"))
-        savebtn.setIconSize(QtCore.QSize(25,25))
+        savebtn.setIcon(QtGui.QIcon(icon_path + "/save.png"))
+        savebtn.setIconSize(QtCore.QSize(20,20))
         savebtn.clicked.connect(self.editor.save)
         savebtn.setToolTip("Save")
         runbtn = QtWidgets.QPushButton()
-        runbtn.setIcon(QtGui.QIcon("@ICON_INSTALL_PATH@/run.png"))
-        runbtn.setIconSize(QtCore.QSize(55,55))
+        runbtn.setIcon(QtGui.QIcon(icon_path + "/run.png"))
+        runbtn.setIconSize(QtCore.QSize(40,40))
         runbtn.setToolTip("Run")
         runbtn.clicked.connect(self.editor.run)
         def _run_cursor():
@@ -34,7 +36,9 @@ class ButtonArea(QtWidgets.QWidget):
                             computation_started_at = self.editor.textCursor().position())
             self.editor.moveCursor(QtGui.QTextCursor.Down)
         run_line.clicked.connect(_run_line)
-        find_btn = QtWidgets.QPushButton("Find")
+        find_btn = QtWidgets.QPushButton()
+        find_btn.setIcon(QtGui.QIcon(icon_path + "/search.png"))
+        find_btn.setIconSize(QtCore.QSize(17,17))
         find_btn.clicked.connect(lambda : TextFinder(self.editor).show())
         savebtn.setShortcut(QtGui.QKeySequence("Ctrl+s"))
         runbtn.setShortcut(QtGui.QKeySequence("Ctrl+r"))
@@ -42,5 +46,5 @@ class ButtonArea(QtWidgets.QWidget):
         run_line.setShortcut("Ctrl+l")
         find_btn.setShortcut(QtGui.QKeySequence("Ctrl+f"))
         layout = ArrangeH(savebtn, runbtn, runbtn_cursor,run_line,find_btn)
-        self.setContentsMargins(-5,-5,15,-5)
+        self.setContentsMargins(-20,-20,15,-20)
         self.setLayout(layout)

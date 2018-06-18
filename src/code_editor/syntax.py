@@ -113,12 +113,37 @@ class PythonHighlighter (QSyntaxHighlighter):
 
         self.findRule = None
 
-    def setFindRule(self, pattern, color):
+    def setFindRule(self, pattern, color, color_index, index = 0):
         _color = QColor()
         _color.setNamedColor(color)
         _format = QTextCharFormat()
         _format.setBackground(_color)
-        self.findRule = (pattern.lower(), _format)
+        _color_index = QColor()
+        _color_index.setNamedColor(color_index)
+        _format_index = QTextCharFormat()
+        _format_index.setBackground(_color_index)
+        self.findRule = (pattern.lower(), _format, _format_index, index)
+        self.rehighlight()
+
+    def rehighlight(self, *args, **kwargs):
+        if self.findRule:
+            text = self.document().toPlainText().lower()
+            expression,_format,_format_index,_index = self.findRule
+            length = len(expression)
+            index = text.find(expression,0)
+            self._nfound = 0
+            while index >= 0:
+                self._nfound += 1
+                index = text.find(expression, index + length)
+            self._count = 0
+        super().rehighlight(*args,**kwargs)
+
+    def nextFindRulePosition(self):
+        self.findRule = (*self.findRule[:3], self.findRule[3]+1)
+        self.rehighlight()
+
+    def lastFindRulePosition(self):
+        self.findRule = (*self.findRule[:3], self.findRule[3]-1)
         self.rehighlight()
 
     def clearFindRule(self):
@@ -141,11 +166,15 @@ class PythonHighlighter (QSyntaxHighlighter):
 
         if self.findRule:
             ltext = text.lower()
-            expression, format = self.findRule
+            expression, _format, _format_index, _index = self.findRule
             index = ltext.find(expression,0)
+            length = len(expression)
             while index >= 0:
-                length = len(expression)
-                self.setFormat(index,length,format)
+                if _index%self._nfound == self._count:
+                    self.setFormat(index, length, _format_index)
+                else:
+                    self.setFormat(index,length,_format)
+                self._count += 1
                 index = ltext.find(expression, index + length)
         self.setCurrentBlockState(0)
 
