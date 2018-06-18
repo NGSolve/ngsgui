@@ -12,12 +12,13 @@ from .thread import inmain_decorator
 from .gl_interface import getOpenGLData
 from .gui import GUI
 import netgen.meshing
+from . import settings
 
 from PySide2 import QtWidgets, QtCore, QtGui
 from OpenGL.GL import *
 
 
-class BaseScene():
+class BaseScene(settings.BaseSettings):
     """Base class for drawing opengl objects.
 
 Parameters
@@ -40,32 +41,21 @@ name : str = type(self).__name__ + scene_counter
             BaseScene.scene_counter += 1
         else:
             self.name = name
-        self.createOptions()
-        self.createQtWidget()
-
-    @inmain_decorator(True)
-    def createOptions(self):
-        self._widgets = {}
+        super().__init__()
 
     def __getstate__(self):
-        values = {}
-        for key, group in self._widgets.items():
-            for name in group:
-                if hasattr(self, "get" + name):
-                    values[name] = getattr(self, "get" + name)()
-        return (self.name, self.active, values)
+        super_state = super().__getstate__()
+        return (super_state, self.name, self.active)
 
     def __setstate__(self,state):
         self.window = None
         self._gl_initialized = False
         self._actions = {}
         self._active_action = None
-        self.name = state[0]
-        self.active = state[1]
-        self._initial_values = state[2]
+        self.name = state[1]
+        self.active = state[2]
+        super().__setstate__(state[0])
         # TODO: can we pickle actions somehow?
-        self.createOptions()
-        self.createQtWidget()
 
     def initGL(self):
         """Called once after the scene is created and initializes all OpenGL objects."""
@@ -77,11 +67,6 @@ name : str = type(self).__name__ + scene_counter
         if not self._gl_initialized:
             self.initGL()
 
-    @inmain_decorator(True)
-    def updateWidgets(self):
-        """Updates scene widgets"""
-        self.widgets.update()
-    
     def render(self, settings):
         """Render scene, must be overloaded by derived class"""
         pass
@@ -110,7 +95,8 @@ center of this box. Rotation will be around this center."""
 
     @inmain_decorator(True)
     def createQtWidget(self):
-        self.widgets = wid.OptionWidgets(updateGL=self._updateGL)
+        super().createQtWidget()
+        self.widgets.updateGLSignal.connect(self._updateGL)
         self.actionCheckboxes = []
         class cbHolder:
             def __init__(self,cb,scene,name):
@@ -141,12 +127,14 @@ center of this box. Rotation will be around this center."""
             widget.setLayout(layout)
             self.widgets.addGroup("Actions",widget)
 
-        for group in self._widgets:
-            self.widgets.addGroup(group,*self._widgets[group].values())
-
     def _updateGL(self):
         if self.window:
             self.window.glWidget.updateGL()
+
+    def addParameter(self, parameter):
+        super().addParameter(parameter)
+        if parameter.getOption("updateGL"):
+            parameter.changed.connect(self._updateGL)
 
     def addAction(self,action,name=None):
         """Add double click action. Adds a checkbox to the widget to activate/deactivate the action.
@@ -170,114 +158,6 @@ name : str = "action" + consecutive number
     def doubleClickAction(self,point):
         if self._active_action:
             self._actions[self._active_action](point)
-
-    def addOption(self, group, name, typ=None, update_on_change=False, update_widget_on_change=False, widget_type=None, label=None, values=None, on_change=None, *args, **kwargs):
-        if not group in self._widgets:
-            self._widgets[group] = {}
-        default_value = self._initial_values[name]
-        label = label or name
-        propname = "_"+name
-        widgetname = "_"+name+"Widget"
-        setter_name = "set"+name
-
-        setattr(self, propname, default_value)
-
-        if typ==None and widget_type==None:
-            typ = type(default_value)
-
-        if typ is list:
-            w = QtWidgets.QComboBox()
-            assert type(values) is list
-            w.addItems(values)
-            w.currentIndexChanged[int].connect(lambda index: getattr(self,setter_name)(index))
-            self._widgets[group][name] = wid.WidgetWithLabel(w,label)
-
-        elif widget_type:
-            w = widget_type(*args, **kwargs)
-            w.setValue(default_value)
-            self._widgets[group][name] = w
-
-        elif typ==bool:
-            w = QtWidgets.QCheckBox(label)
-            w.setCheckState(QtCore.Qt.Checked if default_value else QtCore.Qt.Unchecked)
-            if on_change:
-                w.stateChanged.connect(on_change)
-            w.stateChanged.connect(lambda value: getattr(self, setter_name)(bool(value)))
-            self._widgets[group][name] = wid.WidgetWithLabel(w)
-
-        elif typ==int:
-            w = QtWidgets.QSpinBox()
-            w.setValue(default_value)
-            w.valueChanged[int].connect(lambda value: getattr(self, setter_name)(value))
-            if "min" in kwargs:
-                w.setMinimum(kwargs["min"])
-            if "max" in kwargs:
-                w.setMaximum(kwargs["max"])
-            self._widgets[group][name] = wid.WidgetWithLabel(w,label)
-
-        elif typ==float:
-            w = wid.ScienceSpinBox()
-            w.setRange(-1e99, 1e99)
-            w.setValue(default_value)
-            w.valueChanged[float].connect(lambda value: getattr(self, setter_name)(value))
-            if "min" in kwargs:
-                w.setMinimum(kwargs["min"])
-            if "max" in kwargs:
-                w.setMaximum(kwargs["max"])
-            if "step" in kwargs:
-                w.setSingleStep(kwargs["step"])
-                w.lastWheelStep = kwargs["step"]
-            self._widgets[group][name] = wid.WidgetWithLabel(w, label)
-        else:
-            raise RuntimeError("unknown type: ", typ)
-
-        def getValue(self):
-            return getattr(self, propname)
-
-        def setValue(self, value, redraw=True, update_gui=True):
-            if getattr(self, propname) == value:
-                return
-
-            setattr(self, propname, value)
-
-            if update_widget_on_change:
-                self.updateWidgets()
-            if redraw:
-                if update_on_change:
-                    self.update()
-                self.widgets.updateGLSignal.emit()
-
-            if update_gui:
-                widget = self._widgets[group][name]
-                widget.setValue(value)
-
-        cls = type(self)
-
-        if not hasattr(cls, setter_name):
-            setattr(cls, setter_name, setValue)
-        if not hasattr(cls, 'get'+name):
-            setattr(cls, 'get'+name, getValue)
-        return self._widgets[group][name]
-
-    def addButton(self, group, name, function_name, update_on_change=False, label = None,*args,**kwargs):
-        if not group in self._widgets:
-            self._widgets[group] = {}
-        if not label:
-            label = name
-        def doAction(self, redraw=True):
-            getattr(self,function_name)(*args, **kwargs)
-            if update_on_change:
-                self.update()
-            if redraw:
-                self.widgets.updateGLSignal.emit()
-
-        cls = type(self)
-
-        if not hasattr(cls, name):
-            setattr(cls, name, doAction)
-
-        w = wid.Button(label, getattr(self, name))
-        self._widgets[group][name] = w
 
 GUI.sceneCreators.append((BaseScene,lambda scene,*args,**kwargs: scene))
 
@@ -333,11 +213,11 @@ class OverlayScene(BaseScene):
         self.addOption( "Overlay", "ShowCross", label = "Axis", typ=bool)
         self.addOption( "Overlay", "ShowVersion", label = "Version", typ=bool)
         self.addOption( "Overlay", "ShowColorBar", label = "Color bar", typ=bool)
-        self.addOption( "Rendering options", "FastRender", label='Fast mode', typ=bool, on_change=lambda val: setattr(self._rendering_params,'fastmode',val))
-        self.addButton( "Clipping plane", "clipX", "_setClippingPlane", label='X',action="clipX")
-        self.addButton( "Clipping plane", "clipY", "_setClippingPlane", label='Y',action="clipY")
-        self.addButton( "Clipping plane", "clipZ", "_setClippingPlane", label='Z',action="clipZ")
-        self.addButton( "Clipping plane", "clipFlip", "_setClippingPlane", label='flip', action="clipFlip")
+        self.addOption( "Rendering options", "FastRender", label='Fast mode', typ=bool, on_change=lambda val: setattr(self._rendering_parameters,'fastmode',val))
+        self.addButton( "Clipping plane", "clipX", self._setClippingPlane, label='X',action="clipX")
+        self.addButton( "Clipping plane", "clipY", self._setClippingPlane, label='Y',action="clipY")
+        self.addButton( "Clipping plane", "clipZ", self._setClippingPlane, label='Z',action="clipZ")
+        self.addButton( "Clipping plane", "clipFlip", self._setClippingPlane, label='flip', action="clipFlip")
         self.cross_scale = 0.3
         self.cross_shift = -0.10
 
@@ -350,13 +230,13 @@ class OverlayScene(BaseScene):
 
     def _setClippingPlane(self, action):
         if action == "clipX":
-            self._rendering_params.setClippingPlaneNormal([1,0,0])
+            self._rendering_parameters.setClippingPlaneNormal([1,0,0])
         if action == "clipY":
-            self._rendering_params.setClippingPlaneNormal([0,1,0])
+            self._rendering_parameters.setClippingPlaneNormal([0,1,0])
         if action == "clipZ":
-            self._rendering_params.setClippingPlaneNormal([0,0,1])
+            self._rendering_parameters.setClippingPlaneNormal([0,0,1])
         if action == "clipFlip":
-            self._rendering_params.setClippingPlaneNormal(-1.0*self._rendering_params.getClippingPlaneNormal())
+            self._rendering_parameters.setClippingPlaneNormal(-1.0*self._rendering_parameters.getClippingPlaneNormal())
 
     def deferRendering(self):
         return 99
@@ -790,6 +670,22 @@ class SolutionScene(BaseMeshScene):
             self.have_gradient = False
         super().__init__(mesh,*args, name=name, **kwargs)
 
+
+    @inmain_decorator(True)
+    def createParameters(self):
+        super().createParameters()
+        if self.cf.is_complex:
+            self._complex_eval_funcs = {"real" : 0,
+                                        "imag" : 1,
+                                        "abs" : 2,
+                                        "arg" : 3}
+            self.addParameter(settings.SingleOptionParameter(group = "Complex",
+                                                             name="ComplexEvalFunc",
+                                                             values = list(self._complex_eval_funcs.keys()),
+                                                             label="Func",
+                                                             default_value = "real",
+                                                             updateGL=True))
+
     @inmain_decorator(True)
     def createOptions(self):
         super().createOptions()
@@ -808,8 +704,8 @@ class SolutionScene(BaseMeshScene):
             self.addOption( "Show", "ShowVectors", typ=bool)
 
         if self.cf.is_complex:
-            self.addOption( "Complex", "ComplexEvalFunc", label="Func", typ=list,
-                            values=["real","imag","abs","arg"])
+            # self.addOption( "Complex", "ComplexEvalFunc", label="Func", typ=list,
+            #                 values=["real","imag","abs","arg"])
             self.addOption( "Complex", "ComplexPhaseShift", label="Value shift angle", typ=float)
 
         boxmin = self.addOption( "Colormap", "ColorMapMin", label="Min", typ=float, step=1)
@@ -1039,7 +935,7 @@ class SolutionScene(BaseMeshScene):
             self.surface_values_imag.bind()
             uniforms.set('coefficients_imag', 3)
 
-            uniforms.set('complex_vis_function', self.getComplexEvalFunc())
+            uniforms.set('complex_vis_function', self._complex_eval_funcs[self.getComplexEvalFunc()])
             w = cmath.exp(1j*self.getComplexPhaseShift()/180.0*math.pi)
             uniforms.set('complex_factor', [w.real, w.imag])
 

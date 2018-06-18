@@ -49,7 +49,7 @@ class SettingsToolBox(QtWidgets.QToolBox):
     def addSettings(self, sett):
         self.settings.append(sett)
         widget = QtWidgets.QWidget()
-        widget.setLayout(ArrangeV(*sett.getQtWidget().groups))
+        widget.setLayout(ArrangeV(*sett.widgets.groups))
         widget.layout().setAlignment(QtCore.Qt.AlignTop)
         self.addItem(widget, sett.name)
         self.setCurrentIndex(len(self.settings)-1)
