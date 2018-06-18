@@ -499,6 +499,11 @@ class WindowTabber(QtWidgets.QTabWidget):
                 self.make_window(name=tab)
         self.activeGLWindow.draw(*args,**kwargs)
 
+    def setCurrentIndex(self, index):
+        super().setCurrentIndex(index)
+        if isinstance(self.currentWidget(), WindowTab):
+            self.activeGLWindow = self.currentWidget()
+
     @inmain_decorator(True)
     def make_window(self, name=None):
         window = WindowTab()

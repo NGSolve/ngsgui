@@ -10,7 +10,7 @@ configure_file(config.py.in config.py @ONLY)
 
 install(FILES __init__.py gl.py gui.py ${CMAKE_CURRENT_BINARY_DIR}/config.py plugin.py
   settings.py widgets.py glmath.py gl_interface.py glwindow.py
-  scenes.py thread.py DESTINATION ngsolve/gui)
+  scenes.py thread.py console.py menu.py DESTINATION ngsolve/gui)
 
 install(PROGRAMS ngsolve DESTINATION ../../../bin)
 add_subdirectory(shader)

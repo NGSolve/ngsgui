@@ -3,57 +3,12 @@ from . import glwindow
 from . import code_editor
 from . widgets import ArrangeV
 from .thread import inthread, inmain_decorator
-from . import scenes
-import collections
+from .menu import MenuBarWithDict
+from .console import NGSJupyterWidget, MultiQtKernelManager
 
-import sys, textwrap, inspect, time, re, pkgutil, ngsolve, ngui
+import sys, textwrap, inspect, re, pkgutil, ngsolve, ngui, pickle, os
 
 from PySide2 import QtWidgets, QtCore, QtGui
-
-from jupyter_client.multikernelmanager import MultiKernelManager
-from qtconsole.inprocess import QtInProcessRichJupyterWidget
-from traitlets import DottedObjectName
-
-import os
-os.environ['Qt_API'] = 'pyside2'
-from IPython.lib import guisupport
-
-class MultiQtKernelManager(MultiKernelManager):
-    kernel_manager_class = DottedObjectName("qtconsole.inprocess.QtInProcessKernelManager",
-                                            config = True,
-                                            help = """kernel manager class""")
-
-def createMenu(self, name):
-    menu = self.addMenu(name)
-    menu._dict = {}
-    self._dict[name] = menu
-    return menu
-QtWidgets.QMenu.createMenu = createMenu
-
-def getitem(self, index):
-    if index not in self._dict:
-        return self.createMenu(index)
-    return self._dict[index]
-
-QtWidgets.QMenu.__getitem__ = getitem
-
-import inspect
-class MenuBarWithDict(QtWidgets.QMenuBar):
-    def __init__(self,*args, **kwargs):
-        super().__init__(*args,**kwargs)
-        self._dict = {}
-
-    @inmain_decorator(wait_for_return=True)
-    def createMenu(self, name, *args, **kwargs):
-        menu = super().addMenu(name,*args,**kwargs)
-        menu._dict = {}
-        self._dict[name] = menu
-        return menu
-
-    def __getitem__(self, index):
-        if index not in self._dict:
-            return self.createMenu(index)
-        return self._dict[index]
 
 class Receiver(QtCore.QObject):
     received = QtCore.Signal(str)
@@ -82,31 +37,6 @@ class OutputBuffer(QtWidgets.QTextEdit):
         self.moveCursor(QtGui.QTextCursor.End)
         self.insertPlainText(text)
 
-
-class MainWindow(QtWidgets.QWidget):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args,**kwargs)
-        self.last = time.time()
-
-    @inmain_decorator(wait_for_return=True)
-    def redraw(self, blocking = True):
-        if time.time() - self.last < 0.02:
-            return
-        for window in (self.window_tabber.widget(index) for index in range(self.window_tabber.count())):
-            if window.isGLWindow():
-                if blocking:
-                    self.glWidget.redraw_mutex.lock()
-                    self.glWidget.redraw_signal.emit()
-                    self.glWidget.redraw_update_done.wait(self.glWidget.redraw_mutex)
-                    self.glWidget.redraw_mutex.unlock()
-                else:
-                    self.glWidget.redraw_signal.emit()
-        self.last = time.time()
-
-    def keyPressEvent(self, event):
-        if event.key() == 16777216:
-            self.close()
-
 class SettingsToolBox(QtWidgets.QToolBox):
     def __init__(self, *args, **kwargs):
         super().__init__(*args,**kwargs)
@@ -121,46 +51,6 @@ class SettingsToolBox(QtWidgets.QToolBox):
         self.addItem(widget, sett.name)
         self.setCurrentIndex(len(self.settings)-1)
 
-class NGSJupyterWidget(QtInProcessRichJupyterWidget):
-    def __init__(self, multikernel_manager,*args, **kwargs):
-        super().__init__(*args,**kwargs)
-        self.banner = """NGSolve %s
-Developed by Joachim Schoeberl at
-2010-xxxx Vienna University of Technology
-2006-2010 RWTH Aachen University
-1996-2006 Johannes Kepler University Linz
-
-""" % ngsolve.__version__
-        if multikernel_manager is not None:
-            self.kernel_id = multikernel_manager.start_kernel()
-            self.kernel_manager = multikernel_manager.get_kernel(self.kernel_id)
-        else:
-            self.kernel_manager = QtInProcessKernelManager()
-            self.kernel_manager.start_kernel()
-        self.kernel_manager.kernel.gui = 'qt'
-        self.kernel_client = self.kernel_manager.client()
-        self.kernel_client.start_channels()
-        class dummyioloop():
-            def call_later(self,a,b):
-                return
-            def stop(self):
-                return
-        self.kernel_manager.kernel.io_loop = dummyioloop()
-
-        def stop():
-            self.kernel_client.stop_channels()
-            self.kernel_manager.shutdown_kernel()
-            # this function is qt5 compatible as well
-            guisupport.get_app_qt4().exit()
-        self.exit_requested.connect(stop)
-
-    @inmain_decorator(wait_for_return=True)
-    def pushVariables(self, varDict):
-        self.kernel_manager.kernel.shell.push(varDict)
-
-    @inmain_decorator(wait_for_return=True)
-    def clearTerminal(self):
-        self._control.clear()
 
 def _noexec(gui, val):
     gui.executeFileOnStartup = not val
@@ -201,11 +91,9 @@ class GUI():
 
     def createMenu(self):
         self.menuBar = MenuBarWithDict()
-        fileMenu = self.menuBar.createMenu("&File")
-        loadMenu = fileMenu.createMenu("&Load")
-        saveMenu = fileMenu.createMenu("&Save")
-        saveSolution = saveMenu.addAction("&Solution")
-        loadSolution = loadMenu.addAction("&Solution")
+        filemenu = self.menuBar.addMenu("&File")
+        saveSolution = filemenu["&Save"].addAction("&Solution")
+        loadSolution = filemenu["&Load"].addAction("&Solution")
         loadSolution.triggered.connect(self.loadSolution)
         saveSolution.triggered.connect(self.saveSolution)
         def selectPythonFile():
@@ -213,14 +101,13 @@ class GUI():
                                                                    filter = "Python files (*.py)")
             if filename:
                 self.loadPythonFile(filename)
-        loadPython = loadMenu.addAction("&Python File", shortcut = "l+y")
+        loadPython = filemenu["&Load"].addAction("&Python File", shortcut = "l+y")
         loadPython.triggered.connect(selectPythonFile)
-        createMenu = self.menuBar.createMenu("&Create")
-        newWindowAction = createMenu.addAction("New &Window")
+        newWindowAction = self.menuBar["&Create"].addAction("New &Window")
         newWindowAction.triggered.connect(lambda :self.window_tabber.make_window())
 
     def createLayout(self):
-        self.mainWidget = MainWindow()
+        self.mainWidget = QtWidgets.QWidget()
         self.activeGLWindow = None
         menu_splitter = QtWidgets.QSplitter(parent=self.mainWidget)
         menu_splitter.setOrientation(QtCore.Qt.Vertical)
@@ -302,7 +189,6 @@ class GUI():
             self.toolbox_splitter.setSizes([15000, 85000])
 
     def saveSolution(self):
-        import pickle
         filename, filt = QtWidgets.QFileDialog.getSaveFileName(caption="Save Solution",
                                                                filter = "Solution Files (*.sol)")
         if not filename[-4:] == ".sol":
@@ -315,7 +201,6 @@ class GUI():
             pickle.dump((tabs,settings), f)
 
     def loadSolution(self):
-        import pickle
         filename, filt = QtWidgets.QFileDialog.getOpenFileName(caption="Load Solution",
                                                                filter = "Solution Files (*.sol)")
         if not filename[-4:] == ".sol":
@@ -364,7 +249,6 @@ class GUI():
             editTab.run()
 
     def run(self,do_after_run=lambda : None):
-        import os, threading
         self.mainWidget.show()
         globs = inspect.stack()[1][0].f_globals
         self.console.pushVariables(globs)
