@@ -1,4 +1,7 @@
 
+import os
+os.environ['Qt_API'] = 'pyside2'
+
 from . import glwindow
 from . import code_editor
 from . widgets import ArrangeV
@@ -6,7 +9,7 @@ from .thread import inthread, inmain_decorator
 from .menu import MenuBarWithDict
 from .console import NGSJupyterWidget, MultiQtKernelManager
 
-import sys, textwrap, inspect, re, pkgutil, ngsolve, ngui, pickle, os
+import sys, textwrap, inspect, re, pkgutil, ngsolve, ngui, pickle
 
 from PySide2 import QtWidgets, QtCore, QtGui
 
@@ -232,6 +235,9 @@ class GUI():
     def redraw_blocking(self):
         self.window_tabber.activeGLWindow.glWidget.updateScenes()
 
+    def plot(self, x,y):
+        self.window_tabber.plot(x,y)
+
     @inmain_decorator(wait_for_return=True)
     def _loadFile(self, filename):
         txt = ""
@@ -254,9 +260,12 @@ class GUI():
         self.console.pushVariables(globs)
         if self.pipeOutput:
             stdout_fileno = sys.stdout.fileno()
+            stderr_fileno = sys.stderr.fileno()
+            stderr_save = os.dup(stderr_fileno)
             stdout_save = os.dup(stdout_fileno)
             stdout_pipe = os.pipe()
             os.dup2(stdout_pipe[1], stdout_fileno)
+            os.dup2(stdout_pipe[1], stderr_fileno)
             os.close(stdout_pipe[1])
             receiver = Receiver(stdout_pipe[0])
             receiver.received.connect(self.outputBuffer.append_text)
@@ -282,5 +291,10 @@ class DummyObject:
         return DummyObject()
     def __call__(self,*args,**kwargs):
         pass
+
+    def plot(self, x,y):
+        import matplotlib.pyplot as plt
+        plt.plot(x,y)
+        plt.show()
 
 gui = DummyObject()

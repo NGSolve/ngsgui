@@ -6,9 +6,6 @@ from traitlets import DottedObjectName
 import ngsolve
 from .thread import inmain_decorator
 
-import os
-os.environ['Qt_API'] = 'pyside2'
-
 from IPython.lib import guisupport
 
 class MultiQtKernelManager(MultiKernelManager):
