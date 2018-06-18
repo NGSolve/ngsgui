@@ -1,5 +1,5 @@
 
-import weakref
+import weakref, numpy
 import OpenGL.GL as GL
 from .gl import Texture
 import ngsolve as ngs
@@ -77,11 +77,11 @@ class MeshData(DataContainer):
         self.max = meshdata['max']
 
         new_els = {}
-        verts,new_els = ngui.GetMeshData2(self.mesh())
+        verts,new_els = ngui.GetMeshData2(self.obj())
         self.vertices.store(verts)
         for vb in new_els:
             for ei in new_els[vb]:
-                ei.tex = Texture(GL_TEXTURE_BUFFER, GL_R32I)
+                ei.tex = Texture(GL.GL_TEXTURE_BUFFER, GL.GL_R32I)
                 ei.tex.store(numpy.array(ei.data, dtype=numpy.int32))
         self.new_els = new_els
 
