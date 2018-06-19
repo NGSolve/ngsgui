@@ -111,7 +111,6 @@ class GUI():
 
     def createLayout(self):
         self.mainWidget = QtWidgets.QWidget()
-        self.activeGLWindow = None
         menu_splitter = QtWidgets.QSplitter(parent=self.mainWidget)
         menu_splitter.setOrientation(QtCore.Qt.Vertical)
         menu_splitter.addWidget(self.menuBar)
@@ -200,8 +199,9 @@ class GUI():
         for i in range(self.window_tabber.count()):
             tabs.append((self.window_tabber.widget(i),self.window_tabber.tabBar().tabText(i)))
         settings = self.settings_toolbox.settings
+        currentIndex = self.window_tabber.currentIndex()
         with open(filename,"wb") as f:
-            pickle.dump((tabs,settings), f)
+            pickle.dump((tabs,settings, currentIndex), f)
 
     def loadSolution(self):
         filename, filt = QtWidgets.QFileDialog.getOpenFileName(caption="Load Solution",
@@ -209,18 +209,17 @@ class GUI():
         if not filename[-4:] == ".sol":
             filename += ".sol"
         with open(filename, "rb") as f:
-            tabs,settings = pickle.load(f)
+            tabs,settings,currentIndex = pickle.load(f)
         for tab,name in tabs:
             if isinstance(tab, glwindow.WindowTab):
                 tab.create(self._commonContext)
             if isinstance(tab, code_editor.CodeEditor):
                 tab.gui = self
             self.window_tabber.addTab(tab, name)
-            tab.show()
-            self.window_tabber.setCurrentWidget(tab)
         for setting in settings:
             setting.gui = self
             self.settings_toolbox.addSettings(setting)
+        self.window_tabber.activeGLWindow = self.window_tabber.widget(currentIndex)
 
     @inmain_decorator(wait_for_return=True)
     def draw(self, *args, **kwargs):

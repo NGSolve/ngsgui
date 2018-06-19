@@ -131,8 +131,8 @@ center of this box. Rotation will be around this center."""
         if self.window:
             self.window.glWidget.updateGL()
 
-    def addParameter(self, parameter):
-        super().addParameter(parameter)
+    def _attachParameter(self, parameter):
+        super()._attachParameter(parameter)
         if parameter.getOption("updateGL"):
             parameter.changed.connect(self._updateGL)
 
@@ -208,12 +208,23 @@ class OverlayScene(BaseScene):
         self._rendering_parameters = state[1]
 
     @inmain_decorator(True)
+    def createParameters(self):
+        super().createParameters()
+        self.addParameter(settings.CheckboxParameter("Overlay", name="ShowVersion", label="Version",
+                                                     default_value=True, updateGL=True))
+        self.addParameter(settings.CheckboxParameter("Overlay", name="ShowCross", label = "Axis", default_value=True,
+                                                     updateGL=True))
+        self.addParameter(settings.CheckboxParameter("Overlay", name="ShowColorBar", label = "Color Bar",
+                                                     default_value=True, updateGL=True))
+        fastmode_par = settings.CheckboxParameter("Rendering options", name="FastRender",
+                                                  label="Fast mode")
+        fastmode_par.changed.connect(lambda val: setattr(self._rendering_parameters,"fastmode", val))
+        self.addParameter(fastmode_par)
+
+
+    @inmain_decorator(True)
     def createOptions(self):
         super().createOptions()
-        self.addOption( "Overlay", "ShowCross", label = "Axis", typ=bool)
-        self.addOption( "Overlay", "ShowVersion", label = "Version", typ=bool)
-        self.addOption( "Overlay", "ShowColorBar", label = "Color bar", typ=bool)
-        self.addOption( "Rendering options", "FastRender", label='Fast mode', typ=bool, on_change=lambda val: setattr(self._rendering_parameters,'fastmode',val))
         self.addButton( "Clipping plane", "clipX", self._setClippingPlane, label='X',action="clipX")
         self.addButton( "Clipping plane", "clipY", self._setClippingPlane, label='Y',action="clipY")
         self.addButton( "Clipping plane", "clipZ", self._setClippingPlane, label='Z',action="clipZ")
@@ -327,29 +338,84 @@ class MeshScene(BaseMeshScene):
                                  "ShowPeriodicVertices" : showPeriodic,
                                  "ShowPointNumbers" : pointNumbers,
                                  "ShowEdgeNumbers" : edgeNumbers,
-                                 "ShowElementNumbers" : elementNumbers,
-                                 "GeomSubdivision" : 5,
-                                 "Shrink" : 1. }
+                                 "ShowElementNumbers" : elementNumbers}
         self.tex_mat_colors = self.tex_bc_colors = self.tex_bbnd_colors = None
         super().__init__(mesh, **kwargs)
+
+    @inmain_decorator(True)
+    def createParameters(self):
+        super().createParameters()
+        self.addParameter(settings.CheckboxParameter("Show", name="ShowWireframe", label="Show Wireframe",
+                                                     default_value = self._initial_values["ShowWireframe"],
+                                                     updateGL=True))
+        if self.mesh.dim > 1:
+            surf_values = self.mesh.GetBoundaries() if self.mesh.dim == 3 else self.mesh.GetMaterials()
+            surf_color = settings.ColorParameter("", name="SurfaceColors", values = surf_values,
+                                                 default_value = (0,255,0,255),
+                                                 updateGL=True)
+            surf_color.changed.connect(lambda : self.tex_bc_colors.store(surf_color.getValue(),
+                                                                         data_format=GL_UNSIGNED_BYTE))
+            self.addParameter(settings.CheckboxParameterCluster("Show", name="ShowSurface", label="Surface Elements",
+                                                                default_value = self._initial_values["ShowSurface"],
+                                                                sub_parameters = [surf_color],
+                                                                updateGL=True,
+                                                                updateWidgets=True))
+        if self.mesh.dim > 2:
+            shrink_par = settings.ValueParameter("", name="Shrink", label="Shrink",
+                                                 default_value=1.0, min_value = 0.0, max_value = 1.0,
+                                                 step = 0.1, updateGL=True)
+            color_par = settings.ColorParameter("", name="MaterialColors", values=self.mesh.GetMaterials(),
+                                                updateGL=True)
+            color_par.changed.connect(lambda : self.tex_mat_colors.store(color_par.getValue(),
+                                                                         data_format=GL_UNSIGNED_BYTE))
+            self.addParameter(settings.CheckboxParameterCluster("Show", name="ShowElements", label="Volume Elements",
+                                                                default_value = self._initial_values["ShowElements"],
+                                                                sub_parameters=[color_par,
+                                                                                shrink_par],
+                                                                updateGL=True,
+                                                                updateWidgets=True))
+            self.addParameter(settings.CheckboxParameter("Show", name="ShowEdges", label="Edges",
+                                                         default_value=self._initial_values["ShowEdges"],
+                                                         updateGL=True))
+        if self.mesh.dim == 1:
+            edge_names = self.mesh.GetMaterials()
+        elif self.mesh.dim == 2:
+            edge_names = self.mesh.GetBoundaries()
+        else:
+            edge_names = self.mesh.GetBBoundaries()
+        edge_color = settings.ColorParameter("", name="EdgeColors", default_value=(0,0,0,255),
+                                             updateGL=True, values = edge_names)
+        edge_color.changed.connect(lambda : self.tex_bbnd_colors.store(edge_color.getValue(),
+                                                                       data_format=GL_UNSIGNED_BYTE))
+        self.addParameter(settings.CheckboxParameterCluster("Show", name="ShowEdgeElements", label="Edge Elements",
+                                                            default_value=self._initial_values["ShowEdgeElements"],
+                                                            updateGL=True,
+                                                            sub_parameters = [edge_color],
+                                                            updateWidgets=True))
+        self.addParameter(settings.CheckboxParameter("Show", name="ShowPeriodicVertices",
+                                                     label="Periodic Identification",
+                                                     default_value=self._initial_values["ShowPeriodicVertices"],
+                                                     updateGL=True))
+        self.addParameter(settings.CheckboxParameter("Numbers", name="ShowPointNumbers",
+                                                     label="Points",
+                                                     default_value=self._initial_values["ShowPointNumbers"],
+                                                     updateGL=True))
+        self.addParameter(settings.CheckboxParameter("Numbers", name="ShowEdgeNumbers",
+                                                     label="Edges",
+                                                     default_value=self._initial_values["ShowEdgeNumbers"],
+                                                     updateGL=True))
+        if self.mesh.dim > 2:
+            self.addParameter(settings.CheckboxParameter("Numbers", name="ShowElementNumbers",
+                                                         label="Elements",
+                                                         default_value=self._initial_values["ShowElementNumbers"],
+                                                         updateGL=True))
+        self.addParameter(settings.ValueParameter("", name="GeomSubdivision", label="Subdivision",
+                                                  default_value=5, min_value=1, max_value=20,
+                                                  updateGL=True))
                                  
     @inmain_decorator(True)
     def createOptions(self):
         super().createOptions()
-        self.addOption( "Show", "ShowWireframe", typ=bool, update_widget_on_change=True)
-        self.addOption( "Show", "ShowSurface", typ=bool, update_widget_on_change=True)
-        if self.mesh.dim > 2:
-            self.addOption( "Show", "ShowElements", typ=bool, update_widget_on_change=True)
-            self.addOption( "Show", "ShowEdges", typ=bool, update_widget_on_change=True)
-        self.addOption( "Show", "ShowEdgeElements", typ=bool, update_widget_on_change=True)
-        self.addOption( "Show", "ShowPeriodicVertices", typ=bool, update_widget_on_change=True)
-        self.addOption( "Numbers", "ShowPointNumbers", label="Points", typ=bool, update_widget_on_change=True)
-        self.addOption( "Numbers", "ShowEdgeNumbers", label="Edges", typ=bool, update_widget_on_change=True)
-        if self.mesh.dim > 2:
-            self.addOption( "Numbers", "ShowElementNumbers", label="Elements", typ=bool, update_widget_on_change=True)
-        self.addOption( "", "GeomSubdivision", label="Subdivision", typ=int, min=1, max=20, update_widget_on_change=True)
-        if self.mesh.dim > 2:
-            self.addOption( "", "Shrink", typ=float, min=0.0, max=1.0, step=0.01, update_widget_on_change=True)
 
     def __getstate__(self):
         super_state = super().__getstate__()
@@ -364,8 +430,13 @@ class MeshScene(BaseMeshScene):
 
         self.vao = VertexArray()
         self.tex_mat_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
+        if self.mesh.dim > 2:
+            self.tex_mat_colors.store(self.getMaterialColors(), data_format=GL_UNSIGNED_BYTE)
         self.tex_bbnd_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
+        self.tex_bbnd_colors.store(self.getEdgeColors(), data_format=GL_UNSIGNED_BYTE)
         self.tex_bc_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
+        if self.mesh.dim > 1:
+            self.tex_bc_colors.store(self.getSurfaceColors(), data_format=GL_UNSIGNED_BYTE)
 
         self.text_renderer = TextRenderer()
 
@@ -556,9 +627,6 @@ class MeshScene(BaseMeshScene):
     @inmain_decorator(True)
     def update(self):
         super().update()
-        self.tex_mat_colors.store(self.mat_colors, GL_UNSIGNED_BYTE)
-        self.tex_bbnd_colors.store(self.bbnd_colors, data_format = GL_UNSIGNED_BYTE)
-        self.tex_bc_colors.store( self.bc_colors, data_format=GL_UNSIGNED_BYTE )
 
     def render(self, settings):
         if not self.active:
@@ -567,79 +635,9 @@ class MeshScene(BaseMeshScene):
         self.renderSurface(settings)
         self.renderNumbers(settings)
 
-    def updateBBNDColors(self):
-        self.bbnd_colors = colors = []
-        for c in self.bbndcolors.getColors():
-            colors.append(c.red())
-            colors.append(c.green())
-            colors.append(c.blue())
-            colors.append(c.alpha())
-        if self.tex_bbnd_colors:
-            self.tex_bbnd_colors.store(colors, width=len(colors), data_format=GL_UNSIGNED_BYTE)
-
-    def updateBndColors(self):
-        self.bc_colors = colors = []
-        for c in self.bndcolors.getColors():
-            colors.append(c.red())
-            colors.append(c.green())
-            colors.append(c.blue())
-            colors.append(c.alpha())
-        if self.tex_bc_colors:
-            self.tex_bc_colors.store( colors, width=len(colors), data_format=GL_UNSIGNED_BYTE )
-
-    def updateMatColors(self):
-        self.mat_colors = colors = []
-        for c in self.matcolors.getColors():
-            colors.append(c.red())
-            colors.append(c.green())
-            colors.append(c.blue())
-            colors.append(c.alpha())
-        if self.tex_mat_colors:
-            self.tex_mat_colors.store(self.mat_colors, GL_UNSIGNED_BYTE, len(self.mesh.GetMaterials()))
-
     @inmain_decorator(True)
     def createQtWidget(self):
         super().createQtWidget()
-        mats = self.mesh.GetMaterials()
-        bnds = self.mesh.GetBoundaries()
-        if self.mesh.dim == 3:
-            bbnds = self.mesh.GetBBoundaries()
-        initial_mat_color = (0,0,255,255) if self.mesh.dim == 3 else (0,255,0,255)
-        self.matcolors = wid.CollColors(self.mesh.GetMaterials(),initial_color=initial_mat_color)
-        self.matcolors.colors_changed.connect(self.updateMatColors)
-        self.matcolors.colors_changed.connect(self._updateGL)
-        self.updateMatColors()
-        def showVOL():
-            if self.mesh.dim == 3:
-                return self.getShowElements()
-            elif self.mesh.dim == 2:
-                return self.getShowSurface()
-            elif self.mesh.dim == 1:
-                return self.getShowEdgeElements()
-            return False
-        self.widgets.addGroup("Materials", self.matcolors, connectedVisibility = showVOL)
-
-        self.bndcolors = wid.CollColors(self.mesh.GetBoundaries(), initial_color=(0,255,0,255))
-        self.bndcolors.colors_changed.connect(self.updateBndColors)
-        self.bndcolors.colors_changed.connect(self._updateGL)
-        self.updateBndColors()
-        def showBND():
-            if self.mesh.dim == 3:
-                return self.getShowSurface()
-            elif self.mesh.dim == 2:
-                return self.getShowEdgeElements()
-            return False
-        self.widgets.addGroup("Boundary Conditions", self.bndcolors, connectedVisibility = showBND)
-
-        self.bbndcolors = wid.CollColors(self.mesh.GetBBoundaries(), initial_color=(0,0,0,255))
-        self.bbndcolors.colors_changed.connect(self.updateBBNDColors)
-        self.bbndcolors.colors_changed.connect(self._updateGL)
-        self.updateBBNDColors()
-        def showBBND():
-            if self.mesh.dim == 3:
-                return self.getShowEdgeElements()
-            return False
-        self.widgets.addGroup("BBoundaries", self.bbndcolors, connectedVisibility=showBBND)
 
 GUI.sceneCreators.append((ngsolve.Mesh, MeshScene))
 

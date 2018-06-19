@@ -11,11 +11,26 @@ import ngsolve as ngs
 
 class Parameter(QtCore.QObject):
     changed = QtCore.Signal(object)
-    def __init__(self, group, name, *args, **kwargs):
+    def __init__(self, group, name=None, label=None, **kwargs):
         super().__init__()
         self.group = group
         self.name = name
+        self.label = label
         self._options = kwargs if kwargs else {}
+        self._createWithLabel()
+
+    def _attachTo(self, obj):
+        pass
+
+    def _createWithLabel(self):
+        if self.label:
+            self._widget = QtWidgets.QWidget()
+            self._widget.setLayout(ArrangeH(QtWidgets.QLabel(self.label), self._createWidget()))
+        else:
+            self._widget = self._createWidget()
+
+    def _createWidget(self):
+        raise NotImplementedError("Parameter class must overload _createWidget!")
 
     def getOption(self, name):
         if not name in self._options:
@@ -26,56 +41,120 @@ class Parameter(QtCore.QObject):
     def setValue(self, val):
         self.changed.emit(val)
 
-    def _attachTo(self, cls):
-        """Creates setter and getter functions in attached class"""
-        def _getValue():
-            return self.getValue()
-        def _setValue(val):
-            self.setValue(_val)
-        if hasattr(self, "getValue"):
-            setattr(cls, "get" + self.name, self.getValue)
-        setattr(cls, "set" + self.name, self.setValue)
-
     def getWidget(self):
         return self._widget
 
     def __getstate__(self):
-        return (self.group, self.name,self._options)
+        return (self.group, self.name, self.label, self._options)
 
     def __setstate__(self, state):
-        Parameter.__init__(self,state[0], state[1])
-        self._options = state[2]
+        Parameter.__init__(self,group=state[0], name=state[1], label=state[2])
+        self._options = state[3]
 
-class ParameterWithLabel(Parameter):
-    def __init__(self, group, name, *args, label=None, **kwargs):
-        super().__init__(group,name, *args, **kwargs)
-        widget = self._createWidget()
-        self.label = label if label else name
-        self._widget = QtWidgets.QWidget()
-        self._widget.setLayout(ArrangeH(QtWidgets.QLabel(self.label), widget))
+class ColorParameter(Parameter):
+    def __init__(self, *args, default_value=(0,0,255,255), values, **kwargs):
+        self._values = values
+        self._default_value = default_value
+        super().__init__(*args, **kwargs)
+
+    def _createWidget(self):
+        self._colorWidget = wid.CollColors(self._values, initial_color = self._default_value)
+        self._colorWidget.colors_changed.connect(lambda : self.changed.emit(None))
+        return self._colorWidget
+
+    def getValue(self):
+        return [f() for c in self._colorWidget.getColors() for f in [c.red, c.green, c.blue, c.alpha] ]
+
+    def __getstate__(self):
+        superstate = super().__getstate__()
+        return (superstate,self._values, self.getValue())
+
+    def __setstate__(self, state):
+        self._values = state[1]
+        self._default_value = (0,0,255,255)
+        super().__setstate__(state[0])
+        for i, (btn, cb) in enumerate(zip(self._colorWidget.colorbtns.values(), self._colorWidget.checkboxes)):
+            btn.setColor(QtGui.QColor(*(state[2][i*4:(i+1)*4])))
+            cb.setCheckState(QtCore.Qt.Checked if state[2][i*4+3] else QtCore.Qt.Unchecked)
+
+class CheckboxParameter(Parameter):
+    def __init__(self, *args, name, default_value=False, label=None, **kwargs):
+        self._initial_value = default_value
+        self._label = label if label else name
+        super().__init__(*args, name=name,**kwargs)
+
+    def _createWidget(self):
+        self._cb = QtWidgets.QCheckBox(self._label)
+        self._cb.setCheckState(QtCore.Qt.Checked if self._initial_value else QtCore.Qt.Unchecked)
+        self._cb.stateChanged.connect(self.changed.emit)
+        return self._cb
+
+    def getValue(self):
+        return self._cb.isChecked()
+
+    def setValue(self,val):
+        self._widget.setCheckState(QtCore.Qt.Checked if val else QtCore.Qt.Unchecked)
 
     def __getstate__(self):
         return (super().__getstate__(),
-                self.label)
+                self.getValue(),
+                self._label)
 
     def __setstate__(self, state):
+        self._initial_value = state[1]
+        self._label = state[2]
         super().__setstate__(state[0])
-        widget = self._createWidget()
-        self._widget = QtWidgets.QWidget()
-        self._widget.setLayout(ArrangeH(QtWidgets.QLabel(state[1]), widget))
 
-class ValueParameter(ParameterWithLabel):
-    def __init__(self, default_value, *args, **kwargs):
+class CheckboxParameterCluster(CheckboxParameter):
+    def __init__(self, *args, sub_parameters, **kwargs):
+        self._sub_parameters = sub_parameters
+        super().__init__(*args, **kwargs)
+
+    def _attachTo(self, obj):
+        for par in self._sub_parameters:
+            obj._attachParameter(par)
+
+    def _createWidget(self):
+        checkbox = super()._createWidget()
+        widget = QtWidgets.QWidget()
+        self._vbox = QtWidgets.QWidget()
+        subwidgets = [par.getWidget() for par in self._sub_parameters]
+        self._vbox.setLayout(ArrangeV(*subwidgets))
+        self._vbox.setVisible(self.getValue())
+        self.changed.connect(lambda : self._vbox.setVisible(self.getValue()))
+        widget.setLayout(ArrangeV(checkbox, self._vbox))
+        return widget
+
+    def __getstate__(self):
+        return (super().__getstate__(), self._sub_parameters)
+
+    def __setstate__(self,state):
+        self._sub_parameters = state[1]
+        super().__setstate__(state[0])
+
+class ValueParameter(Parameter):
+    def __init__(self, group, default_value, min_value=None, max_value=None, step=None, **kwargs):
         self._initial_value = default_value
-        super().__init__(*args,**kwargs)
+        self._min_value = min_value
+        self._max_value = max_value
+        self._step = step
+        super().__init__(group,**kwargs)
 
     def _createWidget(self):
         if isinstance(self._initial_value, float):
             self._spinbox = wid.ScienceSpinBox()
+            if self._step:
+                self._spinbox.lastWheelStep=self._step
         elif isinstance(self._initial_value, int):
             self._spinbox = QtWidgets.QSpinBox()
+            if self._step:
+                self._spinbox.setSingleStep(self._step)
         else:
             raise Exception("Cannot create ValueParameter for type ", type(default_value))
+        if self._min_value:
+            self._spinbox.setMinimum(self._min_value)
+        if self._max_value:
+            self._spinbox.setMaximum(self._max_value)
         self._spinbox.setValue(self._initial_value)
         self._spinbox.valueChanged.connect(self.changed.emit)
         return self._spinbox
@@ -83,15 +162,21 @@ class ValueParameter(ParameterWithLabel):
     def getValue(self):
         return self._spinbox.value()
 
+    def setValue(self, val):
+        self._spinbox.setValue(val)
+
     def __getstate__(self):
         return (super().__getstate__(),
-                self.getValue())
+                self.getValue(),
+                self._min_value,
+                self._max_value,
+                self._step)
 
     def __setstate__(self, state):
-        self._initial_value = state[1]
+        self._initial_value, self._min_value, self._max_value, self._step = state[1:]
         super().__setstate__(state[0])
 
-class SingleOptionParameter(ParameterWithLabel):
+class SingleOptionParameter(Parameter):
     def __init__(self, group, name, *args, values = None, default_value = None, **kwargs):
         self._values = values if values else []
         self._initial_value = default_value
@@ -126,15 +211,14 @@ class SingleOptionParameter(ParameterWithLabel):
         self._values = state[1]
         super().__setstate__(state[0])
 
+
 class FileParameter(Parameter):
     changed = QtCore.Signal(str)
-    def __init__(self, name, filt, *args,**kwargs):
-        super().__init__(*args,**kwargs)
+    def __init__(self, filt, *args,**kwargs):
         self.filt = filt
-        self.name = name
         self.filename = ""
         self.txt = ""
-        self._createWidget()
+        super().__init__(*args,**kwargs)
 
     def _createWidget(self):
         button = QtWidgets.QPushButton("Select File")
@@ -187,11 +271,11 @@ class BaseSettings():
         self.createOptions()
         self.createQtWidget()
 
-    def createOptions(self):
-        self._widgets = {}
-
     def createParameters(self):
         self._parameters = []
+
+    def createOptions(self):
+        self._widgets = {}
 
     @inmain_decorator(True)
     def createQtWidget(self):
@@ -202,6 +286,8 @@ class BaseSettings():
         for param in self._parameters:
             if param.group not in param_groups:
                 param_groups[param.group] = []
+            if param.getOption("updateWidgets"):
+                param.changed.connect(self.widgets.update)
             param_groups[param.group].append(param.getWidget())
         for group in param_groups:
             self.widgets.addGroup(group, *param_groups[group])
@@ -211,9 +297,16 @@ class BaseSettings():
         """Updates setting widgets"""
         self.widgets.update()
 
+    def _attachParameter(self, parameter):
+        if parameter.name:
+            if hasattr(parameter, "getValue"):
+                setattr(self, "get" + parameter.name, parameter.getValue)
+            setattr(self, "set" + parameter.name, parameter.setValue)
+        parameter._attachTo(self)
+
     def addParameter(self, parameter):
         self._parameters.append(parameter)
-        parameter._attachTo(self)
+        self._attachParameter(parameter)
 
     def addOption(self, group, name, typ=None, update_on_change=False, update_widget_on_change=False, widget_type=None, label=None, values=None, on_change=None, *args, **kwargs):
         if not group in self._widgets:
