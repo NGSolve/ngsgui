@@ -94,8 +94,8 @@ center of this box. Rotation will be around this center."""
     active = property(_getActive,_setActive)
 
     @inmain_decorator(True)
-    def createQtWidget(self):
-        super().createQtWidget()
+    def _createQtWidget(self):
+        super()._createQtWidget()
         self.widgets.updateGLSignal.connect(self._updateGL)
         self.actionCheckboxes = []
         class cbHolder:
@@ -208,8 +208,8 @@ class OverlayScene(BaseScene):
         self._rendering_parameters = state[1]
 
     @inmain_decorator(True)
-    def createParameters(self):
-        super().createParameters()
+    def _createParameters(self):
+        super()._createParameters()
         self.addParameters("Overlay",
                            settings.CheckboxParameter(name="ShowVersion",
                                                       label="Version",
@@ -226,8 +226,8 @@ class OverlayScene(BaseScene):
 
 
     @inmain_decorator(True)
-    def createOptions(self):
-        super().createOptions()
+    def _createOptions(self):
+        super()._createOptions()
         self.addButton( "Clipping plane", "clipX", self._setClippingPlane, label='X',action="clipX")
         self.addButton( "Clipping plane", "clipY", self._setClippingPlane, label='Y',action="clipY")
         self.addButton( "Clipping plane", "clipZ", self._setClippingPlane, label='Z',action="clipZ")
@@ -346,8 +346,8 @@ class MeshScene(BaseMeshScene):
         super().__init__(mesh, **kwargs)
 
     @inmain_decorator(True)
-    def createParameters(self):
-        super().createParameters()
+    def _createParameters(self):
+        super()._createParameters()
         self.addParameters("Show",
                            settings.CheckboxParameter(name="ShowWireframe", label="Show Wireframe",
                                                       default_value = self._initial_values["ShowWireframe"]))
@@ -413,8 +413,8 @@ class MeshScene(BaseMeshScene):
                                                    default_value=5, min_value=1, max_value=20))
                                  
     @inmain_decorator(True)
-    def createOptions(self):
-        super().createOptions()
+    def _createOptions(self):
+        super()._createOptions()
 
     def __getstate__(self):
         super_state = super().__getstate__()
@@ -635,8 +635,8 @@ class MeshScene(BaseMeshScene):
         self.renderNumbers(settings)
 
     @inmain_decorator(True)
-    def createQtWidget(self):
-        super().createQtWidget()
+    def _createQtWidget(self):
+        super()._createQtWidget()
 
 GUI.sceneCreators.append((ngsolve.Mesh, MeshScene))
 
@@ -671,8 +671,8 @@ class SolutionScene(BaseMeshScene):
 
 
     @inmain_decorator(True)
-    def createParameters(self):
-        super().createParameters()
+    def _createParameters(self):
+        super()._createParameters()
         self.addParameters("Subdivision",
                            settings.ValueParameter(name="Subdivision",
                                                    default_value=int(self._initial_values["Subdivision"]),
@@ -716,8 +716,8 @@ class SolutionScene(BaseMeshScene):
                                                        default_value = 0.0))
 
     @inmain_decorator(True)
-    def createOptions(self):
-        super().createOptions()
+    def _createOptions(self):
+        super()._createOptions()
         boxmin = self.addOption( "Colormap", "ColorMapMin", label="Min", typ=float, step=1)
         boxmax = self.addOption( "Colormap", "ColorMapMax", label="Max" ,typ=float, step=1)
         autoscale = self.addOption( "Colormap", "Autoscale",typ=bool)
@@ -1174,8 +1174,8 @@ class GeometryScene(BaseScene):
         self.tex_colors.store(sum(([color.red(), color.green(), color.blue(), color.alpha()] for color in self.colorpicker.getColors()),[]),data_format=GL_UNSIGNED_BYTE)
 
     @inmain_decorator(True)
-    def createQtWidget(self):
-        super().createQtWidget()
+    def _createQtWidget(self):
+        super()._createQtWidget()
         self.colorpicker = wid.CollColors(self.surf_colors.keys(), initial_color = (0,0,255,255))
         self.colorpicker.colors_changed.connect(self.updateColors)
         self.colorpicker.colors_changed.connect(self._updateGL)

@@ -250,9 +250,9 @@ class FileParameter(Parameter):
 
 class BaseSettings():
     def __init__(self):
-        self.createParameters()
-        self.createOptions()
-        self.createQtWidget()
+        self._createParameters()
+        self._createOptions()
+        self._createQtWidget()
 
     def __getstate__(self):
         values = {}
@@ -267,17 +267,17 @@ class BaseSettings():
         self._parameters = {}
         for group in state[1]:
             self.addParameters(group,*state[1][group])
-        self.createOptions()
-        self.createQtWidget()
+        self._createOptions()
+        self._createQtWidget()
 
-    def createParameters(self):
+    def _createParameters(self):
         self._parameters = {}
 
-    def createOptions(self):
+    def _createOptions(self):
         self._widgets = {}
 
     @inmain_decorator(True)
-    def createQtWidget(self):
+    def _createQtWidget(self):
         self.widgets = wid.OptionWidgets()
         for group in self._widgets:
             self.widgets.addGroup(group,*self._widgets[group].values())
