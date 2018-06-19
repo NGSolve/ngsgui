@@ -644,6 +644,10 @@ class MeshScene(BaseMeshScene):
 GUI.sceneCreators.append((ngsolve.Mesh, MeshScene))
 
 class SolutionScene(BaseMeshScene):
+    _complex_eval_funcs = {"real" : 0,
+                           "imag" : 1,
+                           "abs" : 2,
+                           "arg" : 3}
     @inmain_decorator(wait_for_return=True)
     def __init__(self, cf, mesh, name=None, min=0,max=1, autoscale=True, linear=False, clippingPlane=True,
                  order=3,gradient=None, *args, **kwargs):
@@ -675,10 +679,6 @@ class SolutionScene(BaseMeshScene):
     def createParameters(self):
         super().createParameters()
         if self.cf.is_complex:
-            self._complex_eval_funcs = {"real" : 0,
-                                        "imag" : 1,
-                                        "abs" : 2,
-                                        "arg" : 3}
             self.addParameter(settings.SingleOptionParameter(group = "Complex",
                                                              name="ComplexEvalFunc",
                                                              values = list(self._complex_eval_funcs.keys()),

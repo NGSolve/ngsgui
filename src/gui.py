@@ -210,7 +210,6 @@ class GUI():
             filename += ".sol"
         with open(filename, "rb") as f:
             tabs,settings = pickle.load(f)
-            print(tabs)
         for tab,name in tabs:
             if isinstance(tab, glwindow.WindowTab):
                 tab.create(self._commonContext)

@@ -43,7 +43,7 @@ class Parameter(QtCore.QObject):
         return (self.group, self.name,self._options)
 
     def __setstate__(self, state):
-        self.__init__(state[0], state[1])
+        Parameter.__init__(self,state[0], state[1])
         self._options = state[2]
 
 class ParameterWithLabel(Parameter):
@@ -55,14 +55,14 @@ class ParameterWithLabel(Parameter):
         self._widget.setLayout(ArrangeH(QtWidgets.QLabel(self.label), widget))
 
     def __getstate__(self):
-        return (super.__getstate__(),
+        return (super().__getstate__(),
                 self.label)
 
     def __setstate__(self, state):
         super().__setstate__(state[0])
         widget = self._createWidget()
         self._widget = QtWidgets.QWidget()
-        self._widgets.setLayout(ArrangeH(QtWidgets.QLabel(state[1]), widget))
+        self._widget.setLayout(ArrangeH(QtWidgets.QLabel(state[1]), widget))
 
 class ValueParameter(ParameterWithLabel):
     def __init__(self, default_value, *args, **kwargs):
@@ -84,29 +84,26 @@ class ValueParameter(ParameterWithLabel):
         return self._spinbox.value()
 
     def __getstate__(self):
-        return (super.__getstate__(),
+        return (super().__getstate__(),
                 self.getValue())
 
     def __setstate__(self, state):
+        self._initial_value = state[1]
         super().__setstate__(state[0])
-        self._createWidget(state[1])
 
-
-class SingleOptionParameter(Parameter):
-    def __init__(self, group, name, *args, values = None, label = None, default_value = None, **kwargs):
-        super().__init__(group, name, *args, **kwargs)
-        self.label = label if label else self.name
+class SingleOptionParameter(ParameterWithLabel):
+    def __init__(self, group, name, *args, values = None, default_value = None, **kwargs):
         self._values = values if values else []
-        self._createCombobox(default_value)
+        self._initial_value = default_value
+        super().__init__(group, name, *args, **kwargs)
 
-    def _createCombobox(self, default_value):
+    def _createWidget(self):
         self._combobox = QtWidgets.QComboBox()
         self._combobox.addItems(self._values)
-        if default_value:
-            self._combobox.setCurrentText(default_value)
+        if self._initial_value:
+            self._combobox.setCurrentText(self._initial_value)
         self._combobox.currentIndexChanged.connect(lambda index: self.changed.emit(self.getValue()))
-        self._widget = QtWidgets.QWidget()
-        self._widget.setLayout(ArrangeH(QtWidgets.QLabel(self.label), self._combobox))
+        return self._combobox
 
     def setValue(self, val):
         self._combobox.setCurrentText(val)
@@ -120,16 +117,14 @@ class SingleOptionParameter(Parameter):
         return self._values[self._combobox.currentIndex()]
 
     def __getstate__(self):
-        return (super.__getstate__(),
+        return (super().__getstate__(),
                 self._values,
-                self.getValue(),
-                self.label)
+                self.getValue())
 
     def __setstate__(self, state):
-        super().__setstate__(state[0])
+        self._initial_value = state[2]
         self._values = state[1]
-        self.label = state[3]
-        self._createCombobox(state[2])
+        super().__setstate__(state[0])
 
 class FileParameter(Parameter):
     changed = QtCore.Signal(str)
@@ -182,11 +177,13 @@ class BaseSettings():
             for name in group:
                 if hasattr(self, "get" + name):
                     values[name] = getattr(self, "get" + name)()
-        return (values,)
+        return (values,self._parameters)
 
     def __setstate__(self, state):
         self._initial_values = state[0]
-        self.createParameters()
+        self._parameters = []
+        for param in state[1]:
+            self.addParameter(param)
         self.createOptions()
         self.createQtWidget()
 
