@@ -12,12 +12,13 @@ from .thread import inmain_decorator
 from .gl_interface import getOpenGLData
 from .gui import GUI
 import netgen.meshing
+from . import settings
 
 from PySide2 import QtWidgets, QtCore, QtGui
 from OpenGL.GL import *
 
 
-class BaseScene():
+class BaseScene(settings.BaseSettings):
     """Base class for drawing opengl objects.
 
 Parameters
@@ -40,32 +41,21 @@ name : str = type(self).__name__ + scene_counter
             BaseScene.scene_counter += 1
         else:
             self.name = name
-        self.createOptions()
-        self.createQtWidget()
-
-    @inmain_decorator(True)
-    def createOptions(self):
-        self._widgets = {}
+        super().__init__()
 
     def __getstate__(self):
-        values = {}
-        for key, group in self._widgets.items():
-            for name in group:
-                if hasattr(self, "get" + name):
-                    values[name] = getattr(self, "get" + name)()
-        return (self.name, self.active, values)
+        super_state = super().__getstate__()
+        return (super_state, self.name, self.active)
 
     def __setstate__(self,state):
         self.window = None
         self._gl_initialized = False
         self._actions = {}
         self._active_action = None
-        self.name = state[0]
-        self.active = state[1]
-        self._initial_values = state[2]
+        self.name = state[1]
+        self.active = state[2]
+        super().__setstate__(state[0])
         # TODO: can we pickle actions somehow?
-        self.createOptions()
-        self.createQtWidget()
 
     def initGL(self):
         """Called once after the scene is created and initializes all OpenGL objects."""
@@ -77,11 +67,6 @@ name : str = type(self).__name__ + scene_counter
         if not self._gl_initialized:
             self.initGL()
 
-    @inmain_decorator(True)
-    def updateWidgets(self):
-        """Updates scene widgets"""
-        self.widgets.update()
-    
     def render(self, settings):
         """Render scene, must be overloaded by derived class"""
         pass
@@ -109,8 +94,9 @@ center of this box. Rotation will be around this center."""
     active = property(_getActive,_setActive)
 
     @inmain_decorator(True)
-    def createQtWidget(self):
-        self.widgets = wid.OptionWidgets(updateGL=self._updateGL)
+    def _createQtWidget(self):
+        super()._createQtWidget()
+        self.widgets.updateGLSignal.connect(self._updateGL)
         self.actionCheckboxes = []
         class cbHolder:
             def __init__(self,cb,scene,name):
@@ -141,12 +127,14 @@ center of this box. Rotation will be around this center."""
             widget.setLayout(layout)
             self.widgets.addGroup("Actions",widget)
 
-        for group in self._widgets:
-            self.widgets.addGroup(group,*self._widgets[group].values())
-
     def _updateGL(self):
         if self.window:
             self.window.glWidget.updateGL()
+
+    def _attachParameter(self, parameter):
+        super()._attachParameter(parameter)
+        if not parameter.getOption("notUpdateGL"):
+            parameter.changed.connect(self._updateGL)
 
     def addAction(self,action,name=None):
         """Add double click action. Adds a checkbox to the widget to activate/deactivate the action.
@@ -170,114 +158,6 @@ name : str = "action" + consecutive number
     def doubleClickAction(self,point):
         if self._active_action:
             self._actions[self._active_action](point)
-
-    def addOption(self, group, name, typ=None, update_on_change=False, update_widget_on_change=False, widget_type=None, label=None, values=None, on_change=None, *args, **kwargs):
-        if not group in self._widgets:
-            self._widgets[group] = {}
-        default_value = self._initial_values[name]
-        label = label or name
-        propname = "_"+name
-        widgetname = "_"+name+"Widget"
-        setter_name = "set"+name
-
-        setattr(self, propname, default_value)
-
-        if typ==None and widget_type==None:
-            typ = type(default_value)
-
-        if typ is list:
-            w = QtWidgets.QComboBox()
-            assert type(values) is list
-            w.addItems(values)
-            w.currentIndexChanged[int].connect(lambda index: getattr(self,setter_name)(index))
-            self._widgets[group][name] = wid.WidgetWithLabel(w,label)
-
-        elif widget_type:
-            w = widget_type(*args, **kwargs)
-            w.setValue(default_value)
-            self._widgets[group][name] = w
-
-        elif typ==bool:
-            w = QtWidgets.QCheckBox(label)
-            w.setCheckState(QtCore.Qt.Checked if default_value else QtCore.Qt.Unchecked)
-            if on_change:
-                w.stateChanged.connect(on_change)
-            w.stateChanged.connect(lambda value: getattr(self, setter_name)(bool(value)))
-            self._widgets[group][name] = wid.WidgetWithLabel(w)
-
-        elif typ==int:
-            w = QtWidgets.QSpinBox()
-            w.setValue(default_value)
-            w.valueChanged[int].connect(lambda value: getattr(self, setter_name)(value))
-            if "min" in kwargs:
-                w.setMinimum(kwargs["min"])
-            if "max" in kwargs:
-                w.setMaximum(kwargs["max"])
-            self._widgets[group][name] = wid.WidgetWithLabel(w,label)
-
-        elif typ==float:
-            w = wid.ScienceSpinBox()
-            w.setRange(-1e99, 1e99)
-            w.setValue(default_value)
-            w.valueChanged[float].connect(lambda value: getattr(self, setter_name)(value))
-            if "min" in kwargs:
-                w.setMinimum(kwargs["min"])
-            if "max" in kwargs:
-                w.setMaximum(kwargs["max"])
-            if "step" in kwargs:
-                w.setSingleStep(kwargs["step"])
-                w.lastWheelStep = kwargs["step"]
-            self._widgets[group][name] = wid.WidgetWithLabel(w, label)
-        else:
-            raise RuntimeError("unknown type: ", typ)
-
-        def getValue(self):
-            return getattr(self, propname)
-
-        def setValue(self, value, redraw=True, update_gui=True):
-            if getattr(self, propname) == value:
-                return
-
-            setattr(self, propname, value)
-
-            if update_widget_on_change:
-                self.updateWidgets()
-            if redraw:
-                if update_on_change:
-                    self.update()
-                self.widgets.updateGLSignal.emit()
-
-            if update_gui:
-                widget = self._widgets[group][name]
-                widget.setValue(value)
-
-        cls = type(self)
-
-        if not hasattr(cls, setter_name):
-            setattr(cls, setter_name, setValue)
-        if not hasattr(cls, 'get'+name):
-            setattr(cls, 'get'+name, getValue)
-        return self._widgets[group][name]
-
-    def addButton(self, group, name, function_name, update_on_change=False, label = None,*args,**kwargs):
-        if not group in self._widgets:
-            self._widgets[group] = {}
-        if not label:
-            label = name
-        def doAction(self, redraw=True):
-            getattr(self,function_name)(*args, **kwargs)
-            if update_on_change:
-                self.update()
-            if redraw:
-                self.widgets.updateGLSignal.emit()
-
-        cls = type(self)
-
-        if not hasattr(cls, name):
-            setattr(cls, name, doAction)
-
-        w = wid.Button(label, getattr(self, name))
-        self._widgets[group][name] = w
 
 GUI.sceneCreators.append((BaseScene,lambda scene,*args,**kwargs: scene))
 
@@ -328,16 +208,30 @@ class OverlayScene(BaseScene):
         self._rendering_parameters = state[1]
 
     @inmain_decorator(True)
-    def createOptions(self):
-        super().createOptions()
-        self.addOption( "Overlay", "ShowCross", label = "Axis", typ=bool)
-        self.addOption( "Overlay", "ShowVersion", label = "Version", typ=bool)
-        self.addOption( "Overlay", "ShowColorBar", label = "Color bar", typ=bool)
-        self.addOption( "Rendering options", "FastRender", label='Fast mode', typ=bool, on_change=lambda val: setattr(self._rendering_params,'fastmode',val))
-        self.addButton( "Clipping plane", "clipX", "_setClippingPlane", label='X',action="clipX")
-        self.addButton( "Clipping plane", "clipY", "_setClippingPlane", label='Y',action="clipY")
-        self.addButton( "Clipping plane", "clipZ", "_setClippingPlane", label='Z',action="clipZ")
-        self.addButton( "Clipping plane", "clipFlip", "_setClippingPlane", label='flip', action="clipFlip")
+    def _createParameters(self):
+        super()._createParameters()
+        self.addParameters("Overlay",
+                           settings.CheckboxParameter(name="ShowVersion",
+                                                      label="Version",
+                                                      default_value=True),
+                           settings.CheckboxParameter(name="ShowCross",
+                                                      label = "Axis", default_value=True),
+                           settings.CheckboxParameter(name="ShowColorBar",
+                                                      label = "Color Bar",
+                                                      default_value=True))
+        fastmode_par = settings.CheckboxParameter(name="FastRender",
+                                                  label="Fast mode")
+        fastmode_par.changed.connect(lambda val: setattr(self._rendering_parameters,"fastmode", val))
+        self.addParameters("Rendering options", fastmode_par)
+
+
+    @inmain_decorator(True)
+    def _createOptions(self):
+        super()._createOptions()
+        self.addButton( "Clipping plane", "clipX", self._setClippingPlane, label='X',action="clipX")
+        self.addButton( "Clipping plane", "clipY", self._setClippingPlane, label='Y',action="clipY")
+        self.addButton( "Clipping plane", "clipZ", self._setClippingPlane, label='Z',action="clipZ")
+        self.addButton( "Clipping plane", "clipFlip", self._setClippingPlane, label='flip', action="clipFlip")
         self.cross_scale = 0.3
         self.cross_shift = -0.10
 
@@ -350,13 +244,13 @@ class OverlayScene(BaseScene):
 
     def _setClippingPlane(self, action):
         if action == "clipX":
-            self._rendering_params.setClippingPlaneNormal([1,0,0])
+            self._rendering_parameters.setClippingPlaneNormal([1,0,0])
         if action == "clipY":
-            self._rendering_params.setClippingPlaneNormal([0,1,0])
+            self._rendering_parameters.setClippingPlaneNormal([0,1,0])
         if action == "clipZ":
-            self._rendering_params.setClippingPlaneNormal([0,0,1])
+            self._rendering_parameters.setClippingPlaneNormal([0,0,1])
         if action == "clipFlip":
-            self._rendering_params.setClippingPlaneNormal(-1.0*self._rendering_params.getClippingPlaneNormal())
+            self._rendering_parameters.setClippingPlaneNormal(-1.0*self._rendering_parameters.getClippingPlaneNormal())
 
     def deferRendering(self):
         return 99
@@ -447,29 +341,80 @@ class MeshScene(BaseMeshScene):
                                  "ShowPeriodicVertices" : showPeriodic,
                                  "ShowPointNumbers" : pointNumbers,
                                  "ShowEdgeNumbers" : edgeNumbers,
-                                 "ShowElementNumbers" : elementNumbers,
-                                 "GeomSubdivision" : 5,
-                                 "Shrink" : 1. }
+                                 "ShowElementNumbers" : elementNumbers}
         self.tex_mat_colors = self.tex_bc_colors = self.tex_bbnd_colors = None
         super().__init__(mesh, **kwargs)
+
+    @inmain_decorator(True)
+    def _createParameters(self):
+        super()._createParameters()
+        self.addParameters("Show",
+                           settings.CheckboxParameter(name="ShowWireframe", label="Show Wireframe",
+                                                      default_value = self._initial_values["ShowWireframe"]))
+        if self.mesh.dim > 1:
+            surf_values = self.mesh.GetBoundaries() if self.mesh.dim == 3 else self.mesh.GetMaterials()
+            surf_color = settings.ColorParameter(name="SurfaceColors", values = surf_values,
+                                                 default_value = (0,255,0,255))
+            surf_color.changed.connect(lambda : self.tex_bc_colors.store(surf_color.getValue(),
+                                                                         data_format=GL_UNSIGNED_BYTE))
+            self.addParameters("Show",
+                               settings.CheckboxParameterCluster(name="ShowSurface", label="Surface Elements",
+                                                                 default_value = self._initial_values["ShowSurface"],
+                                                                 sub_parameters = [surf_color],
+                                                                 updateWidgets=True))
+        if self.mesh.dim > 2:
+            shrink_par = settings.ValueParameter(name="Shrink", label="Shrink",
+                                                 default_value=1.0, min_value = 0.0, max_value = 1.0,
+                                                 step = 0.1)
+            color_par = settings.ColorParameter(name="MaterialColors", values=self.mesh.GetMaterials())
+            color_par.changed.connect(lambda : self.tex_mat_colors.store(color_par.getValue(),
+                                                                         data_format=GL_UNSIGNED_BYTE))
+            self.addParameters("Show",
+                               settings.CheckboxParameterCluster(name="ShowElements",
+                                                                 label="Volume Elements",
+                                                                 default_value = self._initial_values["ShowElements"],
+                                                                 sub_parameters=[color_par,
+                                                                                shrink_par],
+                                                                 updateWidgets=True),
+                               settings.CheckboxParameter(name="ShowEdges", label="Edges",
+                                                          default_value=self._initial_values["ShowEdges"]))
+        if self.mesh.dim == 1:
+            edge_names = self.mesh.GetMaterials()
+        elif self.mesh.dim == 2:
+            edge_names = self.mesh.GetBoundaries()
+        else:
+            edge_names = self.mesh.GetBBoundaries()
+        edge_color = settings.ColorParameter(name="EdgeColors", default_value=(0,0,0,255),
+                                             values = edge_names)
+        edge_color.changed.connect(lambda : self.tex_bbnd_colors.store(edge_color.getValue(),
+                                                                       data_format=GL_UNSIGNED_BYTE))
+        self.addParameters("Show",
+                           settings.CheckboxParameterCluster(name="ShowEdgeElements", label="Edge Elements",
+                                                             default_value=self._initial_values["ShowEdgeElements"],
+                                                             sub_parameters = [edge_color],
+                                                             updateWidgets=True),
+                           settings.CheckboxParameter(name="ShowPeriodicVertices",
+                                                      label="Periodic Identification",
+                                                      default_value=self._initial_values["ShowPeriodicVertices"]))
+        self.addParameters("Numbers",
+                           settings.CheckboxParameter(name="ShowPointNumbers",
+                                                      label="Points",
+                                                      default_value=self._initial_values["ShowPointNumbers"]),
+                           settings.CheckboxParameter(name="ShowEdgeNumbers",
+                                                      label="Edges",
+                                                      default_value=self._initial_values["ShowEdgeNumbers"]))
+        if self.mesh.dim > 2:
+            self.addParameters("Numbers",
+                               settings.CheckboxParameter(name="ShowElementNumbers",
+                                                          label="Elements",
+                                                          default_value=self._initial_values["ShowElementNumbers"]))
+        self.addParameters("",
+                           settings.ValueParameter(name="GeomSubdivision", label="Subdivision",
+                                                   default_value=5, min_value=1, max_value=20))
                                  
     @inmain_decorator(True)
-    def createOptions(self):
-        super().createOptions()
-        self.addOption( "Show", "ShowWireframe", typ=bool, update_widget_on_change=True)
-        self.addOption( "Show", "ShowSurface", typ=bool, update_widget_on_change=True)
-        if self.mesh.dim > 2:
-            self.addOption( "Show", "ShowElements", typ=bool, update_widget_on_change=True)
-            self.addOption( "Show", "ShowEdges", typ=bool, update_widget_on_change=True)
-        self.addOption( "Show", "ShowEdgeElements", typ=bool, update_widget_on_change=True)
-        self.addOption( "Show", "ShowPeriodicVertices", typ=bool, update_widget_on_change=True)
-        self.addOption( "Numbers", "ShowPointNumbers", label="Points", typ=bool, update_widget_on_change=True)
-        self.addOption( "Numbers", "ShowEdgeNumbers", label="Edges", typ=bool, update_widget_on_change=True)
-        if self.mesh.dim > 2:
-            self.addOption( "Numbers", "ShowElementNumbers", label="Elements", typ=bool, update_widget_on_change=True)
-        self.addOption( "", "GeomSubdivision", label="Subdivision", typ=int, min=1, max=20, update_widget_on_change=True)
-        if self.mesh.dim > 2:
-            self.addOption( "", "Shrink", typ=float, min=0.0, max=1.0, step=0.01, update_widget_on_change=True)
+    def _createOptions(self):
+        super()._createOptions()
 
     def __getstate__(self):
         super_state = super().__getstate__()
@@ -484,8 +429,13 @@ class MeshScene(BaseMeshScene):
 
         self.vao = VertexArray()
         self.tex_mat_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
+        if self.mesh.dim > 2:
+            self.tex_mat_colors.store(self.getMaterialColors(), data_format=GL_UNSIGNED_BYTE)
         self.tex_bbnd_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
+        self.tex_bbnd_colors.store(self.getEdgeColors(), data_format=GL_UNSIGNED_BYTE)
         self.tex_bc_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
+        if self.mesh.dim > 1:
+            self.tex_bc_colors.store(self.getSurfaceColors(), data_format=GL_UNSIGNED_BYTE)
 
         self.text_renderer = TextRenderer()
 
@@ -676,9 +626,6 @@ class MeshScene(BaseMeshScene):
     @inmain_decorator(True)
     def update(self):
         super().update()
-        self.tex_mat_colors.store(self.mat_colors, GL_UNSIGNED_BYTE)
-        self.tex_bbnd_colors.store(self.bbnd_colors, data_format = GL_UNSIGNED_BYTE)
-        self.tex_bc_colors.store( self.bc_colors, data_format=GL_UNSIGNED_BYTE )
 
     def render(self, settings):
         if not self.active:
@@ -687,83 +634,17 @@ class MeshScene(BaseMeshScene):
         self.renderSurface(settings)
         self.renderNumbers(settings)
 
-    def updateBBNDColors(self):
-        self.bbnd_colors = colors = []
-        for c in self.bbndcolors.getColors():
-            colors.append(c.red())
-            colors.append(c.green())
-            colors.append(c.blue())
-            colors.append(c.alpha())
-        if self.tex_bbnd_colors:
-            self.tex_bbnd_colors.store(colors, width=len(colors), data_format=GL_UNSIGNED_BYTE)
-
-    def updateBndColors(self):
-        self.bc_colors = colors = []
-        for c in self.bndcolors.getColors():
-            colors.append(c.red())
-            colors.append(c.green())
-            colors.append(c.blue())
-            colors.append(c.alpha())
-        if self.tex_bc_colors:
-            self.tex_bc_colors.store( colors, width=len(colors), data_format=GL_UNSIGNED_BYTE )
-
-    def updateMatColors(self):
-        self.mat_colors = colors = []
-        for c in self.matcolors.getColors():
-            colors.append(c.red())
-            colors.append(c.green())
-            colors.append(c.blue())
-            colors.append(c.alpha())
-        if self.tex_mat_colors:
-            self.tex_mat_colors.store(self.mat_colors, GL_UNSIGNED_BYTE, len(self.mesh.GetMaterials()))
-
     @inmain_decorator(True)
-    def createQtWidget(self):
-        super().createQtWidget()
-        mats = self.mesh.GetMaterials()
-        bnds = self.mesh.GetBoundaries()
-        if self.mesh.dim == 3:
-            bbnds = self.mesh.GetBBoundaries()
-        initial_mat_color = (0,0,255,255) if self.mesh.dim == 3 else (0,255,0,255)
-        self.matcolors = wid.CollColors(self.mesh.GetMaterials(),initial_color=initial_mat_color)
-        self.matcolors.colors_changed.connect(self.updateMatColors)
-        self.matcolors.colors_changed.connect(self._updateGL)
-        self.updateMatColors()
-        def showVOL():
-            if self.mesh.dim == 3:
-                return self.getShowElements()
-            elif self.mesh.dim == 2:
-                return self.getShowSurface()
-            elif self.mesh.dim == 1:
-                return self.getShowEdgeElements()
-            return False
-        self.widgets.addGroup("Materials", self.matcolors, connectedVisibility = showVOL)
-
-        self.bndcolors = wid.CollColors(self.mesh.GetBoundaries(), initial_color=(0,255,0,255))
-        self.bndcolors.colors_changed.connect(self.updateBndColors)
-        self.bndcolors.colors_changed.connect(self._updateGL)
-        self.updateBndColors()
-        def showBND():
-            if self.mesh.dim == 3:
-                return self.getShowSurface()
-            elif self.mesh.dim == 2:
-                return self.getShowEdgeElements()
-            return False
-        self.widgets.addGroup("Boundary Conditions", self.bndcolors, connectedVisibility = showBND)
-
-        self.bbndcolors = wid.CollColors(self.mesh.GetBBoundaries(), initial_color=(0,0,0,255))
-        self.bbndcolors.colors_changed.connect(self.updateBBNDColors)
-        self.bbndcolors.colors_changed.connect(self._updateGL)
-        self.updateBBNDColors()
-        def showBBND():
-            if self.mesh.dim == 3:
-                return self.getShowEdgeElements()
-            return False
-        self.widgets.addGroup("BBoundaries", self.bbndcolors, connectedVisibility=showBBND)
+    def _createQtWidget(self):
+        super()._createQtWidget()
 
 GUI.sceneCreators.append((ngsolve.Mesh, MeshScene))
 
 class SolutionScene(BaseMeshScene):
+    _complex_eval_funcs = {"real" : 0,
+                           "imag" : 1,
+                           "abs" : 2,
+                           "arg" : 3}
     @inmain_decorator(wait_for_return=True)
     def __init__(self, cf, mesh, name=None, min=0,max=1, autoscale=True, linear=False, clippingPlane=True,
                  order=3,gradient=None, *args, **kwargs):
@@ -778,10 +659,8 @@ class SolutionScene(BaseMeshScene):
                                 "Subdivision" : kwargs['sd'] if "sd" in kwargs else 1,
                                 "ShowIsoSurface" : False,
                                 "ShowVectors" : False,
-                                "ShowSurface" : True,
-                                "Component" : 0,
-                                "ComplexEvalFunc" : 0,
-                                "ComplexPhaseShift" : 0.0 }
+                                "ShowSurface" : True}
+
 
         if gradient and cf.dim == 1:
             self.cf = ngsolve.CoefficientFunction((cf, gradient))
@@ -790,28 +669,55 @@ class SolutionScene(BaseMeshScene):
             self.have_gradient = False
         super().__init__(mesh,*args, name=name, **kwargs)
 
-    @inmain_decorator(True)
-    def createOptions(self):
-        super().createOptions()
-        self.addOption( "Subdivision", "Subdivision", typ=int, min=0, update_on_change=True)
-        self.addOption( "Subdivision", "Order", typ=int, min=1, max=4, update_on_change=True)
 
+    @inmain_decorator(True)
+    def _createParameters(self):
+        super()._createParameters()
+        self.addParameters("Subdivision",
+                           settings.ValueParameter(name="Subdivision",
+                                                   default_value=int(self._initial_values["Subdivision"]),
+                                                   min_value = 0),
+                           settings.ValueParameter(name="Order",
+                                                   default_value=int(self._initial_values["Order"]),
+                                                   min_value=1,
+                                                   max_value=4))
         if self.mesh.dim>1:
-            self.addOption( "Show", "ShowSurface", typ=bool)
+            self.addParameters("Show",
+                               settings.CheckboxParameter(name="ShowSurface",
+                                                          label="Solution on Surface",
+                                                          default_value=self._initial_values["ShowSurface"]))
 
         if self.mesh.dim > 2:
-            self.addOption( "Show", "ShowClippingPlane", typ=bool)
-            self.addOption( "Show", "ShowIsoSurface", typ=bool)
+            self.addParameters("Show",
+                               settings.CheckboxParameter(name="ShowClippingPlane",
+                                                          label="Solution in clipping plane",
+                                                          default_value=self._initial_values["ShowClippingPlane"]),
+                               settings.CheckboxParameter(name="ShowIsoSurface",
+                                                          label="Isosurface",
+                                                          default_value = self._initial_values["ShowIsoSurface"]))
 
         if self.cf.dim > 1:
-            self.addOption( "Show", "Component", label="Component", typ=int, min=0, max=self.cf.dim-1)
-            self.addOption( "Show", "ShowVectors", typ=bool)
+            self.addParameters("Show",
+                               settings.ValueParameter(name="Component", label="Component",
+                                                       default_value=0,
+                                                       min_value=0,
+                                                       max_value=self.cf.dim-1),
+                               settings.CheckboxParameter("Show", name="Vectors",
+                                                          default_values=self._initial_values["ShowVectors"]))
 
         if self.cf.is_complex:
-            self.addOption( "Complex", "ComplexEvalFunc", label="Func", typ=list,
-                            values=["real","imag","abs","arg"])
-            self.addOption( "Complex", "ComplexPhaseShift", label="Value shift angle", typ=float)
+            self.addParameters("Complex",
+                               settings.SingleOptionParameter(name="ComplexEvalFunc",
+                                                              values = list(self._complex_eval_funcs.keys()),
+                                                              label="Func",
+                                                              default_value = "real"),
+                               settings.ValueParameter(name="ComplexPhaseShift",
+                                                      label="Value shift angle",
+                                                       default_value = 0.0))
 
+    @inmain_decorator(True)
+    def _createOptions(self):
+        super()._createOptions()
         boxmin = self.addOption( "Colormap", "ColorMapMin", label="Min", typ=float, step=1)
         boxmax = self.addOption( "Colormap", "ColorMapMax", label="Max" ,typ=float, step=1)
         autoscale = self.addOption( "Colormap", "Autoscale",typ=bool)
@@ -1039,7 +945,7 @@ class SolutionScene(BaseMeshScene):
             self.surface_values_imag.bind()
             uniforms.set('coefficients_imag', 3)
 
-            uniforms.set('complex_vis_function', self.getComplexEvalFunc())
+            uniforms.set('complex_vis_function', self._complex_eval_funcs[self.getComplexEvalFunc()])
             w = cmath.exp(1j*self.getComplexPhaseShift()/180.0*math.pi)
             uniforms.set('complex_factor', [w.real, w.imag])
 
@@ -1268,8 +1174,8 @@ class GeometryScene(BaseScene):
         self.tex_colors.store(sum(([color.red(), color.green(), color.blue(), color.alpha()] for color in self.colorpicker.getColors()),[]),data_format=GL_UNSIGNED_BYTE)
 
     @inmain_decorator(True)
-    def createQtWidget(self):
-        super().createQtWidget()
+    def _createQtWidget(self):
+        super()._createQtWidget()
         self.colorpicker = wid.CollColors(self.surf_colors.keys(), initial_color = (0,0,255,255))
         self.colorpicker.colors_changed.connect(self.updateColors)
         self.colorpicker.colors_changed.connect(self._updateGL)
