@@ -491,7 +491,38 @@ class MeshScene(BaseMeshScene):
 
     def renderEdges(self, settings):
         self.vao.bind()
-        prog = getProgram('filter_elements.vert', 'lines.tesc', 'lines.tese', 'mesh.frag')
+#         prog = getProgram('filter_elements.vert', 'lines.tesc', 'lines.tese', 'mesh.frag')
+        dims = {
+                ngsolve.ET.SEGM: 1,
+                ngsolve.ET.TRIG: 2,
+                ngsolve.ET.QUAD: 2,
+                ngsolve.ET.TET: 3,
+                ngsolve.ET.PYRAMID: 3,
+                ngsolve.ET.PRISM: 3,
+                ngsolve.ET.HEX: 3
+                }
+        nverts = {
+                ngsolve.ET.SEGM: 2,
+                ngsolve.ET.TRIG: 3,
+                ngsolve.ET.QUAD: 4,
+                ngsolve.ET.TET: 4,
+                ngsolve.ET.PYRAMID: 5,
+                ngsolve.ET.PRISM: 6,
+                ngsolve.ET.HEX: 8
+                }
+        shader_args = lambda els : {
+                'ELEMENT_TYPE':str(els.type)[3:],
+                'ELEMENT_SIZE':str(els.size),
+                'ELEMENT_N_VERTICES':nverts[els.type],
+                'DIM':dims[els.type],
+                'CURVED':str(els.curved).lower(),
+                'ORDER':1,
+                'ELEMENT_TYPE_NAME':str(els.type).replace('.','_')
+                }
+        els = self.mesh_data.new_els["edges"][0]
+        print('draw els', els)
+        print(shader_args(els))
+        prog = getProgram('mesh_simple.vert', 'mesh_simple.frag', **shader_args(els))
         model,view,projection = settings.model, settings.view, settings.projection
         uniforms = prog.uniforms
         uniforms.set('P',projection)
@@ -503,7 +534,8 @@ class MeshScene(BaseMeshScene):
 
         glActiveTexture(GL_TEXTURE1)
         self.mesh_data.elements.bind()
-        uniforms.set('mesh.elements', 1)
+#         uniforms.set('mesh.elements', 1)
+        els.tex.bind()
 
         glActiveTexture(GL_TEXTURE3)
         if self.mesh.dim == 3:
@@ -521,20 +553,22 @@ class MeshScene(BaseMeshScene):
         uniforms.set('light_diffuse', 0.0)
         uniforms.set('TessLevel', self.getGeomSubdivision())
         uniforms.set('wireframe', True)
-        if self.mesh.dim > 2 and self.getShowEdges():
-            glPatchParameteri(GL_PATCH_VERTICES, 1)
-            glDrawArrays(GL_PATCHES, 0, self.mesh_data.nedges)
-            glDisable(GL_POLYGON_OFFSET_LINE)
-        if self.getShowEdgeElements():
-            glLineWidth(3)
-            glPatchParameteri(GL_PATCH_VERTICES, 1)
-            glDrawArrays(GL_PATCHES, self.mesh_data.nedges,self.mesh_data.nedge_elements)
-            glLineWidth(1)
-        if self.getShowPeriodicVertices():
-            glLineWidth(3)
-            glPatchParameteri(GL_PATCH_VERTICES, 1)
-            glDrawArrays(GL_PATCHES, self.mesh_data.nedge_elements+self.mesh_data.nedges, self.mesh_data.nperiodic_vertices)
-            glLineWidth(1)
+        glDrawArrays(GL_LINES, 0, len(els.data)//els.size)
+
+#         if self.mesh.dim > 2 and self.getShowEdges():
+#             glPatchParameteri(GL_PATCH_VERTICES, 1)
+#             glDrawArrays(GL_PATCHES, 0, self.mesh_data.nedges)
+#             glDisable(GL_POLYGON_OFFSET_LINE)
+#         if self.getShowEdgeElements():
+#             glLineWidth(3)
+#             glPatchParameteri(GL_PATCH_VERTICES, 1)
+#             glDrawArrays(GL_PATCHES, self.mesh_data.nedges,self.mesh_data.nedge_elements)
+#             glLineWidth(1)
+#         if self.getShowPeriodicVertices():
+#             glLineWidth(3)
+#             glPatchParameteri(GL_PATCH_VERTICES, 1)
+#             glDrawArrays(GL_PATCHES, self.mesh_data.nedge_elements+self.mesh_data.nedges, self.mesh_data.nperiodic_vertices)
+#             glLineWidth(1)
 
         self.vao.unbind()
 
