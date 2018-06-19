@@ -11,9 +11,8 @@ import ngsolve as ngs
 
 class Parameter(QtCore.QObject):
     changed = QtCore.Signal(object)
-    def __init__(self, group, name=None, label=None, **kwargs):
+    def __init__(self, name=None, label=None, **kwargs):
         super().__init__()
-        self.group = group
         self.name = name
         self.label = label
         self._options = kwargs if kwargs else {}
@@ -45,10 +44,10 @@ class Parameter(QtCore.QObject):
         return self._widget
 
     def __getstate__(self):
-        return (self.group, self.name, self.label, self._options)
+        return (self.name, self.label, self._options)
 
     def __setstate__(self, state):
-        Parameter.__init__(self,group=state[0], name=state[1], label=state[2])
+        Parameter.__init__(self, name=state[1], label=state[2])
         self._options = state[3]
 
 class ColorParameter(Parameter):
@@ -133,12 +132,12 @@ class CheckboxParameterCluster(CheckboxParameter):
         super().__setstate__(state[0])
 
 class ValueParameter(Parameter):
-    def __init__(self, group, default_value, min_value=None, max_value=None, step=None, **kwargs):
+    def __init__(self, default_value, min_value=None, max_value=None, step=None, **kwargs):
         self._initial_value = default_value
         self._min_value = min_value
         self._max_value = max_value
         self._step = step
-        super().__init__(group,**kwargs)
+        super().__init__(**kwargs)
 
     def _createWidget(self):
         if isinstance(self._initial_value, float):
@@ -177,10 +176,10 @@ class ValueParameter(Parameter):
         super().__setstate__(state[0])
 
 class SingleOptionParameter(Parameter):
-    def __init__(self, group, name, *args, values = None, default_value = None, **kwargs):
+    def __init__(self, name, *args, values = None, default_value = None, **kwargs):
         self._values = values if values else []
         self._initial_value = default_value
-        super().__init__(group, name, *args, **kwargs)
+        super().__init__(name, *args, **kwargs)
 
     def _createWidget(self):
         self._combobox = QtWidgets.QComboBox()
@@ -265,14 +264,14 @@ class BaseSettings():
 
     def __setstate__(self, state):
         self._initial_values = state[0]
-        self._parameters = []
-        for param in state[1]:
-            self.addParameter(param)
+        self._parameters = {}
+        for group in state[1]:
+            self.addParameters(group,*state[1][group])
         self.createOptions()
         self.createQtWidget()
 
     def createParameters(self):
-        self._parameters = []
+        self._parameters = {}
 
     def createOptions(self):
         self._widgets = {}
@@ -282,15 +281,12 @@ class BaseSettings():
         self.widgets = wid.OptionWidgets()
         for group in self._widgets:
             self.widgets.addGroup(group,*self._widgets[group].values())
-        param_groups = {}
-        for param in self._parameters:
-            if param.group not in param_groups:
-                param_groups[param.group] = []
-            if param.getOption("updateWidgets"):
-                param.changed.connect(self.widgets.update)
-            param_groups[param.group].append(param.getWidget())
-        for group in param_groups:
-            self.widgets.addGroup(group, *param_groups[group])
+        for group,params in self._parameters.items():
+            for param in params:
+                if param.getOption("updateWidgets"):
+                    param.changed.connect(self.widgets.update)
+            widgets = [par.getWidget() for par in params]
+            self.widgets.addGroup(group, *widgets)
 
     @inmain_decorator(True)
     def updateWidgets(self):
@@ -304,9 +300,12 @@ class BaseSettings():
             setattr(self, "set" + parameter.name, parameter.setValue)
         parameter._attachTo(self)
 
-    def addParameter(self, parameter):
-        self._parameters.append(parameter)
-        self._attachParameter(parameter)
+    def addParameters(self, group, *parameters):
+        if group not in self._parameters:
+            self._parameters[group] = []
+        for par in parameters:
+            self._parameters[group].append(par)
+            self._attachParameter(par)
 
     def addOption(self, group, name, typ=None, update_on_change=False, update_widget_on_change=False, widget_type=None, label=None, values=None, on_change=None, *args, **kwargs):
         if not group in self._widgets:
