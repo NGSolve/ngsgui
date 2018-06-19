@@ -46,6 +46,52 @@ class Parameter(QtCore.QObject):
         self.__init__(state[0], state[1])
         self._options = state[2]
 
+class ParameterWithLabel(Parameter):
+    def __init__(self, group, name, *args, label=None, **kwargs):
+        super().__init__(group,name, *args, **kwargs)
+        widget = self._createWidget()
+        self.label = label if label else name
+        self._widget = QtWidgets.QWidget()
+        self._widget.setLayout(ArrangeH(QtWidgets.QLabel(self.label), widget))
+
+    def __getstate__(self):
+        return (super.__getstate__(),
+                self.label)
+
+    def __setstate__(self, state):
+        super().__setstate__(state[0])
+        widget = self._createWidget()
+        self._widget = QtWidgets.QWidget()
+        self._widgets.setLayout(ArrangeH(QtWidgets.QLabel(state[1]), widget))
+
+class ValueParameter(ParameterWithLabel):
+    def __init__(self, default_value, *args, **kwargs):
+        self._initial_value = default_value
+        super().__init__(*args,**kwargs)
+
+    def _createWidget(self):
+        if isinstance(self._initial_value, float):
+            self._spinbox = wid.ScienceSpinBox()
+        elif isinstance(self._initial_value, int):
+            self._spinbox = QtWidgets.QSpinBox()
+        else:
+            raise Exception("Cannot create ValueParameter for type ", type(default_value))
+        self._spinbox.setValue(self._initial_value)
+        self._spinbox.valueChanged.connect(self.changed.emit)
+        return self._spinbox
+
+    def getValue(self):
+        return self._spinbox.value()
+
+    def __getstate__(self):
+        return (super.__getstate__(),
+                self.getValue())
+
+    def __setstate__(self, state):
+        super().__setstate__(state[0])
+        self._createWidget(state[1])
+
+
 class SingleOptionParameter(Parameter):
     def __init__(self, group, name, *args, values = None, label = None, default_value = None, **kwargs):
         super().__init__(group, name, *args, **kwargs)
@@ -84,6 +130,45 @@ class SingleOptionParameter(Parameter):
         self._values = state[1]
         self.label = state[3]
         self._createCombobox(state[2])
+
+class FileParameter(Parameter):
+    changed = QtCore.Signal(str)
+    def __init__(self, name, filt, *args,**kwargs):
+        super().__init__(*args,**kwargs)
+        self.filt = filt
+        self.name = name
+        self.filename = ""
+        self.txt = ""
+        self._createWidget()
+
+    def _createWidget(self):
+        button = QtWidgets.QPushButton("Select File")
+        def selectFile():
+            self.filename,filt = QtWidgets.QFileDialog.getOpenFileName(caption = self.name,
+                                                                       filter = self.filt)
+            if self.filename:
+                self.changed.emit(self.filename)
+        button.clicked.connect(selectFile)
+        label = QtWidgets.QLabel(self.filename if self.filename else "...")
+        changed.connect(label.setText)
+        self.widget = QtWidgets.QWidget()
+        self.widget.setLayout(ArrangeH(button, label))
+
+    def __getstate__(self):
+        if self.txt:
+            txt = self.txt
+        elif self.filename:
+            with open(self.filename, "r") as f:
+                txt = f.read()
+        else:
+            txt = ""
+        return (self.name, self.filt, self.filename, txt)
+
+    def __setstate__(self, state):
+        super().__setstate__(state[0],state[1])
+        self.filename = state[2]
+        self.txt = state[3]
+        self.createWidget()
 
 class BaseSettings():
     def __init__(self):

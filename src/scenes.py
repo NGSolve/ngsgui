@@ -685,6 +685,11 @@ class SolutionScene(BaseMeshScene):
                                                              label="Func",
                                                              default_value = "real",
                                                              updateGL=True))
+            self.addParameter(settings.ValueParameter(group="Complex",
+                                                      name="ComplexPhaseShift",
+                                                      label="Value shift angle",
+                                                      default_value = 0.0,
+                                                      updateGL=True))
 
     @inmain_decorator(True)
     def createOptions(self):
@@ -703,10 +708,10 @@ class SolutionScene(BaseMeshScene):
             self.addOption( "Show", "Component", label="Component", typ=int, min=0, max=self.cf.dim-1)
             self.addOption( "Show", "ShowVectors", typ=bool)
 
-        if self.cf.is_complex:
+        # if self.cf.is_complex:
             # self.addOption( "Complex", "ComplexEvalFunc", label="Func", typ=list,
             #                 values=["real","imag","abs","arg"])
-            self.addOption( "Complex", "ComplexPhaseShift", label="Value shift angle", typ=float)
+            # self.addOption( "Complex", "ComplexPhaseShift", label="Value shift angle", typ=float)
 
         boxmin = self.addOption( "Colormap", "ColorMapMin", label="Min", typ=float, step=1)
         boxmax = self.addOption( "Colormap", "ColorMapMax", label="Max" ,typ=float, step=1)
