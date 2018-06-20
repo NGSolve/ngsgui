@@ -133,6 +133,8 @@ center of this box. Rotation will be around this center."""
 
     def _attachParameter(self, parameter):
         super()._attachParameter(parameter)
+        if parameter.getOption("updateScene"):
+            parameter.changed.connect(lambda val: self.update())
         if not parameter.getOption("notUpdateGL"):
             parameter.changed.connect(self._updateGL)
 
@@ -676,11 +678,13 @@ class SolutionScene(BaseMeshScene):
         self.addParameters("Subdivision",
                            settings.ValueParameter(name="Subdivision",
                                                    default_value=int(self._initial_values["Subdivision"]),
-                                                   min_value = 0),
+                                                   min_value = 0,
+                                                   updateScene=True),
                            settings.ValueParameter(name="Order",
                                                    default_value=int(self._initial_values["Order"]),
                                                    min_value=1,
-                                                   max_value=4))
+                                                   max_value=4,
+                                                   updateScene=True))
         if self.mesh.dim>1:
             self.addParameters("Show",
                                settings.CheckboxParameter(name="ShowSurface",
@@ -702,8 +706,8 @@ class SolutionScene(BaseMeshScene):
                                                        default_value=0,
                                                        min_value=0,
                                                        max_value=self.cf.dim-1),
-                               settings.CheckboxParameter("Show", name="Vectors",
-                                                          default_values=self._initial_values["ShowVectors"]))
+                               settings.CheckboxParameter(name="ShowVectors", label="Vectors",
+                                                          default_value=self._initial_values["ShowVectors"]))
 
         if self.cf.is_complex:
             self.addParameters("Complex",
