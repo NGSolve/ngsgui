@@ -6,5 +6,6 @@ install(FILES
   bbnd.vert bbnd.frag numbers.geom
   geo.vert filter_elements.vert filter_elements.geom
   colorbar.vert colorbar.frag
-  DESTINATION ngsolve/gui/shader
+  mesh_simple.vert mesh_simple.frag
+  DESTINATION ${NGSOLVE_INSTALL_DIR_PYTHON}/ngsolve/gui/shader
 )
