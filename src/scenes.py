@@ -472,8 +472,6 @@ class MeshScene(BaseMeshScene):
                 'ELEMENT_TYPE_NAME':str(els.type).replace('.','_')
                 }
         els = self.mesh_data.new_els["edges"][0]
-        print('draw els', els)
-        print(shader_args(els))
         prog = getProgram('mesh_simple.vert', 'mesh_simple.frag', **shader_args(els))
         model,view,projection = settings.model, settings.view, settings.projection
         uniforms = prog.uniforms
@@ -486,7 +484,7 @@ class MeshScene(BaseMeshScene):
 
         glActiveTexture(GL_TEXTURE1)
         self.mesh_data.elements.bind()
-#         uniforms.set('mesh.elements', 1)
+        uniforms.set('mesh.elements', 1)
         els.tex.bind()
 
         glActiveTexture(GL_TEXTURE3)
@@ -505,7 +503,7 @@ class MeshScene(BaseMeshScene):
         uniforms.set('light_diffuse', 0.0)
         uniforms.set('TessLevel', self.getGeomSubdivision())
         uniforms.set('wireframe', True)
-        glDrawArrays(GL_LINES, 0, len(els.data)//els.size)
+        glDrawArrays(GL_LINES, 0, 2*len(els.data)//els.size)
 
 #         if self.mesh.dim > 2 and self.getShowEdges():
 #             glPatchParameteri(GL_PATCH_VERTICES, 1)
@@ -611,10 +609,8 @@ class MeshScene(BaseMeshScene):
                 'ELEMENT_TYPE_NAME':str(els.type).replace('.','_')
                 }
         if self.getShowSurface():
-            print('draw')
             for els in self.mesh_data.new_els[ngsolve.BND]:
                 prog = getProgram('filter_elements.vert', 'tess.tesc', 'tess.tese', 'mesh.geom', 'mesh.frag', **shader_args(els))
-                print(els.type, int(els.type))
                 uniforms = prog.uniforms
                 self._setSurfaceUniforms(settings, prog)
                 glActiveTexture(GL_TEXTURE1)
@@ -634,7 +630,6 @@ class MeshScene(BaseMeshScene):
         if self.getShowWireframe():
             for els in self.mesh_data.new_els[ngsolve.BND]:
                 prog = getProgram('filter_elements.vert', 'tess.tesc', 'tess.tese', 'mesh.geom', 'mesh.frag', **shader_args(els))
-                print(els.type, int(els.type))
                 uniforms = prog.uniforms
                 self._setSurfaceUniforms(settings, prog)
                 glActiveTexture(GL_TEXTURE1)
@@ -647,7 +642,6 @@ class MeshScene(BaseMeshScene):
                 glEnable(GL_POLYGON_OFFSET_LINE)
                 glPatchParameteri(GL_PATCH_VERTICES, 1)
                 els.tex.bind()
-                print(len(els.data)//els.size, els.size)
                 glDrawArrays(GL_PATCHES, 0, len(els.data)//els.size)
                 glDisable(GL_POLYGON_OFFSET_LINE)
 

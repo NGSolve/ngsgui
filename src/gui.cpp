@@ -392,13 +392,17 @@ PYBIND11_MODULE(ngui, m) {
             edges.data.SetAllocSize(ma->GetNEdges()*edges.size);
             // Edges of mesh (skip this for dim==1, in this case edges are treated as volume elements below)
             for (auto nr : Range(ma->GetNEdges())) {
-                edges.data.Append(nr);
-                edges.data.Append(-1); // always draw in black (material index)
-                auto verts = ma->GetEdgePNums(nr);
-                for (auto i : Range(2))
-                    edges.data.Append(verts[i]);
+                auto pair = ma->GetEdgePNums(nr);
+                edges.data.Append({nr, -1, pair[0], pair[1]});
             }
         }
+
+        ElementInformation periodic_vertices(4, ET_SEGM);
+        int n_periodic_vertices = ma->GetNPeriodicNodes(NT_VERTEX);
+        edges.data.SetAllocSize(n_periodic_vertices*periodic_vertices.size);
+        for(auto idnr : Range(ma->GetNPeriodicIdentifications()))
+            for (const auto& pair : ma->GetPeriodicNodes(NT_VERTEX, idnr))
+                periodic_vertices.data.Append({pair[0],pair[1],0,-1});
 
         if(ma->GetDimension()>=1) {
             ElementInformation edges[2] = { {4, ET_SEGM}, {5, ET_SEGM, true } };
@@ -542,9 +546,15 @@ PYBIND11_MODULE(ngui, m) {
         }
 
         py::dict py_eldata;
+
         py::list py_edges;
         py_edges.append(edges);
         py_eldata["edges"] = py_edges;
+
+        py::list py_periodic_vertices;
+        py_periodic_vertices.append(periodic_vertices);
+        py_eldata["periodic"] = py_periodic_vertices;
+
         py_eldata[py::cast(BBND)] = element_data[BBND];
         py_eldata[py::cast(BND)] = element_data[BND];
         py_eldata[py::cast(VOL)] = element_data[VOL];
