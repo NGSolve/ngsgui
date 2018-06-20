@@ -141,21 +141,25 @@ class GUI():
         def activateConsole():
             self.output_tabber.setCurrentWidget(self.console)
             self.console._control.setFocus()
-        self.mainWidget._console_action = console_action = QtWidgets.QAction("Activate Console")
-        console_action.triggered.connect(activateConsole)
-        console_action.setShortcut(QtGui.QKeySequence("Ctrl+j"))
-        self.mainWidget.addAction(console_action)
 
         def switchTabWindow(direction):
             self.window_tabber.setCurrentIndex((self.window_tabber.currentIndex() + direction)%self.window_tabber.count())
-        self.mainWidget._next_tab_action = next_tab = QtWidgets.QAction("Next Tab")
-        next_tab.triggered.connect(lambda : switchTabWindow(1))
-        next_tab.setShortcut(QtGui.QKeySequence("Ctrl+w"))
-        self.mainWidget._last_tab_action = last_tab = QtWidgets.QAction("Last Tab")
-        last_tab.triggered.connect(lambda : switchTabWindow(-1))
-        last_tab.setShortcut(QtGui.QKeySequence("Ctrl+q"))
-        self.mainWidget.addAction(next_tab)
-        self.mainWidget.addAction(last_tab)
+
+        def addShortcut(name, key, func):
+            action = QtWidgets.QAction(name)
+            action.triggered.connect(func)
+            action.setShortcut(QtGui.QKeySequence(key))
+            self.mainWidget.addAction(action)
+            # why do we need to keep this reference?
+            if not hasattr(self.mainWidget,'_actions'):
+                self.mainWidget._actions = []
+            self.mainWidget._actions.append(action)
+
+        addShortcut("Activate Console", "Ctrl+j", activateConsole)
+        addShortcut("Quit", "Ctrl+q", lambda: self.app.quit())
+        addShortcut("Close Tab", "Ctrl+w", lambda: self.window_tabber._remove_tab(self.window_tabber.currentIndex()))
+        addShortcut("Next Tab", "Ctrl+LeftArrow", lambda: switchTabWindow(-1))
+        addShortcut("Previous Tab", "Ctrl+RightArrow", lambda: switchTabWindow(1))
 
     def crawlPlugins(self):
         try:
