@@ -771,7 +771,13 @@ class SolutionScene(BaseMeshScene):
     def _getValues(self, vb, setMinMax=True):
         cf = self.cf
         with ngsolve.TaskManager():
-            values = ngui.GetValues(cf, self.mesh, vb, 2**self.getSubdivision()-1, self.getOrder())
+            try:
+                values = ngui.GetValues(cf, self.mesh, vb, 2**self.getSubdivision()-1, self.getOrder())
+            except RuntimeError as e:
+                assert("Local Heap" in str(e))
+                self.setSubdivision(self.getSubdivision()-1)
+                print("Localheap overflow, cannot increase subdivision!")
+                return
 
         if setMinMax:
             self.min_values = values["min"]
@@ -787,6 +793,8 @@ class SolutionScene(BaseMeshScene):
         if self.mesh.dim==1:
             try:
                 values = self._getValues(ngsolve.VOL)
+                if values is None:
+                    return
                 self.surface_values.store(values["real"])
                 if self.cf.is_complex:
                     self.surface_values_imag.store(values["imag"])
@@ -795,6 +803,8 @@ class SolutionScene(BaseMeshScene):
         if self.mesh.dim==2:
             try:
                 values = self._getValues(ngsolve.VOL)
+                if values is None:
+                    return
                 self.surface_values.store(values["real"])
                 if self.cf.is_complex:
                     self.surface_values_imag.store(values["imag"])
@@ -805,12 +815,16 @@ class SolutionScene(BaseMeshScene):
 
         if self.mesh.dim==3:
             values = self._getValues(ngsolve.VOL)
+            if values is None:
+                return
             self.volume_values.store(values["real"])
             if self.cf.is_complex:
                 self.volume_values_imag.store(values["imag"])
 
             try:
                 values = self._getValues(ngsolve.BND, False)
+                if values is None:
+                    return
                 self.surface_values.store(values["real"])
                 if self.cf.is_complex:
                     self.surface_values_imag.store(values["imag"])
