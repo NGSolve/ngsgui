@@ -15,8 +15,9 @@ class MultiQtKernelManager(MultiKernelManager):
 
 
 class NGSJupyterWidget(QtInProcessRichJupyterWidget):
-    def __init__(self, multikernel_manager,*args, **kwargs):
+    def __init__(self, gui,multikernel_manager,*args, **kwargs):
         super().__init__(*args,**kwargs)
+        self.gui = gui
         self.banner = """NGSolve %s
 Developed by Joachim Schoeberl at
 2010-xxxx Vienna University of Technology
@@ -43,8 +44,7 @@ Developed by Joachim Schoeberl at
         def stop():
             self.kernel_client.stop_channels()
             self.kernel_manager.shutdown_kernel()
-            # this function is qt5 compatible as well
-            guisupport.get_app_qt4().exit()
+            self.gui.app.quit()
         self.exit_requested.connect(stop)
 
     @inmain_decorator(wait_for_return=True)

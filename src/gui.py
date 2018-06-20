@@ -125,7 +125,7 @@ class GUI():
         self.window_tabber = glwindow.WindowTabber(commonContext = self._commonContext,
                                                    parent=window_splitter)
         window_splitter.addWidget(self.window_tabber)
-        self.console = NGSJupyterWidget(multikernel_manager = self.multikernel_manager)
+        self.console = NGSJupyterWidget(gui=self,multikernel_manager = self.multikernel_manager)
         self.outputBuffer = OutputBuffer()
         self.output_tabber = QtWidgets.QTabWidget()
         self.output_tabber.addTab(self.console,"Console")
