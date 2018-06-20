@@ -2,6 +2,7 @@
 from . import glmath, scenes
 from . import widgets as wid
 from . import gl as mygl
+from .plot import PlotTab
 import copy
 from .widgets import ArrangeV, ArrangeH
 from .thread import inthread, inmain_decorator
@@ -498,6 +499,13 @@ class WindowTabber(QtWidgets.QTabWidget):
                 # create new tab with given name
                 self.make_window(name=tab)
         self.activeGLWindow.draw(*args,**kwargs)
+
+    @inmain_decorator(True)
+    def plot(self, x, y):
+        window = PlotTab()
+        window.plot(x,y)
+        self.addTab(window, "plot")
+        self.setCurrentWidget(window)
 
     def setCurrentIndex(self, index):
         super().setCurrentIndex(index)

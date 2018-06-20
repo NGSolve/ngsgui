@@ -314,6 +314,8 @@ PYBIND11_MODULE(ngui, m) {
 
             bool use_simd = true;
             ma->IterateElements(vb, lh,[&](auto el, LocalHeap& mlh) {
+                FlatArray<float> min_local(ncomps, mlh);
+                FlatArray<float> max_local(ncomps, mlh);
                 if(use_simd)
                   {
                     try
@@ -323,9 +325,9 @@ PYBIND11_MODULE(ngui, m) {
                         size_t first = el.Nr()*values_per_element;
                         size_t next = (el.Nr()+1)*values_per_element;
                         if(cf->IsComplex())
-                          GetValues<SIMD<Complex>>( *cf, mlh, mir, res_real.Range(first,next), res_imag.Range(first,next), min, max);
+                          GetValues<SIMD<Complex>>( *cf, mlh, mir, res_real.Range(first,next), res_imag.Range(first,next), min_local, max_local);
                         else
-                          GetValues<SIMD<double>>( *cf, mlh, mir, res_real.Range(first,next), res_imag, min, max);
+                          GetValues<SIMD<double>>( *cf, mlh, mir, res_real.Range(first,next), res_imag, min_local, max_local);
                       }
                     catch(ExceptionNOSIMD e)
                       {
@@ -339,10 +341,18 @@ PYBIND11_MODULE(ngui, m) {
                     size_t first = el.Nr()*values_per_element;
                     size_t next = (el.Nr()+1)*values_per_element;
                     if(cf->IsComplex())
-                      GetValues<Complex>( *cf, mlh, mir, res_real.Range(first,next), res_imag.Range(first,next), min, max);
+                      GetValues<Complex>( *cf, mlh, mir, res_real.Range(first,next), res_imag.Range(first,next), min_local, max_local);
                     else
-                      GetValues<double>( *cf, mlh, mir, res_real.Range(first,next), res_imag, min, max);
+                      GetValues<double>( *cf, mlh, mir, res_real.Range(first,next), res_imag, min_local, max_local);
                   }
+                for (auto i : Range(ncomps)) {
+                    float expected = min[i];
+                    while (min_local[i] < expected)
+                        AsAtomic(min[i]).compare_exchange_weak(expected, min_local[i], std::memory_order_relaxed, std::memory_order_relaxed);
+                    expected = max[i];
+                    while (max_local[i] > expected)
+                        AsAtomic(max[i]).compare_exchange_weak(expected, max_local[i], std::memory_order_relaxed, std::memory_order_relaxed);
+                }
               });
           py::gil_scoped_acquire ac;
           py::dict res;

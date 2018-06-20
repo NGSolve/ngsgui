@@ -1,11 +1,15 @@
 
-from . import glwindow, ngui, code_editor
+import os
+os.environ['Qt_API'] = 'pyside2'
+
+from . import glwindow
+from . import code_editor
 from . widgets import ArrangeV
 from .thread import inthread, inmain_decorator
 from .menu import MenuBarWithDict
 from .console import NGSJupyterWidget, MultiQtKernelManager
 
-import sys, textwrap, inspect, re, pkgutil, ngsolve, pickle, os
+import sys, textwrap, inspect, re, pkgutil, ngsolve, ngui, pickle
 
 from PySide2 import QtWidgets, QtCore, QtGui
 
@@ -45,7 +49,7 @@ class SettingsToolBox(QtWidgets.QToolBox):
     def addSettings(self, sett):
         self.settings.append(sett)
         widget = QtWidgets.QWidget()
-        widget.setLayout(ArrangeV(*sett.getQtWidget().groups))
+        widget.setLayout(ArrangeV(*sett.widgets.groups))
         widget.layout().setAlignment(QtCore.Qt.AlignTop)
         self.addItem(widget, sett.name)
         self.setCurrentIndex(len(self.settings)-1)
@@ -107,7 +111,6 @@ class GUI():
 
     def createLayout(self):
         self.mainWidget = QtWidgets.QWidget()
-        self.activeGLWindow = None
         menu_splitter = QtWidgets.QSplitter(parent=self.mainWidget)
         menu_splitter.setOrientation(QtCore.Qt.Vertical)
         menu_splitter.addWidget(self.menuBar)
@@ -138,21 +141,25 @@ class GUI():
         def activateConsole():
             self.output_tabber.setCurrentWidget(self.console)
             self.console._control.setFocus()
-        self.mainWidget._console_action = console_action = QtWidgets.QAction("Activate Console")
-        console_action.triggered.connect(activateConsole)
-        console_action.setShortcut(QtGui.QKeySequence("Ctrl+j"))
-        self.mainWidget.addAction(console_action)
 
         def switchTabWindow(direction):
             self.window_tabber.setCurrentIndex((self.window_tabber.currentIndex() + direction)%self.window_tabber.count())
-        self.mainWidget._next_tab_action = next_tab = QtWidgets.QAction("Next Tab")
-        next_tab.triggered.connect(lambda : switchTabWindow(1))
-        next_tab.setShortcut(QtGui.QKeySequence("Ctrl+w"))
-        self.mainWidget._last_tab_action = last_tab = QtWidgets.QAction("Last Tab")
-        last_tab.triggered.connect(lambda : switchTabWindow(-1))
-        last_tab.setShortcut(QtGui.QKeySequence("Ctrl+q"))
-        self.mainWidget.addAction(next_tab)
-        self.mainWidget.addAction(last_tab)
+
+        def addShortcut(name, key, func):
+            action = QtWidgets.QAction(name)
+            action.triggered.connect(func)
+            action.setShortcut(QtGui.QKeySequence(key))
+            self.mainWidget.addAction(action)
+            # why do we need to keep this reference?
+            if not hasattr(self.mainWidget,'_actions'):
+                self.mainWidget._actions = []
+            self.mainWidget._actions.append(action)
+
+        addShortcut("Activate Console", "Ctrl+j", activateConsole)
+        addShortcut("Quit", "Ctrl+q", lambda: self.app.quit())
+        addShortcut("Close Tab", "Ctrl+w", lambda: self.window_tabber._remove_tab(self.window_tabber.currentIndex()))
+        addShortcut("Next Tab", "Ctrl+LeftArrow", lambda: switchTabWindow(-1))
+        addShortcut("Previous Tab", "Ctrl+RightArrow", lambda: switchTabWindow(1))
 
     def crawlPlugins(self):
         try:
@@ -196,8 +203,9 @@ class GUI():
         for i in range(self.window_tabber.count()):
             tabs.append((self.window_tabber.widget(i),self.window_tabber.tabBar().tabText(i)))
         settings = self.settings_toolbox.settings
+        currentIndex = self.window_tabber.currentIndex()
         with open(filename,"wb") as f:
-            pickle.dump((tabs,settings), f)
+            pickle.dump((tabs,settings, currentIndex), f)
 
     def loadSolution(self):
         filename, filt = QtWidgets.QFileDialog.getOpenFileName(caption="Load Solution",
@@ -205,19 +213,17 @@ class GUI():
         if not filename[-4:] == ".sol":
             filename += ".sol"
         with open(filename, "rb") as f:
-            tabs,settings = pickle.load(f)
-            print(tabs)
+            tabs,settings,currentIndex = pickle.load(f)
         for tab,name in tabs:
             if isinstance(tab, glwindow.WindowTab):
                 tab.create(self._commonContext)
             if isinstance(tab, code_editor.CodeEditor):
                 tab.gui = self
             self.window_tabber.addTab(tab, name)
-            tab.show()
-            self.window_tabber.setCurrentWidget(tab)
         for setting in settings:
             setting.gui = self
             self.settings_toolbox.addSettings(setting)
+        self.window_tabber.activeGLWindow = self.window_tabber.widget(currentIndex)
 
     @inmain_decorator(wait_for_return=True)
     def draw(self, *args, **kwargs):
@@ -230,6 +236,9 @@ class GUI():
     @inmain_decorator(wait_for_return=True)
     def redraw_blocking(self):
         self.window_tabber.activeGLWindow.glWidget.updateScenes()
+
+    def plot(self, x,y):
+        self.window_tabber.plot(x,y)
 
     @inmain_decorator(wait_for_return=True)
     def _loadFile(self, filename):
@@ -253,9 +262,12 @@ class GUI():
         self.console.pushVariables(globs)
         if self.pipeOutput:
             stdout_fileno = sys.stdout.fileno()
+            stderr_fileno = sys.stderr.fileno()
+            stderr_save = os.dup(stderr_fileno)
             stdout_save = os.dup(stdout_fileno)
             stdout_pipe = os.pipe()
             os.dup2(stdout_pipe[1], stdout_fileno)
+            os.dup2(stdout_pipe[1], stderr_fileno)
             os.close(stdout_pipe[1])
             receiver = Receiver(stdout_pipe[0])
             receiver.received.connect(self.outputBuffer.append_text)
@@ -281,5 +293,10 @@ class DummyObject:
         return DummyObject()
     def __call__(self,*args,**kwargs):
         pass
+
+    def plot(self, x,y):
+        import matplotlib.pyplot as plt
+        plt.plot(x,y)
+        plt.show()
 
 gui = DummyObject()

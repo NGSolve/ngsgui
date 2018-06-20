@@ -26,7 +26,4 @@ mesh = Mesh(Coil().GenerateMesh(maxh=0.3))
 mesh.Curve(5)
 # mesh = Mesh(unit_cube.GenerateMesh(maxh=0.1))
 
-gui = GUI.GUI()
-scene2 = GUI.MeshScene(mesh,elements=True,name="Mesh Elements")
-gui.draw(scene2)
-gui.run()
+Draw(mesh)
