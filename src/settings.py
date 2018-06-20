@@ -150,9 +150,9 @@ class ValueParameter(Parameter):
                 self._spinbox.setSingleStep(self._step)
         else:
             raise Exception("Cannot create ValueParameter for type ", type(default_value))
-        if self._min_value:
+        if self._min_value != None:
             self._spinbox.setMinimum(self._min_value)
-        if self._max_value:
+        if self._max_value != None:
             self._spinbox.setMaximum(self._max_value)
         self._spinbox.setValue(self._initial_value)
         self._spinbox.valueChanged.connect(self.changed.emit)
