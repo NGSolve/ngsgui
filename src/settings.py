@@ -212,25 +212,28 @@ class SingleOptionParameter(Parameter):
 
 
 class FileParameter(Parameter):
-    changed = QtCore.Signal(str)
     def __init__(self, filt, *args,**kwargs):
         self.filt = filt
         self.filename = ""
         self.txt = ""
         super().__init__(*args,**kwargs)
 
+    def getValue(self):
+        return self.filename
+
     def _createWidget(self):
-        button = QtWidgets.QPushButton("Select File")
+        self._button = QtWidgets.QPushButton("Select File")
         def selectFile():
             self.filename,filt = QtWidgets.QFileDialog.getOpenFileName(caption = self.name,
                                                                        filter = self.filt)
             if self.filename:
                 self.changed.emit(self.filename)
-        button.clicked.connect(selectFile)
-        label = QtWidgets.QLabel(self.filename if self.filename else "...")
-        changed.connect(label.setText)
-        self.widget = QtWidgets.QWidget()
-        self.widget.setLayout(ArrangeH(button, label))
+        self._button.clicked.connect(selectFile)
+        self._label_filename = QtWidgets.QLabel(self.filename if self.filename else "...")
+        self.changed.connect(lambda : self._label_filename.setText(self.getValue()))
+        widget = QtWidgets.QWidget()
+        widget.setLayout(ArrangeH(self._button, self._label_filename))
+        return widget
 
     def __getstate__(self):
         if self.txt:
