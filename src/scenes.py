@@ -344,7 +344,7 @@ class MeshScene(BaseMeshScene):
                                  "ShowPointNumbers" : pointNumbers,
                                  "ShowEdgeNumbers" : edgeNumbers,
                                  "ShowElementNumbers" : elementNumbers}
-        self.tex_mat_colors = self.tex_bc_colors = self.tex_bbnd_colors = None
+        self.tex_vol_colors = self.tex_surf_colors = self.tex_edge_colors = None
         super().__init__(mesh, **kwargs)
 
     @inmain_decorator(True)
@@ -357,8 +357,8 @@ class MeshScene(BaseMeshScene):
             surf_values = self.mesh.GetBoundaries() if self.mesh.dim == 3 else self.mesh.GetMaterials()
             surf_color = settings.ColorParameter(name="SurfaceColors", values = surf_values,
                                                  default_value = (0,255,0,255))
-            surf_color.changed.connect(lambda : self.tex_bc_colors.store(surf_color.getValue(),
-                                                                         data_format=GL_UNSIGNED_BYTE))
+            surf_color.changed.connect(lambda : self.tex_surf_colors.store(surf_color.getValue(),
+                                                                           data_format=GL_UNSIGNED_BYTE))
             self.addParameters("Show",
                                settings.CheckboxParameterCluster(name="ShowSurface", label="Surface Elements",
                                                                  default_value = self._initial_values["ShowSurface"],
@@ -369,7 +369,7 @@ class MeshScene(BaseMeshScene):
                                                  default_value=1.0, min_value = 0.0, max_value = 1.0,
                                                  step = 0.1)
             color_par = settings.ColorParameter(name="MaterialColors", values=self.mesh.GetMaterials())
-            color_par.changed.connect(lambda : self.tex_mat_colors.store(color_par.getValue(),
+            color_par.changed.connect(lambda : self.tex_vol_colors.store(color_par.getValue(),
                                                                          data_format=GL_UNSIGNED_BYTE))
             self.addParameters("Show",
                                settings.CheckboxParameterCluster(name="ShowElements",
@@ -388,7 +388,7 @@ class MeshScene(BaseMeshScene):
             edge_names = self.mesh.GetBBoundaries()
         edge_color = settings.ColorParameter(name="EdgeColors", default_value=(0,0,0,255),
                                              values = edge_names)
-        edge_color.changed.connect(lambda : self.tex_bbnd_colors.store(edge_color.getValue(),
+        edge_color.changed.connect(lambda : self.tex_edge_colors.store(edge_color.getValue(),
                                                                        data_format=GL_UNSIGNED_BYTE))
         self.addParameters("Show",
                            settings.CheckboxParameterCluster(name="ShowEdgeElements", label="Edge Elements",
@@ -423,21 +423,21 @@ class MeshScene(BaseMeshScene):
         return (super_state,)
 
     def __setstate__(self, state):
-        self.tex_mat_colors = self.tex_bc_colors = self.tex_bbnd_colors = None
+        self.tex_vol_colors = self.tex_surf_colors = self.tex_edge_colors = None
         super().__setstate__(state[0])
 
     def initGL(self):
         super().initGL()
 
         self.vao = VertexArray()
-        self.tex_mat_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
+        self.tex_vol_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
         if self.mesh.dim > 2:
-            self.tex_mat_colors.store(self.getMaterialColors(), data_format=GL_UNSIGNED_BYTE)
-        self.tex_bbnd_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
-        self.tex_bbnd_colors.store(self.getEdgeColors(), data_format=GL_UNSIGNED_BYTE)
-        self.tex_bc_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
+            self.tex_vol_colors.store(self.getMaterialColors(), data_format=GL_UNSIGNED_BYTE)
+        self.tex_surf_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
         if self.mesh.dim > 1:
-            self.tex_bc_colors.store(self.getSurfaceColors(), data_format=GL_UNSIGNED_BYTE)
+            self.tex_surf_colors.store(self.getSurfaceColors(), data_format=GL_UNSIGNED_BYTE)
+        self.tex_edge_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
+        self.tex_edge_colors.store(self.getEdgeColors(), data_format=GL_UNSIGNED_BYTE)
 
         self.text_renderer = TextRenderer()
 
@@ -458,12 +458,7 @@ class MeshScene(BaseMeshScene):
         uniforms.set('mesh.elements', 1)
 
         glActiveTexture(GL_TEXTURE3)
-        if self.mesh.dim == 3:
-            self.tex_bbnd_colors.bind()
-        elif self.mesh.dim == 2:
-            self.tex_bc_colors.bind()
-        else: # dim == 1
-            self.tex_mat_colors.bind()
+        self.tex_edge_colors.bind()
         uniforms.set('colors', 3)
 
         uniforms.set('do_clipping', False);
@@ -516,10 +511,7 @@ class MeshScene(BaseMeshScene):
             uniforms.set('shrink_elements', self.getShrink())
         uniforms.set('clip_whole_elements', False)
         glActiveTexture(GL_TEXTURE3)
-        if self.mesh.dim == 3:
-            self.tex_bc_colors.bind()
-        elif self.mesh.dim == 2:
-            self.tex_mat_colors.bind()
+        self.tex_surf_colors.bind()
         uniforms.set('colors', 3)
 
 
@@ -556,7 +548,7 @@ class MeshScene(BaseMeshScene):
             uniforms.set('wireframe', False)
             uniforms.set('mesh.dim', 3);
             glActiveTexture(GL_TEXTURE3)
-            self.tex_mat_colors.bind()
+            self.tex_vol_colors.bind()
             uniforms.set('colors', 3)
             glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
             glPatchParameteri(GL_PATCH_VERTICES, 1)
