@@ -195,7 +195,7 @@ class OverlayScene(BaseScene):
     def __init__(self,rendering_parameters=None,**kwargs):
         import ngsolve.gui as G
         self._rendering_parameters = rendering_parameters
-        self._initial_values = { "ShowCross" : True,
+        self.__initial_values = { "ShowCross" : True,
                                  "ShowVersion" : True,
                                  "ShowColorBar" : True,
                                  "FastRender" : hasattr(G.gui,'fastmode') and G.gui.fastmode}
@@ -335,7 +335,7 @@ class MeshScene(BaseMeshScene):
     @inmain_decorator(wait_for_return=True)
     def __init__(self, mesh, wireframe=True, surface=True, elements=False, edgeElements=False, edges=False,
                  showPeriodic=False, pointNumbers=False, edgeNumbers=False, elementNumbers=False, **kwargs):
-        self._initial_values = { "ShowWireframe" : wireframe,
+        self.__initial_values = { "ShowWireframe" : wireframe,
                                  "ShowSurface" : surface,
                                  "ShowElements" : elements,
                                  "ShowEdges" : edges,
@@ -352,7 +352,7 @@ class MeshScene(BaseMeshScene):
         super()._createParameters()
         self.addParameters("Show",
                            settings.CheckboxParameter(name="ShowWireframe", label="Show Wireframe",
-                                                      default_value = self._initial_values["ShowWireframe"]))
+                                                      default_value = self.__initial_values["ShowWireframe"]))
         if self.mesh.dim > 1:
             surf_values = self.mesh.GetBoundaries() if self.mesh.dim == 3 else self.mesh.GetMaterials()
             surf_color = settings.ColorParameter(name="SurfaceColors", values = surf_values,
@@ -361,7 +361,7 @@ class MeshScene(BaseMeshScene):
                                                                            data_format=GL_UNSIGNED_BYTE))
             self.addParameters("Show",
                                settings.CheckboxParameterCluster(name="ShowSurface", label="Surface Elements",
-                                                                 default_value = self._initial_values["ShowSurface"],
+                                                                 default_value = self.__initial_values["ShowSurface"],
                                                                  sub_parameters = [surf_color],
                                                                  updateWidgets=True))
         if self.mesh.dim > 2:
@@ -374,12 +374,12 @@ class MeshScene(BaseMeshScene):
             self.addParameters("Show",
                                settings.CheckboxParameterCluster(name="ShowElements",
                                                                  label="Volume Elements",
-                                                                 default_value = self._initial_values["ShowElements"],
+                                                                 default_value = self.__initial_values["ShowElements"],
                                                                  sub_parameters=[color_par,
                                                                                 shrink_par],
                                                                  updateWidgets=True),
                                settings.CheckboxParameter(name="ShowEdges", label="Edges",
-                                                          default_value=self._initial_values["ShowEdges"]))
+                                                          default_value=self.__initial_values["ShowEdges"]))
         if self.mesh.dim == 1:
             edge_names = self.mesh.GetMaterials()
         elif self.mesh.dim == 2:
@@ -392,24 +392,24 @@ class MeshScene(BaseMeshScene):
                                                                        data_format=GL_UNSIGNED_BYTE))
         self.addParameters("Show",
                            settings.CheckboxParameterCluster(name="ShowEdgeElements", label="Edge Elements",
-                                                             default_value=self._initial_values["ShowEdgeElements"],
+                                                             default_value=self.__initial_values["ShowEdgeElements"],
                                                              sub_parameters = [edge_color],
                                                              updateWidgets=True),
                            settings.CheckboxParameter(name="ShowPeriodicVertices",
                                                       label="Periodic Identification",
-                                                      default_value=self._initial_values["ShowPeriodicVertices"]))
+                                                      default_value=self.__initial_values["ShowPeriodicVertices"]))
         self.addParameters("Numbers",
                            settings.CheckboxParameter(name="ShowPointNumbers",
                                                       label="Points",
-                                                      default_value=self._initial_values["ShowPointNumbers"]),
+                                                      default_value=self.__initial_values["ShowPointNumbers"]),
                            settings.CheckboxParameter(name="ShowEdgeNumbers",
                                                       label="Edges",
-                                                      default_value=self._initial_values["ShowEdgeNumbers"]))
+                                                      default_value=self.__initial_values["ShowEdgeNumbers"]))
         if self.mesh.dim > 2:
             self.addParameters("Numbers",
                                settings.CheckboxParameter(name="ShowElementNumbers",
                                                           label="Elements",
-                                                          default_value=self._initial_values["ShowElementNumbers"]))
+                                                          default_value=self.__initial_values["ShowElementNumbers"]))
         self.addParameters("",
                            settings.ValueParameter(name="GeomSubdivision", label="Subdivision",
                                                    default_value=5, min_value=1, max_value=20))
@@ -772,16 +772,16 @@ class SolutionScene(BaseMeshScene):
                  order=3,gradient=None, *args, **kwargs):
         self.cf = cf
         self.vao = None
-        self._initial_values = {"Order" : order,
-                                "ColorMapMin" : min,
-                                "ColorMapMax" : max,
-                                "Autoscale" : autoscale,
-                                "ColorMapLinear" : linear,
-                                "ShowClippingPlane" : clippingPlane,
-                                "Subdivision" : kwargs['sd'] if "sd" in kwargs else 1,
-                                "ShowIsoSurface" : False,
-                                "ShowVectors" : False,
-                                "ShowSurface" : True}
+        self.__initial_values = {"Order" : order,
+                                 "ColorMapMin" : min,
+                                 "ColorMapMax" : max,
+                                 "Autoscale" : autoscale,
+                                 "ColorMapLinear" : linear,
+                                 "ShowClippingPlane" : clippingPlane,
+                                 "Subdivision" : kwargs['sd'] if "sd" in kwargs else 1,
+                                 "ShowIsoSurface" : False,
+                                 "ShowVectors" : False,
+                                 "ShowSurface" : True}
 
 
         if gradient and cf.dim == 1:
@@ -797,11 +797,13 @@ class SolutionScene(BaseMeshScene):
         super()._createParameters()
         self.addParameters("Subdivision",
                            settings.ValueParameter(name="Subdivision",
-                                                   default_value=int(self._initial_values["Subdivision"]),
+                                                   label="Subdivision",
+                                                   default_value=int(self.__initial_values["Subdivision"]),
                                                    min_value = 0,
                                                    updateScene=True),
                            settings.ValueParameter(name="Order",
-                                                   default_value=int(self._initial_values["Order"]),
+                                                   label="Order",
+                                                   default_value=int(self.__initial_values["Order"]),
                                                    min_value=1,
                                                    max_value=4,
                                                    updateScene=True))
@@ -809,16 +811,16 @@ class SolutionScene(BaseMeshScene):
             self.addParameters("Show",
                                settings.CheckboxParameter(name="ShowSurface",
                                                           label="Solution on Surface",
-                                                          default_value=self._initial_values["ShowSurface"]))
+                                                          default_value=self.__initial_values["ShowSurface"]))
 
         if self.mesh.dim > 2:
             self.addParameters("Show",
                                settings.CheckboxParameter(name="ShowClippingPlane",
                                                           label="Solution in clipping plane",
-                                                          default_value=self._initial_values["ShowClippingPlane"]),
+                                                          default_value=self.__initial_values["ShowClippingPlane"]),
                                settings.CheckboxParameter(name="ShowIsoSurface",
                                                           label="Isosurface",
-                                                          default_value = self._initial_values["ShowIsoSurface"]))
+                                                          default_value = self.__initial_values["ShowIsoSurface"]))
 
         if self.cf.dim > 1:
             self.addParameters("Show",
@@ -827,7 +829,7 @@ class SolutionScene(BaseMeshScene):
                                                        min_value=0,
                                                        max_value=self.cf.dim-1),
                                settings.CheckboxParameter(name="ShowVectors", label="Vectors",
-                                                          default_value=self._initial_values["ShowVectors"]))
+                                                          default_value=self.__initial_values["ShowVectors"]))
 
         if self.cf.is_complex:
             self.addParameters("Complex",
@@ -839,17 +841,21 @@ class SolutionScene(BaseMeshScene):
                                                       label="Value shift angle",
                                                        default_value = 0.0))
 
-    @inmain_decorator(True)
-    def _createOptions(self):
-        super()._createOptions()
-        boxmin = self.addOption( "Colormap", "ColorMapMin", label="Min", typ=float, step=1)
-        boxmax = self.addOption( "Colormap", "ColorMapMax", label="Max" ,typ=float, step=1)
-        autoscale = self.addOption( "Colormap", "Autoscale",typ=bool)
-        self.addOption( "Colormap", "ColorMapLinear", label="Linear",typ=bool)
-
-        boxmin._value_widget.changed.connect(lambda val: autoscale._value_widget.stateChanged.emit(False))
-        boxmax._value_widget.changed.connect(lambda val: autoscale._value_widget.stateChanged.emit(False))
-
+        boxmin = settings.ValueParameter(name = "ColorMapMin",
+                                         label = "Min",
+                                         default_value = self.__initial_values["ColorMapMin"])
+        boxmax = settings.ValueParameter(name= "ColorMapMax",
+                                         label = "Max",
+                                         default_value = self.__initial_values["ColorMapMax"])
+        autoscale = settings.CheckboxParameter(name="Autoscale",
+                                               label="Autoscale",
+                                               default_value = self.__initial_values["Autoscale"])
+        boxmin.changed.connect(lambda val: autoscale.changed.emit(False))
+        boxmax.changed.connect(lambda val: autoscale.changed.emit(False))
+        self.addParameters("Colormap", boxmin, boxmax, autoscale,
+                           settings.CheckboxParameter(name="ColorMapLinear",
+                                                      label="Linear",
+                                                      default_value=self.__initial_values["ColorMapLinear"]))
 
     def __getstate__(self):
         super_state = super().__getstate__()
@@ -888,8 +894,8 @@ class SolutionScene(BaseMeshScene):
         # vectors (currently one per element)
         self.vector_vao = VertexArray()
 
-    def _getValues(self, vb, setMinMax=True):
-        cf = self.cf
+    def _getValues(self, vb, setMinMax=True, cf = None):
+        cf = cf or self.cf
         with ngsolve.TaskManager():
             try:
                 values = ngui.GetValues(cf, self.mesh, vb, 2**self.getSubdivision()-1, self.getOrder())
