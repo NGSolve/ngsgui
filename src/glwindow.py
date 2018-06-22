@@ -178,6 +178,7 @@ class RenderingParameters:
         for i in range(3):
             self.clipping_point[i] = point[i]
 
+
 class WindowTab(QtWidgets.QWidget):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -294,7 +295,7 @@ class GLWidget(QtOpenGL.QGLWidget):
 
     def paintGL(self):
         t = time.time() - self.old_time
-#         print("frames per second: ", 1.0/t, end='\r')
+        print("frames per second: ", 1.0/t)
         self.old_time = time.time()
 
 

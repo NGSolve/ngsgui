@@ -83,6 +83,7 @@ class MeshData(DataContainer):
             for ei in new_els[vb]:
                 ei.tex = Texture(GL.GL_TEXTURE_BUFFER, GL.GL_R32I)
                 ei.tex.store(numpy.array(ei.data, dtype=numpy.int32))
+
         self.new_els = new_els
 
 def getMeshData(mesh):

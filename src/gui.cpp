@@ -402,7 +402,7 @@ PYBIND11_MODULE(ngui, m) {
         edges.data.SetAllocSize(n_periodic_vertices*periodic_vertices.size);
         for(auto idnr : Range(ma->GetNPeriodicIdentifications()))
             for (const auto& pair : ma->GetPeriodicNodes(NT_VERTEX, idnr))
-                periodic_vertices.data.Append({pair[0],pair[1],0,-1});
+                periodic_vertices.data.Append({idnr, -1, pair[0],pair[1]});
 
         if(ma->GetDimension()>=1) {
             ElementInformation edges[2] = { {4, ET_SEGM}, {5, ET_SEGM, true } };
@@ -413,17 +413,8 @@ PYBIND11_MODULE(ngui, m) {
                 auto verts = el.Vertices();
                 auto &ei = edges[el.is_curved];
 
-                if(!el.is_curved) {
-                    ei.data.Append(el.Nr());
-                    ei.data.Append(el.GetIndex());
-                    for (auto i : Range(2))
-                        ei.data.Append(verts[i]);
-                }
-                else {
-                    ei.data.Append(el.Nr());
-                    ei.data.Append(el.GetIndex());
-                    for (auto i : Range(2))
-                        ei.data.Append(verts[i]);
+                ei.data.Append({el.Nr(), el.GetIndex(), verts[0], verts[1]});
+                if(el.is_curved) {
                     ei.data.Append(vertices.Size()/3);
 
                     HeapReset hr(lh);

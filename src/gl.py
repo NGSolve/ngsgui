@@ -105,6 +105,10 @@ class Program(GLObject):
                 raise RuntimeError("Unknown uniform name {}, allowed values:".format(name)+str(list(self.uniforms.keys())))
             return name
 
+        def __contains__(self, name):
+            name = name.encode('ascii','ignore')
+            return name in self.uniforms
+
         def __getitem__(self, name):
             name = self.check(name)
             return self.uniforms[name][0]
@@ -272,8 +276,43 @@ class Program(GLObject):
         self.uniforms = Program.Uniforms(self.id)
         self.attributes = Program.Attributes(self.id)
 
-def getProgram(*shader_files, feedback=[], **replacements):
+def getProgram(*shader_files, feedback=[], elements=None, params=None, **replacements):
     cache = getProgram._cache
+
+    if elements != None:
+        dims = {
+                ngsolve.ET.SEGM: 1,
+                ngsolve.ET.TRIG: 2,
+                ngsolve.ET.QUAD: 2,
+                ngsolve.ET.TET: 3,
+                ngsolve.ET.PYRAMID: 3,
+                ngsolve.ET.PRISM: 3,
+                ngsolve.ET.HEX: 3
+                }
+        nverts = {
+                ngsolve.ET.SEGM: 2,
+                ngsolve.ET.TRIG: 3,
+                ngsolve.ET.QUAD: 4,
+                ngsolve.ET.TET: 4,
+                ngsolve.ET.PYRAMID: 5,
+                ngsolve.ET.PRISM: 6,
+                ngsolve.ET.HEX: 8
+                }
+        element_defines = """
+#define ELEMENT_TYPE {ELEMENT_TYPE}
+#define {ELEMENT_TYPE_NAME}
+#define ELEMENT_SIZE {ELEMENT_SIZE}
+#define ELEMENT_N_VERTICES {ELEMENT_N_VERTICES}
+""".format(
+        ELEMENT_TYPE = str(elements.type)[3:],
+        ELEMENT_SIZE = str(elements.size),
+        ELEMENT_N_VERTICES = nverts[elements.type],
+        DIM = dims[elements.type],
+        ELEMENT_TYPE_NAME = str(elements.type).replace('.','_')
+        )
+        if elements.curved:
+            element_defines += "#define CURVED\n"
+        replacements["DEFINES"] = element_defines
 
     key = str(tuple([tuple(sorted(shader_files))]+feedback+list(zip(replacements.keys(), replacements.values()))))
     key = key.replace('(','').replace(')','').replace(',','-').replace("'","").replace(' ','')
@@ -311,6 +350,22 @@ def getProgram(*shader_files, feedback=[], **replacements):
             settings.setValue(key+'/hash', str(h))
 
     glUseProgram(prog.id)
+    if params != None:
+        u = prog.uniforms
+        if 'P' in u:
+            u.set('P',params.projection)
+        if 'MV' in u:
+            u.set('MV',params.view*params.model)
+        if 'light_ambient' in u:
+            u.set('light_ambient', 0.3)
+        if 'light_diffuse' in u:
+            u.set('light_diffuse', 0.7)
+        if 'clipping_plane' in u:
+            u.set('clipping_plane', params.clipping_plane)
+        if 'colormap_min' in u:
+            u.set('colormap_min', params.colormap_min)
+        if 'colormap_max' in u:
+            u.set('colormap_max', params.colormap_max)
     return prog
 
 getProgram._cache = {}

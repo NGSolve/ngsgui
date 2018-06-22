@@ -441,42 +441,10 @@ class MeshScene(BaseMeshScene):
 
         self.text_renderer = TextRenderer()
 
-    def renderEdges(self, settings):
-        self.vao.bind()
-#         prog = getProgram('filter_elements.vert', 'lines.tesc', 'lines.tese', 'mesh.frag')
-        dims = {
-                ngsolve.ET.SEGM: 1,
-                ngsolve.ET.TRIG: 2,
-                ngsolve.ET.QUAD: 2,
-                ngsolve.ET.TET: 3,
-                ngsolve.ET.PYRAMID: 3,
-                ngsolve.ET.PRISM: 3,
-                ngsolve.ET.HEX: 3
-                }
-        nverts = {
-                ngsolve.ET.SEGM: 2,
-                ngsolve.ET.TRIG: 3,
-                ngsolve.ET.QUAD: 4,
-                ngsolve.ET.TET: 4,
-                ngsolve.ET.PYRAMID: 5,
-                ngsolve.ET.PRISM: 6,
-                ngsolve.ET.HEX: 8
-                }
-        shader_args = lambda els : {
-                'ELEMENT_TYPE':str(els.type)[3:],
-                'ELEMENT_SIZE':str(els.size),
-                'ELEMENT_N_VERTICES':nverts[els.type],
-                'DIM':dims[els.type],
-                'CURVED':str(els.curved).lower(),
-                'ORDER':1,
-                'ELEMENT_TYPE_NAME':str(els.type).replace('.','_')
-                }
-        els = self.mesh_data.new_els["edges"][0]
-        prog = getProgram('mesh_simple.vert', 'mesh_simple.frag', **shader_args(els))
-        model,view,projection = settings.model, settings.view, settings.projection
+    def _render1DElements(self, settings, elements):
+        n_instances = 10 if elements.curved else 1 # number of segments for curved edges
+        prog = getProgram('mesh_simple.vert', 'mesh_simple.frag', elements=elements, params=settings, N_INSTANCES=n_instances)
         uniforms = prog.uniforms
-        uniforms.set('P',projection)
-        uniforms.set('MV',view*model)
 
         glActiveTexture(GL_TEXTURE0)
         self.mesh_data.vertices.bind()
@@ -485,7 +453,7 @@ class MeshScene(BaseMeshScene):
         glActiveTexture(GL_TEXTURE1)
         self.mesh_data.elements.bind()
         uniforms.set('mesh.elements', 1)
-        els.tex.bind()
+        elements.tex.bind()
 
         glActiveTexture(GL_TEXTURE3)
         self.tex_edge_colors.bind()
@@ -494,26 +462,29 @@ class MeshScene(BaseMeshScene):
         uniforms.set('do_clipping', False);
 
         uniforms.set('mesh.dim', 1);
-        uniforms.set('light_ambient', 1.0)
+        uniforms.set('light_ambient', 0.0)
         uniforms.set('light_diffuse', 0.0)
         uniforms.set('TessLevel', self.getGeomSubdivision())
         uniforms.set('wireframe', True)
-        glDrawArrays(GL_LINES, 0, 2*len(els.data)//els.size)
+        glDrawArraysInstanced(GL_LINES, 0, 2*len(elements.data)//elements.size, n_instances)
 
-#         if self.mesh.dim > 2 and self.getShowEdges():
-#             glPatchParameteri(GL_PATCH_VERTICES, 1)
-#             glDrawArrays(GL_PATCHES, 0, self.mesh_data.nedges)
-#             glDisable(GL_POLYGON_OFFSET_LINE)
-#         if self.getShowEdgeElements():
-#             glLineWidth(3)
-#             glPatchParameteri(GL_PATCH_VERTICES, 1)
-#             glDrawArrays(GL_PATCHES, self.mesh_data.nedges,self.mesh_data.nedge_elements)
-#             glLineWidth(1)
-#         if self.getShowPeriodicVertices():
-#             glLineWidth(3)
-#             glPatchParameteri(GL_PATCH_VERTICES, 1)
-#             glDrawArrays(GL_PATCHES, self.mesh_data.nedge_elements+self.mesh_data.nedges, self.mesh_data.nperiodic_vertices)
-#             glLineWidth(1)
+    def renderEdges(self, settings):
+        self.vao.bind()
+        els = []
+        if self.mesh.dim > 2 and self.getShowEdges():
+            for els in self.mesh_data.new_els["edges"]:
+                self._render1DElements(settings, els);
+        if self.getShowEdgeElements():
+            vb = [None, ngsolve.VOL, ngsolve.BND, ngsolve.BBND][self.mesh.dim]
+            for els in self.mesh_data.new_els[vb]:
+                if vb == ngsolve.BBND:
+                    glLineWidth(3)
+                    self._render1DElements(settings, els);
+                    glLineWidth(1)
+
+        if self.getShowPeriodicVertices():
+            for els in self.mesh_data.new_els["periodic"]:
+                self._render1DElements(settings, els);
 
         self.vao.unbind()
 
@@ -540,7 +511,66 @@ class MeshScene(BaseMeshScene):
         self.tex_surf_colors.bind()
         uniforms.set('colors', 3)
 
+    def _render2DElements(self, settings, elements, wireframe):
+        prog = getProgram('mesh_simple.vert', 'mesh_simple.frag', elements=elements, params=settings)
+        uniforms = prog.uniforms
+
+        glActiveTexture(GL_TEXTURE0)
+        self.mesh_data.vertices.bind()
+        uniforms.set('mesh.vertices', 0)
+
+        glActiveTexture(GL_TEXTURE1)
+        self.mesh_data.elements.bind()
+        uniforms.set('mesh.elements', 1)
+        elements.tex.bind()
+
+        glActiveTexture(GL_TEXTURE3)
+        self.tex_surf_colors.bind()
+        uniforms.set('colors', 3)
+
+        uniforms.set('do_clipping', True);
+
+        uniforms.set('mesh.dim', 2);
+        uniforms.set('wireframe', wireframe)
+        gl_type = {
+                ngsolve.ET.TRIG: GL_TRIANGLES,
+                ngsolve.ET.QUAD: GL_QUADS,
+        }
+        nverts = {
+                ngsolve.ET.TRIG: 3,
+                ngsolve.ET.QUAD: 4,
+        }
+
+        if wireframe:
+                uniforms.set('light_ambient', 0.0)
+                uniforms.set('light_diffuse', 0.0)
+                glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
+                glPolygonOffset (0, 0)
+                glEnable(GL_POLYGON_OFFSET_LINE)
+                glDrawArrays(gl_type[elements.type], 0, nverts[elements.type]*len(elements.data)//elements.size)
+                glDisable(GL_POLYGON_OFFSET_LINE)
+        else:
+                glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
+                glPolygonOffset (2, 2)
+                glEnable(GL_POLYGON_OFFSET_FILL)
+                glDrawArrays(gl_type[elements.type], 0, nverts[elements.type]*len(elements.data)//elements.size)
+                glDisable(GL_POLYGON_OFFSET_FILL)
+
     def renderSurface(self, settings):
+        self.vao.bind()
+        els = []
+        if self.mesh.dim > 1:
+            vb = ngsolve.VOL if self.mesh.dim==2 else ngsolve.BND
+            for els in self.mesh_data.new_els[vb]:
+                if self.getShowSurface():
+                    self._render2DElements(settings, els, False);
+                if self.getShowWireframe():
+                    self._render2DElements(settings, els, True);
+
+        self.vao.unbind()
+
+
+    def renderSurface1(self, settings):
 #         prog = getProgram('filter_elements.vert', 'tess.tesc', 'tess.tese', 'mesh.geom', 'mesh.frag')
 #         self.vao.bind()
 #         model, view, projection = settings.model, settings.view, settings.projection
