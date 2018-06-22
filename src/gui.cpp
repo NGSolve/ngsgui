@@ -467,7 +467,7 @@ PYBIND11_MODULE(ngui, m) {
                             vertices.Append(n[i]);
                     }
                     // mapped coordinates of edge midpoints (for P2 interpolation)
-                    for (auto j : ngcomp::Range(3UL,ir.Size())) {
+                    for (auto j : ngcomp::Range(nverts,ir.Size())) {
                         auto p = mir[j].GetPoint();
                         for (auto i : Range(3))
                             vertices.Append(p[i]);

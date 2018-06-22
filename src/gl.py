@@ -49,8 +49,8 @@ class Shader(GLObject):
 
         if glGetShaderiv(self.id, GL_COMPILE_STATUS) != GL_TRUE:
             numerated_shader_code = ""
-            for i,line in enumerate(self._code.split('\n')):
-                numerated_shader_code += str(i)+":\t"+line+'\n'
+#             for i,line in enumerate(self._code.split('\n')):
+#                 numerated_shader_code += str(i)+":\t"+line+'\n'
             raise RuntimeError('Error when compiling ' + filename + ': '+glGetShaderInfoLog(self.id).decode()+'\ncompiled code:\n'+numerated_shader_code)
 
 def readShaderFile(filename, **replacements):
@@ -262,6 +262,11 @@ class Program(GLObject):
 
                 glTransformFeedbackVaryings(self.id, len(feedback), buff, GL_INTERLEAVED_ATTRIBS)
             glLinkProgram(self.id)
+            if glGetProgramiv( self.id, GL_LINK_STATUS ) != GL_TRUE:
+                log = glGetProgramInfoLog( self.id )
+                # don't throw on following error message, since mesa emits it for valid shader programs
+                if log != b'active samplers with a different type refer to the same texture image unit':
+                    raise RuntimeError( log )
 
         glValidateProgram( self.id )
         if glGetProgramiv( self.id, GL_VALIDATE_STATUS ) != GL_TRUE:

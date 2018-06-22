@@ -462,7 +462,7 @@ class MeshScene(BaseMeshScene):
         uniforms.set('do_clipping', False);
 
         uniforms.set('mesh.dim', 1);
-        uniforms.set('light_ambient', 0.0)
+        uniforms.set('light_ambient', 1.0)
         uniforms.set('light_diffuse', 0.0)
         uniforms.set('TessLevel', self.getGeomSubdivision())
         uniforms.set('wireframe', True)
@@ -512,7 +512,12 @@ class MeshScene(BaseMeshScene):
         uniforms.set('colors', 3)
 
     def _render2DElements(self, settings, elements, wireframe):
-        prog = getProgram('mesh_simple.vert', 'mesh_simple.frag', elements=elements, params=settings)
+        if elements.type==ngsolve.ET.TRIG:
+            return
+        if elements.curved:
+            prog = getProgram('mesh_simple.vert', 'mesh_simple.tese', 'mesh_simple.frag', elements=elements, params=settings)
+        else:
+            prog = getProgram('mesh_simple.vert', 'mesh_simple.frag', elements=elements, params=settings)
         uniforms = prog.uniforms
 
         glActiveTexture(GL_TEXTURE0)
@@ -542,19 +547,28 @@ class MeshScene(BaseMeshScene):
         }
 
         if wireframe:
-                uniforms.set('light_ambient', 0.0)
-                uniforms.set('light_diffuse', 0.0)
-                glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
-                glPolygonOffset (0, 0)
-                glEnable(GL_POLYGON_OFFSET_LINE)
-                glDrawArrays(gl_type[elements.type], 0, nverts[elements.type]*len(elements.data)//elements.size)
-                glDisable(GL_POLYGON_OFFSET_LINE)
+            offset_mode = GL_POLYGON_OFFSET_LINE
+            polygon_mode = GL_LINE
+            uniforms.set('light_ambient', 0.0)
+            uniforms.set('light_diffuse', 0.0)
+            offset = 0
         else:
-                glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
-                glPolygonOffset (2, 2)
-                glEnable(GL_POLYGON_OFFSET_FILL)
-                glDrawArrays(gl_type[elements.type], 0, nverts[elements.type]*len(elements.data)//elements.size)
-                glDisable(GL_POLYGON_OFFSET_FILL)
+            offset_mode = GL_POLYGON_OFFSET_FILL
+            polygon_mode = GL_FILL
+            offset = 2
+
+
+        glPolygonMode( GL_FRONT_AND_BACK, polygon_mode );
+        glPolygonOffset (offset, offset)
+        glEnable(offset_mode)
+        if elements.curved:
+            glPatchParameteri(GL_PATCH_VERTICES, nverts[elements.type])
+            glPatchParameterfv(GL_PATCH_DEFAULT_OUTER_LEVEL, [2,2,2])
+            glPatchParameterfv(GL_PATCH_DEFAULT_INNER_LEVEL, [2,2,2])
+            glDrawArrays(GL_PATCHES, 0, nverts[elements.type]*len(elements.data)//elements.size)
+        else:
+            glDrawArrays(gl_type[elements.type], 0, nverts[elements.type]*len(elements.data)//elements.size)
+        glDisable(offset_mode)
 
     def renderSurface(self, settings):
         self.vao.bind()

@@ -7,5 +7,6 @@ install(FILES
   geo.vert filter_elements.vert filter_elements.geom
   colorbar.vert colorbar.frag
   mesh_simple.vert mesh_simple.frag
+  mesh_simple.tesc mesh_simple.tese
   DESTINATION ${NGSOLVE_INSTALL_DIR_PYTHON}/ngsolve/gui/shader
 )
