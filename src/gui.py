@@ -2,15 +2,13 @@
 import os
 os.environ['Qt_API'] = 'pyside2'
 
-from . import glwindow
-from . import code_editor
+from . import glwindow, code_editor, ngui
 from . widgets import ArrangeV
 from .thread import inthread, inmain_decorator
 from .menu import MenuBarWithDict
 from .console import NGSJupyterWidget, MultiQtKernelManager
 
-import sys, textwrap, inspect, re, pkgutil, ngsolve,pickle
-from . import ngui
+import sys, textwrap, inspect, re, pkgutil, ngsolve, pickle
 
 from PySide2 import QtWidgets, QtCore, QtGui
 
