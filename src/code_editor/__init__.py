@@ -109,12 +109,6 @@ class CodeEditor(QtWidgets.QPlainTextEdit):
     def lines(self):
         return self._lines
 
-    def keyPressEvent(self, event):
-        if event.modifiers() == QtCore.Qt.KeyboardModifiers(QtCore.Qt.ControlModifier) and event.key() == 67:
-            self.comment_action.trigger()
-        else:
-            super().keyPressEvent(event)
-
     def selectCurrentLine(self):
         cursor = self.textCursor()
         cursor.movePosition(cursor.StartOfLine)
