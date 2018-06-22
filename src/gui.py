@@ -9,7 +9,8 @@ from .thread import inthread, inmain_decorator
 from .menu import MenuBarWithDict
 from .console import NGSJupyterWidget, MultiQtKernelManager
 
-import sys, textwrap, inspect, re, pkgutil, ngsolve, ngui, pickle
+import sys, textwrap, inspect, re, pkgutil, ngsolve,pickle
+from . import ngui
 
 from PySide2 import QtWidgets, QtCore, QtGui
 
@@ -126,6 +127,7 @@ class GUI():
                                                    parent=window_splitter)
         window_splitter.addWidget(self.window_tabber)
         self.console = NGSJupyterWidget(gui=self,multikernel_manager = self.multikernel_manager)
+        self.console.exit_requested.connect(self.app.quit)
         self.outputBuffer = OutputBuffer()
         self.output_tabber = QtWidgets.QTabWidget()
         self.output_tabber.addTab(self.console,"Console")
