@@ -442,8 +442,10 @@ class MeshScene(BaseMeshScene):
         self.text_renderer = TextRenderer()
 
     def _render1DElements(self, settings, elements):
-        n_instances = 10 if elements.curved else 1 # number of segments for curved edges
-        prog = getProgram('mesh_simple.vert', 'mesh_simple.frag', elements=elements, params=settings, N_INSTANCES=n_instances)
+        if elements.curved:
+            prog = getProgram('mesh_simple.vert', 'mesh_simple.tese', 'mesh_simple.frag', elements=elements, params=settings)
+        else:
+            prog = getProgram('mesh_simple.vert', 'mesh_simple.frag', elements=elements, params=settings)
         uniforms = prog.uniforms
 
         glActiveTexture(GL_TEXTURE0)
@@ -466,7 +468,14 @@ class MeshScene(BaseMeshScene):
         uniforms.set('light_diffuse', 0.0)
         uniforms.set('TessLevel', self.getGeomSubdivision())
         uniforms.set('wireframe', True)
-        glDrawArraysInstanced(GL_LINES, 0, 2*len(elements.data)//elements.size, n_instances)
+        tess_level = 10 if not settings.fastmode else 2
+        if elements.curved:
+            glPatchParameteri(GL_PATCH_VERTICES, 2)
+            glPatchParameterfv(GL_PATCH_DEFAULT_OUTER_LEVEL, [1,tess_level])
+            glPatchParameterfv(GL_PATCH_DEFAULT_INNER_LEVEL, [1]*2)
+            glDrawArrays(GL_PATCHES, 0, 2*len(elements.data)//elements.size)
+        else:
+            glDrawArrays(GL_LINES, 0, 2*len(elements.data)//elements.size)
 
     def renderEdges(self, settings):
         self.vao.bind()

@@ -36,16 +36,6 @@ out VertexData
   flat int index;
 } outData;
 
-// ivec2 I2toI1(int n) {
-//   int N = {N_INSTANCES};
-//   if (n<N) return ivec2(n, 0);
-//   if (n<2*N-1) return ivec2(n-N, 1);
-//   if (n<3*N-3) return ivec2(n-2*N-1, 2);
-//   if (n<4*N-6) return ivec2(n-3*N-3, 3);
-//   if (n<5*N-10) return ivec2(n-4*N-6, 4);
-//   return ivec2(0,5);
-// }
-
 void main()
 {
   int eid = gl_VertexID/ELEMENT_N_VERTICES;
@@ -58,34 +48,15 @@ void main()
   outData.element = eid;
   outData.normal = vec3(0,0,0);
   outData.edge_dist = vec3(0,0,0);
+  outData.pos = element.pos[vid];
 
 #ifndef CURVED
-  outData.pos = element.pos[vid];
   #if defined(ET_TRIG) || defined(ET_QUAD)
     outData.normal = element.normal;
   #endif
 #else
   outData.index = element.curved_vertices;
-  // Interpolate position for curved element
-  // Drawing curved lines/triangles is not possible in OpenGL, so we subdivide
-  // it into linear segments using multiple 'instances' of the same element.
-  #if defined(ET_SEGM)
-    float x = (gl_InstanceID+vid)/(1.0*{N_INSTANCES});
-    vec3 a = element.pos[0];
-    vec3 b = texelFetch(mesh.vertices, element.curved_vertices+2).xyz;
-    vec3 c = element.pos[1];
-    outData.pos = a + x*(-c-3*a+4*b) + x*x*2*(a-2*b+c);
-  #elif defined(ET_TRIG)
-    int offset = element.curved_vertices;
-    outData.normal = texelFetch(mesh.vertices, offset+vid).xyz;
-    outData.pos = element.pos[vid];
-  #elif defined(ET_QUAD)
-    int offset = element.curved_vertices;
-    outData.normal = texelFetch(mesh.vertices, offset+vid).xyz;
-    outData.pos = element.pos[vid];
-  #else
-      unknown element type
-  #endif
+  outData.normal = texelFetch(mesh.vertices, outData.index+vid).xyz;
 #endif
   gl_Position = P * MV * vec4(outData.pos, 1);
 }
