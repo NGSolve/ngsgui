@@ -512,8 +512,6 @@ class MeshScene(BaseMeshScene):
         uniforms.set('colors', 3)
 
     def _render2DElements(self, settings, elements, wireframe):
-        if elements.type==ngsolve.ET.TRIG:
-            return
         if elements.curved:
             prog = getProgram('mesh_simple.vert', 'mesh_simple.tese', 'mesh_simple.frag', elements=elements, params=settings)
         else:
@@ -557,14 +555,15 @@ class MeshScene(BaseMeshScene):
             polygon_mode = GL_FILL
             offset = 2
 
+        tess_level = 10 if not settings.fastmode else 2
 
         glPolygonMode( GL_FRONT_AND_BACK, polygon_mode );
         glPolygonOffset (offset, offset)
         glEnable(offset_mode)
         if elements.curved:
             glPatchParameteri(GL_PATCH_VERTICES, nverts[elements.type])
-            glPatchParameterfv(GL_PATCH_DEFAULT_OUTER_LEVEL, [2,2,2])
-            glPatchParameterfv(GL_PATCH_DEFAULT_INNER_LEVEL, [2,2,2])
+            glPatchParameterfv(GL_PATCH_DEFAULT_OUTER_LEVEL, [tess_level]*4)
+            glPatchParameterfv(GL_PATCH_DEFAULT_INNER_LEVEL, [tess_level]*2)
             glDrawArrays(GL_PATCHES, 0, nverts[elements.type]*len(elements.data)//elements.size)
         else:
             glDrawArrays(gl_type[elements.type], 0, nverts[elements.type]*len(elements.data)//elements.size)

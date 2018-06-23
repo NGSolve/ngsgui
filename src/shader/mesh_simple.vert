@@ -31,6 +31,7 @@ out VertexData
   vec3 pos;
   vec3 normal;
   vec4 color;
+  vec3 edge_dist;
   flat int element;
   flat int index;
 } outData;
@@ -56,6 +57,7 @@ void main()
     outData.color = vec4(texelFetch(colors, element.index, 0));
   outData.element = eid;
   outData.normal = vec3(0,0,0);
+  outData.edge_dist = vec3(0,0,0);
 
 #ifndef CURVED
   outData.pos = element.pos[vid];
@@ -81,7 +83,6 @@ void main()
     int offset = element.curved_vertices;
     outData.normal = texelFetch(mesh.vertices, offset+vid).xyz;
     outData.pos = element.pos[vid];
-    outData.pos = vec3(vid, vid*vid, -5);
   #else
       unknown element type
   #endif

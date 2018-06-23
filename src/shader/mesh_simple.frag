@@ -6,6 +6,7 @@
 uniform mat4 MV;
 uniform vec4 clipping_plane;
 uniform bool do_clipping;
+uniform bool wireframe;
 uniform float light_ambient;
 uniform float light_diffuse;
 
@@ -14,6 +15,7 @@ in VertexData
   vec3 pos;
   vec3 normal;
   vec4 color;
+  vec3 edge_dist;
   flat int element;
   flat int index;
 } inData;
@@ -26,6 +28,11 @@ vec3 TransformVec( vec3 x) {
 
 void main()
 {
+  if(wireframe) {
+      float d = min(min(inData.edge_dist.x, inData.edge_dist.y), inData.edge_dist.z);
+      if(d>1e-5) discard;
+  }
+
   FragColor = inData.color;
 
   if(do_clipping && dot(vec4(inData.pos,1.0),clipping_plane)<0)
