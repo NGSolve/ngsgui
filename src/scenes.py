@@ -1176,6 +1176,7 @@ class GeometryScene(BaseScene):
 
     def initGL(self):
         super().initGL()
+        self._geo_data.initGL()
         self._tex_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
         self._tex_colors.store(self.getSurfaceColors(), data_format=GL_UNSIGNED_BYTE)
         self.vao = VertexArray()

@@ -84,21 +84,25 @@ def getMeshData(mesh):
 class GeoData(DataContainer):
     @inmain_decorator(True)
     def __init__(self, geo):
+        super().__init__(geo)
+        self.update()
+
+    @inmain_decorator(True)
+    def initGL(self):
         self.vertices = Texture(GL.GL_TEXTURE_BUFFER, GL.GL_RGB32F)
         self.triangles = Texture(GL.GL_TEXTURE_BUFFER, GL.GL_RGBA32I)
         self.normals = Texture(GL.GL_TEXTURE_BUFFER, GL.GL_RGB32F)
-        super().__init__(geo)
+        self.vertices.store(self.geodata["vertices"])
+        self.triangles.store(self.geodata["triangles"])
+        self.normals.store(self.geodata["normals"])
 
     @inmain_decorator(True)
     def update(self):
-        geodata = self.getGeoData()
-        self.vertices.store(geodata["vertices"])
-        self.triangles.store(geodata["triangles"])
-        self.normals.store(geodata["normals"])
-        self.surfnames = geodata["surfnames"]
-        self.min = geodata["min"]
-        self.max = geodata["max"]
-        self.npoints = len(geodata["triangles"])//4*3
+        self.geodata = self.getGeoData()
+        self.surfnames = self.geodata["surfnames"]
+        self.min = self.geodata["min"]
+        self.max = self.geodata["max"]
+        self.npoints = len(self.geodata["triangles"])//4*3
 
     def getGeoData(self):
         return ngui.GetGeoData(self.obj())
