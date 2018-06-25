@@ -108,5 +108,7 @@ _opengl_data_constructors = {ngs.Mesh : MeshData,
 
 def getOpenGLData(obj):
     if not hasattr(obj, "_opengl_data"):
-        _opengl_data_constructors[type(obj)](obj)
+        for key in _opengl_data_constructors:
+            if isinstance(obj, key):
+                _opengl_data_constructors[key](obj)
     return obj._opengl_data

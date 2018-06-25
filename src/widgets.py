@@ -251,18 +251,16 @@ class ColorMapSettings(QtWidgets.QWidget):
         self.rangeMin.setValue(min_value)
         self.rangeMax.setValue(max_value)
 
-class CollColors(QtWidgets.QWidget):
+class ColorPickerWidget(QtWidgets.QWidget):
     colors_changed = QtCore.Signal()
-
-    def __init__(self,coll,initial_color=(0,255,0,255)):
+    def __init__(self, names, initial_color=(0,255,0,255)):
         super().__init__()
+        self._initial_color = initial_color
+        self._colorbtns = {}
+        self._checkboxes = []
+        self.names = names
 
-        self.initial_color = initial_color
-
-        self.colorbtns = {}
-        self.checkboxes = []
         layouts = []
-        self.coll = coll
 
         def call_func(self,state):
             color = self.obj._color
@@ -273,59 +271,80 @@ class CollColors(QtWidgets.QWidget):
             self.obj.setColor(color)
             self.obj.colorChanged.emit()
 
-        for item in coll:
-            if not item in self.colorbtns:
+        for name in names:
+            if name not in self._colorbtns:
                 btn = QColorButton(initial_color=initial_color)
                 btn.colorChanged.connect(self.colors_changed.emit)
-                cb_visible = QtWidgets.QCheckBox('visible',self)
-                self.checkboxes.append(cb_visible)
-                cb_visible.setCheckState(QtCore.Qt.Checked)
+                cb_visible = QtWidgets.QCheckBox('visible')
+                self._checkboxes.append(cb_visible)
+                cb_visible.setChecked(True)
                 cb_visible.stateChanged.connect(ObjectHolder(btn,call_func))
-                self.colorbtns[item] = btn
-                layouts.append(ArrangeH(btn,QtWidgets.QLabel(item),cb_visible))
+                self._colorbtns[name] = btn
+                layouts.append(ArrangeH(btn,QtWidgets.QLabel(name),cb_visible))
 
         colors = ArrangeV(*layouts)
         colors.layout().setAlignment(Qt.AlignTop)
-        btn_random = QtWidgets.QPushButton("Random",self)
-        def SetRandom():
-            import itertools
-            import random
-            n = 2
-            while n**3+1 < len(self.colorbtns):
-                n += 1
-            vals = [int(255*i/(n-1)) for i in range(n)]
-            colors = [(vals[colr],vals[colg],vals[colb]) for colr, colg, colb in
-                      itertools.product(range(n),range(n),range(n))][:-1]
-            random.shuffle(colors)
+
+        btn_random = QtWidgets.QPushButton("Random")
+        btn_random.clicked.connect(self.setRandom)
+        btn_reset = QtWidgets.QPushButton("Reset")
+        btn_reset.clicked.connect(self.reset)
+        btn_checkall = QtWidgets.QPushButton("Check All")
+        btn_checkall.clicked.connect(self.checkAll)
+        btn_uncheckall = QtWidgets.QPushButton("Uncheck All")
+        btn_uncheckall.clicked.connect(self.uncheckAll)
+        self.setLayout(ArrangeV(colors,ArrangeV(ArrangeH(btn_random,btn_reset),
+                                                ArrangeH(btn_checkall, btn_uncheckall))))
+
+    def checkAll(self):
+        old_state = self.blockSignals(True)
+        for cb in self._checkboxes:
+            cb.setChecked(True)
+        self.blockSignals(old_state)
+        self.colors_changed.emit()
+
+    def uncheckAll(self):
+        old_state = self.blockSignals(True)
+        for cb in self._checkboxes:
+            cb.setChecked(False)
+        self.blockSignals(old_state)
+        self.colors_changed.emit()
+
+    def reset(self):
+        for name, btn in self.colorbtns.items():
+            col = QtGui.QColor(*self._initial_color)
+            col.setAlpha( btn.color().alpha() )
+            btn.setColor(col)
+        self.colors_changed.emit()
+
+    def setRandom(self):
+        import itertools
+        import random
+        n = 2
+        while n**3+1 < len(self._colorbtns):
+            n += 1
+        vals = [int(255*i/(n-1)) for i in range(n)]
+        colors = [(vals[colr],vals[colg],vals[colb]) for colr, colg, colb in
+                  itertools.product(range(n),range(n),range(n))][:-1]
+        random.shuffle(colors)
 
 
-            gr = 0.618033988749895
-            h = random.uniform(0,1)
-            for i,(name,btn) in enumerate(self.colorbtns.items()):
-                h += gr
-                h %= 1
-                s = [1.0,0.4][i%2]
-                v = [1.0,0.8][i%2]
-                color = QtGui.QColor()
-                color.setHsvF(h,s,v)
-                color.setAlpha(btn.color().alpha())
-                btn.setColor(color)
-            self.colors_changed.emit()
-
-        btn_random.clicked.connect(SetRandom)
-        btn_reset = QtWidgets.QPushButton("Reset", self)
-        def Reset():
-            for name, btn in self.colorbtns.items():
-                col = QtGui.QColor(*self.initial_color)
-                col.setAlpha( btn.color().alpha() )
-                btn.setColor(col)
-            self.colors_changed.emit()
-        btn_reset.clicked.connect(Reset)
-        layout = ArrangeV(colors,ArrangeH(btn_random,btn_reset))
-        self.setLayout(layout)
+        gr = 0.618033988749895
+        h = random.uniform(0,1)
+        for i,(name,btn) in enumerate(self._colorbtns.items()):
+            h += gr
+            h %= 1
+            s = [1.0,0.4][i%2]
+            v = [1.0,0.8][i%2]
+            color = QtGui.QColor()
+            color.setHsvF(h,s,v)
+            color.setAlpha(btn.color().alpha())
+            btn.setColor(color)
+        self.colors_changed.emit()
+        
 
     def getColors(self):
-        return [QtGui.QColor(self.colorbtns[item]._color) for item in self.coll]
+        return [QtGui.QColor(self._colorbtns[name]._color) for name in self.names]
 
 class WidgetWithLabel(QtWidgets.QWidget):
     def __init__(self, widget, label=None):

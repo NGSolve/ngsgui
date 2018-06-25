@@ -29,16 +29,5 @@ if __name__ == "__main__":
     ngs.Draw = Draw
     ngs.Redraw = Redraw
     G.gui = G.GUI()
-    def do_after_run():
-        for option in sys.argv[1:]:
-            if os.path.isfile(option):
-                name,ext = os.path.splitext(option)
-                if ext == ".py":
-                    G.gui.loadPythonFile(option)
-                    file_loaded = True
-                else:
-                    G.gui.msgbox = QtWidgets.QMessageBox(text = "Cannot load file type: " + ext)
-                    G.gui.msgbox.setWindowTitle("File loading error")
-                    G.gui.msgbox.show()
     G.gui.parseFlags(sys.argv[1:])
-    G.gui.run(do_after_run)
+    G.gui.run()

@@ -1170,40 +1170,36 @@ GUI.sceneCreators.append((ngsolve.CoefficientFunction, _createCFScene))
 class GeometryScene(BaseScene):
     @inmain_decorator(wait_for_return=True)
     def __init__(self, geo, *args, **kwargs):
-        super().__init__(*args,**kwargs)
         self.geo = geo
+        self._geo_data = getOpenGLData(self.geo)
+        super().__init__(*args,**kwargs)
 
     def initGL(self):
         super().initGL()
-        self.tex_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
+        self._tex_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
+        self._tex_colors.store(self.getSurfaceColors(), data_format=GL_UNSIGNED_BYTE)
         self.vao = VertexArray()
 
-    @inmain_decorator(True)
-    def update(self):
-        super().update()
-        self.geo_data = self.getOpenGLData(self.geo)
-        self.surf_colors = { name : [0,0,255,255] for name in set(self.geo_data.surfnames)}
-        self.tex_colors.store([self.surf_colors[name][i] for name in self.geo_data.surfnames for i in range(4)],
-                          data_format=GL_UNSIGNED_BYTE)
+    def __getstate__(self):
+        return (super().__getstate__(), self.geo)
 
-    def updateColors(self):
-        self.tex_colors.store(sum(([color.red(), color.green(), color.blue(), color.alpha()] for color in self.colorpicker.getColors()),[]),data_format=GL_UNSIGNED_BYTE)
+    def __setstate__(self,state):
+        self.geo = state[1]
+        self._geo_data = getOpenGLData(self.geo)
+        super().__setstate__(self,state[0])
 
     @inmain_decorator(True)
-    def _createQtWidget(self):
-        super()._createQtWidget()
-        self.colorpicker = wid.CollColors(self.surf_colors.keys(), initial_color = (0,0,255,255))
-        self.colorpicker.colors_changed.connect(self.updateColors)
-        self.colorpicker.colors_changed.connect(self._updateGL)
-        self.updateColors()
-        self.widgets.addGroup("Surface Colors", self.colorpicker)
-        return self.widgets
+    def _createParameters(self):
+        super()._createParameters()
+        colorParameter = settings.ColorParameter(name="SurfaceColors",
+                                                 values=list(self._geo_data.surfnames))
+        colorParameter.changed.connect(lambda : self._tex_colors.store(self.getSurfaceColors(),
+                                                                       data_format=GL_UNSIGNED_BYTE))
+        self.addParameters("Surface Colors",colorParameter)
 
-    def getGeoData(self):
-        return GeoData(self.geo)
 
     def getBoundingBox(self):
-        return self.geo_data.min, self.geo_data.max
+        return self._geo_data.min, self._geo_data.max
 
     def render(self, settings):
         if not self.active:
@@ -1216,19 +1212,19 @@ class GeometryScene(BaseScene):
         uniforms.set('MV', view*model)
 
         glActiveTexture(GL_TEXTURE0)
-        self.geo_data.vertices.bind()
+        self._geo_data.vertices.bind()
         uniforms.set('vertices', 0)
 
         glActiveTexture(GL_TEXTURE1)
-        self.geo_data.triangles.bind()
+        self._geo_data.triangles.bind()
         uniforms.set('triangles',1)
 
         glActiveTexture(GL_TEXTURE2)
-        self.geo_data.normals.bind()
+        self._geo_data.normals.bind()
         uniforms.set('normals',2)
 
         glActiveTexture(GL_TEXTURE3)
-        self.tex_colors.bind()
+        self._tex_colors.bind()
         uniforms.set('colors',3)
 
         uniforms.set('wireframe',False)
@@ -1237,7 +1233,7 @@ class GeometryScene(BaseScene):
         uniforms.set('light_ambient', 0.3)
         uniforms.set('light_diffuse', 0.7)
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL )
-        glDrawArrays(GL_TRIANGLES, 0, self.geo_data.npoints)
+        glDrawArrays(GL_TRIANGLES, 0, self._geo_data.npoints)
         self.vao.unbind()
 
 GUI.sceneCreators.append((netgen.meshing.NetgenGeometry,GeometryScene))
