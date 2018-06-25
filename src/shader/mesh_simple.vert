@@ -7,7 +7,6 @@
 uniform mat4 P;
 uniform mat4 MV;
 uniform Mesh mesh;
-uniform sampler1D colors;
 
 ELEMENT_TYPE getElement(Mesh mesh, int elnr ) {
     ELEMENT_TYPE el;
@@ -28,12 +27,10 @@ ELEMENT_TYPE getElement(Mesh mesh, int elnr ) {
 
 out VertexData
 {
+  vec3 lam;
   vec3 pos;
   vec3 normal;
-  vec4 color;
-  vec3 edge_dist;
   flat int element;
-  flat int index;
 } outData;
 
 void main()
@@ -41,22 +38,23 @@ void main()
   int eid = gl_VertexID/ELEMENT_N_VERTICES;
   int vid = gl_VertexID - ELEMENT_N_VERTICES*eid;
   ELEMENT_TYPE element = getElement(mesh, eid);
-  if(element.index==-1)
-    outData.color = vec4(0,0,0,1);
-  else
-    outData.color = vec4(texelFetch(colors, element.index, 0));
   outData.element = eid;
   outData.normal = vec3(0,0,0);
-  outData.edge_dist = vec3(0,0,0);
+  outData.lam = vec3(0,0,0);
   outData.pos = element.pos[vid];
 
 #ifndef CURVED
   #if defined(ET_TRIG) || defined(ET_QUAD)
     outData.normal = element.normal;
   #endif
+  outData[vid] = 1.0;
 #else
-  outData.index = element.curved_vertices;
-  outData.normal = texelFetch(mesh.vertices, outData.index+vid).xyz;
+  outData.normal = texelFetch(mesh.vertices, element.curved_vertices+vid).xyz;
+  #if defined(ET_QUAD)
+  if(vid>2) outData.lam.y = 1.0;
+  if(vid==1 || vid==2) outData.lam.x = 1.0;
+  #endif
+
 #endif
   gl_Position = P * MV * vec4(outData.pos, 1);
 }

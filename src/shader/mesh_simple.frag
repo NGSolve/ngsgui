@@ -1,23 +1,24 @@
 #version 150
 
+{DEFINES}
 {include utils.inc}
-#line 4
+#line 5
 
 uniform mat4 MV;
+uniform Mesh mesh;
 uniform vec4 clipping_plane;
 uniform bool do_clipping;
 uniform bool wireframe;
 uniform float light_ambient;
 uniform float light_diffuse;
+uniform sampler1D colors;
 
 in VertexData
 {
+  vec3 lam;
   vec3 pos;
   vec3 normal;
-  vec4 color;
-  vec3 edge_dist;
   flat int element;
-  flat int index;
 } inData;
 
 out vec4 FragColor;
@@ -29,11 +30,19 @@ vec3 TransformVec( vec3 x) {
 void main()
 {
   if(wireframe) {
-      float d = min(min(inData.edge_dist.x, inData.edge_dist.y), inData.edge_dist.z);
+      vec3 l = inData.lam;
+#ifndef ET_QUAD
+      float d = min(min(l.x, l.y), l.z);
+#else
+      float d =  min(min(l.x,l.y), min(1-l.x,1.0-l.y));
+#endif
       if(d>1e-5) discard;
   }
-
-  FragColor = inData.color;
+  int index = texelFetch(mesh.elements, ELEMENT_SIZE*inData.element + 1).r;
+  if(index==-1)
+    FragColor = vec4(0,0,0,1);
+  else
+    FragColor = vec4(texelFetch(colors, index, 0));
 
   if(do_clipping && dot(vec4(inData.pos,1.0),clipping_plane)<0)
     discard;
