@@ -103,11 +103,7 @@ class GeoData(DataContainer):
         self.surfnames = self.geodata["surfnames"]
         self.min = self.geodata["min"]
         self.max = self.geodata["max"]
-        print("bounding box = ", self.min, " to ", self.max)
         self.npoints = len(self.geodata["triangles"])//4*3
-        print("npoints = ", len(self.geodata["vertices"]))
-        print("triangles = ", len(self.geodata["triangles"]))
-        print("normals = ", len(self.geodata["normals"]))
 
     def getGeoData(self):
         return ngui.GetGeoData(self.obj())

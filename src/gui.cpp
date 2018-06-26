@@ -616,14 +616,14 @@ PYBIND11_MODULE(ngui, m) {
                     trigs.SetAllocSize(trigs.Size() + triangulation->NbTriangles()*4);
                     vertices.SetAllocSize(vertices.Size() + triangulation->NbTriangles()*3*3);
                     normals.SetAllocSize(normals.Size() + triangulation->NbTriangles()*3*3);
-                    for (auto j : Range(1,triangulation->NbTriangles()))
+                    for (auto j : Range(1,triangulation->NbTriangles()+1))
                       {
                         auto triangle = (triangulation->Triangles())(j);
                         for (auto k : Range(1,4))
                           p[k-1] = (triangulation->Nodes())(triangle(k)).Transformed(loc);
                         for(auto k : Range(1,4))
                           {
-                            vertices.Append({p[k].X(), p[k].Y(), p[k].Z()});
+                            vertices.Append({p[k-1].X(), p[k-1].Y(), p[k-1].Z()});
                             trigs.Append({count, count+1, count+2,i});
                             count += 3;
                             uv = (triangulation->UVNodes())(triangle(k));
