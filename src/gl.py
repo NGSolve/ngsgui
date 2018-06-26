@@ -53,7 +53,7 @@ class Shader(GLObject):
 #                 numerated_shader_code += str(i)+":\t"+line+'\n'
             raise RuntimeError('Error when compiling ' + filename + ': '+glGetShaderInfoLog(self.id).decode()+'\ncompiled code:\n'+numerated_shader_code)
 
-def readShaderFile(filename, **replacements):
+def readShaderFile(filename, defines):
     shaderpath = os.path.join(os.path.dirname(__file__), 'shader')
     fullpath = os.path.join(shaderpath, filename)
     code = open(fullpath,'r').read()
@@ -64,25 +64,26 @@ def readShaderFile(filename, **replacements):
     for token in Shader.includes:
         code = code.replace('{include '+token+'}', Shader.includes[token])
 
-    for token in replacements:
-        code = code.replace('{'+token+'}', str(replacements[token]))
+
+    pos = code.find('\n', code.find('version'))
+    code = code[:pos+1] + defines + code[pos+1:]
 
     return code
 
-def getProgramHash(*filenames, **replacements):
+def getProgramHash(filenames, defines):
     res = ""
     h = hashlib.sha256()
     h.update(glGetString(GL_VENDOR))
     h.update(glGetString(GL_VERSION))
     h.update(glGetString(GL_RENDERER))
     for filename in sorted(filenames):
-        h.update((filename + readShaderFile(filename, **replacements)).encode('ascii'))
+        h.update((filename + readShaderFile(filename, defines)).encode('ascii'))
     return h.hexdigest()
 
-def compileProgram(*filenames, feedback=[], **replacements ):
+def compileProgram(filenames, defines, feedback=[]):
     shaders = []
     for f in filenames:
-        code = readShaderFile(f, **replacements)
+        code = readShaderFile(f, defines)
         shaders.append(Shader(code, f))
 
     return Program(shaders, feedback=feedback)
@@ -281,9 +282,10 @@ class Program(GLObject):
         self.uniforms = Program.Uniforms(self.id)
         self.attributes = Program.Attributes(self.id)
 
-def getProgram(*shader_files, feedback=[], elements=None, params=None, **replacements):
+def getProgram(*shader_files, feedback=[], elements=None, params=None, **define_flags):
     cache = getProgram._cache
 
+    defines = '\n'
     if elements != None:
         dims = {
                 ngsolve.ET.SEGM: 1,
@@ -303,7 +305,7 @@ def getProgram(*shader_files, feedback=[], elements=None, params=None, **replace
                 ngsolve.ET.PRISM: 6,
                 ngsolve.ET.HEX: 8
                 }
-        element_defines = """
+        defines += """
 #define ELEMENT_TYPE {ELEMENT_TYPE}
 #define {ELEMENT_TYPE_NAME}
 #define ELEMENT_SIZE {ELEMENT_SIZE}
@@ -316,10 +318,12 @@ def getProgram(*shader_files, feedback=[], elements=None, params=None, **replace
         ELEMENT_TYPE_NAME = str(elements.type).replace('.','_')
         )
         if elements.curved:
-            element_defines += "#define CURVED\n"
-        replacements["DEFINES"] = element_defines
-
-    key = str(tuple([tuple(sorted(shader_files))]+feedback+list(zip(replacements.keys(), replacements.values()))))
+            defines += "#define CURVED\n"
+        for d in define_flags:
+            if define_flags[d] != None:
+                defines += "#define {} {}\n".format(d, str(define_flags[d]))
+            
+    key = str(tuple([tuple(sorted(shader_files))]+feedback+[defines]))
     key = key.replace('(','').replace(')','').replace(',','-').replace("'","").replace(' ','')
 
     if key in cache:
@@ -327,7 +331,7 @@ def getProgram(*shader_files, feedback=[], elements=None, params=None, **replace
     else:
         # try to find on-disk cached shader
         settings = getProgram._settings
-        h = getProgramHash(*shader_files, **replacements)
+        h = getProgramHash(shader_files, defines=defines)
         if str(h) == settings.value(key+'/hash'):
             # load program from binary blob
             enc = settings.value(key+'/program')
@@ -338,7 +342,7 @@ def getProgram(*shader_files, feedback=[], elements=None, params=None, **replace
             cache[key] = prog
         else:
             # no cached version - recompile shader 
-            prog = compileProgram(*shader_files, feedback=feedback, **replacements )
+            prog = compileProgram(shader_files, defines=defines, feedback=feedback)
             cache[key] = prog
 
             # get binary blob and store it on disk

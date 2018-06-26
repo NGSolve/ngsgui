@@ -21,7 +21,9 @@ print(fes.ndof,'ndofs')
 cf = cos(n*x)*cos(n*y)*cos(n*z)
 cf = x+1.0j*y
 cf = CoefficientFunction((x-1,y,x*y))
-scene1 = Draw(x, mesh,'func', tab="foobar")
-scene2 = Draw(cf, mesh,'func 2', tab="foooo")
-scene3 = Draw(cf, mesh,'func 3', tab="foobar")
-scene4 = Draw(cf, mesh,'func 4', tab="baaaar")
+x1 = x-0.5
+y1 = y-0.5
+s = Draw(exp(-10*(x1**2+y1**2)), mesh,'func', tab="foobar")
+# scene2 = Draw(cf, mesh,'func 2', tab="foooo")
+# scene3 = Draw(cf, mesh,'func 3', tab="foobar")
+# scene4 = Draw(cf, mesh,'func 4', tab="baaaar")

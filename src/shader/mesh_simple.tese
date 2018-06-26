@@ -1,5 +1,4 @@
 #version 410 core
-{DEFINES}
 
 #if defined(ET_SEGM)
 layout(isolines) in;
@@ -10,11 +9,20 @@ layout(quads) in;
 #endif
 
 {include utils.inc}
-#line 13
+#line 12
 
 uniform mat4 P;
 uniform mat4 MV;
 uniform Mesh mesh;
+
+#ifdef DEFORMATION
+#line 0
+{include interpolation.inc}
+#line 21
+uniform samplerBuffer coefficients;
+uniform int subdivision;
+uniform int order;
+#endif
 
 in VertexData
 {
@@ -94,7 +102,17 @@ void main()
 #else
     unknown type
 #endif
-
 #endif // CURVED
+
+#ifdef DEFORMATION
+    float value = 0.0;
+#if defined(ET_TRIG)
+    value = InterpolateTrig(inData[0].element, coefficients, order, subdivision, outData.lam, 0);
+#elif defined(ET_QUAD)
+    value = InterpolateTet(inData[0].element, coefficients, order, subdivision, outData.lam, 0);
+#endif
+    outData.pos.z += value;
+#endif // DEFORMATION
+
     gl_Position = P * MV * vec4(outData.pos, 1);
 }

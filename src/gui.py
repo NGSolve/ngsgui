@@ -161,6 +161,7 @@ class GUI():
         addShortcut("Close Tab", "Ctrl+w", lambda: self.window_tabber._remove_tab(self.window_tabber.currentIndex()))
         addShortcut("Next Tab", "Ctrl+LeftArrow", lambda: switchTabWindow(-1))
         addShortcut("Previous Tab", "Ctrl+RightArrow", lambda: switchTabWindow(1))
+        addShortcut("Quit", "Esc", lambda: self.app.quit())
 
     def crawlPlugins(self):
         try:

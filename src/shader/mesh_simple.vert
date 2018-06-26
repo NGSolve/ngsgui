@@ -1,8 +1,7 @@
 #version 150
 
-{DEFINES}
 {include utils.inc}
-#line 5
+#line 4
 
 uniform mat4 P;
 uniform mat4 MV;

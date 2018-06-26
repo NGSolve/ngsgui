@@ -794,13 +794,15 @@ class SolutionScene(BaseMeshScene):
                            "abs" : 2,
                            "arg" : 3}
     @inmain_decorator(wait_for_return=True)
-    def __init__(self, cf, mesh, name=None, min=0,max=1, autoscale=True, linear=False, clippingPlane=True,
-                 order=3,gradient=None, *args, **kwargs):
+    def __init__(self, cf, mesh, name=None, min=0.0,max=1.0, autoscale=True, linear=False, clippingPlane=True,
+                 order=3, deformation=None, gradient=None, *args, **kwargs):
         self.cf = cf
+        self.deformation = deformation
         self.vao = None
+        self.values = {}
         self.__initial_values = {"Order" : order,
-                                 "ColorMapMin" : min,
-                                 "ColorMapMax" : max,
+                                 "ColorMapMin" : float(min),
+                                 "ColorMapMax" : float(max),
                                  "Autoscale" : autoscale,
                                  "ColorMapLinear" : linear,
                                  "ShowClippingPlane" : clippingPlane,
@@ -922,9 +924,13 @@ class SolutionScene(BaseMeshScene):
 
     def _getValues(self, vb, setMinMax=True, cf = None):
         cf = cf or self.cf
-        with ngsolve.TaskManager():
+#         with ngsolve.TaskManager():
+        if True:
             try:
                 values = ngui.GetValues(cf, self.mesh, vb, 2**self.getSubdivision()-1, self.getOrder())
+                global myvalues
+                myvalues = ngui.GetValues2(cf, self.mesh, vb, 2**self.getSubdivision()-1, self.getOrder())
+                print('myvalues', myvalues)
             except RuntimeError as e:
                 assert("Local Heap" in str(e))
                 self.setSubdivision(self.getSubdivision()-1)
@@ -935,6 +941,34 @@ class SolutionScene(BaseMeshScene):
             self.min_values = values["min"]
             self.max_values = values["max"]
         return values
+
+    def _getValues2(self, vb, cf = None):
+        formats = [None, GL_R32F, GL_RG32F, GL_RGB32F, GL_RGBA32F];
+        cf = cf or self.cf
+        if vb not in self.values:
+            print(1,self.values)
+            self.values[vb] = {'real':{}, 'imag':{}}
+        print(2,self.values)
+        try:
+            values = ngui.GetValues2(cf, self.mesh, vb, 2**self.getSubdivision()-1, self.getOrder())
+            v = self.values[vb]
+            v['min'] = values['min']
+            v['max'] = values['max']
+            comps = ['real']
+            if cf.is_complex: comps.append('imag')
+            for comp in comps:
+                for et in values[comp]:
+                    if not et in v[comp]:
+                        v[comp][et] = Texture(GL_TEXTURE_BUFFER, formats[cf.dim])
+                    print(values[comp][et])
+                    v[comp][et].store(values[comp][et])
+            print('values', self.values)
+
+        except RuntimeError as e:
+            assert("Local Heap" in str(e))
+            self.setSubdivision(self.getSubdivision()-1)
+            print("Localheap overflow, cannot increase subdivision!")
+
 
     @inmain_decorator(True)
     def update(self):
@@ -955,9 +989,10 @@ class SolutionScene(BaseMeshScene):
         if self.mesh.dim==2:
             try:
                 values = self._getValues(ngsolve.VOL)
+                self._getValues2(ngsolve.VOL)
                 if values is None:
                     return
-                self.surface_values.store(values["real"])
+                self.surface_values.store(values["real"][ngsolve.ET.TRIG])
                 if self.cf.is_complex:
                     self.surface_values_imag.store(values["imag"])
             except Exception as e:
@@ -1069,13 +1104,21 @@ class SolutionScene(BaseMeshScene):
         self.line_vao.bind()
 
     def renderSurface(self, settings):
+        shader = ['mesh_simple.vert', 'mesh_simple.frag']
+#         if (, 'solution_simple.frag', elements=elements, params=settings, ORDER=self.getOrder(), DEFORMATION=True) 
         vb = ngsolve.VOL if self.mesh.dim==2 else ngsolve.BND
-        for els in self.mesh_data.new_els[vb]:
-            if elements.curved:
-                prog = getProgram('mesh_simple.vert', 'mesh_simple.tese', 'solution_simple.frag', elements=elements, params=settings)
-            else:
-                prog = getProgram('mesh_simple.vert', 'solution_simple.frag', elements=elements, params=settings)
+        for elements in self.mesh_data.new_els[vb]:
+            use_tessellation = bool(elements.curved or self.deformation) or None
+#             if elements.curved:
+            prog = getProgram('mesh_simple.vert', 'mesh_simple.tese', 'solution_simple.frag', elements=elements, params=settings, ORDER=self.getOrder(), DEFORMATION=bool(self.deformation))
+#             else:
+#                 prog = getProgram('mesh_simple.vert', 'solution_simple.frag', elements=elements, params=settings, ORDER=self.getOrder())
             uniforms = prog.uniforms
+
+            uniforms.set('do_clipping', self.mesh.dim==3);
+            uniforms.set('subdivision', 2**self.getSubdivision()-1)
+            uniforms.set('order', self.getOrder())
+            uniforms.set('mesh.dim', 2);
 
             glActiveTexture(GL_TEXTURE0)
             self.mesh_data.vertices.bind()
@@ -1086,49 +1129,44 @@ class SolutionScene(BaseMeshScene):
             uniforms.set('mesh.elements', 1)
             elements.tex.bind()
 
-            glActiveTexture(GL_TEXTURE3)
-            self.tex_surf_colors.bind()
-            uniforms.set('colors', 3)
+            glActiveTexture(GL_TEXTURE2)
+            self.surface_values .bind()
+            uniforms.set('coefficients', 2)
+
+#             glActiveTexture(GL_TEXTURE3)
+#             self.tex_surf_colors.bind()
+#             uniforms.set('colors', 3)
 
             uniforms.set('do_clipping', True);
 
             uniforms.set('mesh.dim', 2);
-            uniforms.set('wireframe', wireframe)
-            gl_type = {
-                    ngsolve.ET.TRIG: GL_TRIANGLES,
-                    ngsolve.ET.QUAD: GL_QUADS,
-            }
-            nverts = {
-                    ngsolve.ET.TRIG: 3,
-                    ngsolve.ET.QUAD: 4,
-            }
-
-            if wireframe:
-                offset_mode = GL_POLYGON_OFFSET_LINE
-                polygon_mode = GL_LINE
-                uniforms.set('light_ambient', 0.0)
-                uniforms.set('light_diffuse', 0.0)
-                offset = 0
+            if self.cf.dim > 1:
+                uniforms.set('component', self.getComponent())
             else:
-                offset_mode = GL_POLYGON_OFFSET_FILL
-                polygon_mode = GL_FILL
-                offset = 2
+                uniforms.set('component', 0)
+
+            uniforms.set('is_complex', self.cf.is_complex)
+            if self.cf.is_complex:
+                glActiveTexture(GL_TEXTURE3)
+                self.surface_values_imag.bind()
+                uniforms.set('coefficients_imag', 3)
+
+                uniforms.set('complex_vis_function', self._complex_eval_funcs[self.getComplexEvalFunc()])
+                w = cmath.exp(1j*self.getComplexPhaseShift()/180.0*math.pi)
+                uniforms.set('complex_factor', [w.real, w.imag])
 
             tess_level = 10
             if settings.fastmode and len(elements.data)//elements.size>10**5:
                 tess_level=1
 
-            glPolygonMode( GL_FRONT_AND_BACK, polygon_mode );
-            glPolygonOffset (offset, offset)
-            glEnable(offset_mode)
-            if elements.curved:
-                glPatchParameteri(GL_PATCH_VERTICES, nverts[elements.type])
-                glPatchParameterfv(GL_PATCH_DEFAULT_OUTER_LEVEL, [tess_level]*4)
-                glPatchParameterfv(GL_PATCH_DEFAULT_INNER_LEVEL, [tess_level]*2)
-                glDrawArrays(GL_PATCHES, 0, nverts[elements.type]*len(elements.data)//elements.size)
-            else:
-                glDrawArrays(gl_type[elements.type], 0, nverts[elements.type]*len(elements.data)//elements.size)
-            glDisable(offset_mode)
+            glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
+#             if elements.curved:
+            glPatchParameteri(GL_PATCH_VERTICES, 3)
+            glPatchParameterfv(GL_PATCH_DEFAULT_OUTER_LEVEL, [tess_level]*4)
+            glPatchParameterfv(GL_PATCH_DEFAULT_INNER_LEVEL, [tess_level]*2)
+            glDrawArrays(GL_PATCHES, 0, 3*len(elements.data)//elements.size)
+#             else:
+#                 glDrawArrays(GL_TRIANGLES, 0, 3*len(elements.data)//elements.size)
 
 
     def renderSurface_(self, settings):

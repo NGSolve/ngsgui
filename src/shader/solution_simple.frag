@@ -1,10 +1,8 @@
 #version 150
 
-{DEFINES}
-
 {include utils.inc}
 {include interpolation.inc}
-#line 7
+#line 5
 
 uniform samplerBuffer coefficients;
 uniform float colormap_min, colormap_max;
@@ -41,25 +39,22 @@ void main()
       float x = inData.lam.x;
       float y = inData.lam.y;
       float z = inData.lam.z;
-      //  { ET_POINT = 0, ET_SEGM = 1,
-      //    ET_TRIG = 10, ET_QUAD = 11, 
-      //    ET_TET = 20, ET_PYRAMID = 21, ET_PRISM = 22, ET_HEX = 24 };
       float value;
       vec3 lam = inData.lam.yzx;
       lam.z = 1.0 - inData.lam.x - inData.lam.y - inData.lam.z;
-      if(element_type == 10) value = InterpolateTrig(inData.element, coefficients, {ORDER}, subdivision, inData.lam, component);
-      if(element_type == 20) value = InterpolateTet(inData.element, coefficients, {ORDER}, subdivision, lam, component);
-      // if(element_type == 21) value = EvalPYRAMID(inData.element, x,y,z);
-      // if(element_type == 22) value = EvalPRISM(inData.element, x,y,z);
-      // if(element_type == 24) value = EvalHEX(inData.element, x,y,z);
-
-      // value = evalTrig(inData.lam, subdivision);
-      // value = evalTrigLinear1(inData.lam, subdivision);
+#if defined(ET_TRIG)
+       value = InterpolateTrig(inData.element, coefficients, ORDER, subdivision, inData.lam, component);
+#elif defined(ET_QUAD)
+       value = InterpolateTet(inData.element, coefficients, ORDER, subdivision, lam, component);
+#endif
 
       if(is_complex) {
           float value_imag;
-          if(element_type == 10) value_imag = InterpolateTrig(inData.element, coefficients_imag, {ORDER}, subdivision, inData.lam, component);
-          if(element_type == 20) value_imag = InterpolateTet(inData.element, coefficients_imag, {ORDER}, subdivision, lam, component);
+#if defined(ET_TRIG)
+          value_imag = InterpolateTrig(inData.element, coefficients_imag, ORDER, subdivision, inData.lam, component);
+#elif defined(ET_QUAD)
+          value_imag = InterpolateTet(inData.element, coefficients_imag, ORDER, subdivision, lam, component);
+#endif
           float r = value*complex_factor.x - value_imag*complex_factor.y;
           value_imag = value*complex_factor.y + value_imag*complex_factor.x;
           value = r;
@@ -87,12 +82,7 @@ void main()
       FragColor.g = MapColor(value).g;
       FragColor.b = MapColor(value).b;
       FragColor.a = 1.0;
-      // vec3 lightVector = TransformVec(vec3(1,3,3));
-      // FragColor.rgb *= 0.3+0.7*clamp(dot(normalize(inData.normal), lightVector), 0, 1.0);
       FragColor.rgb = light(FragColor.rgb, MV, inData.pos, inData.normal);
-      // FragColor.rgb = 0.5+0.5*normalize(inData.normal);
-      // float l = length(inData.normal)*0.5;
-      // FragColor.rgb = vec3(l,l,l);
   }
   else
     discard;

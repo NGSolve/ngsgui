@@ -165,6 +165,68 @@ inline IntegrationRule GetReferenceRule( ELEMENT_TYPE et, int order, int subdivi
   return ir;
 }
 
+inline map<ELEMENT_TYPE, IntegrationRule> GetReferenceRules( int order, int subdivision )
+{
+  int n = (order)*(subdivision+1)+1;
+  const double h = 1.0/(n-1);
+  map<ELEMENT_TYPE, IntegrationRule> res;
+  {
+      IntegrationRule ir;
+      for (auto i : Range(n)) {
+          ir.Append(IntegrationPoint(1.0-i*h, 0, 0.0));
+      }
+      res[ET_SEGM] = std::move(ir);
+  }
+  {
+      IntegrationRule ir;
+      for (auto j : Range(n))
+          for (auto i : Range(n)) {
+              if(i+j<n) // skip i+j>=n for trigs
+                  ir.Append(IntegrationPoint(i*h, j*h, 0.0));
+          }
+      res[ET_TRIG] = std::move(ir);
+  }
+  {
+      IntegrationRule ir;
+      for (auto j : Range(n))
+          for (auto i : Range(n))
+              ir.Append(IntegrationPoint(i*h, j*h, 0.0));
+      res[ET_QUAD] = std::move(ir);
+  }
+  {
+      IntegrationRule ir;
+      for (auto k : Range(n))
+          for (auto j : Range(n-k))
+              for (auto i : Range(n-k-j))
+                      ir.Append(IntegrationPoint(i*h, j*h, k*h));
+      res[ET_TET] = std::move(ir);
+  }
+//   else if(et==ET_PRISM) {
+//       for (auto k : Range(n))
+//           for (auto j : Range(n))
+//               for (auto i : Range(n-j))
+//                   ir.Append(IntegrationPoint(i*h, j*h, k*h));
+//   }
+//   else if(et==ET_HEX) {
+//       for (auto k : Range(n))
+//           for (auto j : Range(n))
+//               for (auto i : Range(n))
+//                       ir.Append(IntegrationPoint(i*h, j*h, k*h));
+//   }
+//   else if(et==ET_PYRAMID) {
+//       for (auto k : Range(n))
+//           for (auto j : Range(n-k))
+//               for (auto i : Range(n-k))
+//                   ir.Append(IntegrationPoint(i*h, j*h, k*h));
+//   }
+//   else {
+//       throw Exception("GetReferenceRule(): unknown element type");
+//   }
+
+  return res;
+}
+
+
 template<int S, int R>
 BaseMappedIntegrationRule &T_GetMappedIR (IntegrationRule & ir, ElementTransformation & eltrans, LocalHeap &lh ) {
     void *p = lh.Alloc(sizeof(MappedIntegrationRule<S,R>));
@@ -288,6 +350,96 @@ PYBIND11_MODULE(ngui, m) {
         {
           setlocale(LC_NUMERIC,"C");
         });
+  m.def("GetValues2", [] (shared_ptr<ngfem::CoefficientFunction> cf, shared_ptr<ngcomp::MeshAccess> ma, VorB vb, int subdivision, int order) {
+            LocalHeap lh(10000000, "GetValues");
+            int dim = ma->GetDimension();
+            if(vb==BND) dim-=1;
+
+            map<ELEMENT_TYPE, IntegrationRule> irs = GetReferenceRules( order, subdivision );
+            map<ELEMENT_TYPE, SIMD_IntegrationRule> simd_irs;
+            for (auto & p : irs ) {
+              simd_irs[p.first] = p.second;
+            }
+            map<ELEMENT_TYPE, Array<float>> values_real;
+            map<ELEMENT_TYPE, Array<float>> values_imag;
+
+            int ncomps = cf->Dimension();
+            Array<float> min(ncomps);
+            Array<float> max(ncomps);
+            min = std::numeric_limits<float>::max();
+            max = std::numeric_limits<float>::lowest();
+
+            bool use_simd = true;
+            ma->IterateElements(vb, lh,[&](auto el, LocalHeap& mlh) {
+                FlatArray<float> min_local(ncomps, mlh);
+                FlatArray<float> max_local(ncomps, mlh);
+
+                auto et = el.GetType();
+                auto & ir = irs[et];
+                auto & simd_ir = simd_irs[et];
+                auto &vals_real = values_real[et];
+                auto &vals_imag = values_imag[et];
+                int nip = irs[et].GetNIP();
+                int values_per_element = nip*ncomps;
+                size_t first = vals_real.Size();
+                size_t next = first + values_per_element;
+                vals_real.SetSize(next);
+                if(cf->IsComplex()) vals_imag.SetSize(next);
+                ElementTransformation & eltrans = ma->GetTrafo (el, mlh);
+                if(use_simd)
+                  {
+                    try
+                      {
+                        auto & mir = GetMappedIR( simd_ir, ma->GetDimension(), vb, eltrans, mlh );
+                        if(cf->IsComplex())
+                          GetValues<SIMD<Complex>>( *cf, mlh, mir, vals_real.Range(first,next), vals_imag.Range(first,next), min_local, max_local);
+                        else
+                          GetValues<SIMD<double>>( *cf, mlh, mir, vals_real.Range(first,next), vals_imag, min_local, max_local);
+                      }
+                    catch(ExceptionNOSIMD e)
+                      {
+                        use_simd = false;
+                      }
+                  }
+                if(!use_simd)
+                  {
+                    ElementTransformation & eltrans = ma->GetTrafo (el, mlh);
+                    auto & mir = GetMappedIR( ir, ma->GetDimension(), vb, eltrans, mlh );
+                    if(cf->IsComplex())
+                      GetValues<Complex>( *cf, mlh, mir, vals_real.Range(first,next), vals_imag.Range(first,next), min_local, max_local);
+                    else
+                      GetValues<double>( *cf, mlh, mir, vals_real.Range(first,next), vals_imag, min_local, max_local);
+                  }
+                for (auto i : Range(ncomps)) {
+                    float expected = min[i];
+                    while (min_local[i] < expected)
+                        AsAtomic(min[i]).compare_exchange_weak(expected, min_local[i], std::memory_order_relaxed, std::memory_order_relaxed);
+                    expected = max[i];
+                    while (max_local[i] > expected)
+                        AsAtomic(max[i]).compare_exchange_weak(expected, max_local[i], std::memory_order_relaxed, std::memory_order_relaxed);
+                }
+
+
+              });
+          py::gil_scoped_acquire ac;
+          py::dict res_real;
+          py::dict res_imag;
+          for (auto &p : irs) {
+              auto et = p.first;
+              if (values_real[et].Size()>0) {
+                  py::dict v;
+                  res_real[py::cast(et)] = MoveToNumpyArray(values_real[et]);
+                  if(cf->IsComplex())
+                    res_imag[py::cast(et)] = MoveToNumpyArray(values_imag[et]);
+              }
+          }
+          py::dict res;
+          res["min"] = MoveToNumpyArray(min);
+          res["max"] = MoveToNumpyArray(max);
+          res["real"] = res_real;
+          res["imag"] = res_imag;
+          return res;
+      },py::call_guard<py::gil_scoped_release>());
   m.def("GetValues", [] (shared_ptr<ngfem::CoefficientFunction> cf, shared_ptr<ngcomp::MeshAccess> ma, VorB vb, int subdivision, int order) {
             LocalHeap lh(10000000, "GetValues");
             int dim = ma->GetDimension();
