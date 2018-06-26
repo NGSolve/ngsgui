@@ -15,14 +15,14 @@ uniform mat4 P;
 uniform mat4 MV;
 uniform Mesh mesh;
 
-#ifdef DEFORMATION
+#if DEFORMATION
 #line 0
 {include interpolation.inc}
 #line 21
 uniform samplerBuffer coefficients;
 uniform int subdivision;
 uniform int order;
-#endif
+#endif // DEFORMATION
 
 in VertexData
 {
@@ -104,7 +104,7 @@ void main()
 #endif
 #endif // CURVED
 
-#ifdef DEFORMATION
+#if DEFORMATION
     float value = 0.0;
 #if defined(ET_TRIG)
     value = InterpolateTrig(inData[0].element, coefficients, order, subdivision, outData.lam, 0);

@@ -20,10 +20,10 @@ layout(line_strip, max_vertices=12) out;
 layout(triangle_strip, max_vertices=12) out;
 #endif
 
-const int dim = {DIM};
+const int dim = DIM;
 // const int et = {ELEMENT_TYPE};
-const int order = {ORDER};
-const bool curved = {CURVED};
+const int order = ORDER;
+const bool curved = CURVED;
 
 in VertexData
 {

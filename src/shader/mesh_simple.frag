@@ -1,6 +1,5 @@
 #version 150
 
-{DEFINES}
 {include utils.inc}
 #line 5
 

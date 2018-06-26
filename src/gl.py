@@ -319,9 +319,12 @@ def getProgram(*shader_files, feedback=[], elements=None, params=None, **define_
         )
         if elements.curved:
             defines += "#define CURVED\n"
-        for d in define_flags:
-            if define_flags[d] != None:
-                defines += "#define {} {}\n".format(d, str(define_flags[d]))
+    for d in define_flags:
+        flag = define_flags[d]
+        if flag != None:
+            if type(flag)==bool:
+                flag = int(flag)
+            defines += "#define {} {}\n".format(d, str(flag))
             
     key = str(tuple([tuple(sorted(shader_files))]+feedback+[defines]))
     key = key.replace('(','').replace(')','').replace(',','-').replace("'","").replace(' ','')

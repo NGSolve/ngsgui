@@ -135,10 +135,16 @@ inline IntegrationRule GetReferenceRule( ELEMENT_TYPE et, int order, int subdivi
           }
   }
   else if(et==ET_TET) {
-      for (auto k : Range(n))
-          for (auto j : Range(n-k))
-              for (auto i : Range(n-k-j))
-                      ir.Append(IntegrationPoint(i*h, j*h, k*h));
+    for (auto k : Range(n))
+       for (auto j : Range(n-k))
+            for (auto i : Range(n-j-k))
+              ir.Append(IntegrationPoint(1.0-i*h-j*h-k*h, i*h, j*h));
+
+    // TODO: simplify order of points?? (need to adapt generated interpolation code in shaders)
+//       for (auto k : Range(n))
+//           for (auto j : Range(n-k))
+//               for (auto i : Range(n-k-j))
+//                       ir.Append(IntegrationPoint(i*h, j*h, k*h));
   }
   else if(et==ET_PRISM) {
       for (auto k : Range(n))

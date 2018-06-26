@@ -595,120 +595,6 @@ class MeshScene(BaseMeshScene):
 
         self.vao.unbind()
 
-
-    def renderSurface1(self, settings):
-#         prog = getProgram('filter_elements.vert', 'tess.tesc', 'tess.tese', 'mesh.geom', 'mesh.frag')
-#         self.vao.bind()
-#         model, view, projection = settings.model, settings.view, settings.projection
-#         uniforms = prog.uniforms
-#         uniforms.set('P',projection)
-#         uniforms.set('MV',view*model)
-# 
-#         glActiveTexture(GL_TEXTURE0)
-#         self.mesh_data.vertices.bind()
-#         uniforms.set('mesh.vertices', 0)
-# 
-#         glActiveTexture(GL_TEXTURE1)
-#         self.mesh_data.elements.bind()
-#         uniforms.set('mesh.elements', 1)
-# 
-# 
-#         uniforms.set('clipping_plane', settings.clipping_plane)
-#         uniforms.set('do_clipping', True);
-#         uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
-#         uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
-#         uniforms.set('mesh.surface_elements_offset', self.mesh_data.surface_elements_offset)
-#         uniforms.set('mesh.dim', 2);
-#         uniforms.set('shrink_elements', self.getShrink())
-#         uniforms.set('clip_whole_elements', False)
-#         glActiveTexture(GL_TEXTURE3)
-#         if self.mesh.dim == 3:
-#             self.bc_colors.bind()
-#         elif self.mesh.dim == 2:
-#             self.tex_mat_color.bind()
-#         uniforms.set('colors', 3)
-
-
-        dims = {
-                ngsolve.ET.SEGM: 1,
-                ngsolve.ET.TRIG: 2,
-                ngsolve.ET.QUAD: 2,
-                ngsolve.ET.TET: 3,
-                ngsolve.ET.PYRAMID: 3,
-                ngsolve.ET.PRISM: 3,
-                ngsolve.ET.HEX: 3
-                }
-        nverts = {
-                ngsolve.ET.SEGM: 2,
-                ngsolve.ET.TRIG: 3,
-                ngsolve.ET.QUAD: 4,
-                ngsolve.ET.TET: 4,
-                ngsolve.ET.PYRAMID: 5,
-                ngsolve.ET.PRISM: 6,
-                ngsolve.ET.HEX: 8
-                }
-        shader_args = lambda els : {
-                'ELEMENT_TYPE':str(els.type)[3:],
-                'ELEMENT_SIZE':str(els.size),
-                'ELEMENT_N_VERTICES':nverts[els.type],
-                'DIM':dims[els.type],
-                'CURVED':str(els.curved).lower(),
-                'ORDER':1,
-                'ELEMENT_TYPE_NAME':str(els.type).replace('.','_')
-                }
-        if self.getShowSurface():
-            for els in self.mesh_data.new_els[ngsolve.BND]:
-                prog = getProgram('filter_elements.vert', 'tess.tesc', 'tess.tese', 'mesh.geom', 'mesh.frag', **shader_args(els))
-                uniforms = prog.uniforms
-                self._setSurfaceUniforms(settings, prog)
-                glActiveTexture(GL_TEXTURE1)
-                uniforms.set('mesh.elements', 1)
-                uniforms.set('light_ambient', 0.3)
-                uniforms.set('light_diffuse', 0.7)
-                uniforms.set('TessLevel', self.getGeomSubdivision())
-                uniforms.set('wireframe', False)
-                glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
-                glPolygonOffset (2, 2)
-                glEnable(GL_POLYGON_OFFSET_FILL)
-                glPatchParameteri(GL_PATCH_VERTICES, 1)
-                els.tex.bind()
-                glDrawArrays(GL_PATCHES, 0, len(els.data)//els.size)
-                glDisable(GL_POLYGON_OFFSET_FILL)
-
-        if self.getShowWireframe():
-            for els in self.mesh_data.new_els[ngsolve.BND]:
-                prog = getProgram('filter_elements.vert', 'tess.tesc', 'tess.tese', 'mesh.geom', 'mesh.frag', **shader_args(els))
-                uniforms = prog.uniforms
-                self._setSurfaceUniforms(settings, prog)
-                glActiveTexture(GL_TEXTURE1)
-                uniforms.set('light_ambient', 0.0)
-                uniforms.set('light_diffuse', 0.0)
-                uniforms.set('TessLevel', 1)
-                uniforms.set('wireframe', True)
-                glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
-                glPolygonOffset (0, 0)
-                glEnable(GL_POLYGON_OFFSET_LINE)
-                glPatchParameteri(GL_PATCH_VERTICES, 1)
-                els.tex.bind()
-                glDrawArrays(GL_PATCHES, 0, len(els.data)//els.size)
-                glDisable(GL_POLYGON_OFFSET_LINE)
-
-        if self.mesh.dim > 2 and self.getShowElements():
-            uniforms.set('clip_whole_elements', True)
-            uniforms.set('do_clipping', False);
-            uniforms.set('light_ambient', 0.3)
-            uniforms.set('light_diffuse', 0.7)
-            uniforms.set('TessLevel', self.getGeomSubdivision())
-            uniforms.set('wireframe', False)
-            uniforms.set('mesh.dim', 3);
-            glActiveTexture(GL_TEXTURE3)
-            self.tex_vol_colors.bind()
-            uniforms.set('colors', 3)
-            glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
-            glPatchParameteri(GL_PATCH_VERTICES, 1)
-            glDrawArrays(GL_PATCHES, 0, self.mesh.ne)
-        self.vao.unbind()
-
     def renderNumbers(self, settings):
         prog = getProgram('filter_elements.vert', 'numbers.geom', 'font.frag')
         self.vao.bind()
@@ -946,9 +832,7 @@ class SolutionScene(BaseMeshScene):
         formats = [None, GL_R32F, GL_RG32F, GL_RGB32F, GL_RGBA32F];
         cf = cf or self.cf
         if vb not in self.values:
-            print(1,self.values)
             self.values[vb] = {'real':{}, 'imag':{}}
-        print(2,self.values)
         try:
             values = ngui.GetValues2(cf, self.mesh, vb, 2**self.getSubdivision()-1, self.getOrder())
             v = self.values[vb]
@@ -960,9 +844,7 @@ class SolutionScene(BaseMeshScene):
                 for et in values[comp]:
                     if not et in v[comp]:
                         v[comp][et] = Texture(GL_TEXTURE_BUFFER, formats[cf.dim])
-                    print(values[comp][et])
                     v[comp][et].store(values[comp][et])
-            print('values', self.values)
 
         except RuntimeError as e:
             assert("Local Heap" in str(e))
@@ -992,7 +874,7 @@ class SolutionScene(BaseMeshScene):
                 self._getValues2(ngsolve.VOL)
                 if values is None:
                     return
-                self.surface_values.store(values["real"][ngsolve.ET.TRIG])
+                self.surface_values.store(values["real"])
                 if self.cf.is_complex:
                     self.surface_values_imag.store(values["imag"])
             except Exception as e:
@@ -1021,6 +903,7 @@ class SolutionScene(BaseMeshScene):
 
     def _filterElements(self, settings, filter_type):
         glEnable(GL_RASTERIZER_DISCARD)
+        self.surface_vao.bind()
         prog = getProgram('filter_elements.vert', 'filter_elements.geom', feedback=['element'])
         uniforms = prog.uniforms
         uniforms.set('clipping_plane', settings.clipping_plane)
@@ -1059,6 +942,7 @@ class SolutionScene(BaseMeshScene):
 
         glEndTransformFeedback()
         glDisable(GL_RASTERIZER_DISCARD)
+        self.surface_vao.unbind()
 
     def render1D(self, settings):
         model, view, projection = settings.model, settings.view, settings.projection
@@ -1104,21 +988,22 @@ class SolutionScene(BaseMeshScene):
         self.line_vao.bind()
 
     def renderSurface(self, settings):
-        shader = ['mesh_simple.vert', 'mesh_simple.frag']
-#         if (, 'solution_simple.frag', elements=elements, params=settings, ORDER=self.getOrder(), DEFORMATION=True) 
+        self.surface_vao.bind()
         vb = ngsolve.VOL if self.mesh.dim==2 else ngsolve.BND
+        use_deformation = bool(self.deformation)
         for elements in self.mesh_data.new_els[vb]:
-            use_tessellation = bool(elements.curved or self.deformation) or None
-#             if elements.curved:
-            prog = getProgram('mesh_simple.vert', 'mesh_simple.tese', 'solution_simple.frag', elements=elements, params=settings, ORDER=self.getOrder(), DEFORMATION=bool(self.deformation))
-#             else:
-#                 prog = getProgram('mesh_simple.vert', 'solution_simple.frag', elements=elements, params=settings, ORDER=self.getOrder())
+            shader = ['mesh_simple.vert', 'solution_simple.frag']
+            use_tessellation = use_deformation or elements.curved
+            if use_tessellation:
+                shader.append('mesh_simple.tese')
+            prog = getProgram(*shader, elements=elements, params=settings, ORDER=self.getOrder(), DEFORMATION=use_deformation)
+
             uniforms = prog.uniforms
 
-            uniforms.set('do_clipping', self.mesh.dim==3);
+            uniforms.set('wireframe', False)
+            uniforms.set('do_clipping', self.mesh.dim==3 or use_deformation)
             uniforms.set('subdivision', 2**self.getSubdivision()-1)
             uniforms.set('order', self.getOrder())
-            uniforms.set('mesh.dim', 2);
 
             glActiveTexture(GL_TEXTURE0)
             self.mesh_data.vertices.bind()
@@ -1130,16 +1015,9 @@ class SolutionScene(BaseMeshScene):
             elements.tex.bind()
 
             glActiveTexture(GL_TEXTURE2)
-            self.surface_values .bind()
+            self.surface_values.bind()
             uniforms.set('coefficients', 2)
 
-#             glActiveTexture(GL_TEXTURE3)
-#             self.tex_surf_colors.bind()
-#             uniforms.set('colors', 3)
-
-            uniforms.set('do_clipping', True);
-
-            uniforms.set('mesh.dim', 2);
             if self.cf.dim > 1:
                 uniforms.set('component', self.getComponent())
             else:
@@ -1160,74 +1038,17 @@ class SolutionScene(BaseMeshScene):
                 tess_level=1
 
             glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
-#             if elements.curved:
-            glPatchParameteri(GL_PATCH_VERTICES, 3)
-            glPatchParameterfv(GL_PATCH_DEFAULT_OUTER_LEVEL, [tess_level]*4)
-            glPatchParameterfv(GL_PATCH_DEFAULT_INNER_LEVEL, [tess_level]*2)
-            glDrawArrays(GL_PATCHES, 0, 3*len(elements.data)//elements.size)
-#             else:
-#                 glDrawArrays(GL_TRIANGLES, 0, 3*len(elements.data)//elements.size)
-
-
-    def renderSurface_(self, settings):
-        model, view, projection = settings.model, settings.view, settings.projection
-
-        # surface mesh
-        prog = getProgram('filter_elements.vert', 'tess.tesc', 'tess.tese', 'solution.geom', 'solution.frag', ORDER=self.getOrder())
-        self.surface_vao.bind()
-
-        uniforms = prog.uniforms
-        uniforms.set('P',projection)
-        uniforms.set('MV',view*model)
-
-        uniforms.set('colormap_min', settings.colormap_min)
-        uniforms.set('colormap_max', settings.colormap_max)
-        uniforms.set('colormap_linear', settings.colormap_linear)
-        uniforms.set('clipping_plane', settings.clipping_plane)
-        uniforms.set('do_clipping', self.mesh.dim==3);
-        uniforms.set('subdivision', 2**self.getSubdivision()-1)
-        uniforms.set('order', self.getOrder())
-        uniforms.set('mesh.dim', 2);
-
-        uniforms.set('element_type', 10)
-        if self.cf.dim > 1:
-            uniforms.set('component', self.getComponent())
-        else:
-            uniforms.set('component', 0)
-
-        glActiveTexture(GL_TEXTURE0)
-        self.mesh_data.vertices.bind()
-        uniforms.set('mesh.vertices', 0)
-
-        glActiveTexture(GL_TEXTURE1)
-        self.mesh_data.elements.bind()
-        uniforms.set('mesh.elements', 1)
-
-        glActiveTexture(GL_TEXTURE2)
-        self.surface_values .bind()
-        uniforms.set('coefficients', 2)
-
-        uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
-        uniforms.set('mesh.surface_elements_offset', self.mesh_data.surface_elements_offset)
-
-        uniforms.set('is_complex', self.cf.is_complex)
-        if self.cf.is_complex:
-            glActiveTexture(GL_TEXTURE3)
-            self.surface_values_imag.bind()
-            uniforms.set('coefficients_imag', 3)
-
-            uniforms.set('complex_vis_function', self._complex_eval_funcs[self.getComplexEvalFunc()])
-            w = cmath.exp(1j*self.getComplexPhaseShift()/180.0*math.pi)
-            uniforms.set('complex_factor', [w.real, w.imag])
-
-        uniforms.set('TessLevel', max(1,2*self.getSubdivision()))
-        uniforms.set('wireframe', False)
-        glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
-        glPolygonOffset (2, 2)
-        glEnable(GL_POLYGON_OFFSET_FILL)
-        glPatchParameteri(GL_PATCH_VERTICES, 1)
-        glDrawArrays(GL_PATCHES, 0, self.mesh_data.nsurface_elements)
-        glDisable(GL_POLYGON_OFFSET_FILL)
+            nverts = {
+                    ngsolve.ET.TRIG: 3,
+                    ngsolve.ET.QUAD: 4,
+            }
+            if use_tessellation:
+                glPatchParameteri(GL_PATCH_VERTICES, nverts[elements.type])
+                glPatchParameterfv(GL_PATCH_DEFAULT_OUTER_LEVEL, [tess_level]*4)
+                glPatchParameterfv(GL_PATCH_DEFAULT_INNER_LEVEL, [tess_level]*2)
+                glDrawArrays(GL_PATCHES, 0, nverts[elements.type]*len(elements.data)//elements.size)
+            else:
+                glDrawArrays(GL_TRIANGLES, 0, 3*len(elements.data)//elements.size)
         self.surface_vao.unbind()
 
     def renderIsoSurface(self, settings):
