@@ -601,7 +601,7 @@ PYBIND11_MODULE(ngui, m) {
                 gp_Pnt pnt;
                 gp_Vec n;
                 gp_Pnt p[3];
-                size_t count = 0;
+                int count = 0;
                 for (int i = 1; i <= occ_geo->fmap.Extent(); i++)
                   {
                     surfnames.Append("occ_surface" + to_string(i));
@@ -623,7 +623,7 @@ PYBIND11_MODULE(ngui, m) {
                           p[k-1] = (triangulation->Nodes())(triangle(k)).Transformed(loc);
                         for(auto k : Range(1,4))
                           {
-                            vertices.Append({p[k-1].X(), p[k-1].Y(), p[k-1].Z()});
+                            vertices.Append({float(p[k-1].X()), float(p[k-1].Y()), float(p[k-1].Z())});
                             trigs.Append({count, count+1, count+2,i});
                             count += 3;
                             uv = (triangulation->UVNodes())(triangle(k));
@@ -637,7 +637,7 @@ PYBIND11_MODULE(ngui, m) {
                                 n = b^a;
                               }
                             if (face.Orientation() == TopAbs_REVERSED) n*= -1;
-                            normals.Append({n.X(), n.Y(), n.Z()});
+                            normals.Append({float(n.X()), float(n.Y()), float(n.Z())});
                           }
                       }
                   }
