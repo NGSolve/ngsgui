@@ -92,9 +92,10 @@ class GeoData(DataContainer):
         self.vertices = Texture(GL.GL_TEXTURE_BUFFER, GL.GL_RGB32F)
         self.triangles = Texture(GL.GL_TEXTURE_BUFFER, GL.GL_RGBA32I)
         self.normals = Texture(GL.GL_TEXTURE_BUFFER, GL.GL_RGB32F)
-        self.vertices.store(self.geodata["vertices"])
-        self.triangles.store(self.geodata["triangles"])
-        self.normals.store(self.geodata["normals"])
+        print("store textures")
+        self.vertices.store(self.geodata["vertices"], data_format=GL.GL_UNSIGNED_BYTE)
+        self.triangles.store(self.geodata["triangles"], data_format=GL.GL_UNSIGNED_BYTE)
+        self.normals.store(self.geodata["normals"], data_format=GL.GL_UNSIGNED_BYTE)
 
     @inmain_decorator(True)
     def update(self):
