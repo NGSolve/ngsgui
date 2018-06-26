@@ -1069,6 +1069,69 @@ class SolutionScene(BaseMeshScene):
         self.line_vao.bind()
 
     def renderSurface(self, settings):
+        vb = ngsolve.VOL if self.mesh.dim==2 else ngsolve.BND
+        for els in self.mesh_data.new_els[vb]:
+            if elements.curved:
+                prog = getProgram('mesh_simple.vert', 'mesh_simple.tese', 'solution_simple.frag', elements=elements, params=settings)
+            else:
+                prog = getProgram('mesh_simple.vert', 'solution_simple.frag', elements=elements, params=settings)
+            uniforms = prog.uniforms
+
+            glActiveTexture(GL_TEXTURE0)
+            self.mesh_data.vertices.bind()
+            uniforms.set('mesh.vertices', 0)
+
+            glActiveTexture(GL_TEXTURE1)
+            self.mesh_data.elements.bind()
+            uniforms.set('mesh.elements', 1)
+            elements.tex.bind()
+
+            glActiveTexture(GL_TEXTURE3)
+            self.tex_surf_colors.bind()
+            uniforms.set('colors', 3)
+
+            uniforms.set('do_clipping', True);
+
+            uniforms.set('mesh.dim', 2);
+            uniforms.set('wireframe', wireframe)
+            gl_type = {
+                    ngsolve.ET.TRIG: GL_TRIANGLES,
+                    ngsolve.ET.QUAD: GL_QUADS,
+            }
+            nverts = {
+                    ngsolve.ET.TRIG: 3,
+                    ngsolve.ET.QUAD: 4,
+            }
+
+            if wireframe:
+                offset_mode = GL_POLYGON_OFFSET_LINE
+                polygon_mode = GL_LINE
+                uniforms.set('light_ambient', 0.0)
+                uniforms.set('light_diffuse', 0.0)
+                offset = 0
+            else:
+                offset_mode = GL_POLYGON_OFFSET_FILL
+                polygon_mode = GL_FILL
+                offset = 2
+
+            tess_level = 10
+            if settings.fastmode and len(elements.data)//elements.size>10**5:
+                tess_level=1
+
+            glPolygonMode( GL_FRONT_AND_BACK, polygon_mode );
+            glPolygonOffset (offset, offset)
+            glEnable(offset_mode)
+            if elements.curved:
+                glPatchParameteri(GL_PATCH_VERTICES, nverts[elements.type])
+                glPatchParameterfv(GL_PATCH_DEFAULT_OUTER_LEVEL, [tess_level]*4)
+                glPatchParameterfv(GL_PATCH_DEFAULT_INNER_LEVEL, [tess_level]*2)
+                glDrawArrays(GL_PATCHES, 0, nverts[elements.type]*len(elements.data)//elements.size)
+            else:
+                glDrawArrays(gl_type[elements.type], 0, nverts[elements.type]*len(elements.data)//elements.size)
+            glDisable(offset_mode)
+
+
+    def renderSurface_(self, settings):
         model, view, projection = settings.model, settings.view, settings.projection
 
         # surface mesh
