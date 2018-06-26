@@ -47,7 +47,7 @@ void main()
   #if defined(ET_TRIG) || defined(ET_QUAD)
     outData.normal = element.normal;
   #endif
-  outData[vid] = 1.0;
+  outData.lam[vid] = 1.0;
 #else
   outData.normal = texelFetch(mesh.vertices, element.curved_vertices+vid).xyz;
   #if defined(ET_QUAD)
@@ -58,6 +58,3 @@ void main()
 #endif
   gl_Position = P * MV * vec4(outData.pos, 1);
 }
-// #endif
-
-

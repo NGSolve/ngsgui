@@ -42,6 +42,7 @@ void main()
 
     int offset = texelFetch(mesh.elements, ELEMENT_SIZE*inData[0].element + ELEMENT_SIZE-1).r;
 
+#if defined(CURVED)
 #if defined(ET_SEGM)
     vec3 a = inData[0].pos;
     vec3 b = texelFetch(mesh.vertices, offset+2).xyz;
@@ -75,10 +76,25 @@ void main()
     vec3 n1 = mix(inData[0].normal, inData[1].normal, x);
     vec3 n2 = mix(inData[3].normal, inData[2].normal, x);
     outData.normal = mix(n1,n2, y);
-//    outData.lam = vec3(min(x,1-y), min(1-x,y), 1);
     outData.lam = vec3(x,y,1);
 #else
     unknown type
 #endif
+#else // CURVED
+    outData.normal = inData[0].normal;
+    outData.lam = vec3(x,y,z);
+#if defined(ET_SEGM)
+    outData.pos = mix(inData[0].pos, inData[1].pos, x);
+#elif defined(ET_TRIG)
+    outData.pos = x*inData[0].pos+y*inData[1].pos+z*inData[2].pos;
+#elif defined(ET_QUAD)
+    vec3 p0 = mix(inData[0].pos, inData[1].pos, x);
+    vec3 p1 = mix(inData[3].pos, inData[2].pos, x);
+    outData.normal = mix(p0,p1, y);
+#else
+    unknown type
+#endif
+
+#endif // CURVED
     gl_Position = P * MV * vec4(outData.pos, 1);
 }

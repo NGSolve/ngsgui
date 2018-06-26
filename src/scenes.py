@@ -468,7 +468,9 @@ class MeshScene(BaseMeshScene):
         uniforms.set('light_diffuse', 0.0)
         uniforms.set('TessLevel', self.getGeomSubdivision())
         uniforms.set('wireframe', True)
-        tess_level = 10 if not settings.fastmode else 2
+        tess_level = 10
+        if settings.fastmode and len(elements.data)//elements.size>10**5:
+            tess_level=1
         if elements.curved:
             glPatchParameteri(GL_PATCH_VERTICES, 2)
             glPatchParameterfv(GL_PATCH_DEFAULT_OUTER_LEVEL, [1,tess_level])
@@ -564,7 +566,9 @@ class MeshScene(BaseMeshScene):
             polygon_mode = GL_FILL
             offset = 2
 
-        tess_level = 10 if not settings.fastmode else 2
+        tess_level = 10
+        if settings.fastmode and len(elements.data)//elements.size>10**5:
+            tess_level=1
 
         glPolygonMode( GL_FRONT_AND_BACK, polygon_mode );
         glPolygonOffset (offset, offset)
