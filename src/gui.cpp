@@ -3,11 +3,12 @@
 #include<pybind11/numpy.h>
 #include <locale.h>
 
-#include<comp.hpp>
-#include<meshing.hpp>
-#include<csg.hpp>
+#include <comp.hpp>
+#include <meshing.hpp>
+#include <csg.hpp>
+#include <occgeom.hpp>
 #include <stlgeom.hpp>
-#include<type_traits>
+#include <type_traits>
 
 using namespace ngfem;
 using std::is_same;
@@ -516,6 +517,9 @@ PYBIND11_MODULE(ngui, m) {
 
             auto csg_geo = dynamic_pointer_cast<netgen::CSGeometry>(geo);
             auto stl_geo = dynamic_pointer_cast<netgen::STLGeometry>(geo);
+#ifdef OCCGEOMETRY
+            auto occ_geo = dynamic_pointer_cast<netgen::OCCGeometry>(geo);
+#endif
 
             // CSGeometries
             if(csg_geo)
@@ -583,6 +587,62 @@ PYBIND11_MODULE(ngui, m) {
                     trigs.Append(0);
                   }
               }
+#ifdef OCCGEOMETRY
+            else if(occ_geo)
+              {
+                auto box = occ_geo->GetBoundingBox();
+                for(auto i : Range(3))
+                  {
+                    min[i] = box.PMin()[i];
+                    max[i] = box.PMax()[i];
+                  }
+                occ_geo->BuildVisualizationMesh(0.01);
+                gp_Pnt2d uv;
+                gp_Pnt pnt;
+                gp_Vec n;
+                gp_Pnt p[3];
+                size_t count = 0;
+                for (int i = 1; i <= occ_geo->fmap.Extent(); i++)
+                  {
+                    surfnames.Append("occ_surface" + to_string(i));
+                    auto face = TopoDS::Face(occ_geo->fmap(i));
+                    auto surf = BRep_Tool::Surface(face);
+                    TopLoc_Location loc;
+                    BRepAdaptor_Surface sf(face, Standard_False);
+                    BRepLProp_SLProps prop(sf, 1, 1e-5);
+                    Handle(Poly_Triangulation) triangulation = BRep_Tool::Triangulation (face, loc);
+                    if (triangulation.IsNull())
+                      cout << "cannot visualize face " << i << endl;
+                    trigs.SetAllocSize(trigs.Size() + triangulation->NbTriangles()*4);
+                    vertices.SetAllocSize(vertices.Size() + triangulation->NbTriangles()*3*3);
+                    normals.SetAllocSize(normals.Size() + triangulation->NbTriangles()*3*3);
+                    for (auto j : Range(1,triangulation->NbTriangles()))
+                      {
+                        auto triangle = (triangulation->Triangles())(j);
+                        for (auto k : Range(1,4))
+                          p[k-1] = (triangulation->Nodes())(triangle(k)).Transformed(loc);
+                        for(auto k : Range(1,4))
+                          {
+                            vertices.Append({p[k].X(), p[k].Y(), p[k].Z()});
+                            trigs.Append({count, count+1, count+2,i});
+                            count += 3;
+                            uv = (triangulation->UVNodes())(triangle(k));
+                            prop.SetParameters(uv.X(), uv.Y());
+                            if (prop.IsNormalDefined())
+                              n = prop.Normal();
+                            else
+                              {
+                                gp_Vec a(p[0], p[1]);
+                                gp_Vec b(p[0], p[2]);
+                                n = b^a;
+                              }
+                            if (face.Orientation() == TopAbs_REVERSED) n*= -1;
+                            normals.Append({n.X(), n.Y(), n.Z()});
+                          }
+                      }
+                  }
+              }
+#endif
             else
               throw Exception("Couldn't create geometry information!");
 
