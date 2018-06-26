@@ -11,10 +11,11 @@ import ngsolve as ngs
 
 class Parameter(QtCore.QObject):
     changed = QtCore.Signal(object)
-    def __init__(self, name=None, label=None, **kwargs):
+    def __init__(self, name=None, label=None, label_above=False, **kwargs):
         super().__init__()
         self.name = name
         self.label = label
+        self._label_above = label_above
         self._options = kwargs if kwargs else {}
         self._createWithLabel()
 
@@ -24,7 +25,8 @@ class Parameter(QtCore.QObject):
     def _createWithLabel(self):
         if self.label:
             self._widget = QtWidgets.QWidget()
-            self._widget.setLayout(ArrangeH(QtWidgets.QLabel(self.label), self._createWidget()))
+            arrange = ArrangeV if self._label_above else ArrangeH
+            self._widget.setLayout(arrange(QtWidgets.QLabel(self.label), self._createWidget()))
         else:
             self._widget = self._createWidget()
 
@@ -47,8 +49,31 @@ class Parameter(QtCore.QObject):
         return (self.name, self.label, self._options)
 
     def __setstate__(self, state):
-        Parameter.__init__(self, name=state[1], label=state[2])
-        self._options = state[3]
+        Parameter.__init__(self, name=state[0], label=state[1])
+        self._options = state[2]
+
+class CombinedParameters(Parameter):
+    def __init__(self, parameters, vertical=False, **kwargs):
+        self._parameters = parameters
+        self._vertical = False
+        super().__init__(**kwargs)
+
+    def _createWidget(self):
+        arrange = ArrangeV if self._vertical else ArrangeH
+        widget = QtWidgets.QWidget()
+        widget.setLayout(arrange(*(par._widget for par in self._parameters)))
+        return widget
+
+    def _attachTo(self, obj):
+        for par in self._parameters:
+            obj._attachParameter(par)
+
+    def __getstate__(self):
+        return (super().__getstate__(), self._parameters, self._vertical, self._label)
+
+    def __setstate__(self,state):
+        self._parameters, self._vertical, self._label = state[1:]
+        super().__setstate__(state[0])
 
 class ColorParameter(Parameter):
     def __init__(self, *args, default_value=(0,0,255,255), values, **kwargs):
@@ -57,7 +82,7 @@ class ColorParameter(Parameter):
         super().__init__(*args, **kwargs)
 
     def _createWidget(self):
-        self._colorWidget = wid.CollColors(self._values, initial_color = self._default_value)
+        self._colorWidget = wid.ColorPickerWidget(self._values, initial_color = self._default_value)
         self._colorWidget.colors_changed.connect(lambda : self.changed.emit(None))
         return self._colorWidget
 
@@ -72,9 +97,9 @@ class ColorParameter(Parameter):
         self._values = state[1]
         self._default_value = (0,0,255,255)
         super().__setstate__(state[0])
-        for i, (btn, cb) in enumerate(zip(self._colorWidget.colorbtns.values(), self._colorWidget.checkboxes)):
+        for i, (btn, cb) in enumerate(zip(self._colorWidget._colorbtns.values(), self._colorWidget._checkboxes)):
             btn.setColor(QtGui.QColor(*(state[2][i*4:(i+1)*4])))
-            cb.setCheckState(QtCore.Qt.Checked if state[2][i*4+3] else QtCore.Qt.Unchecked)
+            cb.setChecked(state[2][i*4+3])
 
 class CheckboxParameter(Parameter):
     def __init__(self, *args, name, default_value=False, label=None, **kwargs):

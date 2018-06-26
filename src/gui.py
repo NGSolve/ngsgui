@@ -81,6 +81,7 @@ class GUI():
               "-dontCatchExceptions" : (_dontCatchExceptions, "Do not catch exceptions")}
     # use a list of tuples instead of a dict to be able to sort it
     sceneCreators = []
+    file_loaders = {}
     def __init__(self):
         self.app = QtWidgets.QApplication([])
         ngui.SetLocale()
@@ -179,7 +180,22 @@ class GUI():
                         if issubclass(val, GuiPlugin):
                             val.loadPlugin(self)
 
+    def _tryLoadFile(self, filename):
+        if os.path.isfile(filename):
+            name, ext = os.path.splitext(filename)
+            if not ext in GUI.file_loaders:
+                self.msgbox = QtWidgets.QMessageBox(text = "Cannot load file type: " + ext)
+                self.msgbox.setWindowTitle("File loading error")
+                self.msgbox.show()
+                return
+            GUI.file_loaders[ext](self, filename)
+
     def parseFlags(self, flags):
+        self._loadFiles = []
+        for val in flags:
+            if os.path.isfile(val):
+                self._loadFiles.append(val)
+                flags.remove(val)
         flag = {val.split("=")[0] : (val.split("=")[1] if len(val.split("="))>1 else True) for val in flags}
         for key, tup in self.flags.items():
             if key in flag:
@@ -276,6 +292,8 @@ class GUI():
             self.stdoutThread.started.connect(receiver.run)
             self.stdoutThread.start()
         do_after_run()
+        for f in self._loadFiles:
+            self._tryLoadFile(f)
         def onQuit():
             if self.pipeOutput:
                 receiver.SetKill()
@@ -299,4 +317,5 @@ class DummyObject:
         plt.plot(x,y)
         plt.show()
 
+GUI.file_loaders[".py"] = GUI.loadPythonFile
 gui = DummyObject()
