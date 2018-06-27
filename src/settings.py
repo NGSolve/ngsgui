@@ -26,7 +26,9 @@ class Parameter(QtCore.QObject):
         if self.label:
             self._widget = QtWidgets.QWidget()
             arrange = ArrangeV if self._label_above else ArrangeH
-            self._widget.setLayout(arrange(QtWidgets.QLabel(self.label), self._createWidget()))
+            layout = arrange(QtWidgets.QLabel(self.label), self._createWidget())
+            layout.setContentsMargins(0,0,0,0)
+            self._widget.setLayout(layout)
         else:
             self._widget = self._createWidget()
 
