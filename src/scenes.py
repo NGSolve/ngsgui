@@ -1111,7 +1111,7 @@ class SolutionScene(BaseMeshScene):
             self.volume_values_imag.bind()
             uniforms.set('coefficients_imag', 3)
 
-            uniforms.set('complex_vis_function', self.getComplexEvalFunc())
+            uniforms.set('complex_vis_function', self._complex_eval_funcs[self.getComplexEvalFunc()])
             w = cmath.exp(1j*self.getComplexPhaseShift()/180.0*math.pi)
             uniforms.set('complex_factor', [w.real, w.imag])
 
