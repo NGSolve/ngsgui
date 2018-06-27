@@ -143,10 +143,16 @@ class CheckboxParameterCluster(CheckboxParameter):
         widget = QtWidgets.QWidget()
         self._vbox = QtWidgets.QWidget()
         subwidgets = [par.getWidget() for par in self._sub_parameters]
-        self._vbox.setLayout(ArrangeV(*subwidgets))
+        sublayout = ArrangeV(*subwidgets)
+        # set top,right,left to 0, right to 11 (should be default on most platforms)
+        sublayout.setContentsMargins(11,0,0,0)
+        self._vbox.setLayout(sublayout)
         self._vbox.setVisible(self.getValue())
         self.changed.connect(lambda : self._vbox.setVisible(self.getValue()))
-        widget.setLayout(ArrangeV(checkbox, self._vbox))
+        layout =  ArrangeV(checkbox, self._vbox)
+        # set margins to 0, same margins as CheckboxParameter
+        layout.setContentsMargins(0,0,0,0)
+        widget.setLayout(layout)
         return widget
 
     def __getstate__(self):
