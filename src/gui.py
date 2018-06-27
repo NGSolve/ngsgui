@@ -254,6 +254,35 @@ class GUI():
     def redraw_blocking(self):
         self.window_tabber.activeGLWindow.glWidget.updateScenes()
 
+    @inmain_decorator(wait_for_return=True)
+    def renderToImage(self, width, height, filename=None):
+        import copy
+        import OpenGL.GL as GL
+        from PySide2 import QtOpenGL
+        viewport = GL.glGetIntegerv( GL.GL_VIEWPORT )
+        GL.glViewport(0, 0, width, height)
+        format = QtOpenGL.QGLFramebufferObjectFormat()
+        format.setAttachment(QtOpenGL.QGLFramebufferObject.Depth)
+        format.setInternalTextureFormat(GL.GL_RGBA8);
+        fbo = QtOpenGL.QGLFramebufferObject(width, height, format)
+        fbo.bind()
+
+        self.redraw_blocking()
+        self.window_tabber.activeGLWindow.glWidget.updateGL()
+
+        im = fbo.toImage()
+        im2 = QtGui.QImage(im)
+        im2.fill(QtCore.Qt.white)
+        p = QtGui.QPainter(im2)
+        p.drawImage(0,0,im)
+        p.end()
+
+        if filename!=None:
+            im2.save(filename)
+        fbo.release()
+        GL.glViewport(*viewport)
+        return im
+
     def plot(self, x,y):
         self.window_tabber.plot(x,y)
 
