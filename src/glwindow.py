@@ -485,11 +485,9 @@ class WindowTabber(QtWidgets.QTabWidget):
                         break
             self.removeTab(index)
 
-    def draw(self, *args, **kwargs):
-        if 'tab' in kwargs:
+    def draw(self, *args, tab=None, **kwargs):
+        if tab is not None:
             tab_found = False
-            tab = kwargs['tab']
-            del kwargs['tab']
             for i in range(self.count()):
                 if self.tabText(i) == tab:
                     # tab already exists -> activate it
