@@ -1274,6 +1274,13 @@ class GeometryScene(BaseScene):
                                                                        data_format=GL_UNSIGNED_BYTE))
         self.addParameters("Surface Colors",colorParameter)
 
+    def _generateMesh(self):
+        mesh = self.geo.GenerateMesh()
+        ngsolve.Draw(ngsolve.Mesh(mesh))
+
+    def _createOptions(self):
+        super()._createOptions()
+        self.addButton("Mesh Generatation", "createMesh", self._generateMesh, label="Generate Mesh")
 
     def getBoundingBox(self):
         return self._geo_data.min, self._geo_data.max

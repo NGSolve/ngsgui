@@ -311,7 +311,7 @@ class ColorPickerWidget(QtWidgets.QWidget):
         self.colors_changed.emit()
 
     def reset(self):
-        for name, btn in self.colorbtns.items():
+        for name, btn in self._colorbtns.items():
             col = QtGui.QColor(*self._initial_color)
             col.setAlpha( btn.color().alpha() )
             btn.setColor(col)
