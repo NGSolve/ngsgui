@@ -371,7 +371,7 @@ class GLWidget(QtOpenGL.QGLWidget):
 
     def resizeGL(self, width, height):
         GL.glViewport(0, 0, width, height)
-        self._rendering_parameters.ratio = width/height
+        self._rendering_parameters.ratio = width/max(1,height)
 
     def mousePressEvent(self, event):
         self.lastPos = QtCore.QPoint(event.pos())
