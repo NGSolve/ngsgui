@@ -16,7 +16,7 @@ class Parameter(QtCore.QObject):
         self.name = name
         self.label = label
         self._label_above = label_above
-        self._options = kwargs if kwargs else {}
+        self.__options = kwargs if kwargs else {}
         self._createWithLabel()
 
     def _attachTo(self, obj):
@@ -34,10 +34,10 @@ class Parameter(QtCore.QObject):
         raise NotImplementedError("Parameter class must overload _createWidget!")
 
     def getOption(self, name):
-        if not name in self._options:
+        if not name in self.__options:
             return False
         else:
-            return self._options[name]
+            return self.__options[name]
 
     def setValue(self, val):
         self.changed.emit(val)
@@ -46,11 +46,11 @@ class Parameter(QtCore.QObject):
         return self._widget
 
     def __getstate__(self):
-        return (self.name, self.label, self._options)
+        return (self.name, self.label, self.__options)
 
     def __setstate__(self, state):
         Parameter.__init__(self, name=state[0], label=state[1])
-        self._options = state[2]
+        self.__options = state[2]
 
 class CombinedParameters(Parameter):
     def __init__(self, parameters, vertical=False, **kwargs):
@@ -198,6 +198,62 @@ class ValueParameter(Parameter):
 
     def __setstate__(self, state):
         self._initial_value, self._min_value, self._max_value, self._step = state[1:]
+        super().__setstate__(state[0])
+
+class SingleChoiceParameter(Parameter):
+    def __init__(self, *args, options, default_value, sub_parameters=None, **kwargs):
+        # list of single choice options
+        self._options = options
+        # string matching one of the above choices
+        self._default_value = default_value
+        # list of lists: the i-th list represents the parameters which become visible
+        #                when the i-th single choice option is selected
+        self._sub_parameters = sub_parameters
+        super().__init__(*args, **kwargs)
+
+    def _attachTo(self, obj):
+        for lst in self._sub_parameters:
+            for par in lst:
+                obj._attachParameter(par)
+
+    def _createWidget(self):
+        widgetlst = []
+        w = QtWidgets.QWidget()
+        self._group = QtWidgets.QButtonGroup(w)
+        for i,option in enumerate(self._options):
+            btn = QtWidgets.QRadioButton(option)
+            btn.clicked.connect(lambda : self.changed.emit(self.getValue()))
+            self._group.addButton(btn,i)
+            widgetlst.append(btn)
+            if(self._sub_parameters is not None and self._sub_parameters[i]):
+                subwid = QtWidgets.QWidget()
+                subpars = [par.getWidget() for par in self._sub_parameters[i]]
+                layout = ArrangeV(*subpars)
+                # set top,right,left to 0, right to 11 (should be default on most platforms)
+                layout.setContentsMargins(11,0,0,0)
+                subwid.setLayout(layout)
+                btn.toggled.connect(subwid.setVisible)
+                widgetlst.append(subwid)
+            if(option==self._default_value):
+                btn.setChecked(True)
+            else:
+                btn.toggled.emit(False)
+        w.setLayout(ArrangeV(*widgetlst))
+        return w
+
+    def getValue(self):
+        return self._group.checkedId()
+
+    def __getstate__(self):
+        return (super().__getstate__(),
+                self._options,
+                self._options[self.getValue()],
+                self._sub_parameters)
+
+    def __setstate__(self,state):
+        self._options = state[1]
+        self._default_value = state[2]
+        self._sub_parameters = state[3]
         super().__setstate__(state[0])
 
 class SingleOptionParameter(Parameter):
