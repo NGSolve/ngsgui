@@ -6,6 +6,7 @@
 #include <comp.hpp>
 #include <meshing.hpp>
 #include <csg.hpp>
+#include <geometry2d.hpp>
 #include <occgeom.hpp>
 #include <stlgeom.hpp>
 #include <type_traits>
@@ -659,4 +660,24 @@ PYBIND11_MODULE(ngui, m) {
             res["max"] = MoveToNumpyArray(max);
             return res;
           }, py::call_guard<py::gil_scoped_release>());
+
+    m.def("GetMaterialName", [](netgen::SplineGeometry2d& geo, int matnr) -> string
+          {
+            char* mat;
+            geo.GetMaterial(matnr, mat);
+            if (mat)
+              return string(mat);
+            return "default";
+          });
+    m.def("GetBoundaryNames", [](netgen::SplineGeometry2d& geo)
+          {
+            py::list bcnumbers;
+            py::dict bcnames;
+            for (auto& spline : geo.splines)
+              {
+                bcnumbers.append(spline->bc);
+                bcnames[spline->bc] = spline->bcname;
+              }
+            return py::make_tuple(bcnumbers, bcnames);
+          })
 }

@@ -11,7 +11,7 @@ import math, cmath
 from .thread import inmain_decorator
 from .gl_interface import getOpenGLData
 from .gui import GUI
-import netgen.meshing
+import netgen.meshing, netgen.geom2d
 from . import settings
 
 from PySide2 import QtWidgets, QtCore, QtGui
@@ -1168,12 +1168,12 @@ GUI.sceneCreators.append((ngsolve.GridFunction, _createGFScene))
 GUI.sceneCreators.append((ngsolve.CoefficientFunction, _createCFScene))
 
 class GeometryScene(BaseScene):
-    @inmain_decorator(wait_for_return=True)
     def __init__(self, geo, *args, **kwargs):
         self.geo = geo
         self._geo_data = getOpenGLData(self.geo)
         super().__init__(*args,**kwargs)
 
+    @inmain_decorator(wait_for_return=True)
     def initGL(self):
         super().initGL()
         self._geo_data.initGL()
@@ -1244,4 +1244,63 @@ class GeometryScene(BaseScene):
         glDrawArrays(GL_TRIANGLES, 0, self._geo_data.npoints)
         self.vao.unbind()
 
+class GeometryScene2D(BaseScene):
+    def __init__(self, geo, *args, **kwargs):
+        self.geo = geo
+        self._data = geo.PlotData()
+        self._seg_data = geo.SegmentData()
+        super().__init__(*args, **kwargs)
+
+    @inmain_decorator(True)
+    def initGL(self):
+        super().initGL()
+        self.vao = VertexArray()
+        self.window.glWidget._rotation_enabled = False
+        self.vertices = ArrayBuffer()
+        self.domains = ArrayBuffer()
+
+    @inmain_decorator(True)
+    def update(self):
+        super().update()
+        xlim, ylim, xpoints, ypoints = self.geo.PlotData()
+        lp, rp, leftdom, rightdom = self.geo.SegmentData()
+        vertices = []
+        domains = []
+        for xvals, yvals, left, right in zip(xpoints, ypoints, leftdom, rightdom):
+            for x,y in zip(xvals, yvals):
+                vertices.append(x)
+                vertices.append(y)
+                vertices.append(0)
+                domains.append(left)
+                domains.append(right)
+        self._nverts = len(vertices)//3
+        self.vertices.store(numpy.array(vertices, dtype=numpy.float32))
+        self.domains.store(numpy.array(domains, dtype=numpy.int32))
+        dom_name = {domnr : ngui.GetMaterialName(self.geo, domnr) for domnr in domains if domnr != 0}
+        print("dom names = ", dom_name)
+
+    def getBoundingBox(self):
+        return ((self._data[0][0], self._data[0][1], 0.), (self._data[1][0], self._data[1][1], 0.))
+
+    def render(self, settings):
+        self.vao.bind()
+        prog = getProgram('geom2d.vert', 'mesh.frag')
+        model,view,projection = settings.model, settings.view, settings.projection
+        uniforms = prog.uniforms
+        uniforms.set('P',projection)
+        uniforms.set('MV',view*model)
+
+        prog.attributes.bind('pos', self.vertices)
+        prog.attributes.bind('domain', self.domains)
+
+        uniforms.set('do_clipping', False)
+        uniforms.set('light_ambient', 1)
+        uniforms.set('light_diffuse',0)
+
+        glLineWidth(3)
+        glDrawArrays(GL_LINES, 0, self._nverts)
+        glLineWidth(1)
+        self.vao.unbind()
+
+GUI.sceneCreators.append((netgen.geom2d.SplineGeometry, GeometryScene2D))
 GUI.sceneCreators.append((netgen.meshing.NetgenGeometry,GeometryScene))

@@ -246,6 +246,7 @@ class GLWidget(QtOpenGL.QGLWidget):
             self.context().setFormat(f)
             self.context().create()
         self.scenes = []
+        self._rotation_enabled = True
         self.do_rotate = False
         self.do_translate = False
         self.do_zoom = False
@@ -384,7 +385,8 @@ class GLWidget(QtOpenGL.QGLWidget):
                 self.do_rotate_clippingplane = True
         else:
             if event.button() == QtCore.Qt.MouseButton.LeftButton:
-                self.do_rotate = True
+                if self._rotation_enabled:
+                    self.do_rotate = True
             if event.button() == QtCore.Qt.MouseButton.MidButton:
                 self.do_translate = True
             if event.button() == QtCore.Qt.MouseButton.RightButton:
