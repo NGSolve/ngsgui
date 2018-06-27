@@ -310,8 +310,13 @@ class GLWidget(QtOpenGL.QGLWidget):
         GL.glDepthFunc(GL.GL_LEQUAL)
         GL.glEnable(GL.GL_BLEND);
         GL.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
+
+        viewport = GL.glGetIntegerv( GL.GL_VIEWPORT )
+        screen_width = viewport[2]-viewport[0]
+        screen_height = viewport[3]-viewport[1]
         with mygl.Query(GL.GL_PRIMITIVES_GENERATED) as q:
             rp = copy.copy(self._rendering_parameters)
+            rp.ratio = screen_width/max(screen_height,1)
             for scene in self.scenes:
                 scene.render(rp) #model, view, projection)
         # print('\rtotal trigs drawn ' + str(q.value)+' '*10, end='')

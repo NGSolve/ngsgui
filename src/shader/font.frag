@@ -12,5 +12,6 @@ in VertexData_out
 void main()
 {
   float x = texture(font, inData.tex_coordinate).r;
+  if(x==0) discard;
   FragColor = vec4(0,0,0,x);
 }
