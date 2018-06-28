@@ -1,0 +1,23 @@
+package:
+  name: ngsolve_gui
+  version: 6.2
+
+requirements:
+  build:
+    - python 3*
+    - ngsolve 6.2
+    - cmake
+  run:
+    - python 3*
+    - pyside2
+    - ngsolve 6.2
+    - pyopengl
+    - numpy
+
+source:
+  git_url: ../../
+
+about:
+  home: https://ngsolve.org
+  license: LGPL
+  summary: "Visualization for NGSolve"

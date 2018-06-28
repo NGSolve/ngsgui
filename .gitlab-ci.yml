@@ -1,0 +1,64 @@
+stages:
+  - build
+  - cleanup
+
+.build_linux:
+  stage: build
+  tags:
+    - linux
+    - docker
+    - avx
+  script:
+    - export PATH="~/miniconda3/bin:$PATH"
+    - cd conda
+    - bash build.sh
+
+.build_mac:
+  stage: build
+  tags:
+    - mac
+  script:
+    - export PATH="~/miniconda3/bin:$PATH"
+    - cd conda
+    - bash build.sh
+
+.build_win:
+  stage: build
+  tags:
+    - windows
+  script:
+    - call C:\Users\gitlabci\Miniconda3\Scripts\activate.bat C:\Users\gitlabci\Miniconda3
+    - cd conda
+    - bld.bat
+
+.cleanup_mac:
+  stage: cleanup
+  tags:
+    - mac
+  script:
+    - export PATH="~/miniconda3/bin:$PATH"
+    - conda build purge
+  when: always
+  allow_failure: true
+
+.cleanup_linux:
+  stage: cleanup
+  tags:
+    - linux
+    - docker
+    - avx
+  script:
+    - export PATH="~/miniconda3/bin:$PATH"
+    - conda build purge
+  when: always
+  allow_failure: true
+
+.cleanup_win:
+  stage: cleanup
+  tags:
+    - windows
+  script:
+    - call C:\Users\gitlabci\Miniconda3\Scripts\activate.bat C:\Users\gitlabci\Miniconda3
+    - conda build purge
+  when: always
+  allow_failure: true
