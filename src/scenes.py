@@ -645,8 +645,8 @@ class SolutionScene(BaseMeshScene):
         self.cf = cf
         self.vao = None
         self.__initial_values = {"Order" : order,
-                                 "ColorMapMin" : min,
-                                 "ColorMapMax" : max,
+                                 "ColorMapMin" : float(min),
+                                 "ColorMapMax" : float(max),
                                  "Autoscale" : autoscale,
                                  "ColorMapLinear" : linear,
                                  "ShowClippingPlane" : clippingPlane,
@@ -1249,6 +1249,7 @@ class GeometryScene2D(BaseScene):
         self.geo = geo
         self._data = geo.PlotData()
         self._seg_data = geo.SegmentData()
+        self._vertices, self._domains, self._xmin, self._xmax, self._bcnames = ngui.GetGeometry2dData(self.geo)
         super().__init__(*args, **kwargs)
 
     @inmain_decorator(True)
@@ -1258,37 +1259,70 @@ class GeometryScene2D(BaseScene):
         self.window.glWidget._rotation_enabled = False
         self.vertices = ArrayBuffer()
         self.domains = ArrayBuffer()
+        self._tex_bc_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
+        self._tex_bc_colors.store(self.getBoundaryColors(), data_format=GL_UNSIGNED_BYTE)
+        self._text_renderer = TextRenderer()
 
     @inmain_decorator(True)
     def update(self):
         super().update()
-        xlim, ylim, xpoints, ypoints = self.geo.PlotData()
-        lp, rp, leftdom, rightdom = self.geo.SegmentData()
-        vertices = []
-        domains = []
-        for xvals, yvals, left, right in zip(xpoints, ypoints, leftdom, rightdom):
-            for x,y in zip(xvals, yvals):
-                vertices.append(x)
-                vertices.append(y)
-                vertices.append(0)
-                domains.append(left)
-                domains.append(right)
-        self._nverts = len(vertices)//3
-        self.vertices.store(numpy.array(vertices, dtype=numpy.float32))
-        self.domains.store(numpy.array(domains, dtype=numpy.int32))
-        dom_name = {domnr : ngui.GetMaterialName(self.geo, domnr) for domnr in domains if domnr != 0}
-        print("dom names = ", dom_name)
+        self._nverts = len(self._vertices)//3
+        self.vertices.store(numpy.array(self._vertices, dtype=numpy.float32))
+        self.domains.store(numpy.array(self._domains, dtype=numpy.int32))
+
+    @inmain_decorator(True)
+    def _createParameters(self):
+        super()._createParameters()
+        bc_color = settings.ColorParameter(name="BoundaryColors", values=self._bcnames,
+                                           default_value=(0,0,0,255))
+        bc_color.changed.connect(lambda : self._tex_bc_colors.store(self.getBoundaryColors(),
+                                                                    data_format=GL_UNSIGNED_BYTE))
+        self.addParameters("Boundary Colors", bc_color)
+        self.addParameters("Show",
+                           settings.CheckboxParameter(name="ShowPointNumbers",
+                                                      label="Point Numbers",
+                                                      default_value=True),
+                           settings.CheckboxParameter(name="ShowDomainNumbers",
+                                                      label="Domain Numbers",
+                                                      default_value = True))
 
     def getBoundingBox(self):
-        return ((self._data[0][0], self._data[0][1], 0.), (self._data[1][0], self._data[1][1], 0.))
+        return (self._xmin, self._xmax)
 
     def render(self, settings):
+        if not self.active:
+            return
         self.vao.bind()
+        self.__renderGeometry(settings)
+        self.__renderNumbers(settings)
+        self.vao.unbind()
+
+    def __renderNumbers(self, settings):
+        eps = math.sqrt(sum([(self._xmax[i]-self._xmin[i])**2 for i in range(2)])) / 500
+        if self.getShowPointNumbers():
+            xpoints, ypoints, pointindex = self.geo.PointData()
+            #offset
+            for x,y,index in zip(xpoints, ypoints, pointindex):
+                self._text_renderer.draw(settings, str(index), [x+eps,y-eps,0], use_absolute_pos=False)
+        if self.getShowDomainNumbers():
+            points, normals, leftdom, rightdom = ngui.GetSegmentData(self.geo)
+            for pnt, normal, dom in zip(points, normals, leftdom):
+                self._text_renderer.draw(settings, str(dom), [pnt[0]-10*eps*normal[0],
+                                                              pnt[1]-10*eps*normal[1], 0], use_absolute_pos=False)
+            for pnt, normal, dom in zip(points, normals, rightdom):
+                self._text_renderer.draw(settings, str(dom), [pnt[0]+eps*normal[0],
+                                                              pnt[1]+eps*normal[1], 0], use_absolute_pos=False)
+
+    def __renderGeometry(self, settings):
         prog = getProgram('geom2d.vert', 'mesh.frag')
         model,view,projection = settings.model, settings.view, settings.projection
         uniforms = prog.uniforms
         uniforms.set('P',projection)
         uniforms.set('MV',view*model)
+
+        glActiveTexture(GL_TEXTURE0)
+        self._tex_bc_colors.bind()
+        uniforms.set('colors', 0)
 
         prog.attributes.bind('pos', self.vertices)
         prog.attributes.bind('domain', self.domains)
@@ -1300,7 +1334,6 @@ class GeometryScene2D(BaseScene):
         glLineWidth(3)
         glDrawArrays(GL_LINES, 0, self._nverts)
         glLineWidth(1)
-        self.vao.unbind()
 
 GUI.sceneCreators.append((netgen.geom2d.SplineGeometry, GeometryScene2D))
 GUI.sceneCreators.append((netgen.meshing.NetgenGeometry,GeometryScene))

@@ -12,7 +12,7 @@ import numpy as np
 
 import time
 from ngsolve.bla import Vector
-from math import exp
+from math import exp, sqrt
 
 from PySide2 import QtWidgets, QtOpenGL, QtCore, QtGui
 from OpenGL import GL
@@ -137,9 +137,14 @@ class RenderingParameters:
         return 0.5*(self.min+self.max)
 
     @property
+    def _modelSize(self):
+        return sqrt(sum((self.max[i]-self.min[i])**2 for i in range(3)))
+
+    @property
     def model(self):
         mat = glmath.Identity();
         mat = self.rotmat*mat;
+        mat = glmath.Scale(2./self._modelSize) * mat
         mat = glmath.Translate(self.dx, -self.dy, -0 )*mat;
         mat = glmath.Scale(exp(-self.zoom/100))*mat;
         mat = glmath.Translate(0, -0, -5 )*mat;
