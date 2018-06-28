@@ -655,7 +655,12 @@ class SolutionScene(BaseMeshScene):
                                  "ShowVectors" : False,
                                  "ShowSurface" : True}
 
-
+        if hasattr(self.cf,"vecs") and len(self.cf.vecs) > 1:
+            self._gfComponents = self.cf
+            self.cf = ngsolve.GridFunction(self._gfComponents.space)
+            self.cf.vec.data = self._gfComponents.vecs[0]
+        else:
+            self._gfComponents = False
         if gradient and cf.dim == 1:
             self.cf = ngsolve.CoefficientFunction((cf, gradient))
             self.have_gradient = True
@@ -750,6 +755,16 @@ class SolutionScene(BaseMeshScene):
                            settings.CheckboxParameter(name="ColorMapLinear",
                                                       label="Linear",
                                                       default_value=self.__initial_values["ColorMapLinear"]))
+        if self._gfComponents:
+            components = settings.ValueParameter(label = "Multidim",
+                                                 default_value = 0,
+                                                 max_value = len(self._gfComponents.vecs)-1,
+                                                 min_value = 0)
+            def setVec(val):
+                self.cf.vec.data = self._gfComponents.vecs[val]
+                self.update()
+            components.changed.connect(setVec)
+            self.addParameters("Components", components)
 
     def __getstate__(self):
         super_state = super().__getstate__()
