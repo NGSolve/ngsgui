@@ -20,7 +20,7 @@ def TestImage(filename, width=width, height=height):
             for j in range(im.height()):
                 p1 = im.pixelColor(i,j).getRgb()
                 p2 = im_ref.pixelColor(i,j).getRgb()
-                diff = [255-(1+abs(a-b))//2 for a,b in zip(p1,p2)]
+                diff = [255-abs(a-b) for a,b in zip(p1,p2)]
                 c = QtGui.QColor.fromRgb(*diff)
                 im_diff.setPixelColor(i,j, c)
         im_diff.save('diff/'+filename)
