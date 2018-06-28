@@ -2,7 +2,7 @@ stages:
   - build
   - cleanup
 
-build_linux:
+.build_linux:
   stage: build
   tags:
     - linux
@@ -13,7 +13,7 @@ build_linux:
     - cd conda
     - bash build.sh
 
-build_mac:
+.build_mac:
   stage: build
   tags:
     - mac
@@ -22,7 +22,7 @@ build_mac:
     - cd conda
     - bash build.sh
 
-build_win:
+.build_win:
   stage: build
   tags:
     - windows
@@ -31,7 +31,7 @@ build_win:
     - cd conda
     - bld.bat
 
-cleanup_mac:
+.cleanup_mac:
   stage: cleanup
   tags:
     - mac
@@ -41,7 +41,7 @@ cleanup_mac:
   when: always
   allow_failure: true
 
-cleanup_linux:
+.cleanup_linux:
   stage: cleanup
   tags:
     - linux
@@ -53,7 +53,7 @@ cleanup_linux:
   when: always
   allow_failure: true
 
-cleanup_win:
+.cleanup_win:
   stage: cleanup
   tags:
     - windows
