@@ -704,6 +704,27 @@ class SolutionScene(BaseMeshScene):
                                                           default_value=self.__initial_values["ShowVectors"]))
 
         if self.cf.is_complex:
+            animate_checkbox = settings.CheckboxParameter(name="Animate", label="Animate",
+                                                          default_value=False)
+            self._timer_thread = QtCore.QThread()
+            def animate(val):
+                if val:
+                    self._timer_thread = QtCore.QThread()
+                    def run_animate():
+                        self._animation_timer = QtCore.QTimer()
+                        self._animation_timer.setInterval(20)
+                        self._animation_timer.timeout.connect(lambda : self.setComplexPhaseShift(self.getComplexPhaseShift()-10))
+                        self._animation_timer.start()
+                    def stop_animate():
+                        self._animation_timer.stop()
+                    self._timer_thread.started.connect(run_animate)
+                    self._timer_thread.finished.connect(stop_animate)
+                    self._timer_thread.start()
+                else:
+                    self._timer_thread.finished.emit()
+                    self._timer_thread.quit()
+
+            animate_checkbox.changed.connect(animate)
             self.addParameters("Complex",
                                settings.SingleOptionParameter(name="ComplexEvalFunc",
                                                               values = list(self._complex_eval_funcs.keys()),
@@ -711,7 +732,8 @@ class SolutionScene(BaseMeshScene):
                                                               default_value = "real"),
                                settings.ValueParameter(name="ComplexPhaseShift",
                                                       label="Value shift angle",
-                                                       default_value = 0.0))
+                                                       default_value = 0.0),
+                               animate_checkbox)
 
         boxmin = settings.ValueParameter(name = "ColorMapMin",
                                          label = "Min",
