@@ -287,24 +287,6 @@ def getProgram(*shader_files, feedback=[], elements=None, params=None, **define_
 
     defines = '\n'
     if elements != None:
-        dims = {
-                ngsolve.ET.SEGM: 1,
-                ngsolve.ET.TRIG: 2,
-                ngsolve.ET.QUAD: 2,
-                ngsolve.ET.TET: 3,
-                ngsolve.ET.PYRAMID: 3,
-                ngsolve.ET.PRISM: 3,
-                ngsolve.ET.HEX: 3
-                }
-        nverts = {
-                ngsolve.ET.SEGM: 2,
-                ngsolve.ET.TRIG: 3,
-                ngsolve.ET.QUAD: 4,
-                ngsolve.ET.TET: 4,
-                ngsolve.ET.PYRAMID: 5,
-                ngsolve.ET.PRISM: 6,
-                ngsolve.ET.HEX: 8
-                }
         defines += """
 #define ELEMENT_TYPE {ELEMENT_TYPE}
 #define {ELEMENT_TYPE_NAME}
@@ -313,8 +295,8 @@ def getProgram(*shader_files, feedback=[], elements=None, params=None, **define_
 """.format(
         ELEMENT_TYPE = str(elements.type)[3:],
         ELEMENT_SIZE = str(elements.size),
-        ELEMENT_N_VERTICES = nverts[elements.type],
-        DIM = dims[elements.type],
+        ELEMENT_N_VERTICES = elements.nverts,
+        DIM = elements.dim,
         ELEMENT_TYPE_NAME = str(elements.type).replace('.','_')
         )
         if elements.curved:

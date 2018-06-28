@@ -19,9 +19,35 @@ namespace py = pybind11;
 struct ElementInformation {
     ElementInformation() = default;
     ElementInformation( size_t size_, ELEMENT_TYPE type_, bool curved_=false)
-      : size(size_), type(type_), curved(curved_) {}
+      : size(size_), type(type_), curved(curved_) {
+          switch(type) {
+            case ET_SEGM: nverts=2; break;
+            case ET_TRIG: nverts=3; break;
+            case ET_QUAD: nverts=4; break;
+            case ET_TET: nverts=4; break;
+            case ET_HEX: nverts=8; break;
+            case ET_PRISM: nverts=6; break;
+            case ET_PYRAMID: nverts=5; break;
+            default: throw Exception("ElementInformation(): unknown element type " + ToString(type));
+          }
+          switch(type) {
+            case ET_SEGM:
+              dim=1; break;
+            case ET_TRIG:
+            case ET_QUAD:
+              dim=2; break;
+            case ET_TET:
+            case ET_HEX:
+            case ET_PRISM:
+            case ET_PYRAMID:
+              dim=3; break;
+            default: throw Exception("ElementInformation(): unknown element type " + ToString(type));
+          }
+      }
     Array<int> data; // the data that will go into the gpu texture buffer
     size_t size;   // integer entries for each element (vertices, curved_index, number, material/boundary index)
+    int nverts;
+    int dim;
     ELEMENT_TYPE type;
     bool curved;
 };
@@ -353,6 +379,8 @@ PYBIND11_MODULE(ngui, m) {
     .def_readwrite("size",    &ElementInformation::size)
     .def_readwrite("type",    &ElementInformation::type)
     .def_readwrite("curved",  &ElementInformation::curved)
+    .def_readwrite("nverts",  &ElementInformation::nverts)
+    .def_readwrite("dim",  &ElementInformation::dim)
     ;
   m.def("SetLocale", []()
         {

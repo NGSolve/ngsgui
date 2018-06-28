@@ -546,14 +546,6 @@ class MeshScene(BaseMeshScene):
 
         uniforms.set('mesh.dim', 2);
         uniforms.set('wireframe', wireframe)
-        gl_type = {
-                ngsolve.ET.TRIG: GL_TRIANGLES,
-                ngsolve.ET.QUAD: GL_QUADS,
-        }
-        nverts = {
-                ngsolve.ET.TRIG: 3,
-                ngsolve.ET.QUAD: 4,
-        }
 
         if wireframe:
             offset_mode = GL_POLYGON_OFFSET_LINE
@@ -574,12 +566,13 @@ class MeshScene(BaseMeshScene):
         glPolygonOffset (offset, offset)
         glEnable(offset_mode)
         if elements.curved:
-            glPatchParameteri(GL_PATCH_VERTICES, nverts[elements.type])
+            glPatchParameteri(GL_PATCH_VERTICES, elements.nverts)
             glPatchParameterfv(GL_PATCH_DEFAULT_OUTER_LEVEL, [tess_level]*4)
             glPatchParameterfv(GL_PATCH_DEFAULT_INNER_LEVEL, [tess_level]*2)
-            glDrawArrays(GL_PATCHES, 0, nverts[elements.type]*len(elements.data)//elements.size)
+            glDrawArrays(GL_PATCHES, 0, elements.nverts*len(elements.data)//elements.size)
         else:
-            glDrawArrays(gl_type[elements.type], 0, nverts[elements.type]*len(elements.data)//elements.size)
+            # triangles are the only uncurved 2d elements
+            glDrawArrays(GL_TRIANGLES, 0, 3*len(elements.data)//elements.size)
         glDisable(offset_mode)
 
     def renderSurface(self, settings):
@@ -1075,15 +1068,11 @@ class SolutionScene(BaseMeshScene):
                 tess_level=1
 
             glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
-            nverts = {
-                    ngsolve.ET.TRIG: 3,
-                    ngsolve.ET.QUAD: 4,
-            }
             if use_tessellation:
-                glPatchParameteri(GL_PATCH_VERTICES, nverts[elements.type])
+                glPatchParameteri(GL_PATCH_VERTICES, elements.nverts)
                 glPatchParameterfv(GL_PATCH_DEFAULT_OUTER_LEVEL, [tess_level]*4)
                 glPatchParameterfv(GL_PATCH_DEFAULT_INNER_LEVEL, [tess_level]*2)
-                glDrawArrays(GL_PATCHES, 0, nverts[elements.type]*len(elements.data)//elements.size)
+                glDrawArrays(GL_PATCHES, 0, elements.nverts*len(elements.data)//elements.size)
             else:
                 glDrawArrays(GL_TRIANGLES, 0, 3*len(elements.data)//elements.size)
         self.surface_vao.unbind()
