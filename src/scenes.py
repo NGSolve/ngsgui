@@ -11,7 +11,7 @@ import math, cmath
 from .thread import inmain_decorator
 from .gl_interface import getOpenGLData
 from .gui import GUI
-import netgen.meshing
+import netgen.meshing, netgen.geom2d
 from . import settings
 
 from PySide2 import QtWidgets, QtCore, QtGui
@@ -697,7 +697,12 @@ class SolutionScene(BaseMeshScene):
                                  "ShowVectors" : False,
                                  "ShowSurface" : True}
 
-
+        if hasattr(self.cf,"vecs") and len(self.cf.vecs) > 1:
+            self._gfComponents = self.cf
+            self.cf = ngsolve.GridFunction(self._gfComponents.space)
+            self.cf.vec.data = self._gfComponents.vecs[0]
+        else:
+            self._gfComponents = False
         if gradient and cf.dim == 1:
             self.cf = ngsolve.CoefficientFunction((cf, gradient))
             self.have_gradient = True
@@ -746,6 +751,27 @@ class SolutionScene(BaseMeshScene):
                                                           default_value=self.__initial_values["ShowVectors"]))
 
         if self.cf.is_complex:
+            animate_checkbox = settings.CheckboxParameter(name="Animate", label="Animate",
+                                                          default_value=False)
+            self._timer_thread = QtCore.QThread()
+            def animate(val):
+                if val:
+                    self._timer_thread = QtCore.QThread()
+                    def run_animate():
+                        self._animation_timer = QtCore.QTimer()
+                        self._animation_timer.setInterval(20)
+                        self._animation_timer.timeout.connect(lambda : self.setComplexPhaseShift(self.getComplexPhaseShift()-10))
+                        self._animation_timer.start()
+                    def stop_animate():
+                        self._animation_timer.stop()
+                    self._timer_thread.started.connect(run_animate)
+                    self._timer_thread.finished.connect(stop_animate)
+                    self._timer_thread.start()
+                else:
+                    self._timer_thread.finished.emit()
+                    self._timer_thread.quit()
+
+            animate_checkbox.changed.connect(animate)
             self.addParameters("Complex",
                                settings.SingleOptionParameter(name="ComplexEvalFunc",
                                                               values = list(self._complex_eval_funcs.keys()),
@@ -753,7 +779,8 @@ class SolutionScene(BaseMeshScene):
                                                               default_value = "real"),
                                settings.ValueParameter(name="ComplexPhaseShift",
                                                       label="Value shift angle",
-                                                       default_value = 0.0))
+                                                       default_value = 0.0),
+                               animate_checkbox)
 
         boxmin = settings.ValueParameter(name = "ColorMapMin",
                                          label = "Min",
@@ -770,6 +797,16 @@ class SolutionScene(BaseMeshScene):
                            settings.CheckboxParameter(name="ColorMapLinear",
                                                       label="Linear",
                                                       default_value=self.__initial_values["ColorMapLinear"]))
+        if self._gfComponents:
+            components = settings.ValueParameter(label = "Multidim",
+                                                 default_value = 0,
+                                                 max_value = len(self._gfComponents.vecs)-1,
+                                                 min_value = 0)
+            def setVec(val):
+                self.cf.vec.data = self._gfComponents.vecs[val]
+                self.update()
+            components.changed.connect(setVec)
+            self.addParameters("Components", components)
 
     def __getstate__(self):
         super_state = super().__getstate__()
@@ -1187,7 +1224,7 @@ class SolutionScene(BaseMeshScene):
             self.volume_values_imag.bind()
             uniforms.set('coefficients_imag', 3)
 
-            uniforms.set('complex_vis_function', self.getComplexEvalFunc())
+            uniforms.set('complex_vis_function', self._complex_eval_funcs[self.getComplexEvalFunc()])
             w = cmath.exp(1j*self.getComplexPhaseShift()/180.0*math.pi)
             uniforms.set('complex_factor', [w.real, w.imag])
 
@@ -1244,12 +1281,12 @@ GUI.sceneCreators.append((ngsolve.GridFunction, _createGFScene))
 GUI.sceneCreators.append((ngsolve.CoefficientFunction, _createCFScene))
 
 class GeometryScene(BaseScene):
-    @inmain_decorator(wait_for_return=True)
     def __init__(self, geo, *args, **kwargs):
         self.geo = geo
         self._geo_data = getOpenGLData(self.geo)
         super().__init__(*args,**kwargs)
 
+    @inmain_decorator(wait_for_return=True)
     def initGL(self):
         super().initGL()
         self._geo_data.initGL()
@@ -1320,4 +1357,96 @@ class GeometryScene(BaseScene):
         glDrawArrays(GL_TRIANGLES, 0, self._geo_data.npoints)
         self.vao.unbind()
 
+class GeometryScene2D(BaseScene):
+    def __init__(self, geo, *args, **kwargs):
+        self.geo = geo
+        self._data = geo.PlotData()
+        self._seg_data = geo.SegmentData()
+        self._vertices, self._domains, self._xmin, self._xmax, self._bcnames = ngui.GetGeometry2dData(self.geo)
+        super().__init__(*args, **kwargs)
+
+    @inmain_decorator(True)
+    def initGL(self):
+        super().initGL()
+        self.vao = VertexArray()
+        self.window.glWidget._rotation_enabled = False
+        self.vertices = ArrayBuffer()
+        self.domains = ArrayBuffer()
+        self._tex_bc_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
+        self._tex_bc_colors.store(self.getBoundaryColors(), data_format=GL_UNSIGNED_BYTE)
+        self._text_renderer = TextRenderer()
+
+    @inmain_decorator(True)
+    def update(self):
+        super().update()
+        self._nverts = len(self._vertices)//3
+        self.vertices.store(numpy.array(self._vertices, dtype=numpy.float32))
+        self.domains.store(numpy.array(self._domains, dtype=numpy.int32))
+
+    @inmain_decorator(True)
+    def _createParameters(self):
+        super()._createParameters()
+        bc_color = settings.ColorParameter(name="BoundaryColors", values=self._bcnames,
+                                           default_value=(0,0,0,255))
+        bc_color.changed.connect(lambda : self._tex_bc_colors.store(self.getBoundaryColors(),
+                                                                    data_format=GL_UNSIGNED_BYTE))
+        self.addParameters("Boundary Colors", bc_color)
+        self.addParameters("Show",
+                           settings.CheckboxParameter(name="ShowPointNumbers",
+                                                      label="Point Numbers",
+                                                      default_value=True),
+                           settings.CheckboxParameter(name="ShowDomainNumbers",
+                                                      label="Domain Numbers",
+                                                      default_value = True))
+
+    def getBoundingBox(self):
+        return (self._xmin, self._xmax)
+
+    def render(self, settings):
+        if not self.active:
+            return
+        self.vao.bind()
+        self.__renderGeometry(settings)
+        self.__renderNumbers(settings)
+        self.vao.unbind()
+
+    def __renderNumbers(self, settings):
+        eps = math.sqrt(sum([(self._xmax[i]-self._xmin[i])**2 for i in range(2)])) / 500
+        if self.getShowPointNumbers():
+            xpoints, ypoints, pointindex = self.geo.PointData()
+            #offset
+            for x,y,index in zip(xpoints, ypoints, pointindex):
+                self._text_renderer.draw(settings, str(index), [x+eps,y-eps,0], use_absolute_pos=False)
+        if self.getShowDomainNumbers():
+            points, normals, leftdom, rightdom = ngui.GetSegmentData(self.geo)
+            for pnt, normal, dom in zip(points, normals, leftdom):
+                self._text_renderer.draw(settings, str(dom), [pnt[0]-10*eps*normal[0],
+                                                              pnt[1]-10*eps*normal[1], 0], use_absolute_pos=False)
+            for pnt, normal, dom in zip(points, normals, rightdom):
+                self._text_renderer.draw(settings, str(dom), [pnt[0]+eps*normal[0],
+                                                              pnt[1]+eps*normal[1], 0], use_absolute_pos=False)
+
+    def __renderGeometry(self, settings):
+        prog = getProgram('geom2d.vert', 'mesh.frag')
+        model,view,projection = settings.model, settings.view, settings.projection
+        uniforms = prog.uniforms
+        uniforms.set('P',projection)
+        uniforms.set('MV',view*model)
+
+        glActiveTexture(GL_TEXTURE0)
+        self._tex_bc_colors.bind()
+        uniforms.set('colors', 0)
+
+        prog.attributes.bind('pos', self.vertices)
+        prog.attributes.bind('domain', self.domains)
+
+        uniforms.set('do_clipping', False)
+        uniforms.set('light_ambient', 1)
+        uniforms.set('light_diffuse',0)
+
+        glLineWidth(3)
+        glDrawArrays(GL_LINES, 0, self._nverts)
+        glLineWidth(1)
+
+GUI.sceneCreators.append((netgen.geom2d.SplineGeometry, GeometryScene2D))
 GUI.sceneCreators.append((netgen.meshing.NetgenGeometry,GeometryScene))

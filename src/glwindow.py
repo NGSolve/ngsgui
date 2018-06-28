@@ -12,7 +12,7 @@ import numpy as np
 
 import time
 from ngsolve.bla import Vector
-from math import exp
+from math import exp, sqrt
 
 from PySide2 import QtWidgets, QtOpenGL, QtCore, QtGui
 from OpenGL import GL
@@ -137,9 +137,14 @@ class RenderingParameters:
         return 0.5*(self.min+self.max)
 
     @property
+    def _modelSize(self):
+        return sqrt(sum((self.max[i]-self.min[i])**2 for i in range(3)))
+
+    @property
     def model(self):
         mat = glmath.Identity();
         mat = self.rotmat*mat;
+        mat = glmath.Scale(2./self._modelSize) * mat
         mat = glmath.Translate(self.dx, -self.dy, -0 )*mat;
         mat = glmath.Scale(exp(-self.zoom/100))*mat;
         mat = glmath.Translate(0, -0, -5 )*mat;
@@ -247,6 +252,7 @@ class GLWidget(QtOpenGL.QGLWidget):
             self.context().setFormat(f)
             self.context().create()
         self.scenes = []
+        self._rotation_enabled = True
         self.do_rotate = False
         self.do_translate = False
         self.do_zoom = False
@@ -377,7 +383,7 @@ class GLWidget(QtOpenGL.QGLWidget):
 
     def resizeGL(self, width, height):
         GL.glViewport(0, 0, width, height)
-        self._rendering_parameters.ratio = width/height
+        self._rendering_parameters.ratio = width/max(1,height)
 
     def mousePressEvent(self, event):
         self.lastPos = QtCore.QPoint(event.pos())
@@ -390,7 +396,8 @@ class GLWidget(QtOpenGL.QGLWidget):
                 self.do_rotate_clippingplane = True
         else:
             if event.button() == QtCore.Qt.MouseButton.LeftButton:
-                self.do_rotate = True
+                if self._rotation_enabled:
+                    self.do_rotate = True
             if event.button() == QtCore.Qt.MouseButton.MidButton:
                 self.do_translate = True
             if event.button() == QtCore.Qt.MouseButton.RightButton:
@@ -491,11 +498,9 @@ class WindowTabber(QtWidgets.QTabWidget):
                         break
             self.removeTab(index)
 
-    def draw(self, *args, **kwargs):
-        if 'tab' in kwargs:
+    def draw(self, *args, tab=None, **kwargs):
+        if tab is not None:
             tab_found = False
-            tab = kwargs['tab']
-            del kwargs['tab']
             for i in range(self.count()):
                 if self.tabText(i) == tab:
                     # tab already exists -> activate it
