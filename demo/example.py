@@ -4,7 +4,7 @@ from netgen.csg import *
 import ngsolve.gui as GUI
 
 ngsglobals.msg_level = 7
-nrefinements = 3
+nrefinements = 2
 
 def MakeGeometry():
     geometry = CSGeometry()
@@ -38,7 +38,7 @@ print(mesh.ne,'elements')
 
 n = 5
 cf = cos(n*x)*cos(n*y)*cos(n*z)
-# cf = x+1j*y
+cf = x+1j*y
 # cf = (x-0.5)**2+(y-0.5)**2+(z-0.5)**2
 
 # gui = GUI.GUI()

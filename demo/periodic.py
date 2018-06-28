@@ -10,6 +10,4 @@ geo.PeriodicSurfaces(left,right)
 
 from ngsolve import *
 mesh = Mesh(geo.GenerateMesh(maxh=0.3))
-for i in range(2):
-    mesh.Refine()
-s = Draw(mesh)
+Draw(mesh)
