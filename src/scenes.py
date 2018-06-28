@@ -167,8 +167,31 @@ class BaseMeshScene(BaseScene):
     """Base class for all scenes that depend on a mesh"""
     @inmain_decorator(wait_for_return=True)
     def __init__(self, mesh,**kwargs):
+        self.__initial_values = {"Deformation" : False}
         self.mesh = mesh
+        self.deformation = None
+        if 'deformation' in kwargs:
+            self.deformation = kwargs['deformation']
+            del kwargs['deformation']
+
         super().__init__(**kwargs)
+
+    @inmain_decorator(True)
+    def _createParameters(self):
+        super()._createParameters()
+        if self.deformation != None:
+            self.deformation_values = None
+            scale_par = settings.ValueParameter(name="DeformationScale", label="Scale",
+                    default_value=1.0, min_value = 0.0, max_value = 1e99, step=0.1)
+            sd_par = settings.ValueParameter(name="DeformationSubdivision", label="Subdivision",
+                    default_value=1, min_value = 0, max_value = 5)
+            order_par = settings.ValueParameter(name="DeformationOrder", label="Order",
+                    default_value=2, min_value = 1, max_value = 4)
+            self.addParameters("Deformation",
+                    settings.CheckboxParameterCluster(name="Deformation", label="Deformation",
+                        default_value = self.__initial_values["Deformation"],
+                        sub_parameters=[scale_par, sd_par, order_par],
+                    updateWidgets=True))
 
     def initGL(self):
         super().initGL()
@@ -177,6 +200,10 @@ class BaseMeshScene(BaseScene):
     def update(self):
         super().update()
         self.mesh_data = getOpenGLData(self.mesh)
+        if self.deformation:
+            vb = ngsolve.BND if self.mesh.dim==3 else ngsolve.VOL
+            self.deformation_values.store(ngui.GetValues(self.deformation, self.mesh, vb, 2**self.getDeformationSubdivision()-1, self.getDeformationOrder())['real'])
+            print('updated values')
 
     def __getstate__(self):
         super_state = super().__getstate__()
@@ -188,6 +215,8 @@ class BaseMeshScene(BaseScene):
 
     def getBoundingBox(self):
         return self.mesh_data.min, self.mesh_data.max
+
+
 
 class OverlayScene(BaseScene):
     """Class  for overlay objects (Colormap, coordinate system, logo)"""
@@ -441,6 +470,10 @@ class MeshScene(BaseMeshScene):
 
         self.text_renderer = TextRenderer()
 
+        formats = [None, GL_R32F, GL_RG32F, GL_RGB32F, GL_RGBA32F];
+        if self.deformation:
+            self.deformation_values = Texture(GL_TEXTURE_BUFFER, formats[self.deformation.dim])
+
     def _render1DElements(self, settings, elements):
         if elements.curved:
             prog = getProgram('mesh_simple.vert', 'mesh_simple.tese', 'mesh_simple.frag', elements=elements, params=settings)
@@ -523,10 +556,11 @@ class MeshScene(BaseMeshScene):
         uniforms.set('colors', 3)
 
     def _render2DElements(self, settings, elements, wireframe):
-        if elements.curved:
-            prog = getProgram('mesh_simple.vert', 'mesh_simple.tese', 'mesh_simple.frag', elements=elements, params=settings)
-        else:
-            prog = getProgram('mesh_simple.vert', 'mesh_simple.frag', elements=elements, params=settings)
+        use_tessellation = elements.curved or self.deformation
+        shader = ['mesh_simple.vert', 'mesh_simple.frag']
+        if use_tessellation:
+            shader.append('mesh_simple.tese')
+        prog = getProgram(*shader, elements=elements, params=settings, DEFORMATION=bool(self.deformation))
         uniforms = prog.uniforms
 
         glActiveTexture(GL_TEXTURE0)
@@ -537,6 +571,12 @@ class MeshScene(BaseMeshScene):
         self.mesh_data.elements.bind()
         uniforms.set('mesh.elements', 1)
         elements.tex.bind()
+
+        glActiveTexture(GL_TEXTURE2)
+        self.deformation_values.bind()
+        uniforms.set('coefficients', 2)
+        uniforms.set('subdivision', 2**self.getDeformationSubdivision()-1)
+        uniforms.set('order', self.getDeformationOrder())
 
         glActiveTexture(GL_TEXTURE3)
         self.tex_surf_colors.bind()
@@ -565,7 +605,7 @@ class MeshScene(BaseMeshScene):
         glPolygonMode( GL_FRONT_AND_BACK, polygon_mode );
         glPolygonOffset (offset, offset)
         glEnable(offset_mode)
-        if elements.curved:
+        if use_tessellation:
             glPatchParameteri(GL_PATCH_VERTICES, elements.nverts)
             glPatchParameterfv(GL_PATCH_DEFAULT_OUTER_LEVEL, [tess_level]*4)
             glPatchParameterfv(GL_PATCH_DEFAULT_INNER_LEVEL, [tess_level]*2)
