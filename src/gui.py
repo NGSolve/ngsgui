@@ -267,8 +267,7 @@ class GUI():
         fbo.bind()
 
         self.redraw_blocking()
-        self.window_tabber.activeGLWindow.glWidget.updateGL()
-
+        self.window_tabber.activeGLWindow.glWidget.paintGL()
         im = fbo.toImage()
         im2 = QtGui.QImage(im)
         im2.fill(QtCore.Qt.white)
