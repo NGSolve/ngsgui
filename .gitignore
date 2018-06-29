@@ -2,3 +2,5 @@ build
 __pycache__
 demo/shader*
 *~
+dist
+ngsgui.egg-info
