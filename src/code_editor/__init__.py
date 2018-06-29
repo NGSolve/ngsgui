@@ -2,8 +2,8 @@
 from . import syntax
 from .button_area import ButtonArea
 from .text_partition import Lines, Selection
-from ngsolve.gui.widgets import ArrangeH, ArrangeV
-from ngsolve.gui.thread import inmain_decorator, inthread
+from ngsgui.widgets import ArrangeH, ArrangeV
+from ngsgui.thread import inmain_decorator, inthread
 
 from PySide2 import QtWidgets, QtGui, QtCore
 

@@ -1,7 +1,7 @@
 from OpenGL.GL import *
 import array, ctypes, time, ngsolve, numpy, pickle, io, base64, zlib, os, glob, hashlib
 
-from . import glmath, shader
+from . import glmath # , shader
 
 from PySide2 import QtCore, QtGui, QtWidgets, QtOpenGL
 from PySide2.QtCore import Qt
