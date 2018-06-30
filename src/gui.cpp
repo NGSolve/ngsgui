@@ -163,16 +163,16 @@ inline IntegrationRule GetReferenceRule( ELEMENT_TYPE et, int order, int subdivi
           }
   }
   else if(et==ET_TET) {
-    for (auto k : Range(n))
-       for (auto j : Range(n-k))
-            for (auto i : Range(n-j-k))
-              ir.Append(IntegrationPoint(1.0-i*h-j*h-k*h, i*h, j*h));
+//     for (auto k : Range(n))
+//        for (auto j : Range(n-k))
+//             for (auto i : Range(n-j-k))
+//               ir.Append(IntegrationPoint(1.0-i*h-j*h-k*h, i*h, j*h));
 
     // TODO: simplify order of points?? (need to adapt generated interpolation code in shaders)
-//       for (auto k : Range(n))
-//           for (auto j : Range(n-k))
-//               for (auto i : Range(n-k-j))
-//                       ir.Append(IntegrationPoint(i*h, j*h, k*h));
+      for (auto k : Range(n))
+          for (auto j : Range(n-k))
+              for (auto i : Range(n-k-j))
+                      ir.Append(IntegrationPoint(i*h, j*h, k*h));
   }
   else if(et==ET_PRISM) {
       for (auto k : Range(n))
@@ -386,6 +386,7 @@ PYBIND11_MODULE(ngui, m) {
         {
           setlocale(LC_NUMERIC,"C");
         });
+  m.def("GetReferenceRule", GetReferenceRule);
   m.def("GetValues2", [] (shared_ptr<ngfem::CoefficientFunction> cf, shared_ptr<ngcomp::MeshAccess> ma, VorB vb, int subdivision, int order) {
             LocalHeap lh(10000000, "GetValues");
             int dim = ma->GetDimension();

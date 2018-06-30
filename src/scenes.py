@@ -720,7 +720,7 @@ class SolutionScene(BaseMeshScene):
                            "arg" : 3}
     @inmain_decorator(wait_for_return=True)
     def __init__(self, cf, mesh, name=None, min=0.0,max=1.0, autoscale=True, linear=False, clippingPlane=True,
-                 order=3, deformation=None, gradient=None, *args, **kwargs):
+                 order=2, deformation=None, gradient=None, *args, **kwargs):
         self.cf = cf
         self.deformation = deformation
         self.vao = None
@@ -977,7 +977,7 @@ class SolutionScene(BaseMeshScene):
     def _filterElements(self, settings, filter_type):
         glEnable(GL_RASTERIZER_DISCARD)
         self.surface_vao.bind()
-        prog = getProgram('filter_elements.vert', 'filter_elements.geom', feedback=['element'])
+        prog = getProgram('filter_elements.vert', 'filter_elements.geom', feedback=['element'], ORDER=self.getOrder())
         uniforms = prog.uniforms
         uniforms.set('clipping_plane', settings.clipping_plane)
         glActiveTexture(GL_TEXTURE0)
@@ -995,7 +995,6 @@ class SolutionScene(BaseMeshScene):
         uniforms.set('colormap_min', settings.colormap_min)
         uniforms.set('colormap_max', settings.colormap_max)
         uniforms.set('subdivision', 2**self.getSubdivision()-1)
-        uniforms.set('order', self.getOrder())
         if self.cf.dim > 1:
             uniforms.set('component', self.getComponent())
         else:
@@ -1022,7 +1021,7 @@ class SolutionScene(BaseMeshScene):
 
         # surface mesh
         self.line_vao.bind()
-        prog = getProgram('solution1d.vert', 'solution1d.frag')
+        prog = getProgram('solution1d.vert', 'solution1d.frag', ORDER=self.getOrder())
 
         uniforms = prog.uniforms
         uniforms.set('P',projection)
@@ -1034,7 +1033,6 @@ class SolutionScene(BaseMeshScene):
         uniforms.set('clipping_plane', settings.clipping_plane)
         uniforms.set('do_clipping', self.mesh.dim==3);
         uniforms.set('subdivision', 2**self.getSubdivision()-1)
-        uniforms.set('order', self.getOrder())
 
 
         uniforms.set('element_type', 10)
@@ -1076,7 +1074,6 @@ class SolutionScene(BaseMeshScene):
             uniforms.set('wireframe', False)
             uniforms.set('do_clipping', self.mesh.dim==3 or use_deformation)
             uniforms.set('subdivision', 2**self.getSubdivision()-1)
-            uniforms.set('order', self.getOrder())
 
             glActiveTexture(GL_TEXTURE0)
             self.mesh_data.vertices.bind()
@@ -1136,7 +1133,6 @@ class SolutionScene(BaseMeshScene):
         uniforms.set('clipping_plane', settings.clipping_plane)
         uniforms.set('do_clipping', True);
         uniforms.set('subdivision', 2**self.getSubdivision()-1)
-        uniforms.set('order', self.getOrder())
         if self.cf.dim > 1:
             uniforms.set('component', self.getComponent())
         else:
@@ -1182,7 +1178,6 @@ class SolutionScene(BaseMeshScene):
         uniforms.set('clipping_plane', settings.clipping_plane)
         uniforms.set('do_clipping', True);
         uniforms.set('subdivision', 2**self.getSubdivision()-1)
-        uniforms.set('order', self.getOrder())
 
         if(self.mesh.dim==2):
             uniforms.set('element_type', 10)
@@ -1224,7 +1219,6 @@ class SolutionScene(BaseMeshScene):
         uniforms.set('clipping_plane', settings.clipping_plane)
         uniforms.set('do_clipping', False);
         uniforms.set('subdivision', 2**self.getSubdivision()-1)
-        uniforms.set('order', self.getOrder())
         if self.cf.dim > 1:
             uniforms.set('component', self.getComponent())
         else:

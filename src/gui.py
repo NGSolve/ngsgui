@@ -59,7 +59,7 @@ def _noexec(gui, val):
 def _fastmode(gui,val):
     gui.window_tabber._fastmode = val
 def _noOutputpipe(gui,val):
-    gui.pipeOutput = not val
+    gui.pipeOutput = False
 
 def _showHelp(gui, val):
     if val:
@@ -70,7 +70,7 @@ def _showHelp(gui, val):
         quit()
 
 def _dontCatchExceptions(gui, val):
-    gui._dontCatchExceptions = val
+    gui._dontCatchExceptions = True
 
 class GUI():
     # functions to modify the gui with flags. If the flag is not set, the function is called with False as argument

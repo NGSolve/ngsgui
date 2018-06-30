@@ -38,7 +38,7 @@ print(mesh.ne,'elements')
 
 n = 5
 cf = cos(n*x)*cos(n*y)*cos(n*z)
-cf = x+1j*y
+# cf = x+1j*y
 # cf = (x-0.5)**2+(y-0.5)**2+(z-0.5)**2
 
 # gui = GUI.GUI()
@@ -66,4 +66,4 @@ cf = x+1j*y
 # scene1 = GUI.MeshScene(mesh)
 # gui.draw(scene1)
 # gui.run()
-Draw(cf, mesh,'sldkf')
+Draw(x, mesh,'sldkf')

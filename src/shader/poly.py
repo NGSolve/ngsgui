@@ -1,3 +1,6 @@
+import ngsolve
+from ngsolve.gui.ngui import GetReferenceRule
+print(GetReferenceRule(ngsolve.ET.TRIG,3, 0))
 import sympy
 from sympy import *
 import sympy.printing.ccode as ccode

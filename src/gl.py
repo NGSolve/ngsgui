@@ -112,8 +112,8 @@ class Shader(GLObject):
 
         if glGetShaderiv(self.id, GL_COMPILE_STATUS) != GL_TRUE:
             numerated_shader_code = ""
-#             for i,line in enumerate(self._code.split('\n')):
-#                 numerated_shader_code += str(i)+":\t"+line+'\n'
+            for i,line in enumerate(self._code.split('\n')):
+                numerated_shader_code += str(i)+":\t"+line+'\n'
             raise RuntimeError('Error when compiling ' + filename + ': '+glGetShaderInfoLog(self.id).decode()+'\ncompiled code:\n'+numerated_shader_code)
 
 def readShaderFile(filename, defines):
@@ -124,8 +124,9 @@ def readShaderFile(filename, defines):
     for incfile in glob.glob(os.path.join(shaderpath, '*.inc')):
         Shader.includes[os.path.basename(incfile)] = open(incfile,'r').read()
 
-    for token in Shader.includes:
-        code = code.replace('{include '+token+'}', Shader.includes[token])
+    while code.find('{include ')>-1:
+        for token in Shader.includes:
+            code = code.replace('{include '+token+'}', Shader.includes[token])
 
 
     pos = code.find('\n', code.find('version'))
