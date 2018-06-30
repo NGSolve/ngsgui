@@ -572,11 +572,12 @@ class MeshScene(BaseMeshScene):
         uniforms.set('mesh.elements', 1)
         elements.tex.bind()
 
-        glActiveTexture(GL_TEXTURE2)
-        self.deformation_values.bind()
-        uniforms.set('coefficients', 2)
-        uniforms.set('subdivision', 2**self.getDeformationSubdivision()-1)
-        uniforms.set('order', self.getDeformationOrder())
+        if self.deformation:
+            glActiveTexture(GL_TEXTURE2)
+            self.deformation_values.bind()
+            uniforms.set('coefficients', 2)
+            uniforms.set('subdivision', 2**self.getDeformationSubdivision()-1)
+            uniforms.set('order', self.getDeformationOrder())
 
         glActiveTexture(GL_TEXTURE3)
         self.tex_surf_colors.bind()
@@ -884,9 +885,6 @@ class SolutionScene(BaseMeshScene):
         if True:
             try:
                 values = ngui.GetValues(cf, self.mesh, vb, 2**self.getSubdivision()-1, self.getOrder())
-                global myvalues
-                myvalues = ngui.GetValues2(cf, self.mesh, vb, 2**self.getSubdivision()-1, self.getOrder())
-                print('myvalues', myvalues)
             except RuntimeError as e:
                 assert("Local Heap" in str(e))
                 self.setSubdivision(self.getSubdivision()-1)
