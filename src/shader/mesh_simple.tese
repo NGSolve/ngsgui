@@ -19,9 +19,10 @@ uniform Mesh mesh;
 #line 0
 {include interpolation.inc}
 #line 21
-uniform samplerBuffer coefficients;
-uniform int subdivision;
-uniform int order;
+uniform samplerBuffer deformation_coefficients;
+uniform int deformation_subdivision;
+uniform int deformation_order;
+uniform float deformation_scale;
 #endif // DEFORMATION
 
 in VertexData
@@ -105,11 +106,11 @@ void main()
 #endif // CURVED
 
 #if DEFORMATION
-    float value = 0.0;
+    float value = deformation_scale;
 #if defined(ET_TRIG)
-    value = InterpolateTrig(inData[0].element, coefficients, order, subdivision, outData.lam, 0);
+    value *= InterpolateTrig(inData[0].element, deformation_coefficients, deformation_order, deformation_subdivision, outData.lam, 0);
 #elif defined(ET_QUAD)
-    value = InterpolateTet(inData[0].element, coefficients, order, subdivision, outData.lam, 0);
+    value *= InterpolateTet(inData[0].element, deformation_coefficients, deformation_order, deformation_subdivision, outData.lam, 0);
 #endif
     outData.pos.z += value;
 #endif // DEFORMATION

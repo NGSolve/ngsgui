@@ -184,9 +184,9 @@ class BaseMeshScene(BaseScene):
             scale_par = settings.ValueParameter(name="DeformationScale", label="Scale",
                     default_value=1.0, min_value = 0.0, max_value = 1e99, step=0.1)
             sd_par = settings.ValueParameter(name="DeformationSubdivision", label="Subdivision",
-                    default_value=1, min_value = 0, max_value = 5)
+                    default_value=1, min_value = 0, max_value = 5, updateScene=True)
             order_par = settings.ValueParameter(name="DeformationOrder", label="Order",
-                    default_value=2, min_value = 1, max_value = 4)
+                    default_value=2, min_value = 1, max_value = 4, updateScene=True)
             self.addParameters("Deformation",
                     settings.CheckboxParameterCluster(name="Deformation", label="Deformation",
                         default_value = self.__initial_values["Deformation"],
@@ -216,6 +216,9 @@ class BaseMeshScene(BaseScene):
     def getBoundingBox(self):
         return self.mesh_data.min, self.mesh_data.max
 
+    # In case a deformation function is given in the constructor, this function will be replaced by a generated one in sellf.addParameters("Deformation", ...)
+    def getDeformation(self):
+        return False
 
 
 class OverlayScene(BaseScene):
@@ -556,11 +559,12 @@ class MeshScene(BaseMeshScene):
         uniforms.set('colors', 3)
 
     def _render2DElements(self, settings, elements, wireframe):
-        use_tessellation = elements.curved or self.deformation
+        use_deformation = self.getDeformation()
+        use_tessellation = elements.curved or use_deformation
         shader = ['mesh_simple.vert', 'mesh_simple.frag']
         if use_tessellation:
             shader.append('mesh_simple.tese')
-        prog = getProgram(*shader, elements=elements, params=settings, DEFORMATION=bool(self.deformation))
+        prog = getProgram(*shader, elements=elements, params=settings, DEFORMATION=use_deformation)
         uniforms = prog.uniforms
 
         glActiveTexture(GL_TEXTURE0)
@@ -572,12 +576,13 @@ class MeshScene(BaseMeshScene):
         uniforms.set('mesh.elements', 1)
         elements.tex.bind()
 
-        if self.deformation:
-            glActiveTexture(GL_TEXTURE2)
+        if use_deformation:
+            glActiveTexture(GL_TEXTURE4)
             self.deformation_values.bind()
-            uniforms.set('coefficients', 2)
-            uniforms.set('subdivision', 2**self.getDeformationSubdivision()-1)
-            uniforms.set('order', self.getDeformationOrder())
+            uniforms.set('deformation_coefficients', 4)
+            uniforms.set('deformation_subdivision', 2**self.getDeformationSubdivision()-1)
+            uniforms.set('deformation_order', self.getDeformationOrder())
+            uniforms.set('deformation_scale', self.getDeformationScale())
 
         glActiveTexture(GL_TEXTURE3)
         self.tex_surf_colors.bind()
