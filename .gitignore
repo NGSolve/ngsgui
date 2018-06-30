@@ -4,3 +4,4 @@ demo/shader*
 *~
 dist
 ngsgui.egg-info
+_skbuild

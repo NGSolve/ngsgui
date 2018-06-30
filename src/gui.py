@@ -41,7 +41,7 @@ class OutputBuffer(QtWidgets.QTextEdit):
 
 class SettingsToolBox(QtWidgets.QToolBox):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args,**kwargs)
+        super().__init__(*args, **kwargs)
         self.settings = []
 
     @inmain_decorator(wait_for_return=False)
@@ -52,6 +52,8 @@ class SettingsToolBox(QtWidgets.QToolBox):
         widget.layout().setAlignment(QtCore.Qt.AlignTop)
         self.addItem(widget, sett.name)
         self.setCurrentIndex(len(self.settings)-1)
+        if self.parent():
+            self.parent().setSizes([20000,80000])
 
 
 def _noexec(gui, val):
@@ -164,8 +166,8 @@ class GUI():
 
     def crawlPlugins(self):
         for entry_point in pkg_resources.iter_entry_points(group="ngsgui.plugin",name=None):
-            plugin = entry_point.load()()
-            plugin.loadPlugin(self)
+            plugin = entry_point.load()
+            plugin(self)
 
     def _tryLoadFile(self, filename):
         if os.path.isfile(filename):
@@ -189,13 +191,6 @@ class GUI():
                 tup[0](self,flag[key])
             else:
                 tup[0](self, False)
-
-    @inmain_decorator(wait_for_return=False)
-    def update_setting_area(self):
-        if len(self.settings_toolbox.settings) == 0:
-            self.toolbox_splitter.setSizes([0,85000])
-        else:
-            self.toolbox_splitter.setSizes([15000, 85000])
 
     def saveSolution(self):
         filename, filt = QtWidgets.QFileDialog.getSaveFileName(caption="Save Solution",
