@@ -8,6 +8,7 @@ from .widgets import ArrangeV, ArrangeH
 from .thread import inthread, inmain_decorator
 from qtconsole.inprocess import QtInProcessRichJupyterWidget
 from .config import icon_path
+from .config import debug as _debug
 import numpy as np
 
 import time
@@ -244,8 +245,10 @@ class GLWidget(QtOpenGL.QGLWidget):
 
     def __init__(self,shared=None, *args, **kwargs):
         f = QtOpenGL.QGLFormat()
-        f.setVersion(3,2)
-        f.setProfile(QtOpenGL.QGLFormat.CompatibilityProfile)
+        f.setVersion(4,0)
+        f.setProfile(QtOpenGL.QGLFormat.CoreProfile)
+        if _debug:
+            f.setOption(QtGui.QSurfaceFormat.DebugContext)
         QtOpenGL.QGLFormat.setDefaultFormat(f)
         super().__init__(shareWidget=shared, *args, **kwargs)
         if shared is None:

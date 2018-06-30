@@ -522,9 +522,9 @@ class MeshScene(BaseMeshScene):
             vb = [None, ngsolve.VOL, ngsolve.BND, ngsolve.BBND][self.mesh.dim]
             for els in self.mesh_data.new_els[vb]:
                 if vb == ngsolve.BBND:
-                    glLineWidth(3)
+                    # glLineWidth(3) TODO: replace with manually drawing quads (linewidth is not supported for OpenGL3.2
                     self._render1DElements(settings, els);
-                    glLineWidth(1)
+                    # glLineWidth(1)
 
         if self.getShowPeriodicVertices():
             for els in self.mesh_data.new_els["periodic"]:
@@ -1473,9 +1473,9 @@ class GeometryScene2D(BaseScene):
         uniforms.set('light_ambient', 1)
         uniforms.set('light_diffuse',0)
 
-        glLineWidth(3)
+        # glLineWidth(3) TODO: replace with manually drawing quads (linewidth is not supported for OpenGL3.2
         glDrawArrays(GL_LINES, 0, self._nverts)
-        glLineWidth(1)
+        # glLineWidth(1)
 
 GUI.sceneCreators.append((netgen.geom2d.SplineGeometry, GeometryScene2D))
 GUI.sceneCreators.append((netgen.meshing.NetgenGeometry,GeometryScene))

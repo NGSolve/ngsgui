@@ -1,4 +1,10 @@
 from OpenGL.GL import *
+from OpenGL import GL, constant
+
+from .config import debug as _debug
+
+from OpenGL.GL.ARB import debug_output
+from OpenGL.extensions import alternate
 import array, ctypes, time, ngsolve, numpy, pickle, io, base64, zlib, os, glob, hashlib
 
 from . import glmath, shader
@@ -7,6 +13,63 @@ from PySide2 import QtCore, QtGui, QtWidgets, QtOpenGL
 from PySide2.QtCore import Qt
 
 _DEVELOP=True
+
+glGetDebugMessageLog = alternate(
+    'glGetDebugMessageLog', GL.glGetDebugMessageLog,
+    debug_output.glGetDebugMessageLogARB)
+
+# the size specifications of some debug_output tokens seem to be missing so
+# we add them manually even though it does not seem to be a nice way to do it
+# GL.glget.GL_GET_SIZES[debug_output.GL_MAX_DEBUG_MESSAGE_LENGTH_ARB] = (1,)
+# GL.glget.GL_GET_SIZES[debug_output.GL_DEBUG_LOGGED_MESSAGES_ARB] = (1,)
+
+
+def get_constant(value, namespace):
+    """Get symbolic constant.
+
+    value - the (integer) token value to look for
+    namespace - the module object to search in
+
+    """
+
+    for var in dir(namespace):
+        attr = getattr(namespace, var)
+        if isinstance(attr, constant.Constant) and attr == value:
+            return var
+    return value
+
+
+def check_debug_output():
+    if not _debug:
+        return
+    """Get the contents of the OpenGL debug log as a string."""
+
+    # details for the available log messages
+    msgmaxlen = GL.glGetInteger(debug_output.GL_MAX_DEBUG_MESSAGE_LENGTH_ARB)
+    msgcount = GL.glGetInteger(debug_output.GL_DEBUG_LOGGED_MESSAGES_ARB)
+
+    # ctypes arrays to receive the log data
+    msgsources = (ctypes.c_uint32 * msgcount)()
+    msgtypes = (ctypes.c_uint32 * msgcount)()
+    msgids = (ctypes.c_uint32 * msgcount)()
+    msgseverities = (ctypes.c_uint32 * msgcount)()
+    msglengths = (ctypes.c_uint32 * msgcount)()
+    msglog = (ctypes.c_char * (msgmaxlen * msgcount))()
+
+    glGetDebugMessageLog(msgcount, msgmaxlen, msgsources, msgtypes, msgids,
+                         msgseverities, msglengths, msglog)
+
+    offset = 0
+    logdata = zip(msgsources, msgtypes, msgids, msgseverities, msglengths)
+    for msgsource, msgtype, msgid, msgseverity, msglen in logdata:
+        msgtext = msglog.raw[offset:offset + msglen].decode("ASCII")
+        offset += msglen
+        msgsource = get_constant(msgsource, debug_output)
+        msgtype = get_constant(msgtype, debug_output)
+        msgseverity = get_constant(msgseverity, debug_output)
+        print("SOURCE: {0}\nTYPE: {1}\nID: {2}\nSEVERITY: {3}\n"
+               "MESSAGE: {4}".format(msgsource, msgtype, msgid,
+               msgseverity, msgtext))
 
 class GLObject:
     @property
@@ -283,6 +346,7 @@ class Program(GLObject):
         self.attributes = Program.Attributes(self.id)
 
 def getProgram(*shader_files, feedback=[], elements=None, params=None, **define_flags):
+    check_debug_output()
     cache = getProgram._cache
 
     defines = '\n'
@@ -360,6 +424,9 @@ def getProgram(*shader_files, feedback=[], elements=None, params=None, **define_
             u.set('colormap_min', params.colormap_min)
         if 'colormap_max' in u:
             u.set('colormap_max', params.colormap_max)
+
+    check_debug_output()
+
     return prog
 
 getProgram._cache = {}
