@@ -45,26 +45,17 @@ class cmakeBuild_ext(build_ext):
             self.spawn(['cmake', '--build', '.'] + build_args)
         os.chdir(str(cwd))
 
+icons = [ "src/icons/" + filename for filename in os.listdir("src/icons")]
+shaders = [ "src/shader/" + filename for filename in os.listdir("src/shader")]
+
 setup(name="ngsgui",
       version="0.1",
       description="New graphical interface for NGSolve",
       packages=['ngsgui', 'ngsgui.code_editor'],
       package_dir={'ngsgui' : 'src',
                    'ngsgui.code_editor' : 'src/code_editor'},
-      data_files=[('ngsgui/icons', ['src/icons/hidden.png', 'src/icons/run.png', 'src/icons/save.png',
-                             'src/icons/search.png', 'src/icons/visible.png']),
-                  ('ngsgui/shader', ['src/shader/bbnd.frag', 'src/shader/bbnd.vert',
-                                     'src/shader/clipping.geom', 'src/shader/clipping.vert',
-                                     'src/shader/colorbar.frag', 'src/shader/colorbar.vert',
-                                     'src/shader/cross.frag', 'src/shader/cross.vert',
-                                     'src/shader/filter_elements.geom', 'src/shader/filter_elements.vert',
-                                     'src/shader/font.frag', 'src/shader/font.vert', 'src/shader/geom2d.vert',
-                                     'src/shader/geo.vert', 'src/shader/interpolation.inc',
-                                     'src/shader/isosurface.geom', 'src/shader/lines.tesc', 'src/shader/lines.tese',
-                                     'src/shader/mesh.frag', 'src/shader/mesh.geom', 'src/shader/mesh.vert',
-                                     'src/shader/numbers.geom', 'src/shader/solution.vert', 'src/shader/tess.tesc',
-                                     'src/shader/tess.tese', 'src/shader/utils.inc', 'src/shader/vector.geom',
-                                     'src/shader/solution.frag', 'src/shader/solution.geom', 'src/shader/font.geom'])],
+      data_files=[('ngsgui/icons', icons),
+                  ('ngsgui/shader', shaders)],
       ext_modules=[CMakeExtension(os.path.join('ngsgui','ngsgui'))],
       cmdclass = {"build_ext" : cmakeBuild_ext},
       entry_points={

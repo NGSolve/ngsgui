@@ -8,7 +8,7 @@ from .thread import inthread, inmain_decorator
 from .menu import MenuBarWithDict
 from .console import NGSJupyterWidget, MultiQtKernelManager
 
-import sys, textwrap, inspect, re, pkgutil, ngsolve, pickle
+import sys, textwrap, inspect, re, pkgutil, ngsolve, pickle, pkg_resources
 
 from PySide2 import QtWidgets, QtCore, QtGui
 
@@ -163,22 +163,9 @@ class GUI():
         addShortcut("Previous Tab", "Ctrl+RightArrow", lambda: switchTabWindow(1))
 
     def crawlPlugins(self):
-        try:
-            from . import plugins as plu
-            plugins_exist = True
-        except ImportError:
-            plugins_exist = False
-        if plugins_exist:
-            prefix = plu.__name__ + "."
-            plugins = []
-            for importer, modname, ispkg in pkgutil.iter_modules(plu.__path__,prefix):
-                plugins.append(__import__(modname, fromlist="dummy"))
-            from .plugin import GuiPlugin
-            for plugin in plugins:
-                for val in plugin.__dict__.values():
-                    if inspect.isclass(val):
-                        if issubclass(val, GuiPlugin):
-                            val.loadPlugin(self)
+        for entry_point in pkg_resources.iter_entry_points(group="ngsgui.plugin",name=None):
+            plugin = entry_point.load()()
+            plugin.loadPlugin(self)
 
     def _tryLoadFile(self, filename):
         if os.path.isfile(filename):
