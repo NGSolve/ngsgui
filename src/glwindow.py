@@ -7,7 +7,7 @@ import copy
 from .widgets import ArrangeV, ArrangeH
 from .thread import inthread, inmain_decorator
 from qtconsole.inprocess import QtInProcessRichJupyterWidget
-from .config import icon_path
+from ngsgui.icons import location as icon_path
 import numpy as np
 
 import time

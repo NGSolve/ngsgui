@@ -15,6 +15,7 @@ except ImportError:
     print("")
 
 from skbuild import setup
+from setuptools import find_packages
 import os
 
 icons = [ "src/icons/" + filename for filename in os.listdir("src/icons")]
@@ -28,14 +29,16 @@ try:
 except ModuleNotFoundError:
     pass
 
+modules = ['ngsgui'] + ['ngsgui.' + pkg for pkg in find_packages('src')]
+dirs = { module : module.replace('ngsgui.','src/') if 'ngsgui.' in module else 'src' for module in modules}
+
 setup(name="ngsgui",
       version="0.1.3",
       description="New graphical interface for NGSolve",
-      packages=['ngsgui', 'ngsgui.code_editor'],
-      package_dir={'ngsgui' : 'src',
-                   'ngsgui.code_editor' : 'src/code_editor'},
-      data_files=[('ngsgui/icons', icons),
-                  ('ngsgui/shader', shaders)],
+      packages=modules,
+      package_dir=dirs,
+      data_files = [('share/ngsgui/icons', icons),
+                    ('share/ngsgui/shader', shaders)],
       cmake_args=CMAKE_ARGS,
       classifiers=("Programming Language :: Python :: 3",
                    "Operating System :: OS Independent",

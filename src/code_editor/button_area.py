@@ -1,7 +1,7 @@
 
 from PySide2 import QtWidgets, QtCore, QtGui
 from ngsgui.widgets import ArrangeH, ArrangeV
-from ngsgui.config import icon_path
+from ngsgui.icons import location as icon_path
 from .text_finder import TextFinder
 
 class ButtonArea(QtWidgets.QWidget):
