@@ -319,7 +319,7 @@ class OverlayScene(BaseScene):
             for i in range(5):
                 x = x0+i*dx/4
                 val = cmin + i*(cmax-cmin)/4
-                self.text_renderer.draw(settings, f'{val:.2g}'.replace("e+", "e"), [x,y0-0.03,0], alignment=QtCore.Qt.AlignCenter|QtCore.Qt.AlignTop)
+                self.text_renderer.draw(settings, '{:.2g}'.format(val).replace("e+", "e"), [x,y0-0.03,0], alignment=QtCore.Qt.AlignCenter|QtCore.Qt.AlignTop)
 
         glEnable(GL_DEPTH_TEST)
         self.vao.unbind()
