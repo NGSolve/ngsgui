@@ -1,9 +1,17 @@
 #! /usr/bin/python3
 
-from skbuild import setup
-from skbuild.command.install import install
-import subprocess, pathlib, os
+# dirty hack because pip doesn't allow dependencies to be checked before calling setup, see PEP 518
+import sys
 import pip._internal as pip
+try:
+    from skbuild import setup
+    from skbuild.command.install import install
+except ImportError:
+    pip.main(["install","--user","scikit-build"])
+    from skbuild import setup
+    from skbuild.command.install import install
+
+import subprocess, pathlib, os
 
 icons = [ "src/icons/" + filename for filename in os.listdir("src/icons")]
 shaders = [ "src/shader/" + filename for filename in os.listdir("src/shader")]
@@ -20,6 +28,14 @@ class installWithPySide(install):
                       "pyside2", "--trusted-host", "download.qt.io"])
         super().run()
 
+CMAKE_ARGS = []
+
+try:
+    import netgen.NgOCC
+    CMAKE_ARGS.append("-DUSE_OCC=ON")
+except ModuleNotFoundError:
+    pass
+
 setup(name="ngsgui",
       version="0.1.1",
       description="New graphical interface for NGSolve",
@@ -28,7 +44,7 @@ setup(name="ngsgui",
                    'ngsgui.code_editor' : 'src/code_editor'},
       data_files=[('ngsgui/icons', icons),
                   ('ngsgui/shader', shaders)],
-      cmake_args=['-DUSE_OCC=ON', '-DUSE_CCACHE=ON'],
+      cmake_args=CMAKE_ARGS,
       classifiers=("Programming Language :: Python :: 3",
                    "Operating System :: OS Independent",
                    "Development Status :: 2 - Pre-Alpha",
