@@ -15,6 +15,7 @@ except ImportError:
     print("")
 
 from skbuild import setup
+import os
 
 icons = [ "src/icons/" + filename for filename in os.listdir("src/icons")]
 shaders = [ "src/shader/" + filename for filename in os.listdir("src/shader")]
