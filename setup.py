@@ -15,8 +15,6 @@ except ImportError:
     print("")
 
 from skbuild import setup
-from skbuild.command.install import install
-import subprocess, pathlib, os
 
 icons = [ "src/icons/" + filename for filename in os.listdir("src/icons")]
 shaders = [ "src/shader/" + filename for filename in os.listdir("src/shader")]
@@ -30,7 +28,7 @@ except ModuleNotFoundError:
     pass
 
 setup(name="ngsgui",
-      version="0.1.2",
+      version="0.1.3",
       description="New graphical interface for NGSolve",
       packages=['ngsgui', 'ngsgui.code_editor'],
       package_dir={'ngsgui' : 'src',
