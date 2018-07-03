@@ -1,6 +1,6 @@
 import ngsolve
-from ngsolve import ET
-from ngsolve.gui.ngui import GetReferenceRule
+from ngsolve import ET, ElementTransformation
+from ngsolve.gui.ngui import GetReferenceRule, GetValues2
 
 import sympy
 from sympy import *
@@ -134,9 +134,12 @@ def getBasisFunction(et,i,j=0,k=0):
     if et==ET.TRIG:
         def phi(x,y,z):
             return  x**i*y**j
-    if et==ET.TET:
+    elif et==ET.TET:
         def phi(x,y,z):
             return  x**i*y**j*z**k
+    else:
+        raise RuntimeError("unknown type: " + str(et))
+
     phi.i = i
     phi.j = j
     phi.k = k
@@ -144,11 +147,11 @@ def getBasisFunction(et,i,j=0,k=0):
 
 def getBasisFunctions(et, p):
     if et==ET.SEGM:
-        return [getBasisFunction(i) for i in range(p+1)]
+        return [getBasisFunction(et,i) for i in range(p+1)]
     if et==ET.TRIG:
-        return [getBasisFunction(i,j) for i in range(p+1) for j in range(p+1-i)]
+        return [getBasisFunction(et,i,j) for i in range(p+1) for j in range(p+1-i)]
     if et==ET.TET:
-        return [getBasisFunction(i,j,k) for i in range(p+1) for j in range(p+1-i) for k in range(p+1-i-j)]
+        return [getBasisFunction(et,i,j,k) for i in range(p+1) for j in range(p+1-i) for k in range(p+1-i-j)]
 
 def GetHeader(et, p, basis, scalar):
     comps = '[component]' if scalar else '.xyz'
@@ -224,14 +227,12 @@ def GenerateInterpolationFunction(et, p, scalar):
     code += "#endif\n\n"
     return code
 
-
-# print(GetReferenceRule(ET.TET, 1, 0))
 code = ""
-for et in functions:
+for et in [ET.TRIG, ET.TET]:
     for scalar in [True, False]:
         for p in range(1,3):
             code += GenerateInterpolationFunction(et, p, scalar)
         code += functions[et].format(type='float' if scalar else 'vec3', vec='' if scalar else 'Vec')
-print(code)
+# print(code)
 
 open('generated_interpolation.inc', 'w').write(code)
