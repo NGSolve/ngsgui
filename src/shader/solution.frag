@@ -41,9 +41,8 @@ void main()
       //    ET_TRIG = 10, ET_QUAD = 11, 
       //    ET_TET = 20, ET_PYRAMID = 21, ET_PRISM = 22, ET_HEX = 24 };
       float value;
-      vec3 lam = inData.lam.yzx;
-      lam.z = 1.0 - inData.lam.x - inData.lam.y - inData.lam.z;
       if(element_type == 10) value = InterpolateTrig(inData.element, coefficients, ORDER, subdivision, inData.lam, component);
+      if(element_type == 11) value = InterpolateQuad(inData.element, coefficients, ORDER, subdivision, inData.lam, component);
       if(element_type == 20) value = InterpolateTet(inData.element, coefficients, ORDER, subdivision, inData.lam, component);
       // if(element_type == 21) value = EvalPYRAMID(inData.element, x,y,z);
       // if(element_type == 22) value = EvalPRISM(inData.element, x,y,z);

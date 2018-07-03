@@ -45,7 +45,7 @@ void main()
 #if defined(ET_TRIG)
        value = InterpolateTrig(inData.element, coefficients, ORDER, subdivision, inData.lam, component);
 #elif defined(ET_QUAD)
-       value = InterpolateTet(inData.element, coefficients, ORDER, subdivision, lam, component);
+       value = InterpolateQuad(inData.element, coefficients, ORDER, subdivision, lam, component);
 #endif
 
       if(is_complex) {
@@ -53,7 +53,7 @@ void main()
 #if defined(ET_TRIG)
           value_imag = InterpolateTrig(inData.element, coefficients_imag, ORDER, subdivision, inData.lam, component);
 #elif defined(ET_QUAD)
-          value_imag = InterpolateTet(inData.element, coefficients_imag, ORDER, subdivision, lam, component);
+          value_imag = InterpolateQuad(inData.element, coefficients_imag, ORDER, subdivision, lam, component);
 #endif
           float r = value*complex_factor.x - value_imag*complex_factor.y;
           value_imag = value*complex_factor.y + value_imag*complex_factor.x;
@@ -76,8 +76,8 @@ void main()
       value = (value-colormap_min)/(colormap_max-colormap_min);
       value = clamp(value, 0.0, 1.0);
       value = (1.0 - value);
-      if(!colormap_linear)
-        value = floor(8*value)/7.0;
+      //if(!colormap_linear)
+       // value = floor(8*value)/7.0;
       FragColor.r = MapColor(value).r;
       FragColor.g = MapColor(value).g;
       FragColor.b = MapColor(value).b;

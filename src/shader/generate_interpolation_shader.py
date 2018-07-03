@@ -46,6 +46,28 @@ functions[ET.TRIG] = """\
 }}
 """
 
+functions[ET.QUAD] = """\
+{type} InterpolateQuad{vec}(int element, samplerBuffer values, int order, int subdivision, vec3 lam, int component) {{
+    int n = subdivision+1;
+    int N = ORDER*n+1; // number of values on one edge
+    int values_per_element = N*N;
+    vec3 lamn = lam*(n);
+    lam = lamn-floor(lamn);
+    int x = int(lamn.x);
+    int y = int(lamn.y);
+    int z = int(lamn.z);
+
+    int X = ORDER*x;
+    int Y = ORDER*y;
+    int Z = ORDER*z;
+
+    int first, dy;
+    dy = N;
+    first = element*values_per_element+Y*N+X;
+    return InterpolateQuad{vec}(values, lam, first, dy, component);
+}}
+"""
+
 functions[ET.TET] = """\
 {type} InterpolateTet{vec}(int element, samplerBuffer coefficients, int order, int subdivision, vec3 lam, int component) {{
 /*
@@ -134,6 +156,9 @@ def getBasisFunction(et,i,j=0,k=0):
     if et==ET.TRIG:
         def phi(x,y,z):
             return  x**i*y**j
+    elif et==ET.QUAD:
+        def phi(x,y,z):
+            return  x**i*y**j
     elif et==ET.TET:
         def phi(x,y,z):
             return  x**i*y**j*z**k
@@ -150,6 +175,8 @@ def getBasisFunctions(et, p):
         return [getBasisFunction(et,i) for i in range(p+1)]
     if et==ET.TRIG:
         return [getBasisFunction(et,i,j) for i in range(p+1) for j in range(p+1-i)]
+    if et==ET.QUAD:
+        return [getBasisFunction(et,i,j) for i in range(p+1) for j in range(p+1)]
     if et==ET.TET:
         return [getBasisFunction(et,i,j,k) for i in range(p+1) for j in range(p+1-i) for k in range(p+1-i-j)]
 
@@ -175,6 +202,21 @@ def GetHeader(et, p, basis, scalar):
       ii++;
     }}
     offsety += dy-i;
+  }}
+"""
+    if et==ET.QUAD:
+        code = """\
+#if ORDER=={p}
+{type} InterpolateQuad{vec}(samplerBuffer coefficients, vec3 lam, int first, int dy, int component) {{
+  float x = lam.x;
+  float y = lam.y;
+  {type} f[{ndof}];
+  int ii=0;
+  for (int i=0; i<={p}; i++) {{
+    for (int j=0; j<={p}; j++) {{
+      f[ii] = getValue(coefficients, first+j+i*dy){comps};
+      ii++;
+    }}
   }}
 """
     if et==ET.TET:
@@ -228,9 +270,9 @@ def GenerateInterpolationFunction(et, p, scalar):
     return code
 
 code = ""
-for et in [ET.TRIG, ET.TET]:
+for et in [ET.TRIG, ET.TET, ET.QUAD]:
     for scalar in [True, False]:
-        for p in range(1,3):
+        for p in range(1,4):
             code += GenerateInterpolationFunction(et, p, scalar)
         code += functions[et].format(type='float' if scalar else 'vec3', vec='' if scalar else 'Vec')
 # print(code)

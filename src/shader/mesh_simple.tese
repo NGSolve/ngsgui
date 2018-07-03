@@ -16,12 +16,13 @@ uniform mat4 MV;
 uniform Mesh mesh;
 
 #if DEFORMATION
+#undef ORDER
+#define ORDER DEFORMATION_ORDER
 #line 0
 {include interpolation.inc}
-#line 21
+#line 23
 uniform samplerBuffer deformation_coefficients;
 uniform int deformation_subdivision;
-uniform int deformation_order;
 uniform float deformation_scale;
 #endif // DEFORMATION
 
@@ -85,7 +86,7 @@ void main()
     vec3 n1 = mix(inData[0].normal, inData[1].normal, x);
     vec3 n2 = mix(inData[3].normal, inData[2].normal, x);
     outData.normal = mix(n1,n2, y);
-    outData.lam = vec3(x,y,1);
+    outData.lam = vec3(y,x,0);
 #else
     unknown type
 #endif
@@ -108,9 +109,9 @@ void main()
 #if DEFORMATION
     float value = deformation_scale;
 #if defined(ET_TRIG)
-    value *= InterpolateTrig(inData[0].element, deformation_coefficients, deformation_order, deformation_subdivision, outData.lam, 0);
+    value *= InterpolateTrig(inData[0].element, deformation_coefficients, ORDER, deformation_subdivision, outData.lam, 0);
 #elif defined(ET_QUAD)
-    value *= InterpolateTet(inData[0].element, deformation_coefficients, deformation_order, deformation_subdivision, outData.lam, 0);
+    value *= InterpolateTet(inData[0].element, deformation_coefficients, ORDER, deformation_subdivision, outData.lam, 0);
 #endif
     outData.pos.z += value;
 #endif // DEFORMATION

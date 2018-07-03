@@ -562,9 +562,11 @@ class MeshScene(BaseMeshScene):
         use_deformation = self.getDeformation()
         use_tessellation = elements.curved or use_deformation
         shader = ['mesh_simple.vert', 'mesh_simple.frag']
+        options = {}
         if use_tessellation:
             shader.append('mesh_simple.tese')
-        prog = getProgram(*shader, elements=elements, params=settings, DEFORMATION=use_deformation)
+            options["DEFORMATION_ORDER"] = self.getDeformationOrder()
+        prog = getProgram(*shader, elements=elements, params=settings, DEFORMATION=use_deformation, **options)
         uniforms = prog.uniforms
 
         glActiveTexture(GL_TEXTURE0)
@@ -908,6 +910,7 @@ class SolutionScene(BaseMeshScene):
             self.values[vb] = {'real':{}, 'imag':{}}
         try:
             values = ngui.GetValues2(cf, self.mesh, vb, 2**self.getSubdivision()-1, self.getOrder())
+            print(values)
             v = self.values[vb]
             v['min'] = values['min']
             v['max'] = values['max']
@@ -1085,7 +1088,8 @@ class SolutionScene(BaseMeshScene):
             elements.tex.bind()
 
             glActiveTexture(GL_TEXTURE2)
-            self.surface_values.bind()
+            print(self.values)
+            self.values[vb]['real'][elements.type].bind()
             uniforms.set('coefficients', 2)
 
             if self.cf.dim > 1:

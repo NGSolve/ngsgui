@@ -410,8 +410,8 @@ def getProgram(*shader_files, feedback=[], elements=None, params=None, **define_
                 settings.setValue(key+'/hash', str(h))
 
     glUseProgram(prog.id)
+    u = prog.uniforms
     if params != None:
-        u = prog.uniforms
         if 'P' in u:
             u.set('P',params.projection)
         if 'MV' in u:
@@ -426,6 +426,10 @@ def getProgram(*shader_files, feedback=[], elements=None, params=None, **define_
             u.set('colormap_min', params.colormap_min)
         if 'colormap_max' in u:
             u.set('colormap_max', params.colormap_max)
+
+    if elements != None:
+        print('element_type', elements.type, int(elements.type))
+        u.set('element_type', int(elements.type))
 
     check_debug_output()
 

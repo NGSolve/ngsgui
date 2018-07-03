@@ -11,5 +11,17 @@ geometry.Add (p1*p2*p3*p4)
 
 ngmesh = geometry.GenerateMesh(maxh=5)
 mesh = Mesh(ngmesh)
-Draw(x,mesh)
+cf = y
+Draw(cf,mesh, sd=2, order=2)
 
+print('vertices')
+for v in mesh.vertices:
+    print(v.nr,v.point)
+
+print('elements')
+for el in mesh.Elements(VOL):
+    print(el.vertices)
+from ngsolve.gui import ngui
+print(ngui.GetReferenceRule(ET.TET, 1, 0))
+print('values', ngui.GetValues2(cf,mesh, VOL, 0, 1))
+print('values2', ngui.GetValues2(cf,mesh, VOL, 0, 1))
