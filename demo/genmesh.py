@@ -1,4 +1,5 @@
 from netgen.csg import *
+from netgen.geom2d import unit_square
 from ngsolve import *
 
 geometry = CSGeometry()

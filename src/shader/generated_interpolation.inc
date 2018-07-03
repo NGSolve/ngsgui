@@ -42,7 +42,7 @@ float InterpolateTrig(samplerBuffer coefficients, vec3 lam, int first, int dx, i
 
 float InterpolateTrig(int element, samplerBuffer values, int order, int subdivision, vec3 lam, int component) {
     int n = subdivision+1;
-    int N = order*n+1;
+    int N = ORDER*n+1;
     int values_per_element = N*(N+1)/2;
     vec3 lamn = lam*(n);
     lam = lamn-floor(lamn);
@@ -50,9 +50,9 @@ float InterpolateTrig(int element, samplerBuffer values, int order, int subdivis
     int y = int(lamn.y);
     int z = int(lamn.z);
 
-    int X = order*x;
-    int Y = order*y;
-    int Z = order*z;
+    int X = ORDER*x;
+    int Y = ORDER*y;
+    int Z = ORDER*z;
 
     int first, dx, dy;
     if(lam.x+lam.y<1.0) { // lower left trig of quad
@@ -61,9 +61,9 @@ float InterpolateTrig(int element, samplerBuffer values, int order, int subdivis
         dy = getIndex(N,X, Y+1)-getIndex(N,X,Y);
     }
     else { // upper right trig of quad
-        first = element*values_per_element+getIndex(N,X+order,Y+order);
+        first = element*values_per_element+getIndex(N,X+ORDER,Y+ORDER);
         dx = getIndex(N,X, Y)-getIndex(N,X+1,Y);
-        dy = getIndex(N,X, Y+order-1)-getIndex(N,X,Y+order);
+        dy = getIndex(N,X, Y+ORDER-1)-getIndex(N,X,Y+ORDER);
         lam.x = 1-lam.x;
         lam.y = 1-lam.y;
         lam.z = 1-lam.x-lam.y;
@@ -114,7 +114,7 @@ vec3 InterpolateTrigVec(samplerBuffer coefficients, vec3 lam, int first, int dx,
 
 vec3 InterpolateTrigVec(int element, samplerBuffer values, int order, int subdivision, vec3 lam, int component) {
     int n = subdivision+1;
-    int N = order*n+1;
+    int N = ORDER*n+1;
     int values_per_element = N*(N+1)/2;
     vec3 lamn = lam*(n);
     lam = lamn-floor(lamn);
@@ -122,9 +122,9 @@ vec3 InterpolateTrigVec(int element, samplerBuffer values, int order, int subdiv
     int y = int(lamn.y);
     int z = int(lamn.z);
 
-    int X = order*x;
-    int Y = order*y;
-    int Z = order*z;
+    int X = ORDER*x;
+    int Y = ORDER*y;
+    int Z = ORDER*z;
 
     int first, dx, dy;
     if(lam.x+lam.y<1.0) { // lower left trig of quad
@@ -133,9 +133,9 @@ vec3 InterpolateTrigVec(int element, samplerBuffer values, int order, int subdiv
         dy = getIndex(N,X, Y+1)-getIndex(N,X,Y);
     }
     else { // upper right trig of quad
-        first = element*values_per_element+getIndex(N,X+order,Y+order);
+        first = element*values_per_element+getIndex(N,X+ORDER,Y+ORDER);
         dx = getIndex(N,X, Y)-getIndex(N,X+1,Y);
-        dy = getIndex(N,X, Y+order-1)-getIndex(N,X,Y+order);
+        dy = getIndex(N,X, Y+ORDER-1)-getIndex(N,X,Y+ORDER);
         lam.x = 1-lam.x;
         lam.y = 1-lam.y;
         lam.z = 1-lam.x-lam.y;
@@ -207,11 +207,11 @@ float InterpolateTet(int element, samplerBuffer coefficients, int order, int sub
        0+-----+1 
 */
   int n = subdivision+1;
-  int N = order*n+1;
+  int N = ORDER*n+1;
   int values_per_element = N*(N+1)*(N+2)/6;
   vec3 lamn = lam*n;
   lam = lamn-floor(lamn);
-  ivec3 s = order*ivec3(lamn);
+  ivec3 s = ORDER*ivec3(lamn);
 
   ivec3 d = ivec3(1,1,1);
   float x = lam.x;
@@ -225,14 +225,14 @@ float InterpolateTet(int element, samplerBuffer coefficients, int order, int sub
     }
     else if(lam.x<lam.z) { // second tet in first prism 1,3,4,7
       z = 1-z;
-      s.z+=order;
+      s.z+=ORDER;
       d.z = -1;
     }
     else { // third tet in first prism 1,4,5,7
       x = 1-lam.x-lam.y;
       z = 1-lam.z-lam.y;
-      s.z+=order;
-      s.x+=order;
+      s.z+=ORDER;
+      s.x+=ORDER;
       d.x = -1;
       d.z = -1;
       special_order = 1;
@@ -246,15 +246,15 @@ float InterpolateTet(int element, samplerBuffer coefficients, int order, int sub
       d.x = -1;
       d.y = -1;
       d.z = -1;
-      s.x += order;
-      s.y += order;
-      s.z += order;
+      s.x += ORDER;
+      s.y += ORDER;
+      s.z += ORDER;
     }
     else if(lam.z<lam.y) { // second tet in second prism 1,2,3,7
       x = 1-lam.x-lam.z;
       y = 1-lam.y;
-      s.x+=order;
-      s.y+=order;
+      s.x+=ORDER;
+      s.y+=ORDER;
       d.x = -1;
       d.y = -1;
       special_order = 2;
@@ -263,8 +263,8 @@ float InterpolateTet(int element, samplerBuffer coefficients, int order, int sub
       x = 1-lam.x;
       y = 2-lam.x-lam.y-lam.z;
       z = lam.z+lam.x-1;
-      s.x+=order;
-      s.y+=order;
+      s.x+=ORDER;
+      s.y+=ORDER;
       d.x = -1;
       d.y = -1;
       special_order = 3;
@@ -337,11 +337,11 @@ vec3 InterpolateTetVec(int element, samplerBuffer coefficients, int order, int s
        0+-----+1 
 */
   int n = subdivision+1;
-  int N = order*n+1;
+  int N = ORDER*n+1;
   int values_per_element = N*(N+1)*(N+2)/6;
   vec3 lamn = lam*n;
   lam = lamn-floor(lamn);
-  ivec3 s = order*ivec3(lamn);
+  ivec3 s = ORDER*ivec3(lamn);
 
   ivec3 d = ivec3(1,1,1);
   float x = lam.x;
@@ -355,14 +355,14 @@ vec3 InterpolateTetVec(int element, samplerBuffer coefficients, int order, int s
     }
     else if(lam.x<lam.z) { // second tet in first prism 1,3,4,7
       z = 1-z;
-      s.z+=order;
+      s.z+=ORDER;
       d.z = -1;
     }
     else { // third tet in first prism 1,4,5,7
       x = 1-lam.x-lam.y;
       z = 1-lam.z-lam.y;
-      s.z+=order;
-      s.x+=order;
+      s.z+=ORDER;
+      s.x+=ORDER;
       d.x = -1;
       d.z = -1;
       special_order = 1;
@@ -376,15 +376,15 @@ vec3 InterpolateTetVec(int element, samplerBuffer coefficients, int order, int s
       d.x = -1;
       d.y = -1;
       d.z = -1;
-      s.x += order;
-      s.y += order;
-      s.z += order;
+      s.x += ORDER;
+      s.y += ORDER;
+      s.z += ORDER;
     }
     else if(lam.z<lam.y) { // second tet in second prism 1,2,3,7
       x = 1-lam.x-lam.z;
       y = 1-lam.y;
-      s.x+=order;
-      s.y+=order;
+      s.x+=ORDER;
+      s.y+=ORDER;
       d.x = -1;
       d.y = -1;
       special_order = 2;
@@ -393,8 +393,8 @@ vec3 InterpolateTetVec(int element, samplerBuffer coefficients, int order, int s
       x = 1-lam.x;
       y = 2-lam.x-lam.y-lam.z;
       z = lam.z+lam.x-1;
-      s.x+=order;
-      s.y+=order;
+      s.x+=ORDER;
+      s.y+=ORDER;
       d.x = -1;
       d.y = -1;
       special_order = 3;

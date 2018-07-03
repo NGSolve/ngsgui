@@ -16,7 +16,7 @@ functions = {}
 functions[ET.TRIG] = """\
 {type} InterpolateTrig{vec}(int element, samplerBuffer values, int order, int subdivision, vec3 lam, int component) {{
     int n = subdivision+1;
-    int N = order*n+1;
+    int N = ORDER*n+1;
     int values_per_element = N*(N+1)/2;
     vec3 lamn = lam*(n);
     lam = lamn-floor(lamn);
@@ -24,9 +24,9 @@ functions[ET.TRIG] = """\
     int y = int(lamn.y);
     int z = int(lamn.z);
 
-    int X = order*x;
-    int Y = order*y;
-    int Z = order*z;
+    int X = ORDER*x;
+    int Y = ORDER*y;
+    int Z = ORDER*z;
 
     int first, dx, dy;
     if(lam.x+lam.y<1.0) {{ // lower left trig of quad
@@ -35,9 +35,9 @@ functions[ET.TRIG] = """\
         dy = getIndex(N,X, Y+1)-getIndex(N,X,Y);
     }}
     else {{ // upper right trig of quad
-        first = element*values_per_element+getIndex(N,X+order,Y+order);
+        first = element*values_per_element+getIndex(N,X+ORDER,Y+ORDER);
         dx = getIndex(N,X, Y)-getIndex(N,X+1,Y);
-        dy = getIndex(N,X, Y+order-1)-getIndex(N,X,Y+order);
+        dy = getIndex(N,X, Y+ORDER-1)-getIndex(N,X,Y+ORDER);
         lam.x = 1-lam.x;
         lam.y = 1-lam.y;
         lam.z = 1-lam.x-lam.y;
@@ -62,11 +62,11 @@ functions[ET.TET] = """\
        0+-----+1 
 */
   int n = subdivision+1;
-  int N = order*n+1;
+  int N = ORDER*n+1;
   int values_per_element = N*(N+1)*(N+2)/6;
   vec3 lamn = lam*n;
   lam = lamn-floor(lamn);
-  ivec3 s = order*ivec3(lamn);
+  ivec3 s = ORDER*ivec3(lamn);
 
   ivec3 d = ivec3(1,1,1);
   float x = lam.x;
@@ -80,14 +80,14 @@ functions[ET.TET] = """\
     }}
     else if(lam.x<lam.z) {{ // second tet in first prism 1,3,4,7
       z = 1-z;
-      s.z+=order;
+      s.z+=ORDER;
       d.z = -1;
     }}
     else {{ // third tet in first prism 1,4,5,7
       x = 1-lam.x-lam.y;
       z = 1-lam.z-lam.y;
-      s.z+=order;
-      s.x+=order;
+      s.z+=ORDER;
+      s.x+=ORDER;
       d.x = -1;
       d.z = -1;
       special_order = 1;
@@ -101,15 +101,15 @@ functions[ET.TET] = """\
       d.x = -1;
       d.y = -1;
       d.z = -1;
-      s.x += order;
-      s.y += order;
-      s.z += order;
+      s.x += ORDER;
+      s.y += ORDER;
+      s.z += ORDER;
     }}
     else if(lam.z<lam.y) {{ // second tet in second prism 1,2,3,7
       x = 1-lam.x-lam.z;
       y = 1-lam.y;
-      s.x+=order;
-      s.y+=order;
+      s.x+=ORDER;
+      s.y+=ORDER;
       d.x = -1;
       d.y = -1;
       special_order = 2;
@@ -118,8 +118,8 @@ functions[ET.TET] = """\
       x = 1-lam.x;
       y = 2-lam.x-lam.y-lam.z;
       z = lam.z+lam.x-1;
-      s.x+=order;
-      s.y+=order;
+      s.x+=ORDER;
+      s.y+=ORDER;
       d.x = -1;
       d.y = -1;
       special_order = 3;
@@ -130,16 +130,13 @@ functions[ET.TET] = """\
 """
 
 
-def getBasisFunction(i,j=0,k=0):
-    if k!=0:
-        def phi(x,y,z):
-            return  x**i*y**j*z**k
-    elif j!=0:
+def getBasisFunction(et,i,j=0,k=0):
+    if et==ET.TRIG:
         def phi(x,y,z):
             return  x**i*y**j
-    else:
+    if et==ET.TET:
         def phi(x,y,z):
-            return  x**i
+            return  x**i*y**j*z**k
     phi.i = i
     phi.j = j
     phi.k = k
@@ -228,13 +225,13 @@ def GenerateInterpolationFunction(et, p, scalar):
     return code
 
 
-print(GetReferenceRule(ET.TET, 1, 0))
-# code = ""
-# for et in functions:
-#     for scalar in [True, False]:
-#         for p in range(1,3):
-#             code += GenerateInterpolationFunction(et, p, scalar)
-#         code += functions[et].format(type='float' if scalar else 'vec3', vec='' if scalar else 'Vec')
-# print(code)
-# 
-# open('generated_interpolation.inc', 'w').write(code)
+# print(GetReferenceRule(ET.TET, 1, 0))
+code = ""
+for et in functions:
+    for scalar in [True, False]:
+        for p in range(1,3):
+            code += GenerateInterpolationFunction(et, p, scalar)
+        code += functions[et].format(type='float' if scalar else 'vec3', vec='' if scalar else 'Vec')
+print(code)
+
+open('generated_interpolation.inc', 'w').write(code)
