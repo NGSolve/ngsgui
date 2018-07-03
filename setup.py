@@ -1,5 +1,4 @@
 #! /usr/bin/python3
-
 try:
     import skbuild
     import PySide2
@@ -26,14 +25,14 @@ CMAKE_ARGS = []
 try:
     import netgen.NgOCC
     CMAKE_ARGS.append("-DUSE_OCC=ON")
-except ModuleNotFoundError:
+except ImportError:
     pass
 
 modules = ['ngsgui'] + ['ngsgui.' + pkg for pkg in find_packages('src')]
 dirs = { module : module.replace('ngsgui.','src/') if 'ngsgui.' in module else 'src' for module in modules}
 
 setup(name="ngsgui",
-      version="0.1.3",
+      version="0.1.4",
       description="New graphical interface for NGSolve",
       packages=modules,
       package_dir=dirs,
