@@ -299,16 +299,17 @@ def getProgram(*shader_files, feedback=[], **replacements):
 
             # get binary blob and store it on disk
             size = glGetProgramiv( prog.id, GL_PROGRAM_BINARY_LENGTH )
-            result = numpy.zeros(size,dtype=numpy.uint8)
-            size2 = GLint()
-            format = GLenum()
-            res = glGetProgramBinary( prog.id, size, size2, format, result )
-            s = len(result)
-            result = zlib.compress(result)
-            enc = base64.b64encode(result).decode('ascii')
-            settings.setValue(key+'/format', str(format.value))
-            settings.setValue(key+'/program', enc)
-            settings.setValue(key+'/hash', str(h))
+            if size:
+                result = numpy.zeros(size,dtype=numpy.uint8)
+                size2 = GLint()
+                format = GLenum()
+                res = glGetProgramBinary( prog.id, size, size2, format, result )
+                s = len(result)
+                result = zlib.compress(result)
+                enc = base64.b64encode(result).decode('ascii')
+                settings.setValue(key+'/format', str(format.value))
+                settings.setValue(key+'/program', enc)
+                settings.setValue(key+'/hash', str(h))
 
     glUseProgram(prog.id)
     return prog
