@@ -80,7 +80,7 @@ class GUI():
               "-fastmode" : (_fastmode, "Use fastmode for drawing large scenes faster"),
               "-noOutputpipe" : (_noOutputpipe, "Do not pipe the std output to the output window in the gui"),
               "-help" : (_showHelp, "Show this help function"),
-              "-dontCatchExceptions" : (_dontCatchExceptions, "Do not catch exceptions")}
+              "-dontCatchExceptions" : (_dontCatchExceptions, "Do not catch exceptions up to user input, but show internal gui traceback")}
     # use a list of tuples instead of a dict to be able to sort it
     sceneCreators = []
     file_loaders = {}
