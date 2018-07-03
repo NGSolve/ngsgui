@@ -191,6 +191,10 @@ class GUI():
                 tup[0](self,flag[key])
             else:
                 tup[0](self, False)
+        for flag in flags:
+            if flag not in self.flags:
+                print("Don't know flag: ", flag)
+                _showHelp(self,True)
 
     def saveSolution(self):
         filename, filt = QtWidgets.QFileDialog.getSaveFileName(caption="Save Solution",
