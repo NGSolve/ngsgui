@@ -1,6 +1,6 @@
 
 import os
-os.environ['Qt_API'] = 'pyside2'
+os.environ['QT_API'] = 'pyside2'
 
 from . import glwindow, code_editor, ngui
 from . widgets import ArrangeV
