@@ -536,10 +536,7 @@ class MeshScene(BaseMeshScene):
 
     def _setSurfaceUniforms(self, settings, prog):
         self.vao.bind()
-        model, view, projection = settings.model, settings.view, settings.projection
         uniforms = prog.uniforms
-        uniforms.set('P',projection)
-        uniforms.set('MV',view*model)
 
         glActiveTexture(GL_TEXTURE0)
         self.mesh_data.vertices.bind()
@@ -636,12 +633,9 @@ class MeshScene(BaseMeshScene):
         self.vao.unbind()
 
     def renderNumbers(self, settings):
-        prog = getProgram('filter_elements.vert', 'numbers.geom', 'font.frag')
+        prog = getProgram('filter_elements.vert', 'numbers.geom', 'font.frag', params=settings)
         self.vao.bind()
-        model, view, projection = settings.model, settings.view, settings.projection
         uniforms = prog.uniforms
-        uniforms.set('P',projection)
-        uniforms.set('MV',view*model)
 
         viewport = glGetIntegerv( GL_VIEWPORT )
         screen_width = viewport[2]-viewport[0]
@@ -982,7 +976,6 @@ class SolutionScene(BaseMeshScene):
         self.surface_vao.bind()
         prog = getProgram('filter_elements.vert', 'filter_elements.geom', feedback=['element'], ORDER=self.getOrder())
         uniforms = prog.uniforms
-        uniforms.set('clipping_plane', settings.clipping_plane)
         glActiveTexture(GL_TEXTURE0)
         self.mesh_data.vertices.bind()
         uniforms.set('mesh.vertices', 0)
@@ -995,8 +988,6 @@ class SolutionScene(BaseMeshScene):
         glActiveTexture(GL_TEXTURE2)
         self.volume_values.bind()
         uniforms.set('coefficients', 2)
-        uniforms.set('colormap_min', settings.colormap_min)
-        uniforms.set('colormap_max', settings.colormap_max)
         uniforms.set('subdivision', 2**self.getSubdivision()-1)
         if self.cf.dim > 1:
             uniforms.set('component', self.getComponent())
@@ -1020,20 +1011,13 @@ class SolutionScene(BaseMeshScene):
         self.surface_vao.unbind()
 
     def render1D(self, settings):
-        model, view, projection = settings.model, settings.view, settings.projection
 
         # surface mesh
         self.line_vao.bind()
         prog = getProgram('solution1d.vert', 'solution1d.frag', ORDER=self.getOrder())
 
         uniforms = prog.uniforms
-        uniforms.set('P',projection)
-        uniforms.set('MV',view*model)
 
-        uniforms.set('colormap_min', settings.colormap_min)
-        uniforms.set('colormap_max', settings.colormap_max)
-        uniforms.set('colormap_linear', settings.colormap_linear)
-        uniforms.set('clipping_plane', settings.clipping_plane)
         uniforms.set('do_clipping', self.mesh.dim==3);
         uniforms.set('subdivision', 2**self.getSubdivision()-1)
 

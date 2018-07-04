@@ -245,7 +245,7 @@ class GLWidget(QtOpenGL.QGLWidget):
 
     def __init__(self,shared=None, *args, **kwargs):
         f = QtOpenGL.QGLFormat()
-        f.setVersion(4,0)
+        f.setVersion(3,2)
         f.setProfile(QtOpenGL.QGLFormat.CoreProfile)
         if _debug:
             f.setOption(QtGui.QSurfaceFormat.DebugContext)

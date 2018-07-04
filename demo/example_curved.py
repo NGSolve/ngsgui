@@ -13,7 +13,7 @@ geom = CSGeometry()
 geom.Add(sculpture)
 
 mesh = Mesh(geom.GenerateMesh(maxh=20))
-mesh.Curve(int(sys.argv[1]))
+mesh.Curve(4)
 for i in range(nrefinements):
     print('refine')
     mesh.Refine()
