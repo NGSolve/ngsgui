@@ -1,7 +1,6 @@
 
 from ngsolve import *
 from netgen.csg import *
-import ngsolve.gui as GUI
 
 ngsglobals.msg_level = 0
 
@@ -28,9 +27,6 @@ def ShowMass(p):
     print("mass ", ei.nr, " = ")
     print(mass.CalcElementMatrix(element,trafo))
 
-gui = GUI.GUI()
-scene2 = GUI.MeshScene(mesh,elements=True,name="Mesh Elements")
-scene2.addAction(ShowLaplace,name="ShowLaplace")
-scene2.addAction(ShowMass,name="ShowMass")
-gui.draw(scene2)
-gui.run()
+scene = Draw(mesh)
+scene.addAction(ShowLaplace,name="ShowLaplace")
+scene.addAction(ShowMass,name="ShowMass")

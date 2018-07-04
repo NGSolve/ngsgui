@@ -7,10 +7,12 @@ from OpenGL.GL.ARB import debug_output
 from OpenGL.extensions import alternate
 import array, ctypes, time, ngsolve, numpy, pickle, io, base64, zlib, os, glob, hashlib
 
-from . import glmath, shader
+from . import glmath # , shader
 
 from PySide2 import QtCore, QtGui, QtWidgets, QtOpenGL
 from PySide2.QtCore import Qt
+
+from ngsgui.shader import location as shaderpath
 
 _DEVELOP=True
 
@@ -88,7 +90,6 @@ class Shader(GLObject):
 
     def __init__(self, code=None, filename=None, shader_type=None, **replacements):
 
-        shaderpath = os.path.join(os.path.dirname(__file__), 'shader')
         if code == None:
             code = readShaderFile(filename, **replacements)
         self._code = code
@@ -117,7 +118,6 @@ class Shader(GLObject):
             raise RuntimeError('Error when compiling ' + filename + ': '+glGetShaderInfoLog(self.id).decode()+'\ncompiled code:\n'+numerated_shader_code)
 
 def readShaderFile(filename, defines):
-    shaderpath = os.path.join(os.path.dirname(__file__), 'shader')
     fullpath = os.path.join(shaderpath, filename)
     code = open(fullpath,'r').read()
 

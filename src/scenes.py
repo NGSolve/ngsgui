@@ -1,6 +1,5 @@
 
-import ngsolve
-import numpy
+import numpy, os, ngsolve
 
 from .gl import Texture, getProgram, ArrayBuffer, VertexArray, TextRenderer
 from . import widgets as wid
@@ -225,7 +224,7 @@ class OverlayScene(BaseScene):
     """Class  for overlay objects (Colormap, coordinate system, logo)"""
     @inmain_decorator(wait_for_return=True)
     def __init__(self,rendering_parameters=None,**kwargs):
-        import ngsolve.gui as G
+        import ngsgui as G
         self._rendering_parameters = rendering_parameters
         self.__initial_values = { "ShowCross" : True,
                                  "ShowVersion" : True,
@@ -1481,3 +1480,13 @@ class GeometryScene2D(BaseScene):
 
 GUI.sceneCreators.append((netgen.geom2d.SplineGeometry, GeometryScene2D))
 GUI.sceneCreators.append((netgen.meshing.NetgenGeometry,GeometryScene))
+
+
+def _load_gz_mesh(gui, filename):
+    if os.path.splitext(os.path.splitext(filename)[0])[1] == ".vol":
+        ngsolve.Draw(ngsolve.Mesh(filename))
+    else:
+        print("Do not know file extension for ", filename)
+
+GUI.file_loaders[".gz"] = _load_gz_mesh
+GUI.file_loaders[".vol"] = lambda gui, filename: ngsolve.Draw(ngsolve.Mesh(filename))

@@ -14,8 +14,13 @@ class PlotTab(QtWidgets.QWidget):
         False
 
     @inmain_decorator(True)
-    def plot(self, x, y):
-        canvas = FigureCanvas(Figure(figsize = (5,3)))
+    def plot(self, figure, **kwargs):
+        canvas = FigureCanvas(figure)
         self.setLayout(wid.ArrangeV(canvas, NavigationToolbar(canvas, self)))
-        self._axes = canvas.figure.subplots()
-        self._axes.plot(x,y)
+
+    # @inmain_decorator(True)
+    # def plot(self, x, y):
+    #     canvas = FigureCanvas(Figure(figsize = (5,3)))
+    #     self.setLayout(wid.ArrangeV(canvas, NavigationToolbar(canvas, self)))
+    #     self._axes = canvas.figure.subplots()
+    #     self._axes.plot(x,y)
