@@ -6,7 +6,6 @@ if 'NGS_DEBUG' in _environ:
 else:
     _debug=False
 
-from . import config
 from .scenes import *
 from .gui import GUI 
 

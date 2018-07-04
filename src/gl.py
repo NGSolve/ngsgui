@@ -1,7 +1,7 @@
 from OpenGL.GL import *
 from OpenGL import GL, constant
 
-from .config import debug as _debug
+from ngsgui import _debug
 
 from OpenGL.GL.ARB import debug_output
 from OpenGL.extensions import alternate
