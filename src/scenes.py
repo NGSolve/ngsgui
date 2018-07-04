@@ -968,6 +968,7 @@ class SolutionScene(BaseMeshScene):
 
             try:
                 values = self._getValues(ngsolve.BND, False)
+                self._getValues2(ngsolve.BND)
                 if values is None:
                     return
                 self.surface_values.store(values["real"])

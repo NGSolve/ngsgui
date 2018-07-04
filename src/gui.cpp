@@ -10,6 +10,7 @@
 #include <occgeom.hpp>
 #include <stlgeom.hpp>
 #include <type_traits>
+#include <atomic>
 
 using namespace ngfem;
 using std::is_same;
@@ -370,10 +371,6 @@ void GetValues( const CoefficientFunction &cf, LocalHeap &lh, const TMIR &mir, F
 }
 
 PYBIND11_MODULE(ngui, m) {
-//     for (auto et : {ET_TRIG, ET_QUAD, ET_TET, ET_HEX, ET_PRISM, ET_PYRAMID}) {
-//         cout << "rule for " << et << endl;
-//         cout << GetReferenceRule(et, 1, 1 ) << endl;
-//     }
   py::class_<ElementInformation>(m, "ElementInformation", py::dynamic_attr())
     .def_readwrite("data",    &ElementInformation::data)
     .def_readwrite("size",    &ElementInformation::size)
@@ -405,6 +402,20 @@ PYBIND11_MODULE(ngui, m) {
             Array<float> max(ncomps);
             min = std::numeric_limits<float>::max();
             max = std::numeric_limits<float>::lowest();
+
+            map<ELEMENT_TYPE, std::atomic<int>> element_counter;
+            map<ELEMENT_TYPE, std::atomic<int>> element_index;
+            for (auto et : {ET_POINT, ET_SEGM, ET_TRIG, ET_QUAD, ET_TET, ET_PRISM, ET_PYRAMID, ET_HEX}) {
+              element_counter[et] = 0;
+              element_index[et] = 0;
+            }
+            ma->IterateElements(vb, lh,[&](auto el, LocalHeap& mlh) {
+                auto et = el.GetType();
+                element_counter[et]++;
+            });
+            for (auto et : {ET_POINT, ET_SEGM, ET_TRIG, ET_QUAD, ET_TET, ET_PRISM, ET_PYRAMID, ET_HEX}) {
+              cout << et << "," << element_counter[et] << endl;
+            }
 
             bool use_simd = true;
             ma->IterateElements(vb, lh,[&](auto el, LocalHeap& mlh) {
