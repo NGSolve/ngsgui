@@ -18,7 +18,6 @@ def Draw(obj, *args, tab=None, **kwargs):
         scene = None
     if scene:
         G.gui.draw(scene, tab=tab)
-        print("returning ", type(scene))
         return scene
     print("Cannot draw object of type ",type(obj))
 
