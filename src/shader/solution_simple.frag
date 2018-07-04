@@ -76,8 +76,8 @@ void main()
       value = (value-colormap_min)/(colormap_max-colormap_min);
       value = clamp(value, 0.0, 1.0);
       value = (1.0 - value);
-      //if(!colormap_linear)
-       // value = floor(8*value)/7.0;
+      if(!colormap_linear)
+        value = floor(8*value)/7.0;
       FragColor.r = MapColor(value).r;
       FragColor.g = MapColor(value).g;
       FragColor.b = MapColor(value).b;

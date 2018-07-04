@@ -974,7 +974,7 @@ class SolutionScene(BaseMeshScene):
     def _filterElements(self, settings, filter_type):
         glEnable(GL_RASTERIZER_DISCARD)
         self.surface_vao.bind()
-        prog = getProgram('filter_elements.vert', 'filter_elements.geom', feedback=['element'], ORDER=self.getOrder())
+        prog = getProgram('filter_elements.vert', 'filter_elements.geom', feedback=['element'], ORDER=self.getOrder(), params=settings)
         uniforms = prog.uniforms
         glActiveTexture(GL_TEXTURE0)
         self.mesh_data.vertices.bind()
