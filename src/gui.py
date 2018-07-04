@@ -192,8 +192,9 @@ class GUI():
             else:
                 tup[0](self, False)
         for flag in flags:
-            if flag not in self.flags:
-                print("Don't know flag: ", flag)
+            flg = flag.split("=")[0]
+            if flg not in self.flags:
+                print("Don't know flag: ", flg)
                 _showHelp(self,True)
 
     def saveSolution(self):
@@ -333,3 +334,28 @@ class DummyObject:
 
 GUI.file_loaders[".py"] = GUI.loadPythonFile
 gui = DummyObject()
+
+
+def Draw(obj, *args, tab=None, **kwargs):
+    """Draw a Mesh or a CoefficientFunction, this function is overridden by
+    the new gui and returns the drawn scene."""
+    for _type, creator in GUI.sceneCreators:
+        if isinstance(obj,_type):
+            scene = creator(obj, *args, **kwargs)
+            break
+    else:
+        scene = None
+    if scene:
+        gui.draw(scene, tab=tab)
+        print("returning ", type(scene))
+        return scene
+    print("Cannot draw object of type ",type(obj))
+
+def Redraw(blocking=True,**kwargs):
+    if blocking:
+        gui.redraw_blocking()
+    else:
+        gui.redraw()
+
+ngsolve.Draw = Draw
+ngsolve.Redraw = Redraw
