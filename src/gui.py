@@ -268,8 +268,8 @@ class GUI():
         GL.glViewport(*viewport)
         return im
 
-    def plot(self, x,y):
-        self.window_tabber.plot(x,y)
+    def plot(self, *args, **kwargs):
+        self.window_tabber.plot(*args, **kwargs)
 
     @inmain_decorator(wait_for_return=True)
     def _loadFile(self, filename):
@@ -327,35 +327,11 @@ class DummyObject:
     def __call__(self,*args,**kwargs):
         pass
 
-    def plot(self, x,y):
+    def plot(self, *args, **kwargs):
         import matplotlib.pyplot as plt
-        plt.plot(x,y)
+        plt.plot(*args, **kwargs)
         plt.show()
 
 GUI.file_loaders[".py"] = GUI.loadPythonFile
 gui = DummyObject()
 
-
-def Draw(obj, *args, tab=None, **kwargs):
-    """Draw a Mesh or a CoefficientFunction, this function is overridden by
-    the new gui and returns the drawn scene."""
-    for _type, creator in GUI.sceneCreators:
-        if isinstance(obj,_type):
-            scene = creator(obj, *args, **kwargs)
-            break
-    else:
-        scene = None
-    if scene:
-        gui.draw(scene, tab=tab)
-        print("returning ", type(scene))
-        return scene
-    print("Cannot draw object of type ",type(obj))
-
-def Redraw(blocking=True,**kwargs):
-    if blocking:
-        gui.redraw_blocking()
-    else:
-        gui.redraw()
-
-ngsolve.Draw = Draw
-ngsolve.Redraw = Redraw

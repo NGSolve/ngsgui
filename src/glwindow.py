@@ -705,10 +705,10 @@ class WindowTabber(QtWidgets.QTabWidget):
         self.activeGLWindow.draw(*args,**kwargs)
 
     @inmain_decorator(True)
-    def plot(self, x, y):
+    def plot(self, *args, **kwargs):
         window = PlotTab()
-        window.plot(x,y)
-        self.addTab(window, "plot")
+        window.plot(*args, **kwargs)
+        self.addTab(window, kwargs["label"] if "label" in kwargs else "plot")
         self.setCurrentWidget(window)
 
     def setCurrentIndex(self, index):
