@@ -861,7 +861,6 @@ class SolutionScene(BaseMeshScene):
         glEnable(GL_RASTERIZER_DISCARD)
         prog = getProgram('filter_elements.vert', 'filter_elements.geom', feedback=['element'], params=settings)
         uniforms = prog.uniforms
-        uniforms.set('clipping_plane', settings.clipping_plane)
         glActiveTexture(GL_TEXTURE0)
         self.mesh_data.vertices.bind()
         uniforms.set('mesh.vertices', 0)
@@ -874,8 +873,6 @@ class SolutionScene(BaseMeshScene):
         glActiveTexture(GL_TEXTURE2)
         self.volume_values.bind()
         uniforms.set('coefficients', 2)
-        uniforms.set('colormap_min', settings.colormap_min)
-        uniforms.set('colormap_max', settings.colormap_max)
         uniforms.set('subdivision', 2**self.getSubdivision()-1)
         uniforms.set('order', self.getOrder())
         if self.cf.dim > 1:
