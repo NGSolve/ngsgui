@@ -1,8 +1,6 @@
 
 from .thread import inmain_decorator
 from . import widgets as wid
-from matplotlib.backends.backend_qt5agg import (FigureCanvas, NavigationToolbar2QT as NavigationToolbar)
-from matplotlib.figure import Figure
 
 from PySide2 import QtCore, QtWidgets
 
@@ -15,6 +13,8 @@ class PlotTab(QtWidgets.QWidget):
 
     @inmain_decorator(True)
     def plot(self, figure, **kwargs):
+        from matplotlib.backends.backend_qt5agg import (FigureCanvas, NavigationToolbar2QT as NavigationToolbar)
+        from matplotlib.figure import Figure
         canvas = FigureCanvas(figure)
         self.setLayout(wid.ArrangeV(canvas, NavigationToolbar(canvas, self)))
 
