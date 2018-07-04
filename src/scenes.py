@@ -859,6 +859,7 @@ class SolutionScene(BaseMeshScene):
 
     def _filterElements(self, settings, filter_type):
         glEnable(GL_RASTERIZER_DISCARD)
+        self.surface_vao.bind()
         prog = getProgram('filter_elements.vert', 'filter_elements.geom', feedback=['element'], params=settings)
         uniforms = prog.uniforms
         glActiveTexture(GL_TEXTURE0)
@@ -894,6 +895,7 @@ class SolutionScene(BaseMeshScene):
 
         glEndTransformFeedback()
         glDisable(GL_RASTERIZER_DISCARD)
+        self.surface_vao.unbind()
 
     def render1D(self, settings):
 
