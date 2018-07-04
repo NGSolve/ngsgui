@@ -61,7 +61,7 @@ def _noexec(gui, val):
 def _fastmode(gui,val):
     gui.window_tabber._fastmode = val
 def _noOutputpipe(gui,val):
-    gui.pipeOutput = False
+    gui.pipeOutput = not val
 
 def _showHelp(gui, val):
     if val:
@@ -72,7 +72,7 @@ def _showHelp(gui, val):
         quit()
 
 def _dontCatchExceptions(gui, val):
-    gui._dontCatchExceptions = True
+    gui._dontCatchExceptions = val
 
 class GUI():
     # functions to modify the gui with flags. If the flag is not set, the function is called with False as argument
@@ -164,7 +164,6 @@ class GUI():
         addShortcut("Close Tab", "Ctrl+w", lambda: self.window_tabber._remove_tab(self.window_tabber.currentIndex()))
         addShortcut("Next Tab", "Ctrl+LeftArrow", lambda: switchTabWindow(-1))
         addShortcut("Previous Tab", "Ctrl+RightArrow", lambda: switchTabWindow(1))
-        addShortcut("Quit", "Esc", lambda: self.app.quit())
 
     def crawlPlugins(self):
         for entry_point in pkg_resources.iter_entry_points(group="ngsgui.plugin",name=None):

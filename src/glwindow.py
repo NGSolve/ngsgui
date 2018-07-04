@@ -158,7 +158,7 @@ class RenderingParameters:
 
     @property
     def projection(self):
-        return glmath.Perspective(0.8, self.ratio, .1, 20)
+        return glmath.Perspective(0.8, self.ratio, .1, 20.)
 
     @property
     def clipping_plane(self):
@@ -183,7 +183,6 @@ class RenderingParameters:
     def setClippingPlanePoint(self, point):
         for i in range(3):
             self.clipping_point[i] = point[i]
-
 
 class WindowTab(QtWidgets.QWidget):
     def __init__(self, *args, **kwargs):
@@ -305,7 +304,7 @@ class GLWidget(QtOpenGL.QGLWidget):
 
     def paintGL(self):
         t = time.time() - self.old_time
-        print("frames per second: ", 1.0/t)
+#         print("frames per second: ", 1.0/t, end='\r')
         self.old_time = time.time()
 
 
