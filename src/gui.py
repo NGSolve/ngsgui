@@ -130,7 +130,8 @@ class GUI():
         self.console = NGSJupyterWidget(gui=self,multikernel_manager = self.multikernel_manager)
         self.console.exit_requested.connect(self.app.quit)
         self.outputBuffer = OutputBuffer()
-        self.output_tabber = QtWidgets.QTabWidget()
+        self.output_tabber = glwindow.WindowTabber(commonContext=self._commonContext,
+                                                   parent=window_splitter)
         self.output_tabber.addTab(self.console,"Console")
         self.output_tabber.addTab(self.outputBuffer, "Output")
         self.output_tabber.setCurrentIndex(1)
@@ -200,8 +201,8 @@ class GUI():
     def saveSolution(self):
         filename, filt = QtWidgets.QFileDialog.getSaveFileName(caption="Save Solution",
                                                                filter = "Solution Files (*.sol)")
-        if not filename[-4:] == ".sol":
-            filename += ".sol"
+        if not filename[-4:] == ".ngs":
+            filename += ".ngs"
         tabs = []
         for i in range(self.window_tabber.count()):
             tabs.append((self.window_tabber.widget(i),self.window_tabber.tabBar().tabText(i)))
@@ -210,11 +211,9 @@ class GUI():
         with open(filename,"wb") as f:
             pickle.dump((tabs,settings, currentIndex), f)
 
-    def loadSolution(self):
-        filename, filt = QtWidgets.QFileDialog.getOpenFileName(caption="Load Solution",
-                                                               filter = "Solution Files (*.sol)")
-        if not filename[-4:] == ".sol":
-            filename += ".sol"
+    def _loadSolutionFile(self, filename):
+        if not filename[-4:] == ".ngs":
+            filename += ".ngs"
         with open(filename, "rb") as f:
             tabs,settings,currentIndex = pickle.load(f)
         for tab,name in tabs:
@@ -227,6 +226,11 @@ class GUI():
             setting.gui = self
             self.settings_toolbox.addSettings(setting)
         self.window_tabber.activeGLWindow = self.window_tabber.widget(currentIndex)
+
+    def loadSolution(self):
+        filename, filt = QtWidgets.QFileDialog.getOpenFileName(caption="Load Solution",
+                                                               filter = "Solution Files (*.sol)")
+        self._loadSolutionFile(filename)
 
     @inmain_decorator(wait_for_return=True)
     def draw(self, *args, **kwargs):
@@ -333,5 +337,5 @@ class DummyObject:
         plt.show()
 
 GUI.file_loaders[".py"] = GUI.loadPythonFile
+GUI.file_loaders[".ngs"] = GUI._loadSolutionFile
 gui = DummyObject()
-

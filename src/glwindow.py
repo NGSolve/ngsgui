@@ -452,11 +452,11 @@ class WindowTabber(QtWidgets.QTabWidget):
     def __init__(self,commonContext, *args, **kwargs):
         super().__init__(*args,**kwargs)
         self._commonContext = commonContext
-        self.tabBar = self.TabBar(self)
-        self.setTabBar(self.tabBar)
+        self._tabBar = self.TabBar(self)
+        self.setTabBar(self._tabBar)
         self.setTabsClosable(True)
-        self.tabBar.onDetachTabSignal.connect(self.detachTab)
-        self.tabBar.onMoveTabSignal.connect(self.moveTab)
+        self._tabBar.onDetachTabSignal.connect(self.detachTab)
+        self._tabBar.onMoveTabSignal.connect(self.moveTab)
         self._activeGLWindow = None
         self.tabCloseRequested.connect(self._remove_tab)
         self._fastmode = False
