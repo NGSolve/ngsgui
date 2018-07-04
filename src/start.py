@@ -27,11 +27,11 @@ def Redraw(blocking=True,**kwargs):
     else:
         G.gui.redraw()
 
-ngs.Draw = Draw
-ngs.Redraw = Redraw
 
 
 def main():
+    ngs.Draw = Draw
+    ngs.Redraw = Redraw
     G.gui = G.GUI()
     G.gui.parseFlags(sys.argv[1:])
     G.gui.run()
