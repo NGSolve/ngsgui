@@ -333,8 +333,8 @@ class OverlayScene(BaseScene):
             self.text_renderer.draw(settings, "NGSolve " + ngsolve.__version__, [0.99,-0.99,0], alignment=QtCore.Qt.AlignRight|QtCore.Qt.AlignBottom)
 
         if self.getShowColorBar():
-            prog = getProgram('colorbar.vert','colorbar.frag')
             self.vao.bind()
+            prog = getProgram('colorbar.vert','colorbar.frag')
             uniforms = prog.uniforms
             x0,y0 = -0.6, 0.82
             dx,dy = 1.2, 0.03
