@@ -442,11 +442,8 @@ class MeshScene(BaseMeshScene):
 
     def renderEdges(self, settings):
         self.vao.bind()
-        prog = getProgram('filter_elements.vert', 'lines.tesc', 'lines.tese', 'mesh.frag')
-        model,view,projection = settings.model, settings.view, settings.projection
+        prog = getProgram('filter_elements.vert', 'lines.tesc', 'lines.tese', 'mesh.frag', params=settings)
         uniforms = prog.uniforms
-        uniforms.set('P',projection)
-        uniforms.set('MV',view*model)
 
         glActiveTexture(GL_TEXTURE0)
         self.mesh_data.vertices.bind()
@@ -484,12 +481,9 @@ class MeshScene(BaseMeshScene):
         self.vao.unbind()
 
     def renderSurface(self, settings):
-        prog = getProgram('filter_elements.vert', 'tess.tesc', 'tess.tese', 'mesh.geom', 'mesh.frag')
+        prog = getProgram('filter_elements.vert', 'tess.tesc', 'tess.tese', 'mesh.geom', 'mesh.frag', params=settings)
         self.vao.bind()
-        model, view, projection = settings.model, settings.view, settings.projection
         uniforms = prog.uniforms
-        uniforms.set('P',projection)
-        uniforms.set('MV',view*model)
 
         glActiveTexture(GL_TEXTURE0)
         self.mesh_data.vertices.bind()
@@ -555,12 +549,9 @@ class MeshScene(BaseMeshScene):
         self.vao.unbind()
 
     def renderNumbers(self, settings):
-        prog = getProgram('filter_elements.vert', 'numbers.geom', 'font.frag')
+        prog = getProgram('filter_elements.vert', 'numbers.geom', 'font.frag', params=settings)
         self.vao.bind()
-        model, view, projection = settings.model, settings.view, settings.projection
         uniforms = prog.uniforms
-        uniforms.set('P',projection)
-        uniforms.set('MV',view*model)
 
         viewport = glGetIntegerv( GL_VIEWPORT )
         screen_width = viewport[2]-viewport[0]
@@ -868,7 +859,7 @@ class SolutionScene(BaseMeshScene):
 
     def _filterElements(self, settings, filter_type):
         glEnable(GL_RASTERIZER_DISCARD)
-        prog = getProgram('filter_elements.vert', 'filter_elements.geom', feedback=['element'])
+        prog = getProgram('filter_elements.vert', 'filter_elements.geom', feedback=['element'], params=settings)
         uniforms = prog.uniforms
         uniforms.set('clipping_plane', settings.clipping_plane)
         glActiveTexture(GL_TEXTURE0)
@@ -908,20 +899,13 @@ class SolutionScene(BaseMeshScene):
         glDisable(GL_RASTERIZER_DISCARD)
 
     def render1D(self, settings):
-        model, view, projection = settings.model, settings.view, settings.projection
 
         # surface mesh
         self.line_vao.bind()
-        prog = getProgram('solution1d.vert', 'solution1d.frag')
+        prog = getProgram('solution1d.vert', 'solution1d.frag', params=settings)
 
         uniforms = prog.uniforms
-        uniforms.set('P',projection)
-        uniforms.set('MV',view*model)
 
-        uniforms.set('colormap_min', settings.colormap_min)
-        uniforms.set('colormap_max', settings.colormap_max)
-        uniforms.set('colormap_linear', settings.colormap_linear)
-        uniforms.set('clipping_plane', settings.clipping_plane)
         uniforms.set('do_clipping', self.mesh.dim==3);
         uniforms.set('subdivision', 2**self.getSubdivision()-1)
         uniforms.set('order', self.getOrder())
@@ -951,20 +935,12 @@ class SolutionScene(BaseMeshScene):
         self.line_vao.bind()
 
     def renderSurface(self, settings):
-        model, view, projection = settings.model, settings.view, settings.projection
-
         # surface mesh
-        prog = getProgram('filter_elements.vert', 'tess.tesc', 'tess.tese', 'solution.geom', 'solution.frag', ORDER=self.getOrder())
+        prog = getProgram('filter_elements.vert', 'tess.tesc', 'tess.tese', 'solution.geom', 'solution.frag', ORDER=self.getOrder(), params=settings)
         self.surface_vao.bind()
 
         uniforms = prog.uniforms
-        uniforms.set('P',projection)
-        uniforms.set('MV',view*model)
 
-        uniforms.set('colormap_min', settings.colormap_min)
-        uniforms.set('colormap_max', settings.colormap_max)
-        uniforms.set('colormap_linear', settings.colormap_linear)
-        uniforms.set('clipping_plane', settings.clipping_plane)
         uniforms.set('do_clipping', self.mesh.dim==3);
         uniforms.set('subdivision', 2**self.getSubdivision()-1)
         uniforms.set('order', self.getOrder())
@@ -1367,9 +1343,9 @@ class GeometryScene2D(BaseScene):
         uniforms.set('light_ambient', 1)
         uniforms.set('light_diffuse',0)
 
-        glLineWidth(3)
+        #glLineWidth(3)
         glDrawArrays(GL_LINES, 0, self._nverts)
-        glLineWidth(1)
+        #glLineWidth(1)
 
 GUI.sceneCreators.append((netgen.geom2d.SplineGeometry, GeometryScene2D))
 GUI.sceneCreators.append((netgen.meshing.NetgenGeometry,GeometryScene))

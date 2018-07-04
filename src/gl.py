@@ -1,4 +1,10 @@
 from OpenGL.GL import *
+from OpenGL import GL, constant
+
+from ngsgui import _debug
+
+from OpenGL.GL.ARB import debug_output
+from OpenGL.extensions import alternate
 import array, ctypes, time, ngsolve, numpy, pickle, io, base64, zlib, os, glob, hashlib
 
 from . import glmath # , shader
@@ -9,6 +15,63 @@ from PySide2.QtCore import Qt
 from ngsgui.shader import location as shaderpath
 
 _DEVELOP=True
+
+glGetDebugMessageLog = alternate(
+    'glGetDebugMessageLog', GL.glGetDebugMessageLog,
+    debug_output.glGetDebugMessageLogARB)
+
+# the size specifications of some debug_output tokens seem to be missing so
+# we add them manually even though it does not seem to be a nice way to do it
+# GL.glget.GL_GET_SIZES[debug_output.GL_MAX_DEBUG_MESSAGE_LENGTH_ARB] = (1,)
+# GL.glget.GL_GET_SIZES[debug_output.GL_DEBUG_LOGGED_MESSAGES_ARB] = (1,)
+
+
+def get_constant(value, namespace):
+    """Get symbolic constant.
+
+    value - the (integer) token value to look for
+    namespace - the module object to search in
+
+    """
+
+    for var in dir(namespace):
+        attr = getattr(namespace, var)
+        if isinstance(attr, constant.Constant) and attr == value:
+            return var
+    return value
+
+
+def check_debug_output():
+    if not _debug:
+        return
+    """Get the contents of the OpenGL debug log as a string."""
+
+    # details for the available log messages
+    msgmaxlen = GL.glGetInteger(debug_output.GL_MAX_DEBUG_MESSAGE_LENGTH_ARB)
+    msgcount = GL.glGetInteger(debug_output.GL_DEBUG_LOGGED_MESSAGES_ARB)
+
+    # ctypes arrays to receive the log data
+    msgsources = (ctypes.c_uint32 * msgcount)()
+    msgtypes = (ctypes.c_uint32 * msgcount)()
+    msgids = (ctypes.c_uint32 * msgcount)()
+    msgseverities = (ctypes.c_uint32 * msgcount)()
+    msglengths = (ctypes.c_uint32 * msgcount)()
+    msglog = (ctypes.c_char * (msgmaxlen * msgcount))()
+
+    glGetDebugMessageLog(msgcount, msgmaxlen, msgsources, msgtypes, msgids,
+                         msgseverities, msglengths, msglog)
+
+    offset = 0
+    logdata = zip(msgsources, msgtypes, msgids, msgseverities, msglengths)
+    for msgsource, msgtype, msgid, msgseverity, msglen in logdata:
+        msgtext = msglog.raw[offset:offset + msglen].decode("ASCII")
+        offset += msglen
+        msgsource = get_constant(msgsource, debug_output)
+        msgtype = get_constant(msgtype, debug_output)
+        msgseverity = get_constant(msgseverity, debug_output)
+        print("SOURCE: {0}\nTYPE: {1}\nID: {2}\nSEVERITY: {3}\n"
+               "MESSAGE: {4}".format(msgsource, msgtype, msgid,
+               msgseverity, msgtext))
 
 class GLObject:
     @property
@@ -54,35 +117,37 @@ class Shader(GLObject):
                 numerated_shader_code += str(i)+":\t"+line+'\n'
             raise RuntimeError('Error when compiling ' + filename + ': '+glGetShaderInfoLog(self.id).decode()+'\ncompiled code:\n'+numerated_shader_code)
 
-def readShaderFile(filename, **replacements):
+def readShaderFile(filename, defines):
     fullpath = os.path.join(shaderpath, filename)
     code = open(fullpath,'r').read()
 
     for incfile in glob.glob(os.path.join(shaderpath, '*.inc')):
         Shader.includes[os.path.basename(incfile)] = open(incfile,'r').read()
 
-    for token in Shader.includes:
-        code = code.replace('{include '+token+'}', Shader.includes[token])
+    while code.find('{include ')>-1:
+        for token in Shader.includes:
+            code = code.replace('{include '+token+'}', Shader.includes[token])
 
-    for token in replacements:
-        code = code.replace('{'+token+'}', str(replacements[token]))
+
+    pos = code.find('\n', code.find('version'))
+    code = code[:pos+1] + defines + code[pos+1:]
 
     return code
 
-def getProgramHash(*filenames, **replacements):
+def getProgramHash(filenames, defines):
     res = ""
     h = hashlib.sha256()
     h.update(glGetString(GL_VENDOR))
     h.update(glGetString(GL_VERSION))
     h.update(glGetString(GL_RENDERER))
     for filename in sorted(filenames):
-        h.update((filename + readShaderFile(filename, **replacements)).encode('ascii'))
+        h.update((filename + readShaderFile(filename, defines)).encode('ascii'))
     return h.hexdigest()
 
-def compileProgram(*filenames, feedback=[], **replacements ):
+def compileProgram(filenames, defines, feedback=[]):
     shaders = []
     for f in filenames:
-        code = readShaderFile(f, **replacements)
+        code = readShaderFile(f, defines)
         shaders.append(Shader(code, f))
 
     return Program(shaders, feedback=feedback)
@@ -104,6 +169,10 @@ class Program(GLObject):
             if not name in self.uniforms:
                 raise RuntimeError("Unknown uniform name {}, allowed values:".format(name)+str(list(self.uniforms.keys())))
             return name
+
+        def __contains__(self, name):
+            name = name.encode('ascii','ignore')
+            return name in self.uniforms
 
         def __getitem__(self, name):
             name = self.check(name)
@@ -258,6 +327,11 @@ class Program(GLObject):
 
                 glTransformFeedbackVaryings(self.id, len(feedback), buff, GL_INTERLEAVED_ATTRIBS)
             glLinkProgram(self.id)
+            if glGetProgramiv( self.id, GL_LINK_STATUS ) != GL_TRUE:
+                log = glGetProgramInfoLog( self.id )
+                # don't throw on following error message, since mesa emits it for valid shader programs
+                if log != b'active samplers with a different type refer to the same texture image unit':
+                    raise RuntimeError( log )
 
         glValidateProgram( self.id )
         if glGetProgramiv( self.id, GL_VALIDATE_STATUS ) != GL_TRUE:
@@ -272,10 +346,34 @@ class Program(GLObject):
         self.uniforms = Program.Uniforms(self.id)
         self.attributes = Program.Attributes(self.id)
 
-def getProgram(*shader_files, feedback=[], **replacements):
+def getProgram(*shader_files, feedback=[], elements=None, params=None, **define_flags):
+    check_debug_output()
     cache = getProgram._cache
 
-    key = str(tuple([tuple(sorted(shader_files))]+feedback+list(zip(replacements.keys(), replacements.values()))))
+    defines = '\n'
+    if elements != None:
+        defines += """
+#define ELEMENT_TYPE {ELEMENT_TYPE}
+#define {ELEMENT_TYPE_NAME}
+#define ELEMENT_SIZE {ELEMENT_SIZE}
+#define ELEMENT_N_VERTICES {ELEMENT_N_VERTICES}
+""".format(
+        ELEMENT_TYPE = str(elements.type)[3:],
+        ELEMENT_SIZE = str(elements.size),
+        ELEMENT_N_VERTICES = elements.nverts,
+        DIM = elements.dim,
+        ELEMENT_TYPE_NAME = str(elements.type).replace('.','_')
+        )
+        if elements.curved:
+            defines += "#define CURVED\n"
+    for d in define_flags:
+        flag = define_flags[d]
+        if flag != None:
+            if type(flag)==bool:
+                flag = int(flag)
+            defines += "#define {} {}\n".format(d, str(flag))
+            
+    key = str(tuple([tuple(sorted(shader_files))]+feedback+[defines]))
     key = key.replace('(','').replace(')','').replace(',','-').replace("'","").replace(' ','')
 
     if key in cache:
@@ -283,7 +381,7 @@ def getProgram(*shader_files, feedback=[], **replacements):
     else:
         # try to find on-disk cached shader
         settings = getProgram._settings
-        h = getProgramHash(*shader_files, **replacements)
+        h = getProgramHash(shader_files, defines=defines)
         if str(h) == settings.value(key+'/hash'):
             # load program from binary blob
             enc = settings.value(key+'/program')
@@ -294,7 +392,7 @@ def getProgram(*shader_files, feedback=[], **replacements):
             cache[key] = prog
         else:
             # no cached version - recompile shader 
-            prog = compileProgram(*shader_files, feedback=feedback, **replacements )
+            prog = compileProgram(shader_files, defines=defines, feedback=feedback)
             cache[key] = prog
 
             # get binary blob and store it on disk
@@ -312,6 +410,29 @@ def getProgram(*shader_files, feedback=[], **replacements):
                 settings.setValue(key+'/hash', str(h))
 
     glUseProgram(prog.id)
+    u = prog.uniforms
+    if params != None:
+        if 'P' in u:
+            u.set('P',params.projection)
+        if 'MV' in u:
+            u.set('MV',params.view*params.model)
+        if 'light_ambient' in u:
+            u.set('light_ambient', 0.3)
+        if 'light_diffuse' in u:
+            u.set('light_diffuse', 0.7)
+        if 'clipping_plane' in u:
+            u.set('clipping_plane', params.clipping_plane)
+        if 'colormap_min' in u:
+            u.set('colormap_min', params.colormap_min)
+        if 'colormap_max' in u:
+            u.set('colormap_max', params.colormap_max)
+
+    if elements != None:
+        print('element_type', elements.type, int(elements.type))
+        u.set('element_type', int(elements.type))
+
+    check_debug_output()
+
     return prog
 
 getProgram._cache = {}
