@@ -471,15 +471,15 @@ class MeshScene(BaseMeshScene):
             glPatchParameteri(GL_PATCH_VERTICES, 1)
             glDrawArrays(GL_PATCHES, 0, self.mesh_data.nedges)
         if self.getShowEdgeElements():
-            glLineWidth(3)
+            #glLineWidth(3)
             glPatchParameteri(GL_PATCH_VERTICES, 1)
             glDrawArrays(GL_PATCHES, self.mesh_data.nedges,self.mesh_data.nedge_elements)
-            glLineWidth(1)
+            #glLineWidth(1)
         if self.getShowPeriodicVertices():
-            glLineWidth(3)
+            #glLineWidth(3)
             glPatchParameteri(GL_PATCH_VERTICES, 1)
             glDrawArrays(GL_PATCHES, self.mesh_data.nedge_elements+self.mesh_data.nedges, self.mesh_data.nperiodic_vertices)
-            glLineWidth(1)
+            #glLineWidth(1)
 
         self.vao.unbind()
 
