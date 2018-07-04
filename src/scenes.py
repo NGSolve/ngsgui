@@ -193,7 +193,7 @@ class OverlayScene(BaseScene):
     """Class  for overlay objects (Colormap, coordinate system, logo)"""
     @inmain_decorator(wait_for_return=True)
     def __init__(self,rendering_parameters=None,**kwargs):
-        import ngsolve.gui as G
+        import ngsgui as G
         self._rendering_parameters = rendering_parameters
         self.__initial_values = { "ShowCross" : True,
                                  "ShowVersion" : True,

@@ -8,7 +8,7 @@ from .thread import inthread, inmain_decorator
 from .menu import MenuBarWithDict
 from .console import NGSJupyterWidget, MultiQtKernelManager
 
-import sys, textwrap, inspect, re, pkgutil, ngsolve, pickle
+import sys, textwrap, inspect, re, pkgutil, ngsolve, pickle, pkg_resources
 
 from PySide2 import QtWidgets, QtCore, QtGui
 
@@ -41,7 +41,7 @@ class OutputBuffer(QtWidgets.QTextEdit):
 
 class SettingsToolBox(QtWidgets.QToolBox):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args,**kwargs)
+        super().__init__(*args, **kwargs)
         self.settings = []
 
     @inmain_decorator(wait_for_return=False)
@@ -52,6 +52,8 @@ class SettingsToolBox(QtWidgets.QToolBox):
         widget.layout().setAlignment(QtCore.Qt.AlignTop)
         self.addItem(widget, sett.name)
         self.setCurrentIndex(len(self.settings)-1)
+        if self.parent():
+            self.parent().setSizes([20000,80000])
 
 
 def _noexec(gui, val):
@@ -78,7 +80,7 @@ class GUI():
               "-fastmode" : (_fastmode, "Use fastmode for drawing large scenes faster"),
               "-noOutputpipe" : (_noOutputpipe, "Do not pipe the std output to the output window in the gui"),
               "-help" : (_showHelp, "Show this help function"),
-              "-dontCatchExceptions" : (_dontCatchExceptions, "Do not catch exceptions")}
+              "-dontCatchExceptions" : (_dontCatchExceptions, "Do not catch exceptions up to user input, but show internal gui traceback")}
     # use a list of tuples instead of a dict to be able to sort it
     sceneCreators = []
     file_loaders = {}
@@ -163,22 +165,9 @@ class GUI():
         addShortcut("Previous Tab", "Ctrl+RightArrow", lambda: switchTabWindow(1))
 
     def crawlPlugins(self):
-        try:
-            from . import plugins as plu
-            plugins_exist = True
-        except ImportError:
-            plugins_exist = False
-        if plugins_exist:
-            prefix = plu.__name__ + "."
-            plugins = []
-            for importer, modname, ispkg in pkgutil.iter_modules(plu.__path__,prefix):
-                plugins.append(__import__(modname, fromlist="dummy"))
-            from .plugin import GuiPlugin
-            for plugin in plugins:
-                for val in plugin.__dict__.values():
-                    if inspect.isclass(val):
-                        if issubclass(val, GuiPlugin):
-                            val.loadPlugin(self)
+        for entry_point in pkg_resources.iter_entry_points(group="ngsgui.plugin",name=None):
+            plugin = entry_point.load()
+            plugin(self)
 
     def _tryLoadFile(self, filename):
         if os.path.isfile(filename):
@@ -202,13 +191,11 @@ class GUI():
                 tup[0](self,flag[key])
             else:
                 tup[0](self, False)
-
-    @inmain_decorator(wait_for_return=False)
-    def update_setting_area(self):
-        if len(self.settings_toolbox.settings) == 0:
-            self.toolbox_splitter.setSizes([0,85000])
-        else:
-            self.toolbox_splitter.setSizes([15000, 85000])
+        for flag in flags:
+            flg = flag.split("=")[0]
+            if flg not in self.flags:
+                print("Don't know flag: ", flg)
+                _showHelp(self,True)
 
     def saveSolution(self):
         filename, filt = QtWidgets.QFileDialog.getSaveFileName(caption="Save Solution",
@@ -281,8 +268,8 @@ class GUI():
         GL.glViewport(*viewport)
         return im
 
-    def plot(self, x,y):
-        self.window_tabber.plot(x,y)
+    def plot(self, *args, **kwargs):
+        self.window_tabber.plot(*args, **kwargs)
 
     @inmain_decorator(wait_for_return=True)
     def _loadFile(self, filename):
@@ -340,10 +327,11 @@ class DummyObject:
     def __call__(self,*args,**kwargs):
         pass
 
-    def plot(self, x,y):
+    def plot(self, *args, **kwargs):
         import matplotlib.pyplot as plt
-        plt.plot(x,y)
+        plt.plot(*args, **kwargs)
         plt.show()
 
 GUI.file_loaders[".py"] = GUI.loadPythonFile
 gui = DummyObject()
+

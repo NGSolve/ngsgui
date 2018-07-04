@@ -1,7 +1,7 @@
 
 from PySide2 import QtWidgets, QtGui
-from ngsolve.gui.widgets import ArrangeH, ArrangeV
-from ngsolve.gui.thread import inmain_decorator
+from ngsgui.widgets import ArrangeH, ArrangeV
+from ngsgui.thread import inmain_decorator
 
 class TextFinder(QtWidgets.QDialog):
     def __init__(self,editor, *args,**kwargs):

@@ -1,7 +1,6 @@
 from ngsolve import *
 from netgen.geom2d import unit_square
 from netgen.csg import *
-import ngsolve.gui as GUI
 import sys
 
 ngsglobals.msg_level = 0
@@ -30,11 +29,5 @@ print(fes.ndof,'ndofs')
 with TaskManager():
     gf.Set(cos(n*x)*cos(n*y)*cos(n*z))
 
-gui = GUI.GUI()
-# scene = GUI.SolutionScene(gf)
-scene = GUI.SolutionScene(gf, name="Solution")
-scene1 = GUI.MeshScene(mesh, name="Mesh")
-gui.draw(scene)
-gui.draw(scene1)
-gui.run()
-# Draw(gf)
+Draw(gf)
+Draw(mesh)

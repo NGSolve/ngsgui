@@ -1,10 +1,12 @@
 from OpenGL.GL import *
 import array, ctypes, time, ngsolve, numpy, pickle, io, base64, zlib, os, glob, hashlib
 
-from . import glmath, shader
+from . import glmath # , shader
 
 from PySide2 import QtCore, QtGui, QtWidgets, QtOpenGL
 from PySide2.QtCore import Qt
+
+from ngsgui.shader import location as shaderpath
 
 _DEVELOP=True
 
@@ -25,7 +27,6 @@ class Shader(GLObject):
 
     def __init__(self, code=None, filename=None, shader_type=None, **replacements):
 
-        shaderpath = os.path.join(os.path.dirname(__file__), 'shader')
         if code == None:
             code = readShaderFile(filename, **replacements)
         self._code = code
@@ -54,7 +55,6 @@ class Shader(GLObject):
             raise RuntimeError('Error when compiling ' + filename + ': '+glGetShaderInfoLog(self.id).decode()+'\ncompiled code:\n'+numerated_shader_code)
 
 def readShaderFile(filename, **replacements):
-    shaderpath = os.path.join(os.path.dirname(__file__), 'shader')
     fullpath = os.path.join(shaderpath, filename)
     code = open(fullpath,'r').read()
 
@@ -299,16 +299,17 @@ def getProgram(*shader_files, feedback=[], **replacements):
 
             # get binary blob and store it on disk
             size = glGetProgramiv( prog.id, GL_PROGRAM_BINARY_LENGTH )
-            result = numpy.zeros(size,dtype=numpy.uint8)
-            size2 = GLint()
-            format = GLenum()
-            res = glGetProgramBinary( prog.id, size, size2, format, result )
-            s = len(result)
-            result = zlib.compress(result)
-            enc = base64.b64encode(result).decode('ascii')
-            settings.setValue(key+'/format', str(format.value))
-            settings.setValue(key+'/program', enc)
-            settings.setValue(key+'/hash', str(h))
+            if size:
+                result = numpy.zeros(size,dtype=numpy.uint8)
+                size2 = GLint()
+                format = GLenum()
+                res = glGetProgramBinary( prog.id, size, size2, format, result )
+                s = len(result)
+                result = zlib.compress(result)
+                enc = base64.b64encode(result).decode('ascii')
+                settings.setValue(key+'/format', str(format.value))
+                settings.setValue(key+'/program', enc)
+                settings.setValue(key+'/hash', str(h))
 
     glUseProgram(prog.id)
     return prog

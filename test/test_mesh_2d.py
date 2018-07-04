@@ -4,7 +4,7 @@ from PySide2 import QtGui, QtCore
 width = 1024
 height = 768
 
-from ngsolve.gui import gui
+from ngsgui import gui
 
 def TestImage(filename, width=width, height=height):
     gui.renderToImage(width, height,'out/'+filename)

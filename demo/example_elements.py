@@ -1,6 +1,5 @@
 from ngsolve import *
 from netgen.csg import *
-import ngsolve.gui as GUI
 
 ngsglobals.msg_level = 0
 

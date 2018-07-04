@@ -17,9 +17,5 @@ m.Add (Element0D (pnums[nel], index=2))
 from ngsolve import *
 mesh = Mesh(m)
 
-import ngsolve.gui as GUI
 
-gui = GUI.GUI()
-scene = GUI.SolutionScene(exp(-x*x), mesh,name="Function")
-gui.draw(scene)
-gui.run()
+scene = Draw(exp(-x*x), mesh,name="Function")
