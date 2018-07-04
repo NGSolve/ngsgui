@@ -445,38 +445,232 @@ class GLWidget(QtOpenGL.QGLWidget):
     def freeResources(self):
         self.makeCurrent()
 
-class WindowTabBar(QtWidgets.QTabBar):
-    def __init__(self, tabber, *args,**kwargs):
-        super().__init__(*args,**kwargs)
-        self.tabber = tabber
-        self.setAcceptDrops(True)
+# attaching / detaching from https://stackoverflow.com/questions/48901854/is-it-possible-to-drag-a-qtabwidget-and-open-a-new-window-containing-whats-in-t
 
-    def dragEnterEvent(self,event):
-        if event.mimeData().hasFormat("scene"):
-            event.accept()
-
-    def dragMoveEvent(self, event):
-        if event.mimeData().hasFormat("scene"):
-            index = self.tabAt(event.pos())
-            self.tabber.setCurrentIndex(index)
-            self.tabber.activeGLWindow = self.tabber.currentWidget()
-            event.accept()
-
-    def dropEvent(self, event):
-        if event.mimeData().hasFormat("scene"):
-            scene = self.tabber.draw(pickle.loads(event.mimeData().data("scene").data()))
-            event.accept()
 
 class WindowTabber(QtWidgets.QTabWidget):
     def __init__(self,commonContext, *args, **kwargs):
         super().__init__(*args,**kwargs)
         self._commonContext = commonContext
-        self.setTabBar(WindowTabBar(self))
+        self.tabBar = self.TabBar(self)
+        self.setTabBar(self.tabBar)
         self.setTabsClosable(True)
+        self.tabBar.onDetachTabSignal.connect(self.detachTab)
+        self.tabBar.onMoveTabSignal.connect(self.moveTab)
         self._activeGLWindow = None
         self.tabCloseRequested.connect(self._remove_tab)
         self._fastmode = False
 
+    ##
+    #  The default movable functionality of QTabWidget must remain disabled
+    #  so as not to conflict with the added features
+    def setMovable(self, movable):
+        pass
+
+    #  Move a tab from one position (index) to another
+    def moveTab(self, fromIndex, toIndex):
+        widget = self.widget(fromIndex)
+        icon = self.tabIcon(fromIndex)
+        text = self.tabText(fromIndex)
+
+        self.removeTab(fromIndex)
+        self.insertTab(toIndex, widget, icon, text)
+        self.setCurrentIndex(toIndex)
+
+    def detachTab(self, index, point):
+        name = self.tabText(index)
+        icon = self.tabIcon(index)
+        if icon.isNull():
+            icon = self.window().windowIcon()
+        contentWidget = self.widget(index)
+        contentWidgetRect = contentWidget.frameGeometry()
+
+        # create a new detached tab window
+        detachedTab = self.DetachedTab(contentWidget, self.parentWidget())
+        # detachedTab = setWindowModality(Qt.NonModal)
+        detachedTab.setWindowTitle(name)
+        detachedTab.setWindowIcon(icon)
+        detachedTab.setObjectName(name)
+        detachedTab.setGeometry(contentWidgetRect)
+        detachedTab.onCloseSignal.connect(self.attachTab)
+        detachedTab.move(point)
+        detachedTab.show()
+
+    def attachTab(self, contentWidget, name, icon):
+        # Make the content widget a child of this widget
+        contentWidget.setParent(self)
+
+
+        # Create an image from the given icon
+        if not icon.isNull():
+            tabIconPixmap = icon.pixmap(icon.availableSizes()[0])
+            tabIconImage = tabIconPixmap.toImage()
+        else:
+            tabIconImage = None
+
+
+        # Create an image of the main window icon
+        if not icon.isNull():
+            windowIconPixmap = self.window().windowIcon().pixmap(icon.availableSizes()[0])
+            windowIconImage = windowIconPixmap.toImage()
+        else:
+            windowIconImage = None
+
+
+        # Determine if the given image and the main window icon are the same.
+        # If they are, then do not add the icon to the tab
+        if tabIconImage == windowIconImage:
+            index = self.addTab(contentWidget, name)
+        else:
+            index = self.addTab(contentWidget, icon, name)
+
+
+        # Make this tab the current tab
+        if index > -1:
+            self.setCurrentIndex(index)
+
+    ##
+    #  When a tab is detached, the contents are placed into this QDialog.  The tab
+    #  can be re-attached by closing the dialog or by double clicking on its
+    #  window frame.
+    class DetachedTab(QtWidgets.QDialog):
+        onCloseSignal = QtCore.Signal(object,object,object)
+
+        def __init__(self, contentWidget, parent=None):
+            super().__init__(parent)
+            self.setLayout(ArrangeV(contentWidget))
+            self.contentWidget = contentWidget
+            self.contentWidget.show()
+            self.setWindowFlags(QtCore.Qt.Window)
+
+        def event(self, event):
+
+            # If the event type is QEvent.NonClientAreaMouseButtonDblClick then
+            # close the dialog
+            if event.type() == QtCore.QEvent.NonClientAreaMouseButtonDblClick:
+                event.accept()
+                self.close()
+
+            return super().event(event)
+
+        def closeEvent(self, event):
+            self.onCloseSignal.emit(self.contentWidget, self.objectName(), self.windowIcon())
+
+            ##
+    #  The TabBar class re-implements some of the functionality of the QTabBar widget
+    class TabBar(QtWidgets.QTabBar):
+        onDetachTabSignal = QtCore.Signal(int, object)
+        onMoveTabSignal = QtCore.Signal(int, int)
+
+        def __init__(self, parent=None):
+            super().__init__(parent)
+
+            self.setAcceptDrops(True)
+            self.setElideMode(QtCore.Qt.ElideRight)
+            self.setSelectionBehaviorOnRemove(QtWidgets.QTabBar.SelectLeftTab)
+
+            self.dragStartPos = QtCore.QPoint()
+            self.dragDropedPos = QtCore.QPoint()
+            self.mouseCursor = QtGui.QCursor()
+            self.dragInitiated = False
+
+        #  Send the onDetachTabSignal when a tab is double clicked
+        def mouseDoubleClickEvent(self, event):
+            event.accept()
+            self.onDetachTabSignal.emit(self.tabAt(event.pos()), self.mouseCursor.pos())
+
+        #  Set the starting position for a drag event when the mouse button is pressed
+        def mousePressEvent(self, event):
+            if event.button() == QtCore.Qt.LeftButton:
+                self.dragStartPos = event.pos()
+
+            self.dragDropedPos.setX(0)
+            self.dragDropedPos.setY(0)
+
+            self.dragInitiated = False
+
+            super().mousePressEvent(event)
+
+        #  Determine if the current movement is a drag.  If it is, convert it into a QDrag.  If the
+        #  drag ends inside the tab bar, emit an onMoveTabSignal.  If the drag ends outside the tab
+        #  bar, emit an onDetachTabSignal.
+        def mouseMoveEvent(self, event):
+
+            # Determine if the current movement is detected as a drag
+            if not self.dragStartPos.isNull() and ((event.pos() - self.dragStartPos).manhattanLength() < QtWidgets.QApplication.startDragDistance()):
+                self.dragInitiated = True
+
+            # If the current movement is a drag initiated by the left button
+            if (((event.buttons() & QtCore.Qt.LeftButton)) and self.dragInitiated):
+
+                # Stop the move event
+                finishMoveEvent = QtGui.QMouseEvent(QtCore.QEvent.MouseMove, event.pos(), QtCore.Qt.NoButton, QtCore.Qt.NoButton, QtCore.Qt.NoModifier)
+                super().mouseMoveEvent(finishMoveEvent)
+
+                # Convert the move event into a drag
+                drag = QtGui.QDrag(self)
+                mimeData = QtCore.QMimeData()
+                mimeData.setData('action', b'application/tab-detach')
+                drag.setMimeData(mimeData)
+
+                #Create the appearance of dragging the tab content
+                pixmap = self.parentWidget().grab()
+                targetPixmap = QtGui.QPixmap(pixmap.size())
+                targetPixmap.fill(QtCore.Qt.transparent)
+                painter = QtGui.QPainter(targetPixmap)
+                painter.setOpacity(0.85)
+                painter.drawPixmap(0, 0, pixmap)
+                painter.end()
+                drag.setPixmap(targetPixmap)
+
+                # Initiate the drag
+                dropAction = drag.exec_(QtCore.Qt.MoveAction | QtCore.Qt.CopyAction)
+
+                # If the drag completed outside of the tab bar, detach the tab and move
+                # the content to the current cursor position
+                if dropAction == QtCore.Qt.IgnoreAction:
+                    event.accept()
+                    self.onDetachTabSignal.emit(self.tabAt(self.dragStartPos), self.mouseCursor.pos())
+
+                # Else if the drag completed inside the tab bar, move the selected tab to the new position
+                elif dropAction == QtCore.Qt.MoveAction:
+                    if not self.dragDropedPos.isNull():
+                        event.accept()
+                        self.onMoveTabSignal.emit(self.tabAt(self.dragStartPos), self.tabAt(self.dragDropedPos))
+            else:
+                super().mouseMoveEvent(event)
+
+        #  Determine if the drag has entered a tab position from another tab position
+        def dragEnterEvent(self, event):
+            if event.mimeData().hasFormat("scene"):
+                scene = self.parent().draw(pickle.loads(event.mimeData().data("scene").data()))
+                event.accept()
+                return
+            mimeData = event.mimeData()
+            formats = mimeData.formats()
+
+            if 'action' in formats and mimeData.data('action') == 'application/tab-detach':
+                event.acceptProposedAction()
+
+            super().dragMoveEvent(event)
+
+        def dragMoveEvent(self, event):
+            if event.mimeData().hasFormat("scene"):
+                index = self.tabAt(event.pos())
+                self.parent().setCurrentIndex(index)
+                self.parent().activeGLWindow = self.parent().currentWidget()
+                event.accept()
+
+        #  Get the position of the end of the drag
+        def dropEvent(self, event):
+            if event.mimeData().hasFormat("scene"):
+                scene = self.parent().draw(pickle.loads(event.mimeData().data("scene").data()))
+                event.accept()
+                return
+            self.dragDropedPos = event.pos()
+            super().dropEvent(event)
+
+        
     def _getActiveGLWindow(self):
         if not self._activeGLWindow:
             self.make_window()
