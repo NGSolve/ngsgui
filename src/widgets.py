@@ -3,6 +3,8 @@
 from PySide2 import QtCore, QtGui, QtWidgets, QtOpenGL
 from PySide2.QtCore import Qt
 
+from .thread import inmain_decorator
+
 import sys, re, math
 
 class ObjectHolder():
@@ -92,12 +94,11 @@ class OptionWidgets(QtCore.QObject):
 
     def __init__(self, updateGL=None):
         super().__init__()
-        self.visibilityOptions = {}
         self.groups = []
         if updateGL:
             self.updateGLSignal.connect(updateGL)
 
-    def addGroup(self, name, *widgets, connectedVisibility=None, importance = 0):
+    def addGroup(self, name, *widgets, importance = 0):
         group = QtWidgets.QGroupBox(name)
         minwidth = min([w.minimumWidth() for w in widgets])
         layout = QtWidgets.QHBoxLayout if minwidth>0 and minwidth<50 else QtWidgets.QVBoxLayout
@@ -105,8 +106,7 @@ class OptionWidgets(QtCore.QObject):
         group.setMinimumWidth(1);
         group.layout().setAlignment(Qt.AlignTop)
         group._importance = importance
-        if connectedVisibility is not None:
-            self.visibilityOptions[connectedVisibility] = group
+        group._widgets = widgets
         if len(self.groups) and importance > self.groups[-1]._importance:
             for i in range(len(self.groups)):
                 if self.groups[i]._importance < importance:
@@ -116,9 +116,11 @@ class OptionWidgets(QtCore.QObject):
             self.groups.append(group)
         self.update()
 
+    @inmain_decorator(True)
     def update(self):
-        for evaluator, group in self.visibilityOptions.items():
-            group.setVisible(evaluator())
+        for group in self.groups:
+            is_visible = lambda w: not w._hidden if hasattr(w,"_hidden") else True
+            group.setVisible(any((is_visible(w) for w in group._widgets)))
 
 class QColorButton(QtWidgets.QPushButton):
     '''

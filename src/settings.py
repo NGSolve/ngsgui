@@ -269,6 +269,9 @@ class SingleOptionParameter(Parameter):
         self._values = values if values else []
         self._initial_value = default_value
         super().__init__(name, *args, **kwargs)
+        if not self._values:
+            self._widget.setVisible(False)
+            self._widget._hidden = True
 
     def _createWidget(self):
         self._combobox = QtWidgets.QComboBox()
@@ -282,12 +285,15 @@ class SingleOptionParameter(Parameter):
         self._combobox.setCurrentText(val)
         super().setValue()
 
-    def __setitem__(self,attr, value):
-        self._combobox.addItem(attr)
+    def append(self, value):
+        self._combobox.addItem(value)
+        self._combobox.setCurrentText(value)
         self._values.append(value)
+        self._widget.setVisible(True)
+        self._widget._hidden = False
 
     def getValue(self):
-        return self._values[self._combobox.currentIndex()]
+        return self._values[self._combobox.currentIndex()] if self._values else ""
 
     def __getstate__(self):
         return (super().__getstate__(),
@@ -298,6 +304,9 @@ class SingleOptionParameter(Parameter):
         self._initial_value = state[2]
         self._values = state[1]
         super().__setstate__(state[0])
+        if not self._values:
+            self._widget.setVisible(False)
+            self._widget._hidden = True
 
 
 class FileParameter(Parameter):
@@ -364,6 +373,7 @@ class BaseSettings():
 
     def _createParameters(self):
         self._parameters = {}
+        self._par_name_dict = {}
 
     def _createOptions(self):
         self._widgets = {}
@@ -392,12 +402,17 @@ class BaseSettings():
             setattr(self, "set" + parameter.name, parameter.setValue)
         parameter._attachTo(self)
 
+    def _connectParameters(self):
+        pass
+
     def addParameters(self, group, *parameters):
         if group not in self._parameters:
             self._parameters[group] = []
         for par in parameters:
             self._parameters[group].append(par)
             self._attachParameter(par)
+            if par.name:
+                self._par_name_dict[par.name] = par
 
     def addButton(self, group, name, function, update_on_change=False, label = None,*args,**kwargs):
         if not group in self._widgets:

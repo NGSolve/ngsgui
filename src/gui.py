@@ -111,6 +111,9 @@ class GUI():
         newWindowAction = self.menuBar["&Create"].addAction("New &Window")
         newWindowAction.triggered.connect(lambda :self.window_tabber.make_window())
 
+    def getScenesFromCurrentWindow(self):
+        return self.window_tabber.activeGLWindow.glWidget.scenes
+
     def createLayout(self):
         self.mainWidget = QtWidgets.QWidget()
         menu_splitter = QtWidgets.QSplitter(parent=self.mainWidget)

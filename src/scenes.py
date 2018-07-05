@@ -92,39 +92,16 @@ center of this box. Rotation will be around this center."""
         return self._active
     active = property(_getActive,_setActive)
 
+    def _createParameters(self):
+        super()._createParameters()
+        self.addParameters("Actions",
+                           settings.SingleOptionParameter(name="Action",
+                                                          values=list(self._actions.values())))
+
     @inmain_decorator(True)
     def _createQtWidget(self):
         super()._createQtWidget()
         self.widgets.updateGLSignal.connect(self._updateGL)
-        self.actionCheckboxes = []
-        class cbHolder:
-            def __init__(self,cb,scene,name):
-                self.scene = scene
-                self.name = name
-                self.cb = cb
-
-            def __call__(self,state):
-                if state:
-                    self.scene.active_action = self.name
-                    for cb in self.scene.actionCheckboxes:
-                        if cb is not self.cb:
-                            cb.setCheckState(QtCore.Qt.Unchecked)
-                else:
-                    if self.scene.active_action == self.name:
-                        self.scene.active_action = None
-
-        if self._actions:
-            layout = QtWidgets.QVBoxLayout()
-            for name,action in self._actions.items():
-                cb = QtWidgets.QCheckBox(name)
-                if self._active_action == name:
-                    cb.setCheckState(QtCore.Qt.Checked)
-                cb.stateChanged.connect(cbHolder(cb,self,name))
-                self.actionCheckboxes.append(cb)
-                layout.addWidget(cb)
-            widget = QtWidgets.QWidget()
-            widget.setLayout(layout)
-            self.widgets.addGroup("Actions",widget)
 
     def _updateGL(self):
         if self.window:
@@ -154,11 +131,12 @@ name : str = "action" + consecutive number
         if name is None:
             name = "Action" + str(len(self._actions)+1)
         self._actions[name] = action
-        self._active_action = name
+        self._par_name_dict["Action"].append(name)
+        self.widgets.update()
 
     def doubleClickAction(self,point):
-        if self._active_action:
-            self._actions[self._active_action](point)
+        if self._actions:
+            self._actions[self.getAction()](point)
 
 GUI.sceneCreators.append((BaseScene,lambda scene,*args,**kwargs: scene))
 
