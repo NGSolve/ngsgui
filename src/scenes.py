@@ -720,6 +720,9 @@ class SolutionScene(BaseMeshScene):
             self.have_gradient = True
         else:
             self.have_gradient = False
+        if not 'deformation' in kwargs:
+            kwargs['deformation'] = cf
+
         super().__init__(mesh,*args, name=name, **kwargs)
 
 

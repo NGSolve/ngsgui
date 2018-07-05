@@ -112,10 +112,10 @@ class Shader(GLObject):
         glCompileShader(self.id)
 
         if glGetShaderiv(self.id, GL_COMPILE_STATUS) != GL_TRUE:
-            numerated_shader_code = ""
-            for i,line in enumerate(self._code.split('\n')):
-                numerated_shader_code += str(i)+":\t"+line+'\n'
-            raise RuntimeError('Error when compiling ' + filename + ': '+glGetShaderInfoLog(self.id).decode()+'\ncompiled code:\n'+numerated_shader_code)
+#             numerated_shader_code = ""
+#             for i,line in enumerate(self._code.split('\n')):
+#                 numerated_shader_code += str(i)+":\t"+line+'\n'
+            raise RuntimeError('Error when compiling ' + filename + ': '+glGetShaderInfoLog(self.id).decode())
 
 def readShaderFile(filename, defines):
     fullpath = os.path.join(shaderpath, filename)

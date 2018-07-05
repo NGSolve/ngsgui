@@ -22,9 +22,17 @@ uniform sampler1D colors;
 #line 0
 {include interpolation.inc}
 #line 23
+uniform int subdivision;
+uniform int component;
 uniform samplerBuffer deformation_coefficients;
 uniform int deformation_subdivision;
 uniform float deformation_scale;
+// for complex-valued functions
+uniform bool is_complex;
+uniform samplerBuffer coefficients;
+uniform samplerBuffer coefficients_imag;
+uniform int complex_vis_function; // 0=real, 1=imag, 2=abs, 3=arg
+uniform vec2 complex_factor; // factor to multiply with values before visualizing
 #endif // DEFORMATION
 
 in VertexData
@@ -108,13 +116,42 @@ void main()
 #endif // CURVED
 
 #if DEFORMATION
-    vec3 value = vec3(deformation_scale,deformation_scale,deformation_scale);
+      if(is_complex) {
+        float value, value_imag;
 #if defined(ET_TRIG)
-    value *= InterpolateTrigVec(inData[0].element, deformation_coefficients, ORDER, deformation_subdivision, outData.lam, 0);
+        value = InterpolateTrig(inData[0].element, coefficients, ORDER, subdivision, outData.lam, component);
+        value_imag = InterpolateTrig(inData[0].element, coefficients_imag, ORDER, subdivision, outData.lam, component);
 #elif defined(ET_QUAD)
-    value *= InterpolateTetVec(inData[0].element, deformation_coefficients, ORDER, deformation_subdivision, outData.lam, 0);
+        value_imag = InterpolateQuad(inData[0].element, coefficients_imag, ORDER, subdivision, outData.lam, component);
+        value = InterpolateQuad(inData[0].element, coefficients, ORDER, subdivision, outData.lam, component);
 #endif
-    outData.pos += value;
+        float r = value*complex_factor.x - value_imag*complex_factor.y;
+        value_imag = value*complex_factor.y + value_imag*complex_factor.x;
+        value = r;
+        switch(complex_vis_function){
+          case 0:
+            break;
+          case 1:
+            value = value_imag;
+            break;
+          case 2:
+            value = length(vec2(value, value_imag));
+            break;
+          case 3:
+            value = atan(value, value_imag);
+            break;
+        }
+        outData.pos.z += deformation_scale*value;
+      }
+      else {
+        vec3 value = vec3(deformation_scale,deformation_scale,deformation_scale);
+#if defined(ET_TRIG)
+        value *= InterpolateTrigVec(inData[0].element, deformation_coefficients, ORDER, deformation_subdivision, outData.lam, 0);
+#elif defined(ET_QUAD)
+        value *= InterpolateTetVec(inData[0].element, deformation_coefficients, ORDER, deformation_subdivision, outData.lam, 0);
+#endif
+        //outData.pos += value;
+      }
 #endif // DEFORMATION
 
     gl_Position = P * MV * vec4(outData.pos, 1);
