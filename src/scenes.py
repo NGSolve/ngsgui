@@ -500,8 +500,8 @@ class MeshScene(BaseMeshScene):
         if self.getShowEdgeElements():
             vb = [None, ngsolve.VOL, ngsolve.BND, ngsolve.BBND][self.mesh.dim]
             for els in self.mesh_data.new_els[vb]:
-                if vb == ngsolve.BBND:
-                    # glLineWidth(3) TODO: replace with manually drawing quads (linewidth is not supported for OpenGL3.2
+                if vb in [ngsolve.BBND, ngsolve.BND]:
+                    # glLineWidth(3) # TODO: replace with manually drawing quads (linewidth is not supported for OpenGL3.2
                     self._render1DElements(settings, els);
                     # glLineWidth(1)
 
