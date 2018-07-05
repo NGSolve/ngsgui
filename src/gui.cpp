@@ -10,11 +10,48 @@
 #include <occgeom.hpp>
 #include <stlgeom.hpp>
 #include <type_traits>
+#include <atomic>
 
-using namespace ngfem;
+using namespace ngcomp;
 using std::is_same;
 
 namespace py = pybind11;
+
+struct ElementInformation {
+    ElementInformation() = default;
+    ElementInformation( size_t size_, ELEMENT_TYPE type_, bool curved_=false)
+      : size(size_), type(type_), curved(curved_) {
+          switch(type) {
+            case ET_SEGM: nverts=2; break;
+            case ET_TRIG: nverts=3; break;
+            case ET_QUAD: nverts=4; break;
+            case ET_TET: nverts=4; break;
+            case ET_HEX: nverts=8; break;
+            case ET_PRISM: nverts=6; break;
+            case ET_PYRAMID: nverts=5; break;
+            default: throw Exception("ElementInformation(): unknown element type " + ToString(type));
+          }
+          switch(type) {
+            case ET_SEGM:
+              dim=1; break;
+            case ET_TRIG:
+            case ET_QUAD:
+              dim=2; break;
+            case ET_TET:
+            case ET_HEX:
+            case ET_PRISM:
+            case ET_PYRAMID:
+              dim=3; break;
+            default: throw Exception("ElementInformation(): unknown element type " + ToString(type));
+          }
+      }
+    Array<int> data; // the data that will go into the gpu texture buffer
+    size_t size;   // integer entries for each element (vertices, curved_index, number, material/boundary index)
+    int nverts;
+    int dim;
+    ELEMENT_TYPE type;
+    bool curved;
+};
 
 template<typename T>
 py::object MoveToNumpyArray( ngstd::Array<T> &a )
@@ -30,31 +67,198 @@ py::object MoveToNumpyArray( ngstd::Array<T> &a )
       return py::array_t<T>(0, nullptr);
 }
 
-inline IntegrationRule GetReferenceRule( int dim, int order, int subdivision )
+IntegrationRule& GetP2Rule( ELEMENT_TYPE et ) {
+    static IntegrationRule ir_segm;
+    static IntegrationRule ir_trig;
+    static IntegrationRule ir_quad;
+    static IntegrationRule ir_tet;
+    static IntegrationRule ir_prism;
+    static IntegrationRule ir_pyramid;
+    static IntegrationRule ir_hex;
+
+    // first call of this function, initialize rules
+    if(ir_segm.Size() == 0) {
+        ir_segm.Append(IntegrationPoint(0.0,0,0));
+        ir_segm.Append(IntegrationPoint(1.0,0,0));
+        ir_segm.Append(IntegrationPoint(0.5,0,0));
+
+        // for 2d elements we need to get the normal vectors at the corner vertices plus mapped coordinates of edge midpoints
+        ir_trig.Append(IntegrationPoint(1,0,0));
+        ir_trig.Append(IntegrationPoint(0,1,0));
+        ir_trig.Append(IntegrationPoint(0,0,0));
+        ir_trig.Append(IntegrationPoint(0.5,0.0,0.0));
+        ir_trig.Append(IntegrationPoint(0.0,0.5,0.0));
+        ir_trig.Append(IntegrationPoint(0.5,0.5,0.0));
+
+        ir_quad.Append(IntegrationPoint(0,0,0));
+        ir_quad.Append(IntegrationPoint(1,0,0));
+        ir_quad.Append(IntegrationPoint(1,1,0));
+        ir_quad.Append(IntegrationPoint(0,1,0));
+        ir_quad.Append(IntegrationPoint(0.5,0.0,0.0));
+        ir_quad.Append(IntegrationPoint(0.0,0.5,0.0));
+        ir_quad.Append(IntegrationPoint(0.5,0.5,0.0));
+        ir_quad.Append(IntegrationPoint(1.0,0.5,0.0));
+        ir_quad.Append(IntegrationPoint(0.5,1.0,0.0));
+
+        // 3d elements have no normal vectors, so only evaluate at edge midpoints
+        ir_tet.Append(IntegrationPoint(0.5,0.0,0.0));
+        ir_tet.Append(IntegrationPoint(0.0,0.5,0.0));
+        ir_tet.Append(IntegrationPoint(0.5,0.5,0.0));
+        ir_tet.Append(IntegrationPoint(0.5,0.0,0.5));
+        ir_tet.Append(IntegrationPoint(0.0,0.5,0.5));
+        ir_tet.Append(IntegrationPoint(0.0,0.0,0.5));
+
+        // PRISM
+        for (auto & ip : ir_trig.Range(3,6))
+            ir_prism.Append(ip);
+        for (auto & ip : ir_trig.Range(0,3))
+            ir_prism.Append(IntegrationPoint(ip(0), ip(1), 0.5));
+        for (auto & ip : ir_trig.Range(3,6))
+            ir_prism.Append(IntegrationPoint(ip(0), ip(1), 1.0));
+
+        // PYRAMID
+        for (auto & ip : ir_quad.Range(4,9))
+            ir_pyramid.Append(ip);
+        for (auto & ip : ir_quad.Range(0,4))
+            ir_pyramid.Append(IntegrationPoint(ip(0), ip(1), 0.5));
+
+        // HEX
+        for (auto & ip : ir_quad.Range(4,9))
+            ir_hex.Append(ip);
+        for (auto x : {0.0, 0.5, 1.0})
+          for (auto y : {0.0, 0.5, 1.0})
+            ir_hex.Append(IntegrationPoint(x,y,0.5));
+        for (auto & ip : ir_quad.Range(4,9))
+            ir_hex.Append(IntegrationPoint(ip(0), ip(1), 1.0));
+    }
+
+    switch (et) {
+      case ET_SEGM: return ir_segm;
+      case ET_TRIG: return ir_trig;
+      case ET_QUAD: return ir_quad;
+      case ET_TET: return ir_tet;
+      case ET_PYRAMID: return ir_pyramid;
+      case ET_PRISM: return ir_prism;
+      case ET_HEX: return ir_hex;
+    }
+    throw Exception("GetP2Rule(): unknown element type");
+}
+
+inline IntegrationRule GetReferenceRule( ELEMENT_TYPE et, int order, int subdivision )
 {
   IntegrationRule ir;
   int n = (order)*(subdivision+1)+1;
   const double h = 1.0/(n-1);
-  if(dim==1) {
+  if(et == ET_SEGM) {
       for (auto i : Range(n)) {
           ir.Append(IntegrationPoint(1.0-i*h, 0, 0.0));
       }
   }
-  if(dim==2) {
+  else if(et==ET_TRIG || et==ET_QUAD) {
       for (auto j : Range(n))
-          for (auto i : Range(n-j))
-              ir.Append(IntegrationPoint(i*h, j*h, 0.0));
+          for (auto i : Range(n)) {
+              if(et==ET_QUAD || i+j<n) // skip i+j>=n for trigs
+                  ir.Append(IntegrationPoint(i*h, j*h, 0.0));
+          }
   }
+  else if(et==ET_TET) {
+//     for (auto k : Range(n))
+//        for (auto j : Range(n-k))
+//             for (auto i : Range(n-j-k))
+//               ir.Append(IntegrationPoint(1.0-i*h-j*h-k*h, i*h, j*h));
 
-  if(dim==3) {
+    // TODO: simplify order of points?? (need to adapt generated interpolation code in shaders)
       for (auto k : Range(n))
-        for (auto j : Range(n-k))
-            for (auto i : Range(n-j-k))
-              ir.Append(IntegrationPoint(1.0-i*h-j*h-k*h, i*h, j*h));
+          for (auto j : Range(n-k))
+              for (auto i : Range(n-k-j))
+                      ir.Append(IntegrationPoint(i*h, j*h, k*h));
+  }
+  else if(et==ET_PRISM) {
+      for (auto k : Range(n))
+          for (auto j : Range(n))
+              for (auto i : Range(n-j))
+                  ir.Append(IntegrationPoint(i*h, j*h, k*h));
+  }
+  else if(et==ET_HEX) {
+      for (auto k : Range(n))
+          for (auto j : Range(n))
+              for (auto i : Range(n))
+                      ir.Append(IntegrationPoint(i*h, j*h, k*h));
+  }
+  else if(et==ET_PYRAMID) {
+      for (auto k : Range(n))
+          for (auto j : Range(n-k))
+              for (auto i : Range(n-k))
+                  ir.Append(IntegrationPoint(i*h, j*h, k*h));
+  }
+  else {
+      throw Exception("GetReferenceRule(): unknown element type");
   }
 
   return ir;
 }
+
+inline map<ELEMENT_TYPE, IntegrationRule> GetReferenceRules( int order, int subdivision )
+{
+  int n = (order)*(subdivision+1)+1;
+  const double h = 1.0/(n-1);
+  map<ELEMENT_TYPE, IntegrationRule> res;
+  {
+      IntegrationRule ir;
+      for (auto i : Range(n)) {
+          ir.Append(IntegrationPoint(1.0-i*h, 0, 0.0));
+      }
+      res[ET_SEGM] = std::move(ir);
+  }
+  {
+      IntegrationRule ir;
+      for (auto j : Range(n))
+          for (auto i : Range(n)) {
+              if(i+j<n) // skip i+j>=n for trigs
+                  ir.Append(IntegrationPoint(i*h, j*h, 0.0));
+          }
+      res[ET_TRIG] = std::move(ir);
+  }
+  {
+      IntegrationRule ir;
+      for (auto j : Range(n))
+          for (auto i : Range(n))
+              ir.Append(IntegrationPoint(i*h, j*h, 0.0));
+      res[ET_QUAD] = std::move(ir);
+  }
+  {
+      IntegrationRule ir;
+      for (auto k : Range(n))
+          for (auto j : Range(n-k))
+              for (auto i : Range(n-k-j))
+                      ir.Append(IntegrationPoint(i*h, j*h, k*h));
+      res[ET_TET] = std::move(ir);
+  }
+//   else if(et==ET_PRISM) {
+//       for (auto k : Range(n))
+//           for (auto j : Range(n))
+//               for (auto i : Range(n-j))
+//                   ir.Append(IntegrationPoint(i*h, j*h, k*h));
+//   }
+//   else if(et==ET_HEX) {
+//       for (auto k : Range(n))
+//           for (auto j : Range(n))
+//               for (auto i : Range(n))
+//                       ir.Append(IntegrationPoint(i*h, j*h, k*h));
+//   }
+//   else if(et==ET_PYRAMID) {
+//       for (auto k : Range(n))
+//           for (auto j : Range(n-k))
+//               for (auto i : Range(n-k))
+//                   ir.Append(IntegrationPoint(i*h, j*h, k*h));
+//   }
+//   else {
+//       throw Exception("GetReferenceRule(): unknown element type");
+//   }
+
+  return res;
+}
+
 
 template<int S, int R>
 BaseMappedIntegrationRule &T_GetMappedIR (IntegrationRule & ir, ElementTransformation & eltrans, LocalHeap &lh ) {
@@ -165,10 +369,125 @@ void GetValues( const CoefficientFunction &cf, LocalHeap &lh, const TMIR &mir, F
 }
 
 PYBIND11_MODULE(ngui, m) {
+  py::class_<ElementInformation>(m, "ElementInformation", py::dynamic_attr())
+    .def_readwrite("data",    &ElementInformation::data)
+    .def_readwrite("size",    &ElementInformation::size)
+    .def_readwrite("type",    &ElementInformation::type)
+    .def_readwrite("curved",  &ElementInformation::curved)
+    .def_readwrite("nverts",  &ElementInformation::nverts)
+    .def_readwrite("dim",  &ElementInformation::dim)
+    ;
   m.def("SetLocale", []()
         {
           setlocale(LC_NUMERIC,"C");
         });
+  m.def("GetReferenceRule", GetReferenceRule);
+  m.def("GetValues2", [] (shared_ptr<ngfem::CoefficientFunction> cf, shared_ptr<ngcomp::MeshAccess> ma, VorB vb, int subdivision, int order) {
+            LocalHeap lh(10000000, "GetValues");
+            int dim = ma->GetDimension();
+            if(vb==BND) dim-=1;
+
+            map<ELEMENT_TYPE, IntegrationRule> irs = GetReferenceRules( order, subdivision );
+            map<ELEMENT_TYPE, SIMD_IntegrationRule> simd_irs;
+            for (auto & p : irs ) {
+              simd_irs[p.first] = p.second;
+            }
+            typedef std::pair<ELEMENT_TYPE,bool> T_ET;
+            map<T_ET, Array<float>> values_real;
+            map<T_ET, Array<float>> values_imag;
+
+            int ncomps = cf->Dimension();
+            Array<float> min(ncomps);
+            Array<float> max(ncomps);
+            min = std::numeric_limits<float>::max();
+            max = std::numeric_limits<float>::lowest();
+
+            map<T_ET, std::atomic<int>> element_counter;
+            map<T_ET, std::atomic<int>> element_index;
+            for (auto et : {ET_POINT, ET_SEGM, ET_TRIG, ET_QUAD, ET_TET, ET_PRISM, ET_PYRAMID, ET_HEX}) {
+              for (auto curved : {false, true}) {
+                element_counter[T_ET{et,curved}] = 0;
+                element_index[T_ET{et,curved}] = 0;
+              }
+            }
+            ma->IterateElements(vb, lh,[&](auto el, LocalHeap& mlh) {
+                auto et = el.GetType();
+                element_counter[T_ET{et,el.is_curved}]++;
+            });
+
+            bool use_simd = true;
+            ma->IterateElements(vb, lh,[&](auto el, LocalHeap& mlh) {
+                FlatArray<float> min_local(ncomps, mlh);
+                FlatArray<float> max_local(ncomps, mlh);
+                auto curved = el.is_curved;
+
+                auto et = el.GetType();
+                auto & ir = irs[et];
+                auto & simd_ir = simd_irs[et];
+                auto &vals_real = values_real[T_ET{et,curved}];
+                auto &vals_imag = values_imag[T_ET{et,curved}];
+                int nip = irs[et].GetNIP();
+                int values_per_element = nip*ncomps;
+                size_t first = vals_real.Size();
+                size_t next = first + values_per_element;
+                vals_real.SetSize(next);
+                if(cf->IsComplex()) vals_imag.SetSize(next);
+                ElementTransformation & eltrans = ma->GetTrafo (el, mlh);
+                if(use_simd)
+                  {
+                    try
+                      {
+                        auto & mir = GetMappedIR( simd_ir, ma->GetDimension(), vb, eltrans, mlh );
+                        if(cf->IsComplex())
+                          GetValues<SIMD<Complex>>( *cf, mlh, mir, vals_real.Range(first,next), vals_imag.Range(first,next), min_local, max_local);
+                        else
+                          GetValues<SIMD<double>>( *cf, mlh, mir, vals_real.Range(first,next), vals_imag, min_local, max_local);
+                      }
+                    catch(ExceptionNOSIMD e)
+                      {
+                        use_simd = false;
+                      }
+                  }
+                if(!use_simd)
+                  {
+                    ElementTransformation & eltrans = ma->GetTrafo (el, mlh);
+                    auto & mir = GetMappedIR( ir, ma->GetDimension(), vb, eltrans, mlh );
+                    if(cf->IsComplex())
+                      GetValues<Complex>( *cf, mlh, mir, vals_real.Range(first,next), vals_imag.Range(first,next), min_local, max_local);
+                    else
+                      GetValues<double>( *cf, mlh, mir, vals_real.Range(first,next), vals_imag, min_local, max_local);
+                  }
+                for (auto i : Range(ncomps)) {
+                    float expected = min[i];
+                    while (min_local[i] < expected)
+                        AsAtomic(min[i]).compare_exchange_weak(expected, min_local[i], std::memory_order_relaxed, std::memory_order_relaxed);
+                    expected = max[i];
+                    while (max_local[i] > expected)
+                        AsAtomic(max[i]).compare_exchange_weak(expected, max_local[i], std::memory_order_relaxed, std::memory_order_relaxed);
+                }
+
+
+              });
+          py::gil_scoped_acquire ac;
+          py::dict res_real;
+          py::dict res_imag;
+          for (auto &p : irs) {
+              auto et = p.first;
+              for (auto curved : {false, true}) {
+                if (values_real[T_ET{et,curved}].Size()>0) {
+                  res_real[py::make_tuple(et,curved)] = MoveToNumpyArray(values_real[T_ET{et,curved}]);
+                    if(cf->IsComplex())
+                      res_imag[py::make_tuple(T_ET{et,curved})] = MoveToNumpyArray(values_imag[T_ET{et,curved}]);
+                  }
+                }
+          }
+          py::dict res;
+          res["min"] = MoveToNumpyArray(min);
+          res["max"] = MoveToNumpyArray(max);
+          res["real"] = res_real;
+          res["imag"] = res_imag;
+          return res;
+      },py::call_guard<py::gil_scoped_release>());
   m.def("GetValues", [] (shared_ptr<ngfem::CoefficientFunction> cf, shared_ptr<ngcomp::MeshAccess> ma, VorB vb, int subdivision, int order) {
             LocalHeap lh(10000000, "GetValues");
             int dim = ma->GetDimension();
@@ -180,7 +499,7 @@ PYBIND11_MODULE(ngui, m) {
             min = std::numeric_limits<float>::max();
             max = std::numeric_limits<float>::lowest();
 
-            IntegrationRule ir = GetReferenceRule( dim, order, subdivision );
+            IntegrationRule ir = GetReferenceRule( dim==2?ET_TRIG:ET_TET, order, subdivision );
             SIMD_IntegrationRule simd_ir(ir);
             int nip = ir.GetNIP();
 
@@ -194,7 +513,12 @@ PYBIND11_MODULE(ngui, m) {
                 res_imag.SetSize(ma->GetNE(vb)*values_per_element); // two entries for global min/max
 
             bool use_simd = true;
-            ma->IterateElements(vb, lh,[&](auto el, LocalHeap& mlh) {
+//             ma->IterateElements(vb, lh,[&](auto el, LocalHeap& mlh) {
+            for (auto i : Range(ma->GetNE(vb))) {
+              HeapReset lhr(lh);
+              auto & mlh = lh;
+              ElementId ei(vb, i);
+              Ngs_Element el(ma->GetElement(ei), ei);
                 FlatArray<float> min_local(ncomps, mlh);
                 FlatArray<float> max_local(ncomps, mlh);
                 if(use_simd)
@@ -234,7 +558,8 @@ PYBIND11_MODULE(ngui, m) {
                     while (max_local[i] > expected)
                         AsAtomic(max[i]).compare_exchange_weak(expected, max_local[i], std::memory_order_relaxed, std::memory_order_relaxed);
                 }
-              });
+            }
+//               });
           py::gil_scoped_acquire ac;
           py::dict res;
           res["real"] = MoveToNumpyArray(res_real);
@@ -244,6 +569,195 @@ PYBIND11_MODULE(ngui, m) {
           res["max"] = MoveToNumpyArray(max);
           return res;
       },py::call_guard<py::gil_scoped_release>());
+
+    m.def("GetMeshData2", [] (shared_ptr<ngcomp::MeshAccess> ma) {
+        Vector<> min(3);
+        min = std::numeric_limits<double>::max();
+        Vector<> max(3);
+        max = std::numeric_limits<double>::lowest();
+
+        ngstd::Array<float> vertices;
+        vertices.SetAllocSize(ma->GetNV()*3);
+        for ( auto vi : Range(ma->GetNV()) ) {
+            auto v = ma->GetPoint<3>(vi);
+            for (auto i : Range(3)) {
+              vertices.Append(v[i]);
+              min[i] = min2(min[i], v[i]);
+              max[i] = max2(max[i], v[i]);
+            }
+        }
+
+        LocalHeap lh(1000000, "GetMeshData");
+
+        ElementInformation edges(4, ET_SEGM);
+        std::map<VorB, py::list> element_data;
+
+        if(ma->GetDimension()>=2) {
+            // collect edges
+            ElementInformation els(4, ET_SEGM);
+            edges.data.SetAllocSize(ma->GetNEdges()*edges.size);
+            // Edges of mesh (skip this for dim==1, in this case edges are treated as volume elements below)
+            for (auto nr : Range(ma->GetNEdges())) {
+                auto pair = ma->GetEdgePNums(nr);
+                edges.data.Append({nr, -1, pair[0], pair[1]});
+            }
+        }
+
+        ElementInformation periodic_vertices(4, ET_SEGM);
+        int n_periodic_vertices = ma->GetNPeriodicNodes(NT_VERTEX);
+        edges.data.SetAllocSize(n_periodic_vertices*periodic_vertices.size);
+        for(auto idnr : Range(ma->GetNPeriodicIdentifications()))
+            for (const auto& pair : ma->GetPeriodicNodes(NT_VERTEX, idnr))
+                periodic_vertices.data.Append({idnr, -1, pair[0],pair[1]});
+
+        if(ma->GetDimension()>=1) {
+            ElementInformation edges[2] = { {4, ET_SEGM}, {5, ET_SEGM, true } };
+
+            // 1d Elements
+            VorB vb = ma->GetDimension() == 1 ? VOL : (ma->GetDimension() == 2 ? BND : BBND);
+            for (auto el : ma->Elements(vb)) {
+                auto verts = el.Vertices();
+                auto &ei = edges[el.is_curved];
+
+                ei.data.Append({el.Nr(), el.GetIndex(), verts[0], verts[1]});
+                if(el.is_curved) {
+                    ei.data.Append(vertices.Size()/3);
+
+                    HeapReset hr(lh);
+                    ElementTransformation & eltrans = ma->GetTrafo (el, lh);
+                    IntegrationRule &ir = GetP2Rule(el.GetType());
+                    auto & mir = GetMappedIR( ir, ma->GetDimension(), vb, eltrans, lh );
+                    // normals of corner vertices
+                    for (auto j : ngcomp::Range(2)) {
+                        auto p = static_cast<DimMappedIntegrationPoint<1>&>(mir[j]);
+                        auto n = p.GetNV();
+                        for (auto i : Range(3))
+                            vertices.Append(n[i]);
+                    }
+                    // mapped coordinates of midpoint (for P2 interpolation)
+                    auto p = mir[2].GetPoint();
+                    for (auto i : Range(3))
+                        vertices.Append(p[i]);
+                }
+            }
+            element_data[vb].append(edges[0]);
+            element_data[vb].append(edges[1]);
+        }
+        if(ma->GetDimension()>=2) {
+            // 2d Elements
+            ElementInformation trigs[2] = { {5, ET_TRIG}, {6, ET_TRIG, true } };
+            ElementInformation quads[2] = { {6, ET_QUAD}, {7, ET_QUAD, true } };
+
+            VorB vb = ma->GetDimension() == 2 ? VOL : BND;
+            for (auto el : ma->Elements(vb)) {
+                auto verts = el.Vertices();
+                auto nverts = verts.Size();
+                auto &ei = (nverts==3) ? trigs[el.is_curved] : quads[el.is_curved];
+                ei.data.Append(el.Nr());
+                ei.data.Append(el.GetIndex());
+                for (auto i : Range(nverts))
+                    ei.data.Append(verts[i]);
+
+                if(el.is_curved) {
+                    ei.data.Append(vertices.Size()/3);
+                    HeapReset hr(lh);
+                    ElementTransformation & eltrans = ma->GetTrafo (el, lh);
+                    IntegrationRule &ir = GetP2Rule(el.GetType());
+                    auto & mir = GetMappedIR( ir, ma->GetDimension(), vb, eltrans, lh );
+                    // normals of corner vertices
+                    for (auto j : ngcomp::Range(nverts)) {
+                        Vec<3> n(0,0,1);
+                        if(vb==BND)
+                            n = static_cast<DimMappedIntegrationPoint<3>&>(mir[j]).GetNV();
+                        for (auto i : Range(3))
+                            vertices.Append(n[i]);
+                    }
+                    // mapped coordinates of edge midpoints (for P2 interpolation)
+                    for (auto j : ngcomp::Range(nverts,ir.Size())) {
+                        auto p = mir[j].GetPoint();
+                        for (auto i : Range(3))
+                            vertices.Append(p[i]);
+                    }
+                }
+            }
+
+            for (auto i : Range(2)) {
+              if(trigs[i].data.Size()) element_data[vb].append(trigs[i]);
+              if(quads[i].data.Size()) element_data[vb].append(quads[i]);
+            }
+        }
+
+        if(ma->GetDimension()==3) {
+            ElementInformation tets[2] = { {6, ET_TET}, {7, ET_TET, true } };
+            ElementInformation pyramids[2] = { {7, ET_PYRAMID}, {8, ET_PYRAMID, true } };
+            ElementInformation prisms[2] = { {8, ET_PRISM}, {9, ET_PRISM, true } };
+            ElementInformation hexes[2] = { {10, ET_HEX}, {11, ET_HEX, true } };
+
+            for (auto el : ma->Elements(VOL)) {
+                auto verts = el.Vertices();
+                auto nverts = verts.Size();
+                ElementInformation * pei;
+                IntegrationRule &ir = GetP2Rule(el.GetType());
+
+                switch(nverts) {
+                  case 4:
+                    pei = tets;
+                    break;
+                  case 5:
+                    pei = pyramids;
+                    break;
+                  case 6:
+                    pei = prisms;
+                    break;
+                  case 8:
+                    pei = hexes;
+                    break;
+                  default:
+                    throw Exception("GetMeshData(): unknown element");
+                }
+                ElementInformation &ei = pei[el.is_curved];
+                ei.data.Append(el.Nr());
+                ei.data.Append(el.GetIndex());
+                for (auto v : verts)
+                    ei.data.Append(v);
+
+                if(el.is_curved) {
+                    ei.data.Append(vertices.Size()/3);
+                    HeapReset hr(lh);
+                    ElementTransformation & eltrans = ma->GetTrafo (el, lh);
+                    auto & mir = GetMappedIR( ir, ma->GetDimension(), VOL, eltrans, lh );
+                    // mapped coordinates of edge midpoints (for P2 interpolation)
+                    for (auto &ip : mir) {
+                      auto p = ip.GetPoint();
+                      for (auto i : Range(3))
+                          vertices.Append(p[i]);
+                    }
+                }
+            }
+            for (auto i : Range(2)) {
+                if(tets[i].data.Size()) element_data[VOL].append(tets[i]);
+                if(pyramids[i].data.Size()) element_data[VOL].append(pyramids[i]);
+                if(prisms[i].data.Size()) element_data[VOL].append(prisms[i]);
+                if(hexes[i].data.Size()) element_data[VOL].append(hexes[i]);
+            }
+        }
+
+        py::dict py_eldata;
+
+        py::list py_edges;
+        py_edges.append(edges);
+        py_eldata["edges"] = py_edges;
+
+        py::list py_periodic_vertices;
+        py_periodic_vertices.append(periodic_vertices);
+        py_eldata["periodic"] = py_periodic_vertices;
+
+        py_eldata[py::cast(BBND)] = element_data[BBND];
+        py_eldata[py::cast(BND)] = element_data[BND];
+        py_eldata[py::cast(VOL)] = element_data[VOL];
+        return py::make_tuple(MoveToNumpyArray(vertices), py_eldata);
+    });
+
 
     m.def("GetMeshData", [] (shared_ptr<ngcomp::MeshAccess> ma) {
         Vector<> min(3);

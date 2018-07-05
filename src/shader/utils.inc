@@ -47,6 +47,74 @@ struct Element3d {
     vec3 pos[4];
 };
 
+struct SEGM {
+  vec3 pos[2];
+  vec3 normal;
+  int curved_vertices;
+  int index;
+};
+
+struct TRIG {
+  vec3 pos[3];
+  vec3 normal;
+  int curved_vertices;
+  int index;
+};
+
+struct QUAD {
+  vec3 pos[4];
+  vec3 normal;
+  int curved_vertices;
+  int index;
+};
+
+struct TET {
+  vec3 pos[4];
+  int curved_vertices;
+  int index;
+};
+
+struct PYRAMID {
+  vec3 pos[5];
+  int curved_vertices;
+  int index;
+};
+
+struct PRISM {
+  vec3 pos[6];
+  int curved_vertices;
+  int index;
+};
+
+struct HEX {
+  vec3 pos[8];
+  int curved_vertices;
+  int index;
+};
+
+struct PointData {
+  vec3 pos;
+  vec3 normal;
+  vec3 edgedist;
+};
+
+PointData interpolatePoint(Mesh mesh, SEGM el, vec3 lam) {
+  PointData p;
+  p.pos =  mix(el.pos[0], el.pos[1], lam.x);
+  p.normal =  el.normal;
+  p.edgedist = vec3(0,0,0);
+  return p;
+}
+
+PointData interpolatePoint(Mesh mesh, TRIG el, vec3 lam) {
+  PointData p;
+  p.pos =  mix(el.pos[0], el.pos[1], lam.x);
+  p.normal =  el.normal;
+  p.edgedist = vec3(0,0,0);
+  return p;
+}
+
+
 vec3 interpolatePoint(Mesh mesh, Element1d el, float x0) {
   float x = 1-x0;
   if(el.curved_index<0) {

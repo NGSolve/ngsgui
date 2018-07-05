@@ -1,5 +1,5 @@
 
-import weakref
+import weakref, numpy
 import OpenGL.GL as GL
 from .gl import Texture
 import ngsolve as ngs
@@ -51,6 +51,7 @@ class MeshData(DataContainer):
     def __init__(self, mesh):
         self.elements = Texture(GL.GL_TEXTURE_BUFFER, GL.GL_R32I)
         self.vertices = Texture(GL.GL_TEXTURE_BUFFER, GL.GL_RGB32F)
+        self.new_els = {}
         super().__init__(mesh)
 
     def getTimestamp(self):
@@ -74,6 +75,16 @@ class MeshData(DataContainer):
 
         self.min = meshdata['min']
         self.max = meshdata['max']
+
+        new_els = {}
+        verts,new_els = ngui.GetMeshData2(self.obj())
+        self.vertices.store(verts)
+        for vb in new_els:
+            for ei in new_els[vb]:
+                ei.tex = Texture(GL.GL_TEXTURE_BUFFER, GL.GL_R32I)
+                ei.tex.store(numpy.array(ei.data, dtype=numpy.int32))
+
+        self.new_els = new_els
 
 def getMeshData(mesh):
     if hasattr(mesh,"_opengl_data"):

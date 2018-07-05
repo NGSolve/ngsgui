@@ -144,16 +144,45 @@ class BaseMeshScene(BaseScene):
     """Base class for all scenes that depend on a mesh"""
     @inmain_decorator(wait_for_return=True)
     def __init__(self, mesh,**kwargs):
+        self.__initial_values = {"Deformation" : False}
         self.mesh = mesh
+        self.deformation = None
+        if 'deformation' in kwargs:
+            self.deformation = kwargs['deformation']
+            del kwargs['deformation']
+            self.__initial_values["Deformation"] = True
+
         super().__init__(**kwargs)
+
+    @inmain_decorator(True)
+    def _createParameters(self):
+        super()._createParameters()
+        if self.deformation != None:
+            self.deformation_values = None
+            scale_par = settings.ValueParameter(name="DeformationScale", label="Scale",
+                    default_value=1.0, min_value = 0.0, max_value = 1e99, step=0.1)
+            sd_par = settings.ValueParameter(name="DeformationSubdivision", label="Subdivision",
+                    default_value=1, min_value = 0, max_value = 5, updateScene=True)
+            order_par = settings.ValueParameter(name="DeformationOrder", label="Order",
+                    default_value=2, min_value = 1, max_value = 4, updateScene=True)
+            self.addParameters("Deformation",
+                    settings.CheckboxParameterCluster(name="Deformation", label="Deformation",
+                        default_value = self.__initial_values["Deformation"],
+                        sub_parameters=[scale_par, sd_par, order_par],
+                    updateWidgets=True))
 
     def initGL(self):
         super().initGL()
+        if self.deformation:
+            self.deformation_values = Texture(GL_TEXTURE_BUFFER, self.deformation)
 
     @inmain_decorator(True)
     def update(self):
         super().update()
         self.mesh_data = getOpenGLData(self.mesh)
+        if self.deformation:
+            vb = ngsolve.BND if self.mesh.dim==3 else ngsolve.VOL
+            self.deformation_values.store(ngui.GetValues(self.deformation, self.mesh, vb, 2**self.getDeformationSubdivision()-1, self.getDeformationOrder())['real'])
 
     def __getstate__(self):
         super_state = super().__getstate__()
@@ -165,6 +194,11 @@ class BaseMeshScene(BaseScene):
 
     def getBoundingBox(self):
         return self.mesh_data.min, self.mesh_data.max
+
+    # In case a deformation function is given in the constructor, this function will be replaced by a generated one in sellf.addParameters("Deformation", ...)
+    def getDeformation(self):
+        return False
+
 
 class OverlayScene(BaseScene):
     """Class  for overlay objects (Colormap, coordinate system, logo)"""
@@ -418,9 +452,12 @@ class MeshScene(BaseMeshScene):
 
         self.text_renderer = TextRenderer()
 
-    def renderEdges(self, settings):
-        self.vao.bind()
-        prog = getProgram('filter_elements.vert', 'lines.tesc', 'lines.tese', 'mesh.frag', params=settings)
+
+    def _render1DElements(self, settings, elements):
+        if elements.curved:
+            prog = getProgram('mesh_simple.vert', 'mesh_simple.tese', 'mesh_simple.frag', elements=elements, params=settings)
+        else:
+            prog = getProgram('mesh_simple.vert', 'mesh_simple.frag', elements=elements, params=settings)
         uniforms = prog.uniforms
 
         glActiveTexture(GL_TEXTURE0)
@@ -430,6 +467,7 @@ class MeshScene(BaseMeshScene):
         glActiveTexture(GL_TEXTURE1)
         self.mesh_data.elements.bind()
         uniforms.set('mesh.elements', 1)
+        elements.tex.bind()
 
         glActiveTexture(GL_TEXTURE3)
         self.tex_edge_colors.bind()
@@ -442,36 +480,44 @@ class MeshScene(BaseMeshScene):
         uniforms.set('light_diffuse', 0.0)
         uniforms.set('TessLevel', self.getGeomSubdivision())
         uniforms.set('wireframe', True)
+        tess_level = 10
+        if settings.fastmode and len(elements.data)//elements.size>10**5:
+            tess_level=1
+        if elements.curved:
+            glPatchParameteri(GL_PATCH_VERTICES, 2)
+            glPatchParameterfv(GL_PATCH_DEFAULT_OUTER_LEVEL, [1,tess_level])
+            glPatchParameterfv(GL_PATCH_DEFAULT_INNER_LEVEL, [1]*2)
+            glDrawArrays(GL_PATCHES, 0, 2*len(elements.data)//elements.size)
+        else:
+            glDrawArrays(GL_LINES, 0, 2*len(elements.data)//elements.size)
+
+    def renderEdges(self, settings):
+        self.vao.bind()
+        els = []
         if self.mesh.dim > 2 and self.getShowEdges():
-            glPatchParameteri(GL_PATCH_VERTICES, 1)
-            glDrawArrays(GL_PATCHES, 0, self.mesh_data.nedges)
+            for els in self.mesh_data.new_els["edges"]:
+                self._render1DElements(settings, els);
         if self.getShowEdgeElements():
-            #glLineWidth(3)
-            glPatchParameteri(GL_PATCH_VERTICES, 1)
-            glDrawArrays(GL_PATCHES, self.mesh_data.nedges,self.mesh_data.nedge_elements)
-            #glLineWidth(1)
+            vb = [None, ngsolve.VOL, ngsolve.BND, ngsolve.BBND][self.mesh.dim]
+            for els in self.mesh_data.new_els[vb]:
+                if vb == ngsolve.BBND:
+                    # glLineWidth(3) TODO: replace with manually drawing quads (linewidth is not supported for OpenGL3.2
+                    self._render1DElements(settings, els);
+                    # glLineWidth(1)
+
         if self.getShowPeriodicVertices():
-            #glLineWidth(3)
-            glPatchParameteri(GL_PATCH_VERTICES, 1)
-            glDrawArrays(GL_PATCHES, self.mesh_data.nedge_elements+self.mesh_data.nedges, self.mesh_data.nperiodic_vertices)
-            #glLineWidth(1)
+            for els in self.mesh_data.new_els["periodic"]:
+                self._render1DElements(settings, els);
 
         self.vao.unbind()
 
-    def renderSurface(self, settings):
-        prog = getProgram('filter_elements.vert', 'tess.tesc', 'tess.tese', 'mesh.geom', 'mesh.frag', params=settings)
+    def _setSurfaceUniforms(self, settings, prog):
         self.vao.bind()
         uniforms = prog.uniforms
 
         glActiveTexture(GL_TEXTURE0)
         self.mesh_data.vertices.bind()
         uniforms.set('mesh.vertices', 0)
-
-        glActiveTexture(GL_TEXTURE1)
-        self.mesh_data.elements.bind()
-        uniforms.set('mesh.elements', 1)
-
-
         uniforms.set('clipping_plane', settings.clipping_plane)
         uniforms.set('do_clipping', True);
         uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
@@ -485,45 +531,83 @@ class MeshScene(BaseMeshScene):
         self.tex_surf_colors.bind()
         uniforms.set('colors', 3)
 
+    def _render2DElements(self, settings, elements, wireframe):
+        use_deformation = self.getDeformation()
+        use_tessellation = elements.curved or use_deformation
+        shader = ['mesh_simple.vert', 'mesh_simple.frag']
+        options = {}
+        if use_tessellation:
+            shader.append('mesh_simple.tese')
+        if use_deformation:
+            options["DEFORMATION_ORDER"] = self.getDeformationOrder()
+        prog = getProgram(*shader, elements=elements, params=settings, DEFORMATION=use_deformation, **options)
+        uniforms = prog.uniforms
 
-        if self.getShowSurface():
-            uniforms.set('light_ambient', 0.3)
-            uniforms.set('light_diffuse', 0.7)
-            uniforms.set('TessLevel', self.getGeomSubdivision())
-            uniforms.set('wireframe', False)
-            glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
-            glPolygonOffset (2, 2)
-            glEnable(GL_POLYGON_OFFSET_FILL)
-            glPatchParameteri(GL_PATCH_VERTICES, 1)
-            glDrawArrays(GL_PATCHES, 0, self.mesh_data.nsurface_elements)
-            glDisable(GL_POLYGON_OFFSET_FILL)
+        glActiveTexture(GL_TEXTURE0)
+        self.mesh_data.vertices.bind()
+        uniforms.set('mesh.vertices', 0)
 
-        if self.getShowWireframe():
+        glActiveTexture(GL_TEXTURE1)
+        self.mesh_data.elements.bind()
+        uniforms.set('mesh.elements', 1)
+        elements.tex.bind()
+
+        if use_deformation:
+            glActiveTexture(GL_TEXTURE4)
+            self.deformation_values.bind()
+            uniforms.set('deformation_coefficients', 4)
+            uniforms.set('deformation_subdivision', 2**self.getDeformationSubdivision()-1)
+            uniforms.set('deformation_order', self.getDeformationOrder())
+            uniforms.set('deformation_scale', self.getDeformationScale())
+
+        glActiveTexture(GL_TEXTURE3)
+        self.tex_surf_colors.bind()
+        uniforms.set('colors', 3)
+
+        uniforms.set('do_clipping', True);
+
+        uniforms.set('mesh.dim', 2);
+        uniforms.set('wireframe', wireframe)
+
+        if wireframe:
+            offset_mode = GL_POLYGON_OFFSET_LINE
+            polygon_mode = GL_LINE
             uniforms.set('light_ambient', 0.0)
             uniforms.set('light_diffuse', 0.0)
-            uniforms.set('TessLevel', self.getGeomSubdivision())
-            uniforms.set('wireframe', True)
-            glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
-            glPolygonOffset (1, 1)
-            glEnable(GL_POLYGON_OFFSET_LINE)
-            glPatchParameteri(GL_PATCH_VERTICES, 1)
-            glDrawArrays(GL_PATCHES, 0, self.mesh_data.nsurface_elements)
-            glDisable(GL_POLYGON_OFFSET_LINE)
+            offset = 0
+        else:
+            offset_mode = GL_POLYGON_OFFSET_FILL
+            polygon_mode = GL_FILL
+            offset = 2
 
-        if self.mesh.dim > 2 and self.getShowElements():
-            uniforms.set('clip_whole_elements', True)
-            uniforms.set('do_clipping', False);
-            uniforms.set('light_ambient', 0.3)
-            uniforms.set('light_diffuse', 0.7)
-            uniforms.set('TessLevel', self.getGeomSubdivision())
-            uniforms.set('wireframe', False)
-            uniforms.set('mesh.dim', 3);
-            glActiveTexture(GL_TEXTURE3)
-            self.tex_vol_colors.bind()
-            uniforms.set('colors', 3)
-            glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
-            glPatchParameteri(GL_PATCH_VERTICES, 1)
-            glDrawArrays(GL_PATCHES, 0, self.mesh.ne)
+        tess_level = 10
+        if settings.fastmode and len(elements.data)//elements.size>10**5:
+            tess_level=1
+
+        glPolygonMode( GL_FRONT_AND_BACK, polygon_mode );
+        glPolygonOffset (offset, offset)
+        glEnable(offset_mode)
+        if use_tessellation:
+            glPatchParameteri(GL_PATCH_VERTICES, elements.nverts)
+            glPatchParameterfv(GL_PATCH_DEFAULT_OUTER_LEVEL, [tess_level]*4)
+            glPatchParameterfv(GL_PATCH_DEFAULT_INNER_LEVEL, [tess_level]*2)
+            glDrawArrays(GL_PATCHES, 0, elements.nverts*len(elements.data)//elements.size)
+        else:
+            # triangles are the only uncurved 2d elements
+            glDrawArrays(GL_TRIANGLES, 0, 3*len(elements.data)//elements.size)
+        glDisable(offset_mode)
+
+    def renderSurface(self, settings):
+        self.vao.bind()
+        els = []
+        if self.mesh.dim > 1:
+            vb = ngsolve.VOL if self.mesh.dim==2 else ngsolve.BND
+            for els in self.mesh_data.new_els[vb]:
+                if self.getShowSurface():
+                    self._render2DElements(settings, els, False);
+                if self.getShowWireframe():
+                    self._render2DElements(settings, els, True);
+
         self.vao.unbind()
 
     def renderNumbers(self, settings):
@@ -608,10 +692,12 @@ class SolutionScene(BaseMeshScene):
                            "abs" : 2,
                            "arg" : 3}
     @inmain_decorator(wait_for_return=True)
-    def __init__(self, cf, mesh, name=None, min=0,max=1, autoscale=True, linear=False, clippingPlane=True,
-                 order=3,gradient=None, *args, **kwargs):
+    def __init__(self, cf, mesh, name=None, min=0.0,max=1.0, autoscale=True, linear=False, clippingPlane=True,
+                 order=2, gradient=None, iso_surface=None, *args, **kwargs):
         self.cf = cf
+        self.iso_surface = iso_surface or cf
         self.vao = None
+        self.values = {}
         self.__initial_values = {"Order" : order,
                                  "ColorMapMin" : float(min),
                                  "ColorMapMax" : float(max),
@@ -659,13 +745,16 @@ class SolutionScene(BaseMeshScene):
                                                           default_value=self.__initial_values["ShowSurface"]))
 
         if self.mesh.dim > 2:
+            iso_value = settings.ValueParameter(name="IsoValue", label="Value", default_value=0.0)
             self.addParameters("Show",
                                settings.CheckboxParameter(name="ShowClippingPlane",
                                                           label="Solution in clipping plane",
                                                           default_value=self.__initial_values["ShowClippingPlane"]),
-                               settings.CheckboxParameter(name="ShowIsoSurface",
+                               settings.CheckboxParameterCluster(name="ShowIsoSurface",
                                                           label="Isosurface",
-                                                          default_value = self.__initial_values["ShowIsoSurface"]))
+                                                          default_value = self.__initial_values["ShowIsoSurface"],
+                                                             sub_parameters = [iso_value], updateWidgets=True)
+                               )
 
         if self.cf.dim > 1:
             self.addParameters("Show",
@@ -747,6 +836,7 @@ class SolutionScene(BaseMeshScene):
         super().initGL()
 
         formats = [None, GL_R32F, GL_RG32F, GL_RGB32F, GL_RGBA32F];
+        self.iso_values = Texture(GL_TEXTURE_BUFFER, formats[self.iso_surface.dim])
         self.volume_values = Texture(GL_TEXTURE_BUFFER, formats[self.cf.dim])
         self.volume_values_imag = Texture(GL_TEXTURE_BUFFER, formats[self.cf.dim])
         self.surface_values = Texture(GL_TEXTURE_BUFFER, formats[self.cf.dim])
@@ -773,7 +863,8 @@ class SolutionScene(BaseMeshScene):
 
     def _getValues(self, vb, setMinMax=True, cf = None):
         cf = cf or self.cf
-        with ngsolve.TaskManager():
+#         with ngsolve.TaskManager():
+        if 1:
             try:
                 values = ngui.GetValues(cf, self.mesh, vb, 2**self.getSubdivision()-1, self.getOrder())
             except RuntimeError as e:
@@ -786,6 +877,30 @@ class SolutionScene(BaseMeshScene):
             self.min_values = values["min"]
             self.max_values = values["max"]
         return values
+
+    def _getValues2(self, vb, cf = None):
+        formats = [None, GL_R32F, GL_RG32F, GL_RGB32F, GL_RGBA32F];
+        cf = cf or self.cf
+        if vb not in self.values:
+            self.values[vb] = {'real':{}, 'imag':{}}
+        try:
+            values = ngui.GetValues2(cf, self.mesh, vb, 2**self.getSubdivision()-1, self.getOrder())
+            v = self.values[vb]
+            v['min'] = values['min']
+            v['max'] = values['max']
+            comps = ['real']
+            if cf.is_complex: comps.append('imag')
+            for comp in comps:
+                for et in values[comp]:
+                    if not et in v[comp]:
+                        v[comp][et] = Texture(GL_TEXTURE_BUFFER, formats[cf.dim])
+                    v[comp][et].store(values[comp][et])
+
+        except RuntimeError as e:
+            assert("Local Heap" in str(e))
+            self.setSubdivision(self.getSubdivision()-1)
+            print("Localheap overflow, cannot increase subdivision!")
+
 
     @inmain_decorator(True)
     def update(self):
@@ -806,6 +921,7 @@ class SolutionScene(BaseMeshScene):
         if self.mesh.dim==2:
             try:
                 values = self._getValues(ngsolve.VOL)
+                self._getValues2(ngsolve.VOL)
                 if values is None:
                     return
                 self.surface_values.store(values["real"])
@@ -818,6 +934,8 @@ class SolutionScene(BaseMeshScene):
 
         if self.mesh.dim==3:
             values = self._getValues(ngsolve.VOL)
+            vals = ngui.GetValues(self.iso_surface, self.mesh, ngsolve.VOL, 2**self.getSubdivision()-1, self.getOrder())
+            self.iso_values.store(vals['real'])
             if values is None:
                 return
             self.volume_values.store(values["real"])
@@ -826,6 +944,7 @@ class SolutionScene(BaseMeshScene):
 
             try:
                 values = self._getValues(ngsolve.BND, False)
+                self._getValues2(ngsolve.BND)
                 if values is None:
                     return
                 self.surface_values.store(values["real"])
@@ -838,7 +957,7 @@ class SolutionScene(BaseMeshScene):
     def _filterElements(self, settings, filter_type):
         glEnable(GL_RASTERIZER_DISCARD)
         self.surface_vao.bind()
-        prog = getProgram('filter_elements.vert', 'filter_elements.geom', feedback=['element'], params=settings)
+        prog = getProgram('filter_elements.vert', 'filter_elements.geom', feedback=['element'], ORDER=self.getOrder(), params=settings)
         uniforms = prog.uniforms
         glActiveTexture(GL_TEXTURE0)
         self.mesh_data.vertices.bind()
@@ -850,10 +969,13 @@ class SolutionScene(BaseMeshScene):
         uniforms.set('mesh.elements', 1)
 
         glActiveTexture(GL_TEXTURE2)
-        self.volume_values.bind()
+        if filter_type == 1: # iso surface
+            uniforms.set('iso_value', self.getIsoValue())
+            self.iso_values.bind()
+        else:
+            self.volume_values.bind()
         uniforms.set('coefficients', 2)
         uniforms.set('subdivision', 2**self.getSubdivision()-1)
-        uniforms.set('order', self.getOrder())
         if self.cf.dim > 1:
             uniforms.set('component', self.getComponent())
         else:
@@ -879,13 +1001,12 @@ class SolutionScene(BaseMeshScene):
 
         # surface mesh
         self.line_vao.bind()
-        prog = getProgram('solution1d.vert', 'solution1d.frag', params=settings)
+        prog = getProgram('solution1d.vert', 'solution1d.frag', ORDER=self.getOrder())
 
         uniforms = prog.uniforms
 
         uniforms.set('do_clipping', self.mesh.dim==3);
         uniforms.set('subdivision', 2**self.getSubdivision()-1)
-        uniforms.set('order', self.getOrder())
 
 
         uniforms.set('element_type', 10)
@@ -912,69 +1033,88 @@ class SolutionScene(BaseMeshScene):
         self.line_vao.bind()
 
     def renderSurface(self, settings):
-        # surface mesh
-        prog = getProgram('filter_elements.vert', 'tess.tesc', 'tess.tese', 'solution.geom', 'solution.frag', ORDER=self.getOrder(), params=settings)
         self.surface_vao.bind()
+        vb = ngsolve.VOL if self.mesh.dim==2 else ngsolve.BND
+        use_deformation = self.getDeformation()
+        for elements in self.mesh_data.new_els[vb]:
+            shader = ['mesh_simple.vert', 'solution_simple.frag']
+            use_tessellation = use_deformation or elements.curved
+            options = dict(ORDER=self.getOrder(), DEFORMATION=use_deformation)
+            if use_tessellation:
+                shader.append('mesh_simple.tese')
+            if use_deformation:
+                options["DEFORMATION_ORDER"] = self.getDeformationOrder()
 
-        uniforms = prog.uniforms
+            prog = getProgram(*shader, elements=elements, params=settings, **options)
+            uniforms = prog.uniforms
 
-        uniforms.set('do_clipping', self.mesh.dim==3);
-        uniforms.set('subdivision', 2**self.getSubdivision()-1)
-        uniforms.set('order', self.getOrder())
-        uniforms.set('mesh.dim', 2);
+            if use_deformation:
+                glActiveTexture(GL_TEXTURE4)
+                self.deformation_values.bind()
+                uniforms.set('deformation_coefficients', 4)
+                uniforms.set('deformation_subdivision', 2**self.getDeformationSubdivision()-1)
+                uniforms.set('deformation_order', self.getDeformationOrder())
+                uniforms.set('deformation_scale', self.getDeformationScale())
 
-        uniforms.set('element_type', 10)
-        if self.cf.dim > 1:
-            uniforms.set('component', self.getComponent())
-        else:
-            uniforms.set('component', 0)
 
-        glActiveTexture(GL_TEXTURE0)
-        self.mesh_data.vertices.bind()
-        uniforms.set('mesh.vertices', 0)
+            uniforms.set('wireframe', False)
+            uniforms.set('do_clipping', self.mesh.dim==3 or use_deformation)
+            uniforms.set('subdivision', 2**self.getSubdivision()-1)
 
-        glActiveTexture(GL_TEXTURE1)
-        self.mesh_data.elements.bind()
-        uniforms.set('mesh.elements', 1)
+            glActiveTexture(GL_TEXTURE0)
+            self.mesh_data.vertices.bind()
+            uniforms.set('mesh.vertices', 0)
 
-        glActiveTexture(GL_TEXTURE2)
-        self.surface_values .bind()
-        uniforms.set('coefficients', 2)
+            glActiveTexture(GL_TEXTURE1)
+            self.mesh_data.elements.bind()
+            uniforms.set('mesh.elements', 1)
+            elements.tex.bind()
 
-        uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
-        uniforms.set('mesh.surface_elements_offset', self.mesh_data.surface_elements_offset)
+            glActiveTexture(GL_TEXTURE2)
+            self.values[vb]['real'][(elements.type, elements.curved)].bind()
+            uniforms.set('coefficients', 2)
 
-        uniforms.set('is_complex', self.cf.is_complex)
-        if self.cf.is_complex:
-            glActiveTexture(GL_TEXTURE3)
-            self.surface_values_imag.bind()
-            uniforms.set('coefficients_imag', 3)
+            if self.cf.dim > 1:
+                uniforms.set('component', self.getComponent())
+            else:
+                uniforms.set('component', 0)
 
-            uniforms.set('complex_vis_function', self._complex_eval_funcs[self.getComplexEvalFunc()])
-            w = cmath.exp(1j*self.getComplexPhaseShift()/180.0*math.pi)
-            uniforms.set('complex_factor', [w.real, w.imag])
+            uniforms.set('is_complex', self.cf.is_complex)
+            if self.cf.is_complex:
+                glActiveTexture(GL_TEXTURE3)
+                self.surface_values_imag.bind()
+                uniforms.set('coefficients_imag', 3)
 
-        uniforms.set('TessLevel', max(1,2*self.getSubdivision()))
-        uniforms.set('wireframe', False)
-        glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
-        glPolygonOffset (2, 2)
-        glEnable(GL_POLYGON_OFFSET_FILL)
-        glPatchParameteri(GL_PATCH_VERTICES, 1)
-        glDrawArrays(GL_PATCHES, 0, self.mesh_data.nsurface_elements)
-        glDisable(GL_POLYGON_OFFSET_FILL)
+                uniforms.set('complex_vis_function', self._complex_eval_funcs[self.getComplexEvalFunc()])
+                w = cmath.exp(1j*self.getComplexPhaseShift()/180.0*math.pi)
+                uniforms.set('complex_factor', [w.real, w.imag])
+
+            tess_level = 10
+            if settings.fastmode and len(elements.data)//elements.size>10**5:
+                tess_level=1
+
+            glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
+            if use_tessellation:
+                glPatchParameteri(GL_PATCH_VERTICES, elements.nverts)
+                glPatchParameterfv(GL_PATCH_DEFAULT_OUTER_LEVEL, [tess_level]*4)
+                glPatchParameterfv(GL_PATCH_DEFAULT_INNER_LEVEL, [tess_level]*2)
+                glDrawArrays(GL_PATCHES, 0, elements.nverts*len(elements.data)//elements.size)
+            else:
+                glDrawArrays(GL_TRIANGLES, 0, 3*len(elements.data)//elements.size)
         self.surface_vao.unbind()
 
     def renderIsoSurface(self, settings):
         self._filterElements(settings, 1)
+        self.iso_surface_vao.bind()
         model, view, projection = settings.model, settings.view, settings.projection
         prog = getProgram('mesh.vert', 'isosurface.geom', 'solution.frag', ORDER=self.getOrder())
-        self.iso_surface_vao.bind()
 
         uniforms = prog.uniforms
         uniforms.set('P',projection)
         uniforms.set('MV',view*model)
         uniforms.set('colormap_min', settings.colormap_min)
         uniforms.set('colormap_max', settings.colormap_max)
+        uniforms.set('iso_value', self.getIsoValue())
         uniforms.set('colormap_linear', settings.colormap_linear)
         uniforms.set('have_gradient', self.have_gradient)
         uniforms.set('clipping_plane', settings.clipping_plane)
@@ -1003,6 +1143,10 @@ class SolutionScene(BaseMeshScene):
         self.volume_values.bind()
         uniforms.set('coefficients', 2)
 
+        glActiveTexture(GL_TEXTURE3)
+        self.iso_values.bind()
+        uniforms.set('coefficients_iso', 3)
+
         uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
         uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
 
@@ -1026,7 +1170,6 @@ class SolutionScene(BaseMeshScene):
         uniforms.set('clipping_plane', settings.clipping_plane)
         uniforms.set('do_clipping', True);
         uniforms.set('subdivision', 2**self.getSubdivision()-1)
-        uniforms.set('order', self.getOrder())
 
         if(self.mesh.dim==2):
             uniforms.set('element_type', 10)
@@ -1068,7 +1211,6 @@ class SolutionScene(BaseMeshScene):
         uniforms.set('clipping_plane', settings.clipping_plane)
         uniforms.set('do_clipping', False);
         uniforms.set('subdivision', 2**self.getSubdivision()-1)
-        uniforms.set('order', self.getOrder())
         if self.cf.dim > 1:
             uniforms.set('component', self.getComponent())
         else:
@@ -1320,9 +1462,9 @@ class GeometryScene2D(BaseScene):
         uniforms.set('light_ambient', 1)
         uniforms.set('light_diffuse',0)
 
-        #glLineWidth(3)
+        # glLineWidth(3) TODO: replace with manually drawing quads (linewidth is not supported for OpenGL3.2
         glDrawArrays(GL_LINES, 0, self._nverts)
-        #glLineWidth(1)
+        # glLineWidth(1)
 
 GUI.sceneCreators.append((netgen.geom2d.SplineGeometry, GeometryScene2D))
 GUI.sceneCreators.append((netgen.meshing.NetgenGeometry,GeometryScene))

@@ -119,7 +119,7 @@ class CheckboxParameter(Parameter):
         return self._cb.isChecked()
 
     def setValue(self,val):
-        self._widget.setCheckState(QtCore.Qt.Checked if val else QtCore.Qt.Unchecked)
+        self._cb.setCheckState(QtCore.Qt.Checked if val else QtCore.Qt.Unchecked)
 
     def __getstate__(self):
         return (super().__getstate__(),

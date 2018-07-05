@@ -3,7 +3,8 @@
 {include utils.inc}
 
 uniform samplerBuffer coefficients;
-uniform float colormap_min, colormap_max;
+uniform samplerBuffer coefficients_iso;
+uniform float colormap_min, colormap_max, iso_value;
 uniform Mesh mesh;
 uniform bool have_gradient;
 uniform int component;
@@ -29,7 +30,6 @@ uniform mat4 MV;
 uniform mat4 P;
 uniform vec4 clipping_plane;
 uniform int subdivision;
-uniform int order;
 
 void CutSubTet(float values[8], vec3 normals[8], vec3 pos[8], vec3 lams[8], int nodes[4]) {
         // subtet
@@ -66,7 +66,7 @@ void CutSubTet(float values[8], vec3 normals[8], vec3 pos[8], vec3 lams[8], int 
 }
 
 void main() {
-    int N = order*(subdivision+1)+1;
+    int N = ORDER*(subdivision+1)+1;
     int n = N-1;
 
     int index = inData[0].instance;
@@ -96,11 +96,11 @@ void main() {
                 ivec3 ii = ivec3(ind.x+dx, ind.y+dy, ind.z+dz);
                 if(ii.x+ii.y+ii.z>n) continue;
                 int i = 4*dz + 2*dy + dx;
-                vec4 lam = vec4(1.0-h*(ii.x+ii.y+ii.z), ii.x*h, ii.y*h, ii.z*h);
+                vec4 lam = vec4(ii.x*h, ii.y*h, ii.z*h,1.0-h*(ii.x+ii.y+ii.z));
                 lams[i] = lam.xyz;
                 pos[i] = lam.x * tet1.pos[0] + lam.y * tet1.pos[1] + lam.z * tet1.pos[2] + lam.w * tet1.pos[3];
-                vec4 data = texelFetch(coefficients, values_per_element*inData[0].element + getIndex(N, ii.x, ii.y, ii.z)+0);
-                values[i] = data[component] - colormap_max;
+                vec4 data = texelFetch(coefficients_iso, values_per_element*inData[0].element + getIndex(N, ii.x, ii.y, ii.z)+0);
+                values[i] = data[component] - iso_value;
                 normals[i] = data.yzw;
             }
     

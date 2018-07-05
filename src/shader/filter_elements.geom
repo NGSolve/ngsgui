@@ -9,9 +9,8 @@ uniform Mesh mesh;
 uniform vec4 clipping_plane;
 
 uniform samplerBuffer coefficients;
-uniform float colormap_max;
+uniform float colormap_max, iso_value;
 uniform int subdivision;
-uniform int order;
 uniform int component;
 uniform int filter_type; // 0...clipping plane, 1...iso-surface
 
@@ -43,7 +42,7 @@ bool isCuttingIsoSurface() {
     float max_value;
 
     int n = subdivision+1;
-    int N = order*n+1;
+    int N = ORDER*n+1;
     int values_per_element = N*(N+1)*(N+2)/6;
     int first = inData[0].element*values_per_element;
     float value = texelFetch(coefficients, first)[component];
@@ -54,8 +53,8 @@ bool isCuttingIsoSurface() {
         min_value = min(min_value, value);
         max_value = max(max_value, value);
     }
-    min_value -= colormap_max;
-    max_value -= colormap_max;
+    min_value -= iso_value;
+    max_value -= iso_value;
 
     return min_value<=0 && max_value>0;
 }
