@@ -715,8 +715,9 @@ class SolutionScene(BaseMeshScene):
                            "arg" : 3}
     @inmain_decorator(wait_for_return=True)
     def __init__(self, cf, mesh, name=None, min=0.0,max=1.0, autoscale=True, linear=False, clippingPlane=True,
-                 order=2, deformation=None, gradient=None, *args, **kwargs):
+                 order=2, deformation=None, gradient=None, iso_surface=None, *args, **kwargs):
         self.cf = cf
+        self.iso_surface = iso_surface or cf
         self.deformation = deformation
         self.vao = None
         self.values = {}
@@ -772,13 +773,10 @@ class SolutionScene(BaseMeshScene):
                                settings.CheckboxParameter(name="ShowClippingPlane",
                                                           label="Solution in clipping plane",
                                                           default_value=self.__initial_values["ShowClippingPlane"]),
-#                                settings.CheckboxParameterCluster(name="ShowIsoSurface",
-#                                                           label="Isosurface",
-#                                                           default_value = self.__initial_values["ShowIsoSurface"],
-#                                                              sub_parameters = [iso_value], updateWidgets=True)
-                               settings.CheckboxParameter(name="ShowIsoSurface",
+                               settings.CheckboxParameterCluster(name="ShowIsoSurface",
                                                           label="Isosurface",
-                                                          default_value = self.__initial_values["ShowIsoSurface"])
+                                                          default_value = self.__initial_values["ShowIsoSurface"],
+                                                             sub_parameters = [iso_value], updateWidgets=True)
                                )
 
         if self.cf.dim > 1:
@@ -861,6 +859,7 @@ class SolutionScene(BaseMeshScene):
         super().initGL()
 
         formats = [None, GL_R32F, GL_RG32F, GL_RGB32F, GL_RGBA32F];
+        self.iso_values = Texture(GL_TEXTURE_BUFFER, formats[self.iso_surface.dim])
         self.volume_values = Texture(GL_TEXTURE_BUFFER, formats[self.cf.dim])
         self.volume_values_imag = Texture(GL_TEXTURE_BUFFER, formats[self.cf.dim])
         self.surface_values = Texture(GL_TEXTURE_BUFFER, formats[self.cf.dim])
@@ -957,6 +956,8 @@ class SolutionScene(BaseMeshScene):
 
         if self.mesh.dim==3:
             values = self._getValues(ngsolve.VOL)
+            vals = ngui.GetValues(self.iso_surface, self.mesh, ngsolve.VOL, 2**self.getSubdivision()-1, self.getOrder())
+            self.iso_values.store(vals['real'])
             if values is None:
                 return
             self.volume_values.store(values["real"])
@@ -990,7 +991,11 @@ class SolutionScene(BaseMeshScene):
         uniforms.set('mesh.elements', 1)
 
         glActiveTexture(GL_TEXTURE2)
-        self.volume_values.bind()
+        if filter_type == 1: # iso surface
+            uniforms.set('iso_value', self.getIsoValue())
+            self.iso_values.bind()
+        else:
+            self.volume_values.bind()
         uniforms.set('coefficients', 2)
         uniforms.set('subdivision', 2**self.getSubdivision()-1)
         if self.cf.dim > 1:
@@ -1002,8 +1007,6 @@ class SolutionScene(BaseMeshScene):
         uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
         uniforms.set('mesh.surface_elements_offset', self.mesh_data.surface_elements_offset)
         uniforms.set('filter_type', filter_type)
-        if filter_type == 1: # iso surface
-            uniforms.set('iso_value', 0.1) #self.getIsoValue())
 
         self.filter_feedback = glGenTransformFeedbacks(1)
         glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, self.filter_feedback)
@@ -1112,21 +1115,22 @@ class SolutionScene(BaseMeshScene):
 
     def renderIsoSurface(self, settings):
         self._filterElements(settings, 1)
+        self.iso_surface_vao.bind()
         model, view, projection = settings.model, settings.view, settings.projection
         prog = getProgram('mesh.vert', 'isosurface.geom', 'solution.frag', ORDER=self.getOrder())
-        self.iso_surface_vao.bind()
 
         uniforms = prog.uniforms
         uniforms.set('P',projection)
         uniforms.set('MV',view*model)
         uniforms.set('colormap_min', settings.colormap_min)
         uniforms.set('colormap_max', settings.colormap_max)
-        uniforms.set('iso_value', 0.1) #self.getIsoValue())
+        uniforms.set('iso_value', self.getIsoValue())
         uniforms.set('colormap_linear', settings.colormap_linear)
         uniforms.set('have_gradient', self.have_gradient)
         uniforms.set('clipping_plane', settings.clipping_plane)
         uniforms.set('do_clipping', True);
         uniforms.set('subdivision', 2**self.getSubdivision()-1)
+        uniforms.set('order', self.getOrder())
         if self.cf.dim > 1:
             uniforms.set('component', self.getComponent())
         else:
@@ -1150,7 +1154,7 @@ class SolutionScene(BaseMeshScene):
         uniforms.set('coefficients', 2)
 
         glActiveTexture(GL_TEXTURE3)
-        self.volume_values.bind()
+        self.iso_values.bind()
         uniforms.set('coefficients_iso', 3)
 
         uniforms.set('mesh.surface_curved_offset', self.mesh.nv)

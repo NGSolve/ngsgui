@@ -40,7 +40,7 @@ cf = cos(n*x)*cos(n*y)*cos(n*z)
 cf = x+1j*y
 # cf = (x-0.5)**2+(y-0.5)**2+(z-0.5)**2
 
-s = Draw(x-0.5, mesh,'sldkf')
+s = Draw(x, mesh, 'lk', iso_surface=y*y+x*x-0.5, sd=0, order=1)
 # s.setIsoValue(0.1)
 # s.setShowIsoSurface(True)
 # s.setShowSurface(False)
