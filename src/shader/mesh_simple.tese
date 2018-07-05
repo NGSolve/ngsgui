@@ -150,7 +150,7 @@ void main()
 #elif defined(ET_QUAD)
         value *= InterpolateTetVec(inData[0].element, deformation_coefficients, ORDER, deformation_subdivision, outData.lam, 0);
 #endif
-        //outData.pos += value;
+        outData.pos += value;
       }
 #endif // DEFORMATION
 

@@ -770,7 +770,10 @@ class SolutionScene(BaseMeshScene):
         else:
             self.have_gradient = False
         if not 'deformation' in kwargs:
-            kwargs['deformation'] = cf
+            if mesh.dim<3 and cf.dim==1:
+                kwargs['deformation'] = ngsolve.CoefficientFunction((0,0,cf))
+            else:
+                kwargs['deformation'] = cf
 
         super().__init__(mesh,*args, name=name, **kwargs)
 
