@@ -7,6 +7,8 @@ uniform mat4 MV;
 uniform Mesh mesh;
 uniform sampler1D colors;
 uniform float shrink_elements;
+uniform bool clip_whole_elements;
+uniform vec4 clipping_plane;
 
 layout(triangles) in;
 layout(triangle_strip, max_vertices=12) out;
@@ -76,6 +78,16 @@ void main() {
 
     if(mesh.dim==3) {
         Element3d el = getElement3d(mesh, inData[0].element);
+        if(clip_whole_elements) {
+          float min_dist = 1.0;
+          min_dist = min(min_dist, dot(vec4(el.pos[0],1.0),clipping_plane));
+          min_dist = min(min_dist, dot(vec4(el.pos[1],1.0),clipping_plane));
+          min_dist = min(min_dist, dot(vec4(el.pos[2],1.0),clipping_plane));
+          min_dist = min(min_dist, dot(vec4(el.pos[3],1.0),clipping_plane));
+          if(min_dist<0)
+            return;
+
+        }
         vec3 center = 0.25*(el.pos[0]+el.pos[1]+el.pos[2]+el.pos[3]);
         for (int face =0; face<4; face++) {
             Element2d trig = getElement2d(mesh, el, face);

@@ -150,7 +150,6 @@ class BaseMeshScene(BaseScene):
         if 'deformation' in kwargs:
             self.deformation = kwargs['deformation']
             del kwargs['deformation']
-            self.__initial_values["Deformation"] = True
 
         super().__init__(**kwargs)
 
@@ -615,10 +614,7 @@ class MeshScene(BaseMeshScene):
             return
         prog = getProgram('filter_elements.vert', 'tess.tesc', 'tess.tese', 'mesh.geom', 'mesh.frag', params=settings)
         self.vao.bind()
-        model, view, projection = settings.model, settings.view, settings.projection
         uniforms = prog.uniforms
-        uniforms.set('P',projection)
-        uniforms.set('MV',view*model)
 
         glActiveTexture(GL_TEXTURE0)
         self.mesh_data.vertices.bind()
@@ -629,7 +625,6 @@ class MeshScene(BaseMeshScene):
         uniforms.set('mesh.elements', 1)
 
 
-        uniforms.set('clipping_plane', settings.clipping_plane)
         uniforms.set('do_clipping', True);
         uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
         uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
@@ -644,7 +639,6 @@ class MeshScene(BaseMeshScene):
 
 
         uniforms.set('clip_whole_elements', True)
-        uniforms.set('do_clipping', False);
         uniforms.set('light_ambient', 0.3)
         uniforms.set('light_diffuse', 0.7)
         uniforms.set('TessLevel', self.getGeomSubdivision())

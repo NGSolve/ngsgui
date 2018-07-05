@@ -4,6 +4,7 @@
 
 uniform mat4 MV;
 uniform vec4 clipping_plane;
+uniform bool clip_whole_elements;
 uniform bool do_clipping;
 uniform bool wireframe;
 uniform float light_ambient;
@@ -32,7 +33,7 @@ void main()
   FragColor = inData.color;
 
 
-  if(do_clipping && dot(vec4(inData.pos,1.0),clipping_plane)<0)
+  if(!clip_whole_elements && do_clipping && dot(vec4(inData.pos,1.0),clipping_plane)<0)
     discard;
 
   if (FragColor.a == 0.0)
