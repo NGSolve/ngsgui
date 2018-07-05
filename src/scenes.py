@@ -172,6 +172,7 @@ class BaseMeshScene(BaseScene):
         if 'deformation' in kwargs:
             self.deformation = kwargs['deformation']
             del kwargs['deformation']
+            self.__initial_values["Deformation"] = True
 
         super().__init__(**kwargs)
 
@@ -559,6 +560,7 @@ class MeshScene(BaseMeshScene):
         options = {}
         if use_tessellation:
             shader.append('mesh_simple.tese')
+        if use_deformation:
             options["DEFORMATION_ORDER"] = self.getDeformationOrder()
         prog = getProgram(*shader, elements=elements, params=settings, DEFORMATION=use_deformation, **options)
         uniforms = prog.uniforms
@@ -883,7 +885,8 @@ class SolutionScene(BaseMeshScene):
 
     def _getValues(self, vb, setMinMax=True, cf = None):
         cf = cf or self.cf
-        with ngsolve.TaskManager():
+#         with ngsolve.TaskManager():
+        if 1:
             try:
                 values = ngui.GetValues(cf, self.mesh, vb, 2**self.getSubdivision()-1, self.getOrder())
             except RuntimeError as e:
@@ -1054,7 +1057,7 @@ class SolutionScene(BaseMeshScene):
     def renderSurface(self, settings):
         self.surface_vao.bind()
         vb = ngsolve.VOL if self.mesh.dim==2 else ngsolve.BND
-        use_deformation = bool(self.deformation)
+        use_deformation = self.getDeformation()
         for elements in self.mesh_data.new_els[vb]:
             shader = ['mesh_simple.vert', 'solution_simple.frag']
             use_tessellation = use_deformation or elements.curved

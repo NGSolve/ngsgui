@@ -12,7 +12,7 @@
 #include <type_traits>
 #include <atomic>
 
-using namespace ngfem;
+using namespace ngcomp;
 using std::is_same;
 
 namespace py = pybind11;
@@ -513,7 +513,12 @@ PYBIND11_MODULE(ngui, m) {
                 res_imag.SetSize(ma->GetNE(vb)*values_per_element); // two entries for global min/max
 
             bool use_simd = true;
-            ma->IterateElements(vb, lh,[&](auto el, LocalHeap& mlh) {
+//             ma->IterateElements(vb, lh,[&](auto el, LocalHeap& mlh) {
+            for (auto i : Range(ma->GetNE(vb))) {
+              HeapReset lhr(lh);
+              auto & mlh = lh;
+              ElementId ei(vb, i);
+              Ngs_Element el(ma->GetElement(ei), ei);
                 FlatArray<float> min_local(ncomps, mlh);
                 FlatArray<float> max_local(ncomps, mlh);
                 if(use_simd)
@@ -553,7 +558,8 @@ PYBIND11_MODULE(ngui, m) {
                     while (max_local[i] > expected)
                         AsAtomic(max[i]).compare_exchange_weak(expected, max_local[i], std::memory_order_relaxed, std::memory_order_relaxed);
                 }
-              });
+            }
+//               });
           py::gil_scoped_acquire ac;
           py::dict res;
           res["real"] = MoveToNumpyArray(res_real);
