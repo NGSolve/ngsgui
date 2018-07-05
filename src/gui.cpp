@@ -1056,6 +1056,7 @@ PYBIND11_MODULE(ngui, m) {
                 vertices.SetAllocSize(np*3);
                 trigs.SetAllocSize(ntrig*4);
                 normals.SetAllocSize(np*3);
+                int offset_points = 0;
                 for (auto i : Range(nto))
                   {
                     auto triapprox = csg_geo->GetTriApprox(i);
@@ -1070,9 +1071,10 @@ PYBIND11_MODULE(ngui, m) {
                     for (auto j : Range(triapprox->GetNT()))
                       {
                         for(auto k : Range(3))
-                            trigs.Append(triapprox->GetTriangle(j)[k]);
+                            trigs.Append(triapprox->GetTriangle(j)[k]+offset_points);
                         trigs.Append(triapprox->GetTriangle(j).SurfaceIndex());
                       }
+                    offset_points += triapprox->GetNP();
                   }
               }
                 // STL Geometries
@@ -1184,9 +1186,9 @@ PYBIND11_MODULE(ngui, m) {
             int max_bcnr = 0;
             for (auto i : Range(geo.splines.Size()))
               {
-                std::initializer_list<netgen::GeomPoint<2>> lst;
+                std::vector<netgen::GeomPoint<2>> lst;
                 if (geo.splines[i]->GetType().compare("line") == 0)
-                  lst = {geo.splines[i]->StartPI(), geo.splines[i]->EndPI()};
+                  lst = {geo.splines[i]->StartPI(), geo.splines[i]->GetPoint(1)};
                 for (auto point : lst)
                   {
                     for(auto i : Range(2))

@@ -428,7 +428,6 @@ def getProgram(*shader_files, feedback=[], elements=None, params=None, **define_
             u.set('colormap_max', params.colormap_max)
 
     if elements != None:
-        print('element_type', elements.type, int(elements.type))
         u.set('element_type', int(elements.type))
 
     check_debug_output()

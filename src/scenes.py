@@ -1415,7 +1415,7 @@ class GeometryScene2D(BaseScene):
                                                       default_value=True),
                            settings.CheckboxParameter(name="ShowDomainNumbers",
                                                       label="Domain Numbers",
-                                                      default_value = True))
+                                                      default_value = False))
 
     def getBoundingBox(self):
         return (self._xmin, self._xmax)
