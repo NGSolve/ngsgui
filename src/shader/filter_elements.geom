@@ -9,7 +9,7 @@ uniform Mesh mesh;
 uniform vec4 clipping_plane;
 
 uniform samplerBuffer coefficients;
-uniform float colormap_max;
+uniform float colormap_max, iso_value;
 uniform int subdivision;
 uniform int order;
 uniform int component;
@@ -54,8 +54,8 @@ bool isCuttingIsoSurface() {
         min_value = min(min_value, value);
         max_value = max(max_value, value);
     }
-    min_value -= colormap_max;
-    max_value -= colormap_max;
+    min_value -= iso_value;
+    max_value -= iso_value;
 
     return min_value<=0 && max_value>0;
 }

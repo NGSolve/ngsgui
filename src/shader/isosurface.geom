@@ -3,7 +3,8 @@
 {include utils.inc}
 
 uniform samplerBuffer coefficients;
-uniform float colormap_min, colormap_max;
+uniform samplerBuffer coefficients_iso;
+uniform float colormap_min, colormap_max, iso_value;
 uniform Mesh mesh;
 uniform bool have_gradient;
 uniform int component;
@@ -99,8 +100,8 @@ void main() {
                 vec4 lam = vec4(1.0-h*(ii.x+ii.y+ii.z), ii.x*h, ii.y*h, ii.z*h);
                 lams[i] = lam.xyz;
                 pos[i] = lam.x * tet1.pos[0] + lam.y * tet1.pos[1] + lam.z * tet1.pos[2] + lam.w * tet1.pos[3];
-                vec4 data = texelFetch(coefficients, values_per_element*inData[0].element + getIndex(N, ii.x, ii.y, ii.z)+0);
-                values[i] = data[component] - colormap_max;
+                vec4 data = texelFetch(coefficients_iso, values_per_element*inData[0].element + getIndex(N, ii.x, ii.y, ii.z)+0);
+                values[i] = data[component] - iso_value;
                 normals[i] = data.yzw;
             }
     

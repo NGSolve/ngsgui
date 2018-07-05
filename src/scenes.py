@@ -767,13 +767,19 @@ class SolutionScene(BaseMeshScene):
                                                           default_value=self.__initial_values["ShowSurface"]))
 
         if self.mesh.dim > 2:
+            iso_value = settings.ValueParameter(name="IsoValue", label="Value", default_value=0.0)
             self.addParameters("Show",
                                settings.CheckboxParameter(name="ShowClippingPlane",
                                                           label="Solution in clipping plane",
                                                           default_value=self.__initial_values["ShowClippingPlane"]),
+#                                settings.CheckboxParameterCluster(name="ShowIsoSurface",
+#                                                           label="Isosurface",
+#                                                           default_value = self.__initial_values["ShowIsoSurface"],
+#                                                              sub_parameters = [iso_value], updateWidgets=True)
                                settings.CheckboxParameter(name="ShowIsoSurface",
                                                           label="Isosurface",
-                                                          default_value = self.__initial_values["ShowIsoSurface"]))
+                                                          default_value = self.__initial_values["ShowIsoSurface"])
+                               )
 
         if self.cf.dim > 1:
             self.addParameters("Show",
@@ -996,6 +1002,8 @@ class SolutionScene(BaseMeshScene):
         uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
         uniforms.set('mesh.surface_elements_offset', self.mesh_data.surface_elements_offset)
         uniforms.set('filter_type', filter_type)
+        if filter_type == 1: # iso surface
+            uniforms.set('iso_value', 0.1) #self.getIsoValue())
 
         self.filter_feedback = glGenTransformFeedbacks(1)
         glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, self.filter_feedback)
@@ -1113,6 +1121,7 @@ class SolutionScene(BaseMeshScene):
         uniforms.set('MV',view*model)
         uniforms.set('colormap_min', settings.colormap_min)
         uniforms.set('colormap_max', settings.colormap_max)
+        uniforms.set('iso_value', 0.1) #self.getIsoValue())
         uniforms.set('colormap_linear', settings.colormap_linear)
         uniforms.set('have_gradient', self.have_gradient)
         uniforms.set('clipping_plane', settings.clipping_plane)
@@ -1139,6 +1148,10 @@ class SolutionScene(BaseMeshScene):
         glActiveTexture(GL_TEXTURE2)
         self.volume_values.bind()
         uniforms.set('coefficients', 2)
+
+        glActiveTexture(GL_TEXTURE3)
+        self.volume_values.bind()
+        uniforms.set('coefficients_iso', 3)
 
         uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
         uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
