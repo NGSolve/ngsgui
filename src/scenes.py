@@ -610,6 +610,54 @@ class MeshScene(BaseMeshScene):
 
         self.vao.unbind()
 
+    def renderElements(self, settings):
+        if self.mesh.dim < 3 or not self.getShowElements():
+            return
+        prog = getProgram('filter_elements.vert', 'tess.tesc', 'tess.tese', 'mesh.geom', 'mesh.frag', params=settings)
+        self.vao.bind()
+        model, view, projection = settings.model, settings.view, settings.projection
+        uniforms = prog.uniforms
+        uniforms.set('P',projection)
+        uniforms.set('MV',view*model)
+
+        glActiveTexture(GL_TEXTURE0)
+        self.mesh_data.vertices.bind()
+        uniforms.set('mesh.vertices', 0)
+
+        glActiveTexture(GL_TEXTURE1)
+        self.mesh_data.elements.bind()
+        uniforms.set('mesh.elements', 1)
+
+
+        uniforms.set('clipping_plane', settings.clipping_plane)
+        uniforms.set('do_clipping', True);
+        uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
+        uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
+        uniforms.set('mesh.surface_elements_offset', self.mesh_data.surface_elements_offset)
+        uniforms.set('mesh.dim', 2);
+        if self.mesh.dim > 2:
+            uniforms.set('shrink_elements', self.getShrink())
+        uniforms.set('clip_whole_elements', False)
+        glActiveTexture(GL_TEXTURE3)
+        self.tex_surf_colors.bind()
+        uniforms.set('colors', 3)
+
+
+        uniforms.set('clip_whole_elements', True)
+        uniforms.set('do_clipping', False);
+        uniforms.set('light_ambient', 0.3)
+        uniforms.set('light_diffuse', 0.7)
+        uniforms.set('TessLevel', self.getGeomSubdivision())
+        uniforms.set('wireframe', False)
+        uniforms.set('mesh.dim', 3);
+        glActiveTexture(GL_TEXTURE3)
+        self.tex_vol_colors.bind()
+        uniforms.set('colors', 3)
+        glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
+        glPatchParameteri(GL_PATCH_VERTICES, 1)
+        glDrawArrays(GL_PATCHES, 0, self.mesh.ne)
+        self.vao.unbind()
+
     def renderNumbers(self, settings):
         prog = getProgram('filter_elements.vert', 'numbers.geom', 'font.frag', params=settings)
         self.vao.bind()
@@ -679,6 +727,7 @@ class MeshScene(BaseMeshScene):
         self.renderEdges(settings)
         self.renderSurface(settings)
         self.renderNumbers(settings)
+        self.renderElements(settings)
 
     @inmain_decorator(True)
     def _createQtWidget(self):
