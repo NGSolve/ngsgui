@@ -386,7 +386,7 @@ class BaseSettings():
         for group,params in self._parameters.items():
             for param in params:
                 if param.getOption("updateWidgets"):
-                    param.changed.connect(self.widgets.update)
+                    param.changed.connect(lambda *a,**b : self.widgets.update())
             widgets = [par.getWidget() for par in params]
             self.widgets.addGroup(group, *widgets)
 
