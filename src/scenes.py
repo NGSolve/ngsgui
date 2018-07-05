@@ -110,9 +110,9 @@ center of this box. Rotation will be around this center."""
     def _attachParameter(self, parameter):
         super()._attachParameter(parameter)
         if parameter.getOption("updateScene"):
-            parameter.changed.connect(lambda val: self.update())
+            parameter.changed.connect(lambda *args, **kwargs: self.update())
         if not parameter.getOption("notUpdateGL"):
-            parameter.changed.connect(self._updateGL)
+            parameter.changed.connect(lambda *args, **kwargs: self._updateGL())
 
     def addAction(self,action,name=None):
         """Add double click action. Adds a checkbox to the widget to activate/deactivate the action.
