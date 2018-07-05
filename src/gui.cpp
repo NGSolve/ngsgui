@@ -78,8 +78,6 @@ IntegrationRule& GetP2Rule( ELEMENT_TYPE et ) {
 
     // first call of this function, initialize rules
     if(ir_segm.Size() == 0) {
-        cout << "init integration rules" << endl;
-
         ir_segm.Append(IntegrationPoint(0.0,0,0));
         ir_segm.Append(IntegrationPoint(1.0,0,0));
         ir_segm.Append(IntegrationPoint(0.5,0,0));
@@ -394,8 +392,9 @@ PYBIND11_MODULE(ngui, m) {
             for (auto & p : irs ) {
               simd_irs[p.first] = p.second;
             }
-            map<ELEMENT_TYPE, Array<float>> values_real;
-            map<ELEMENT_TYPE, Array<float>> values_imag;
+            typedef std::pair<ELEMENT_TYPE,bool> T_ET;
+            map<T_ET, Array<float>> values_real;
+            map<T_ET, Array<float>> values_imag;
 
             int ncomps = cf->Dimension();
             Array<float> min(ncomps);
@@ -403,30 +402,30 @@ PYBIND11_MODULE(ngui, m) {
             min = std::numeric_limits<float>::max();
             max = std::numeric_limits<float>::lowest();
 
-            map<ELEMENT_TYPE, std::atomic<int>> element_counter;
-            map<ELEMENT_TYPE, std::atomic<int>> element_index;
+            map<T_ET, std::atomic<int>> element_counter;
+            map<T_ET, std::atomic<int>> element_index;
             for (auto et : {ET_POINT, ET_SEGM, ET_TRIG, ET_QUAD, ET_TET, ET_PRISM, ET_PYRAMID, ET_HEX}) {
-              element_counter[et] = 0;
-              element_index[et] = 0;
+              for (auto curved : {false, true}) {
+                element_counter[T_ET{et,curved}] = 0;
+                element_index[T_ET{et,curved}] = 0;
+              }
             }
             ma->IterateElements(vb, lh,[&](auto el, LocalHeap& mlh) {
                 auto et = el.GetType();
-                element_counter[et]++;
+                element_counter[T_ET{et,el.is_curved}]++;
             });
-            for (auto et : {ET_POINT, ET_SEGM, ET_TRIG, ET_QUAD, ET_TET, ET_PRISM, ET_PYRAMID, ET_HEX}) {
-              cout << et << "," << element_counter[et] << endl;
-            }
 
             bool use_simd = true;
             ma->IterateElements(vb, lh,[&](auto el, LocalHeap& mlh) {
                 FlatArray<float> min_local(ncomps, mlh);
                 FlatArray<float> max_local(ncomps, mlh);
+                auto curved = el.is_curved;
 
                 auto et = el.GetType();
                 auto & ir = irs[et];
                 auto & simd_ir = simd_irs[et];
-                auto &vals_real = values_real[et];
-                auto &vals_imag = values_imag[et];
+                auto &vals_real = values_real[T_ET{et,curved}];
+                auto &vals_imag = values_imag[T_ET{et,curved}];
                 int nip = irs[et].GetNIP();
                 int values_per_element = nip*ncomps;
                 size_t first = vals_real.Size();
@@ -474,12 +473,13 @@ PYBIND11_MODULE(ngui, m) {
           py::dict res_imag;
           for (auto &p : irs) {
               auto et = p.first;
-              if (values_real[et].Size()>0) {
-                  py::dict v;
-                  res_real[py::cast(et)] = MoveToNumpyArray(values_real[et]);
-                  if(cf->IsComplex())
-                    res_imag[py::cast(et)] = MoveToNumpyArray(values_imag[et]);
-              }
+              for (auto curved : {false, true}) {
+                if (values_real[T_ET{et,curved}].Size()>0) {
+                  res_real[py::make_tuple(et,curved)] = MoveToNumpyArray(values_real[T_ET{et,curved}]);
+                    if(cf->IsComplex())
+                      res_imag[py::make_tuple(T_ET{et,curved})] = MoveToNumpyArray(values_imag[T_ET{et,curved}]);
+                  }
+                }
           }
           py::dict res;
           res["min"] = MoveToNumpyArray(min);

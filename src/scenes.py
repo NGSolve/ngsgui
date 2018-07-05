@@ -881,8 +881,7 @@ class SolutionScene(BaseMeshScene):
 
     def _getValues(self, vb, setMinMax=True, cf = None):
         cf = cf or self.cf
-#         with ngsolve.TaskManager():
-        if True:
+        with ngsolve.TaskManager():
             try:
                 values = ngui.GetValues(cf, self.mesh, vb, 2**self.getSubdivision()-1, self.getOrder())
             except RuntimeError as e:
@@ -903,7 +902,6 @@ class SolutionScene(BaseMeshScene):
             self.values[vb] = {'real':{}, 'imag':{}}
         try:
             values = ngui.GetValues2(cf, self.mesh, vb, 2**self.getSubdivision()-1, self.getOrder())
-            print(values)
             v = self.values[vb]
             v['min'] = values['min']
             v['max'] = values['max']
@@ -1072,8 +1070,7 @@ class SolutionScene(BaseMeshScene):
             elements.tex.bind()
 
             glActiveTexture(GL_TEXTURE2)
-            print(self.values)
-            self.values[vb]['real'][elements.type].bind()
+            self.values[vb]['real'][(elements.type, elements.curved)].bind()
             uniforms.set('coefficients', 2)
 
             if self.cf.dim > 1:
