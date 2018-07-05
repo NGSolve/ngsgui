@@ -279,8 +279,8 @@ class OverlayScene(BaseScene):
             self.text_renderer.draw(settings, "NGSolve " + ngsolve.__version__, [0.99,-0.99,0], alignment=QtCore.Qt.AlignRight|QtCore.Qt.AlignBottom)
 
         if self.getShowColorBar():
-            prog = getProgram('colorbar.vert','colorbar.frag')
             self.vao.bind()
+            prog = getProgram('colorbar.vert','colorbar.frag')
             uniforms = prog.uniforms
             x0,y0 = -0.6, 0.82
             dx,dy = 1.2, 0.03
@@ -837,6 +837,7 @@ class SolutionScene(BaseMeshScene):
 
     def _filterElements(self, settings, filter_type):
         glEnable(GL_RASTERIZER_DISCARD)
+        self.surface_vao.bind()
         prog = getProgram('filter_elements.vert', 'filter_elements.geom', feedback=['element'], params=settings)
         uniforms = prog.uniforms
         glActiveTexture(GL_TEXTURE0)
@@ -872,6 +873,7 @@ class SolutionScene(BaseMeshScene):
 
         glEndTransformFeedback()
         glDisable(GL_RASTERIZER_DISCARD)
+        self.surface_vao.unbind()
 
     def render1D(self, settings):
 
