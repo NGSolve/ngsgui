@@ -4,6 +4,7 @@
 {include interpolation.inc}
 #line 5
 
+uniform sampler1D colors;
 uniform samplerBuffer coefficients;
 uniform float colormap_min, colormap_max;
 uniform bool colormap_linear;

@@ -14,6 +14,7 @@ layout(quads) in;
 uniform mat4 P;
 uniform mat4 MV;
 uniform Mesh mesh;
+uniform sampler1D colors;
 
 #if DEFORMATION
 #undef ORDER
