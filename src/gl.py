@@ -470,6 +470,9 @@ class ArrayBuffer(GLObject):
 
 class Texture(GLObject):
     def __init__(self, buffer_type, format, format2=None):
+        if isinstance(format, ngsolve.CoefficientFunction):
+            formats = [None, GL_R32F, GL_RG32F, GL_RGB32F, GL_RGBA32F];
+            format = formats[format.dim]
         self._type = buffer_type
         self._format = format
         if format2 is None:

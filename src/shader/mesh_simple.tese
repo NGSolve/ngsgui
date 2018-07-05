@@ -108,13 +108,13 @@ void main()
 #endif // CURVED
 
 #if DEFORMATION
-    float value = deformation_scale;
+    vec3 value = vec3(deformation_scale,deformation_scale,deformation_scale);
 #if defined(ET_TRIG)
-    value *= InterpolateTrig(inData[0].element, deformation_coefficients, ORDER, deformation_subdivision, outData.lam, 0);
+    value *= InterpolateTrigVec(inData[0].element, deformation_coefficients, ORDER, deformation_subdivision, outData.lam, 0);
 #elif defined(ET_QUAD)
-    value *= InterpolateTet(inData[0].element, deformation_coefficients, ORDER, deformation_subdivision, outData.lam, 0);
+    value *= InterpolateTetVec(inData[0].element, deformation_coefficients, ORDER, deformation_subdivision, outData.lam, 0);
 #endif
-    outData.pos.z += value;
+    outData.pos += value;
 #endif // DEFORMATION
 
     gl_Position = P * MV * vec4(outData.pos, 1);

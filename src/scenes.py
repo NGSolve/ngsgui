@@ -194,6 +194,8 @@ class BaseMeshScene(BaseScene):
 
     def initGL(self):
         super().initGL()
+        if self.deformation:
+            self.deformation_values = Texture(GL_TEXTURE_BUFFER, self.deformation)
 
     @inmain_decorator(True)
     def update(self):
@@ -202,7 +204,6 @@ class BaseMeshScene(BaseScene):
         if self.deformation:
             vb = ngsolve.BND if self.mesh.dim==3 else ngsolve.VOL
             self.deformation_values.store(ngui.GetValues(self.deformation, self.mesh, vb, 2**self.getDeformationSubdivision()-1, self.getDeformationOrder())['real'])
-            print('updated values')
 
     def __getstate__(self):
         super_state = super().__getstate__()
@@ -472,9 +473,6 @@ class MeshScene(BaseMeshScene):
 
         self.text_renderer = TextRenderer()
 
-        formats = [None, GL_R32F, GL_RG32F, GL_RGB32F, GL_RGBA32F];
-        if self.deformation:
-            self.deformation_values = Texture(GL_TEXTURE_BUFFER, formats[self.deformation.dim])
 
     def _render1DElements(self, settings, elements):
         if elements.curved:
@@ -715,10 +713,9 @@ class SolutionScene(BaseMeshScene):
                            "arg" : 3}
     @inmain_decorator(wait_for_return=True)
     def __init__(self, cf, mesh, name=None, min=0.0,max=1.0, autoscale=True, linear=False, clippingPlane=True,
-                 order=2, deformation=None, gradient=None, iso_surface=None, *args, **kwargs):
+                 order=2, gradient=None, iso_surface=None, *args, **kwargs):
         self.cf = cf
         self.iso_surface = iso_surface or cf
-        self.deformation = deformation
         self.vao = None
         self.values = {}
         self.__initial_values = {"Order" : order,
@@ -1061,11 +1058,23 @@ class SolutionScene(BaseMeshScene):
         for elements in self.mesh_data.new_els[vb]:
             shader = ['mesh_simple.vert', 'solution_simple.frag']
             use_tessellation = use_deformation or elements.curved
+            options = dict(ORDER=self.getOrder(), DEFORMATION=use_deformation)
             if use_tessellation:
                 shader.append('mesh_simple.tese')
-            prog = getProgram(*shader, elements=elements, params=settings, ORDER=self.getOrder(), DEFORMATION=use_deformation)
+            if use_deformation:
+                options["DEFORMATION_ORDER"] = self.getDeformationOrder()
 
+            prog = getProgram(*shader, elements=elements, params=settings, **options)
             uniforms = prog.uniforms
+
+            if use_deformation:
+                glActiveTexture(GL_TEXTURE4)
+                self.deformation_values.bind()
+                uniforms.set('deformation_coefficients', 4)
+                uniforms.set('deformation_subdivision', 2**self.getDeformationSubdivision()-1)
+                uniforms.set('deformation_order', self.getDeformationOrder())
+                uniforms.set('deformation_scale', self.getDeformationScale())
+
 
             uniforms.set('wireframe', False)
             uniforms.set('do_clipping', self.mesh.dim==3 or use_deformation)
