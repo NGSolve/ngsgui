@@ -28,6 +28,8 @@ class ToolBoxItem(QtWidgets.QWidget):
             layout.addWidget(item)
         self.setLayout(layout)
         self.layout().setAlignment(QtCore.Qt.AlignTop)
+        scene.widgets.setParent(self)
+        scene.widgets.update()
         self.scene = scene
         self.window = window
 
