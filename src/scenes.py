@@ -185,10 +185,11 @@ class BaseMeshScene(BaseScene):
 
     def __getstate__(self):
         super_state = super().__getstate__()
-        return (super_state, self.mesh)
+        return (super_state, self.mesh, self.deformation)
 
     def __setstate__(self,state):
         self.mesh = state[1]
+        self.deformation = state[2]
         super().__setstate__(state[0])
 
     def getBoundingBox(self):
@@ -874,10 +875,12 @@ class SolutionScene(BaseMeshScene):
 
     def __getstate__(self):
         super_state = super().__getstate__()
-        return (super_state,self.cf)
+        return (super_state,self.cf, self.iso_surface)
 
     def __setstate__(self,state):
         self.cf = state[1]
+        self.iso_surface = state[2]
+        self.values = {}
         super().__setstate__(state[0])
         self.vao = None
 

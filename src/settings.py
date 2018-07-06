@@ -366,6 +366,7 @@ class BaseSettings():
     def __setstate__(self, state):
         self._initial_values = state[0]
         self._parameters = {}
+        self._par_name_dict = {}
         for group in state[1]:
             self.addParameters(group,*state[1][group])
         self._createOptions()

@@ -217,6 +217,8 @@ class WindowTab(QtWidgets.QWidget):
         for scene in self._startup_scenes:
             if isinstance(scene, scenes.OverlayScene):
                 self.overlay.copyOptionsFrom(scene)
+                for w in scene.widgets.groups:
+                    w.setVisible(False)
             else:
                 self.draw(scene)
 

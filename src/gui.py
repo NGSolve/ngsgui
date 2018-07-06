@@ -203,7 +203,7 @@ class GUI():
 
     def saveSolution(self):
         filename, filt = QtWidgets.QFileDialog.getSaveFileName(caption="Save Solution",
-                                                               filter = "Solution Files (*.sol)")
+                                                               filter = "Solution Files (*.ngs)")
         if not filename[-4:] == ".ngs":
             filename += ".ngs"
         tabs = []
@@ -232,7 +232,7 @@ class GUI():
 
     def loadSolution(self):
         filename, filt = QtWidgets.QFileDialog.getOpenFileName(caption="Load Solution",
-                                                               filter = "Solution Files (*.sol)")
+                                                               filter = "Solution Files (*.ngs)")
         self._loadSolutionFile(filename)
 
     @inmain_decorator(wait_for_return=True)
