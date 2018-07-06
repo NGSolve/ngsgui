@@ -2,7 +2,7 @@
 try:
     import skbuild
     import PySide2
-except ImportError:
+except ImportError as e:
     print("")
     print("***********************************************************************************")
     print("")
@@ -12,6 +12,7 @@ except ImportError:
     print("")
     print("***********************************************************************************")
     print("")
+    raise e
 
 from skbuild import setup
 from setuptools import find_packages
@@ -32,7 +33,7 @@ modules = ['ngsgui'] + ['ngsgui.' + pkg for pkg in find_packages('src')]
 dirs = { module : module.replace('ngsgui.','src/') if 'ngsgui.' in module else 'src' for module in modules}
 
 setup(name="ngsgui",
-      version="0.1.4",
+      version="0.1.8",
       description="New graphical interface for NGSolve",
       packages=modules,
       package_dir=dirs,

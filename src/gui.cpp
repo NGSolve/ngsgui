@@ -605,7 +605,7 @@ PYBIND11_MODULE(ngui, m) {
             // Edges of mesh (skip this for dim==1, in this case edges are treated as volume elements below)
             for (auto nr : Range(ma->GetNEdges())) {
                 auto pair = ma->GetEdgePNums(nr);
-                edges.data.Append({nr, -1, pair[0], pair[1]});
+                edges.data.Append({int(nr), int(-1), int(pair[0]), int(pair[1])});
             }
         }
 
@@ -625,7 +625,7 @@ PYBIND11_MODULE(ngui, m) {
                 auto verts = el.Vertices();
                 auto &ei = edges[el.is_curved];
 
-                ei.data.Append({el.Nr(), el.GetIndex(), verts[0], verts[1]});
+                ei.data.Append({int(el.Nr()), int(el.GetIndex()), int(verts[0]), int(verts[1])});
                 if(el.is_curved) {
                     ei.data.Append(vertices.Size()/3);
 
