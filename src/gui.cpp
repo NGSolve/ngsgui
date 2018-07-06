@@ -479,7 +479,7 @@ PYBIND11_MODULE(ngui, m) {
                 if (values_real[T_ET{et,curved}].Size()>0) {
                   res_real[py::make_tuple(et,curved)] = MoveToNumpyArray(values_real[T_ET{et,curved}]);
                     if(cf->IsComplex())
-                      res_imag[py::make_tuple(T_ET{et,curved})] = MoveToNumpyArray(values_imag[T_ET{et,curved}]);
+                      res_imag[py::make_tuple(et,curved)] = MoveToNumpyArray(values_imag[T_ET{et,curved}]);
                   }
                 }
           }

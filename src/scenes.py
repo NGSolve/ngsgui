@@ -1141,7 +1141,7 @@ class SolutionScene(BaseMeshScene):
             uniforms.set('is_complex', self.cf.is_complex)
             if self.cf.is_complex:
                 glActiveTexture(GL_TEXTURE3)
-                self.surface_values_imag.bind()
+                self.values[vb]['imag'][(elements.type, elements.curved)].bind()
                 uniforms.set('coefficients_imag', 3)
 
                 uniforms.set('complex_vis_function', self._complex_eval_funcs[self.getComplexEvalFunc()])
