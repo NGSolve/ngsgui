@@ -383,6 +383,8 @@ PYBIND11_MODULE(ngui, m) {
         });
   m.def("GetReferenceRule", GetReferenceRule);
   m.def("GetValues2", [] (shared_ptr<ngfem::CoefficientFunction> cf, shared_ptr<ngcomp::MeshAccess> ma, VorB vb, int subdivision, int order) {
+            auto tm = task_manager;
+            task_manager = nullptr;
             LocalHeap lh(10000000, "GetValues");
             int dim = ma->GetDimension();
             if(vb==BND) dim-=1;
@@ -486,9 +488,12 @@ PYBIND11_MODULE(ngui, m) {
           res["max"] = MoveToNumpyArray(max);
           res["real"] = res_real;
           res["imag"] = res_imag;
+          task_manager = tm;
           return res;
       },py::call_guard<py::gil_scoped_release>());
   m.def("GetValues", [] (shared_ptr<ngfem::CoefficientFunction> cf, shared_ptr<ngcomp::MeshAccess> ma, VorB vb, int subdivision, int order) {
+            auto tm = task_manager;
+            task_manager = nullptr;
             LocalHeap lh(10000000, "GetValues");
             int dim = ma->GetDimension();
             if(vb==BND) dim-=1;
@@ -568,6 +573,7 @@ PYBIND11_MODULE(ngui, m) {
           res["min"] = MoveToNumpyArray(min);
           res["max"] = MoveToNumpyArray(max);
           return res;
+          task_manager = tm;
       },py::call_guard<py::gil_scoped_release>());
 
     m.def("GetMeshData2", [] (shared_ptr<ngcomp::MeshAccess> ma) {
