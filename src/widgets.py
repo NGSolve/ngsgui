@@ -118,9 +118,10 @@ class OptionWidgets(QtCore.QObject):
 
     @inmain_decorator(True)
     def update(self):
-        for group in self.groups:
-            is_visible = lambda w: not w._hidden if hasattr(w,"_hidden") else True
-            group.setVisible(any((is_visible(w) for w in group._widgets)))
+        if self.parent() != None:
+            for group in self.groups:
+                is_visible = lambda w: not w._hidden if hasattr(w,"_hidden") else True
+                group.setVisible(any((is_visible(w) for w in group._widgets)))
 
 class QColorButton(QtWidgets.QPushButton):
     '''
