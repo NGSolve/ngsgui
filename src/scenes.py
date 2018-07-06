@@ -59,6 +59,7 @@ name : str = type(self).__name__ + scene_counter
     def initGL(self):
         """Called once after the scene is created and initializes all OpenGL objects."""
         self._gl_initialized = True
+        self._vao = VertexArray()
 
     @inmain_decorator(True)
     def update(self):
@@ -157,7 +158,7 @@ class BaseMeshScene(BaseScene):
     def _createParameters(self):
         super()._createParameters()
         if self.deformation != None:
-            self.deformation_values = None
+            self._deformation_values = None
             scale_par = settings.ValueParameter(name="DeformationScale", label="Scale",
                     default_value=1.0, min_value = 0.0, max_value = 1e99, step=0.1)
             sd_par = settings.ValueParameter(name="DeformationSubdivision", label="Subdivision",
@@ -173,15 +174,16 @@ class BaseMeshScene(BaseScene):
     def initGL(self):
         super().initGL()
         if self.deformation:
-            self.deformation_values = Texture(GL_TEXTURE_BUFFER, self.deformation)
+            self._deformation_values = { 'real':{} }
 
     @inmain_decorator(True)
     def update(self):
         super().update()
-        self.mesh_data = getOpenGLData(self.mesh)
-        if self.deformation:
-            vb = ngsolve.BND if self.mesh.dim==3 else ngsolve.VOL
-            self.deformation_values.store(ngui.GetValues(self.deformation, self.mesh, vb, 2**self.getDeformationSubdivision()-1, self.getDeformationOrder())['real'])
+        with self._vao:
+            self.mesh_data = getOpenGLData(self.mesh)
+            if self.deformation:
+                vb = ngsolve.BND if self.mesh.dim==3 else ngsolve.VOL
+                self._getValues2(vb, vals=self._deformation_values, sd=self.getDeformationSubdivision(), order=self.getDeformationOrder())
 
     def __getstate__(self):
         super_state = super().__getstate__()
@@ -270,70 +272,63 @@ class OverlayScene(BaseScene):
 
     def initGL(self):
         super().initGL()
+        with self._vao:
+            self.text_renderer = TextRenderer()
+            self.cross_points = ArrayBuffer()
+            self.program = getProgram('cross.vert','cross.frag')
 
-        self.text_renderer = TextRenderer()
-
-        self.vao = VertexArray()
-        self.cross_points = ArrayBuffer()
-
-        self.program = getProgram('cross.vert','cross.frag')
-
-        self.vao.unbind()
 
     def render(self, settings):
         if not self.active:
             return
-
         self.update()
-        glUseProgram(self.program.id)
-        self.vao.bind()
+        with self._vao:
+            glUseProgram(self.program.id)
 
-        glDisable(GL_DEPTH_TEST)
-        if self.getShowCross():
-            model, view, projection = settings.model, settings.view, settings.projection
-            mvp = glmath.Translate(-1+0.15/settings.ratio,-0.85,0)*projection*view*glmath.Translate(0,0,-5)*settings.rotmat
+            glDisable(GL_DEPTH_TEST)
+            if self.getShowCross():
+                model, view, projection = settings.model, settings.view, settings.projection
+                mvp = glmath.Translate(-1+0.15/settings.ratio,-0.85,0)*projection*view*glmath.Translate(0,0,-5)*settings.rotmat
 
-            self.program.uniforms.set('MVP',mvp)
-            self.program.attributes.bind('pos', self.cross_points)
-            coords = glmath.Identity()
-            for i in range(3):
-                for j in range(3):
-                    coords[i,j] = self.cross_shift+int(i==j)*self.cross_scale*1.2
-            coords[3,:] = 1.0
-            coords = mvp*coords
-            for i in range(4):
-                for j in range(4):
-                    coords[i,j] = coords[i,j]/coords[3,j]
+                self.program.uniforms.set('MVP',mvp)
+                self.program.attributes.bind('pos', self.cross_points)
+                coords = glmath.Identity()
+                for i in range(3):
+                    for j in range(3):
+                        coords[i,j] = self.cross_shift+int(i==j)*self.cross_scale*1.2
+                coords[3,:] = 1.0
+                coords = mvp*coords
+                for i in range(4):
+                    for j in range(4):
+                        coords[i,j] = coords[i,j]/coords[3,j]
 
-            glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
-            glDrawArrays(GL_LINES, 0, 6)
-            for i in range(3):
-                self.text_renderer.draw(settings, "xyz"[i], coords[0:3,i], alignment=QtCore.Qt.AlignCenter|QtCore.Qt.AlignVCenter)
-        if self.getShowVersion():
-            self.text_renderer.draw(settings, "NGSolve " + ngsolve.__version__, [0.99,-0.99,0], alignment=QtCore.Qt.AlignRight|QtCore.Qt.AlignBottom)
+                glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
+                glDrawArrays(GL_LINES, 0, 6)
+                for i in range(3):
+                    self.text_renderer.draw(settings, "xyz"[i], coords[0:3,i], alignment=QtCore.Qt.AlignCenter|QtCore.Qt.AlignVCenter)
+            if self.getShowVersion():
+                self.text_renderer.draw(settings, "NGSolve " + ngsolve.__version__, [0.99,-0.99,0], alignment=QtCore.Qt.AlignRight|QtCore.Qt.AlignBottom)
 
-        if self.getShowColorBar():
-            self.vao.bind()
-            prog = getProgram('colorbar.vert','colorbar.frag')
-            uniforms = prog.uniforms
-            x0,y0 = -0.6, 0.82
-            dx,dy = 1.2, 0.03
-            uniforms.set('x0', x0)
-            uniforms.set('dx', dx)
-            uniforms.set('y0', y0)
-            uniforms.set('dy', dy)
+            if self.getShowColorBar():
+                prog = getProgram('colorbar.vert','colorbar.frag')
+                uniforms = prog.uniforms
+                x0,y0 = -0.6, 0.82
+                dx,dy = 1.2, 0.03
+                uniforms.set('x0', x0)
+                uniforms.set('dx', dx)
+                uniforms.set('y0', y0)
+                uniforms.set('dy', dy)
 
-            glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
-            glDrawArrays(GL_TRIANGLES, 0, 6)
-            cmin = settings.colormap_min
-            cmax = settings.colormap_max
-            for i in range(5):
-                x = x0+i*dx/4
-                val = cmin + i*(cmax-cmin)/4
-                self.text_renderer.draw(settings, '{:.2g}'.format(val).replace("e+", "e"), [x,y0-0.03,0], alignment=QtCore.Qt.AlignCenter|QtCore.Qt.AlignTop)
+                glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
+                glDrawArrays(GL_TRIANGLES, 0, 6)
+                cmin = settings.colormap_min
+                cmax = settings.colormap_max
+                for i in range(5):
+                    x = x0+i*dx/4
+                    val = cmin + i*(cmax-cmin)/4
+                    self.text_renderer.draw(settings, '{:.2g}'.format(val).replace("e+", "e"), [x,y0-0.03,0], alignment=QtCore.Qt.AlignCenter|QtCore.Qt.AlignTop)
 
-        glEnable(GL_DEPTH_TEST)
-        self.vao.unbind()
+            glEnable(GL_DEPTH_TEST)
 
     @inmain_decorator(True)
     def update(self):
@@ -439,18 +434,17 @@ class MeshScene(BaseMeshScene):
 
     def initGL(self):
         super().initGL()
+        with self._vao:
+            self.tex_vol_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
+            if self.mesh.dim > 2:
+                self.tex_vol_colors.store(self.getMaterialColors(), data_format=GL_UNSIGNED_BYTE)
+            self.tex_surf_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
+            if self.mesh.dim > 1:
+                self.tex_surf_colors.store(self.getSurfaceColors(), data_format=GL_UNSIGNED_BYTE)
+            self.tex_edge_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
+            self.tex_edge_colors.store(self.getEdgeColors(), data_format=GL_UNSIGNED_BYTE)
 
-        self.vao = VertexArray()
-        self.tex_vol_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
-        if self.mesh.dim > 2:
-            self.tex_vol_colors.store(self.getMaterialColors(), data_format=GL_UNSIGNED_BYTE)
-        self.tex_surf_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
-        if self.mesh.dim > 1:
-            self.tex_surf_colors.store(self.getSurfaceColors(), data_format=GL_UNSIGNED_BYTE)
-        self.tex_edge_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
-        self.tex_edge_colors.store(self.getEdgeColors(), data_format=GL_UNSIGNED_BYTE)
-
-        self.text_renderer = TextRenderer()
+            self.text_renderer = TextRenderer()
 
 
     def _render1DElements(self, settings, elements):
@@ -492,7 +486,6 @@ class MeshScene(BaseMeshScene):
             glDrawArrays(GL_LINES, 0, 2*len(elements.data)//elements.size)
 
     def renderEdges(self, settings):
-        self.vao.bind()
         els = []
         if self.mesh.dim > 2 and self.getShowEdges():
             for els in self.mesh_data.new_els["edges"]:
@@ -509,10 +502,8 @@ class MeshScene(BaseMeshScene):
             for els in self.mesh_data.new_els["periodic"]:
                 self._render1DElements(settings, els);
 
-        self.vao.unbind()
 
     def _setSurfaceUniforms(self, settings, prog):
-        self.vao.bind()
         uniforms = prog.uniforms
 
         glActiveTexture(GL_TEXTURE0)
@@ -598,7 +589,6 @@ class MeshScene(BaseMeshScene):
         glDisable(offset_mode)
 
     def renderSurface(self, settings):
-        self.vao.bind()
         els = []
         if self.mesh.dim > 1:
             vb = ngsolve.VOL if self.mesh.dim==2 else ngsolve.BND
@@ -608,13 +598,11 @@ class MeshScene(BaseMeshScene):
                 if self.getShowWireframe():
                     self._render2DElements(settings, els, True);
 
-        self.vao.unbind()
 
     def renderElements(self, settings):
         if self.mesh.dim < 3 or not self.getShowElements():
             return
         prog = getProgram('filter_elements.vert', 'tess.tesc', 'tess.tese', 'mesh.geom', 'mesh.frag', params=settings)
-        self.vao.bind()
         uniforms = prog.uniforms
 
         glActiveTexture(GL_TEXTURE0)
@@ -651,11 +639,9 @@ class MeshScene(BaseMeshScene):
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
         glPatchParameteri(GL_PATCH_VERTICES, 1)
         glDrawArrays(GL_PATCHES, 0, self.mesh.ne)
-        self.vao.unbind()
 
     def renderNumbers(self, settings):
         prog = getProgram('filter_elements.vert', 'numbers.geom', 'font.frag', params=settings)
-        self.vao.bind()
         uniforms = prog.uniforms
 
         viewport = glGetIntegerv( GL_VIEWPORT )
@@ -708,7 +694,6 @@ class MeshScene(BaseMeshScene):
             glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
             glPolygonOffset (0,0)
             glDrawArrays(GL_POINTS, 0, self.mesh.ne)
-        self.vao.unbind()
 
 
 
@@ -719,10 +704,11 @@ class MeshScene(BaseMeshScene):
     def render(self, settings):
         if not self.active:
             return
-        self.renderEdges(settings)
-        self.renderSurface(settings)
-        self.renderNumbers(settings)
-        self.renderElements(settings)
+        with self._vao:
+            self.renderEdges(settings)
+            self.renderSurface(settings)
+            self.renderNumbers(settings)
+            self.renderElements(settings)
 
     @inmain_decorator(True)
     def _createQtWidget(self):
@@ -740,7 +726,6 @@ class SolutionScene(BaseMeshScene):
                  order=2, gradient=None, iso_surface=None, *args, **kwargs):
         self.cf = cf
         self.iso_surface = iso_surface or cf
-        self.vao = None
         self.values = {}
         self.__initial_values = {"Order" : order,
                                  "ColorMapMin" : float(min),
@@ -882,71 +867,35 @@ class SolutionScene(BaseMeshScene):
         self.iso_surface = state[2]
         self.values = {}
         super().__setstate__(state[0])
-        self.vao = None
 
     def initGL(self):
         super().initGL()
 
         formats = [None, GL_R32F, GL_RG32F, GL_RGB32F, GL_RGBA32F];
-        self.iso_values = Texture(GL_TEXTURE_BUFFER, formats[self.iso_surface.dim])
-        self.volume_values = Texture(GL_TEXTURE_BUFFER, formats[self.cf.dim])
-        self.volume_values_imag = Texture(GL_TEXTURE_BUFFER, formats[self.cf.dim])
-        self.surface_values = Texture(GL_TEXTURE_BUFFER, formats[self.cf.dim])
-        self.surface_values_imag = Texture(GL_TEXTURE_BUFFER, formats[self.cf.dim])
 
         self.filter_buffer = ArrayBuffer()
+        self.filter_buffer.bind()
+        glBufferData(GL_ARRAY_BUFFER, 1000000, ctypes.c_void_p(), GL_STATIC_DRAW)
 
-        self._have_filter = False
-
-        # 1d solution (line)
-        self.line_vao = VertexArray()
-
-        # solution on surface mesh
-        self.surface_vao = VertexArray()
-
-        # solution on clipping plane
-        self.clipping_vao = VertexArray()
-
-        # iso-surface
-        self.iso_surface_vao = VertexArray()
-
-        # vectors (currently one per element)
-        self.vector_vao = VertexArray()
-
-    def _getValues(self, vb, setMinMax=True, cf = None):
-        cf = cf or self.cf
-#         with ngsolve.TaskManager():
-        if 1:
-            try:
-                values = ngui.GetValues(cf, self.mesh, vb, 2**self.getSubdivision()-1, self.getOrder())
-            except RuntimeError as e:
-                assert("Local Heap" in str(e))
-                self.setSubdivision(self.getSubdivision()-1)
-                print("Localheap overflow, cannot increase subdivision!")
-                return
-
-        if setMinMax:
-            self.min_values = values["min"]
-            self.max_values = values["max"]
-        return values
-
-    def _getValues2(self, vb, cf = None):
+    def _getValues2(self, vb, sd, order, cf = None, vals=None):
         formats = [None, GL_R32F, GL_RG32F, GL_RGB32F, GL_RGBA32F];
         cf = cf or self.cf
+        if vals==None:
+            vals = self.values
         if vb not in self.values:
             self.values[vb] = {'real':{}, 'imag':{}}
         try:
-            values = ngui.GetValues2(cf, self.mesh, vb, 2**self.getSubdivision()-1, self.getOrder())
-            v = self.values[vb]
-            v['min'] = values['min']
-            v['max'] = values['max']
+            values = ngui.GetValues2(cf, self.mesh, vb, 2**sd-1, order)
+            vals = self.values[vb]
+            vals['min'] = values['min']
+            vals['max'] = values['max']
             comps = ['real']
             if cf.is_complex: comps.append('imag')
             for comp in comps:
                 for et in values[comp]:
-                    if not et in v[comp]:
-                        v[comp][et] = Texture(GL_TEXTURE_BUFFER, formats[cf.dim])
-                    v[comp][et].store(values[comp][et])
+                    if not et in vals[comp]:
+                        vals[comp][et] = Texture(GL_TEXTURE_BUFFER, formats[cf.dim])
+                    vals[comp][et].store(values[comp][et])
 
         except RuntimeError as e:
             assert("Local Heap" in str(e))
@@ -957,46 +906,10 @@ class SolutionScene(BaseMeshScene):
     @inmain_decorator(True)
     def update(self):
         super().update()
-        self._have_filter = False
-        self.filter_buffer.bind()
-        glBufferData(GL_ARRAY_BUFFER, 1000000, ctypes.c_void_p(), GL_STATIC_DRAW)
-        if self.mesh.dim==1:
-            try:
-                values = self._getValues(ngsolve.VOL)
-                if values is None:
-                    return
-                self.surface_values.store(values["real"])
-                if self.cf.is_complex:
-                    self.surface_values_imag.store(values["imag"])
-            except Exception as e:
-                print("Cannot evaluate given function on 1d elements"+e)
-        if self.mesh.dim==2:
-            try:
-                values = self._getValues(ngsolve.VOL)
-                self._getValues2(ngsolve.VOL)
-                if values is None:
-                    return
-                self.surface_values.store(values["real"])
-                if self.cf.is_complex:
-                    self.surface_values_imag.store(values["imag"])
-            except Exception as e:
-                raise e
-                print("Cannot evaluate given function on surface elements: "+str(e))
-                self.show_surface = False
-
+        self._getValues2(ngsolve.VOL, self.getSubdivision(), self.getOrder())
         if self.mesh.dim==3:
-            values = self._getValues(ngsolve.VOL)
-            vals = ngui.GetValues(self.iso_surface, self.mesh, ngsolve.VOL, 2**self.getSubdivision()-1, self.getOrder())
-            self.iso_values.store(vals['real'])
-            if values is None:
-                return
-            self.volume_values.store(values["real"])
-            if self.cf.is_complex:
-                self.volume_values_imag.store(values["imag"])
-
             try:
-                values = self._getValues(ngsolve.BND, False)
-                self._getValues2(ngsolve.BND)
+                self._getValues2(ngsolve.BND, self.getSubdivision(), self.getOrder())
                 if values is None:
                     return
                 self.surface_values.store(values["real"])
@@ -1004,11 +917,10 @@ class SolutionScene(BaseMeshScene):
                     self.surface_values_imag.store(values["imag"])
             except Exception as e:
                 print("Cannot evaluate given function on surface elements"+str(e))
-                self.show_surface = False
+
 
     def _filterElements(self, settings, filter_type):
         glEnable(GL_RASTERIZER_DISCARD)
-        self.surface_vao.bind()
         prog = getProgram('filter_elements.vert', 'filter_elements.geom', feedback=['element'], ORDER=self.getOrder(), params=settings)
         uniforms = prog.uniforms
         glActiveTexture(GL_TEXTURE0)
@@ -1047,12 +959,8 @@ class SolutionScene(BaseMeshScene):
 
         glEndTransformFeedback()
         glDisable(GL_RASTERIZER_DISCARD)
-        self.surface_vao.unbind()
 
     def render1D(self, settings):
-
-        # surface mesh
-        self.line_vao.bind()
         prog = getProgram('solution1d.vert', 'solution1d.frag', ORDER=self.getOrder())
 
         uniforms = prog.uniforms
@@ -1082,10 +990,8 @@ class SolutionScene(BaseMeshScene):
         glEnable(GL_POLYGON_OFFSET_FILL)
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         glDrawArrays(GL_LINES, 0, self.mesh_data.nedge_elements*(2*(2**self.getSubdivision()*self.getOrder()+1)-2))
-        self.line_vao.bind()
 
     def renderSurface(self, settings):
-        self.surface_vao.bind()
         vb = ngsolve.VOL if self.mesh.dim==2 else ngsolve.BND
         use_deformation = self.getDeformation()
 
@@ -1160,11 +1066,9 @@ class SolutionScene(BaseMeshScene):
                 glDrawArrays(GL_PATCHES, 0, elements.nverts*len(elements.data)//elements.size)
             else:
                 glDrawArrays(GL_TRIANGLES, 0, 3*len(elements.data)//elements.size)
-        self.surface_vao.unbind()
 
     def renderIsoSurface(self, settings):
         self._filterElements(settings, 1)
-        self.iso_surface_vao.bind()
         model, view, projection = settings.model, settings.view, settings.projection
         prog = getProgram('mesh.vert', 'isosurface.geom', 'solution.frag', ORDER=self.getOrder())
 
@@ -1213,12 +1117,10 @@ class SolutionScene(BaseMeshScene):
         instances = (self.getOrder()*(2**self.getSubdivision()))**3
         prog.attributes.bind('element', self.filter_buffer)
         glDrawTransformFeedbackInstanced(GL_POINTS, self.filter_feedback, instances)
-        self.iso_surface_vao.unbind()
 
     def renderVectors(self, settings):
         model, view, projection = settings.model, settings.view, settings.projection
         prog = getProgram('mesh.vert', 'vector.geom', 'solution.frag', ORDER=self.getOrder())
-        self.vector_vao.bind()
 
         uniforms = prog.uniforms
         uniforms.set('P',projection)
@@ -1252,13 +1154,11 @@ class SolutionScene(BaseMeshScene):
 
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         glDrawArrays(GL_POINTS, 0, self.mesh.ne)
-        self.vector_vao.unbind()
 
     def renderClippingPlane(self, settings):
         self._filterElements(settings, 0)
         model, view, projection = settings.model, settings.view, settings.projection
         prog = getProgram('mesh.vert', 'clipping.geom', 'solution.frag', ORDER=self.getOrder())
-        self.clipping_vao.bind()
 
         uniforms = prog.uniforms
         uniforms.set('P',projection)
@@ -1309,38 +1209,38 @@ class SolutionScene(BaseMeshScene):
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         prog.attributes.bind('element', self.filter_buffer)
         glDrawTransformFeedback(GL_POINTS, self.filter_feedback)
-        self.clipping_vao.unbind()
 
 
     def render(self, settings):
         if not self.active:
             return
 
-        if self.getAutoscale():
-            comp = 0 if self.cf.dim==1 else self.getComponent()
-            settings.colormap_min = self.min_values[comp]
-            settings.colormap_max = self.max_values[comp]
-        else:
-            settings.colormap_min = self.getColorMapMin()
-            settings.colormap_max = self.getColorMapMax()
-        settings.colormap_linear = self.getColorMapLinear()
+        with self._vao:
+            if self.getAutoscale():
+                comp = 0 if self.cf.dim==1 else self.getComponent()
+                settings.colormap_min = self.values[ngsolve.VOL]['min'][comp]
+                settings.colormap_max = self.values[ngsolve.VOL]['max'][comp]
+            else:
+                settings.colormap_min = self.getColorMapMin()
+                settings.colormap_max = self.getColorMapMax()
+            settings.colormap_linear = self.getColorMapLinear()
 
-        if self.mesh.dim==1:
-            self.render1D(settings)
+            if self.mesh.dim==1:
+                self.render1D(settings)
 
-        if self.mesh.dim > 1:
-            if self.getShowSurface():
-                self.renderSurface(settings)
+            if self.mesh.dim > 1:
+                if self.getShowSurface():
+                    self.renderSurface(settings)
 
-        if self.mesh.dim > 2:
-            if self.getShowIsoSurface():
-                self.renderIsoSurface(settings)
-            if self.getShowClippingPlane():
-                self.renderClippingPlane(settings)
+            if self.mesh.dim > 2:
+                if self.getShowIsoSurface():
+                    self.renderIsoSurface(settings)
+                if self.getShowClippingPlane():
+                    self.renderClippingPlane(settings)
 
-        if self.cf.dim > 1:
-            if self.getShowVectors():
-                self.renderVectors(settings)
+            if self.cf.dim > 1:
+                if self.getShowVectors():
+                    self.renderVectors(settings)
 
 def _createCFScene(cf, mesh, *args, **kwargs):
     return SolutionScene(cf, mesh, *args,
@@ -1369,7 +1269,6 @@ class GeometryScene(BaseScene):
         self._geo_data.initGL()
         self._tex_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
         self._tex_colors.store(self.getSurfaceColors(), data_format=GL_UNSIGNED_BYTE)
-        self.vao = VertexArray()
 
     def __getstate__(self):
         return (super().__getstate__(), self.geo)
@@ -1402,37 +1301,36 @@ class GeometryScene(BaseScene):
     def render(self, settings):
         if not self.active:
             return
-        prog = getProgram('geo.vert', 'mesh.frag')
-        self.vao.bind()
-        model, view, projection = settings.model, settings.view, settings.projection
-        uniforms = prog.uniforms
-        uniforms.set('P', projection)
-        uniforms.set('MV', view*model)
+        with self._vao:
+            prog = getProgram('geo.vert', 'mesh.frag')
+            model, view, projection = settings.model, settings.view, settings.projection
+            uniforms = prog.uniforms
+            uniforms.set('P', projection)
+            uniforms.set('MV', view*model)
 
-        glActiveTexture(GL_TEXTURE0)
-        self._geo_data.vertices.bind()
-        uniforms.set('vertices', 0)
+            glActiveTexture(GL_TEXTURE0)
+            self._geo_data.vertices.bind()
+            uniforms.set('vertices', 0)
 
-        glActiveTexture(GL_TEXTURE1)
-        self._geo_data.triangles.bind()
-        uniforms.set('triangles',1)
+            glActiveTexture(GL_TEXTURE1)
+            self._geo_data.triangles.bind()
+            uniforms.set('triangles',1)
 
-        glActiveTexture(GL_TEXTURE2)
-        self._geo_data.normals.bind()
-        uniforms.set('normals',2)
+            glActiveTexture(GL_TEXTURE2)
+            self._geo_data.normals.bind()
+            uniforms.set('normals',2)
 
-        glActiveTexture(GL_TEXTURE3)
-        self._tex_colors.bind()
-        uniforms.set('colors',3)
+            glActiveTexture(GL_TEXTURE3)
+            self._tex_colors.bind()
+            uniforms.set('colors',3)
 
-        uniforms.set('wireframe',False)
-        uniforms.set('clipping_plane', settings.clipping_plane)
-        uniforms.set('do_clipping', True)
-        uniforms.set('light_ambient', 0.3)
-        uniforms.set('light_diffuse', 0.7)
-        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL )
-        glDrawArrays(GL_TRIANGLES, 0, self._geo_data.npoints)
-        self.vao.unbind()
+            uniforms.set('wireframe',False)
+            uniforms.set('clipping_plane', settings.clipping_plane)
+            uniforms.set('do_clipping', True)
+            uniforms.set('light_ambient', 0.3)
+            uniforms.set('light_diffuse', 0.7)
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL )
+            glDrawArrays(GL_TRIANGLES, 0, self._geo_data.npoints)
 
 class GeometryScene2D(BaseScene):
     def __init__(self, geo, *args, **kwargs):
@@ -1445,7 +1343,6 @@ class GeometryScene2D(BaseScene):
     @inmain_decorator(True)
     def initGL(self):
         super().initGL()
-        self.vao = VertexArray()
         self.window.glWidget._rotation_enabled = False
         self.vertices = ArrayBuffer()
         self.domains = ArrayBuffer()
@@ -1482,10 +1379,9 @@ class GeometryScene2D(BaseScene):
     def render(self, settings):
         if not self.active:
             return
-        self.vao.bind()
-        self.__renderGeometry(settings)
-        self.__renderNumbers(settings)
-        self.vao.unbind()
+        with self._vao:
+            self.__renderGeometry(settings)
+            self.__renderNumbers(settings)
 
     def __renderNumbers(self, settings):
         eps = math.sqrt(sum([(self._xmax[i]-self._xmin[i])**2 for i in range(2)])) / 500

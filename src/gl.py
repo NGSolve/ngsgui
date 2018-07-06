@@ -440,19 +440,21 @@ getProgram._settings = QtCore.QSettings('ngsolve','shaders')
 class VertexArray(GLObject):
     def __init__(self):
         self._id = glGenVertexArrays(1)
-        self.bind()
 
     def __enter__(self):
-        self.bind()
+        self.__prev_id = glGetInteger(GL_VERTEX_ARRAY_BINDING)
+        glBindVertexArray(self.id)
+        return self
 
-    def __exit__(self):
-        self.unbind()
+    def __exit__(self, *args):
+        glBindVertexArray(self.__prev_id)
 
     def bind(self):
         glBindVertexArray(self.id)
 
     def unbind(self):
         glBindVertexArray(0)
+
 
 class ArrayBuffer(GLObject):
     def __init__(self, buffer_type=GL_ARRAY_BUFFER, usage=GL_STATIC_DRAW):
@@ -528,7 +530,6 @@ class Query(GLObject):
             ready = glGetQueryObjectiv(self.id,GL_QUERY_RESULT_AVAILABLE)
         self.value = glGetQueryObjectuiv(self.id, GL_QUERY_RESULT )
         glDeleteQueries( [self.id] )
-
 
 class TextRenderer:
     class Font:
