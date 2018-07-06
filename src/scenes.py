@@ -1085,6 +1085,16 @@ class SolutionScene(BaseMeshScene):
         self.surface_vao.bind()
         vb = ngsolve.VOL if self.mesh.dim==2 else ngsolve.BND
         use_deformation = self.getDeformation()
+
+        if self.cf.dim > 1:
+            comp = self.getComponent()
+        else:
+            comp = 0
+
+        if self.getAutoscale():
+            settings.colormap_min = self.values[vb]['min'][comp]
+            settings.colormap_max = self.values[vb]['max'][comp]
+
         for elements in self.mesh_data.new_els[vb]:
             shader = ['mesh_simple.vert', 'solution_simple.frag']
             use_tessellation = use_deformation or elements.curved
@@ -1123,10 +1133,7 @@ class SolutionScene(BaseMeshScene):
             self.values[vb]['real'][(elements.type, elements.curved)].bind()
             uniforms.set('coefficients', 2)
 
-            if self.cf.dim > 1:
-                uniforms.set('component', self.getComponent())
-            else:
-                uniforms.set('component', 0)
+            uniforms.set('component', comp)
 
             uniforms.set('is_complex', self.cf.is_complex)
             if self.cf.is_complex:
