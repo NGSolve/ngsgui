@@ -353,6 +353,7 @@ def getProgram(*shader_files, feedback=[], elements=None, params=None, **define_
     defines = '\n'
     if elements != None:
         defines += """
+#define ELEMENT_DIM {DIM}
 #define ELEMENT_TYPE {ELEMENT_TYPE}
 #define {ELEMENT_TYPE_NAME}
 #define ELEMENT_SIZE {ELEMENT_SIZE}

@@ -503,25 +503,6 @@ class MeshScene(BaseMeshScene):
                 self._render1DElements(settings, els);
 
 
-    def _setSurfaceUniforms(self, settings, prog):
-        uniforms = prog.uniforms
-
-        glActiveTexture(GL_TEXTURE0)
-        self.mesh_data.vertices.bind()
-        uniforms.set('mesh.vertices', 0)
-        uniforms.set('clipping_plane', settings.clipping_plane)
-        uniforms.set('do_clipping', True);
-        uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
-        uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
-        uniforms.set('mesh.surface_elements_offset', self.mesh_data.surface_elements_offset)
-        uniforms.set('mesh.dim', 2);
-        if self.mesh.dim > 2:
-            uniforms.set('shrink_elements', self.getShrink())
-        uniforms.set('clip_whole_elements', False)
-        glActiveTexture(GL_TEXTURE3)
-        self.tex_surf_colors.bind()
-        uniforms.set('colors', 3)
-
     def _render2DElements(self, settings, elements, wireframe):
         use_deformation = self.getDeformation()
         use_tessellation = elements.curved or use_deformation
