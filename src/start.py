@@ -10,16 +10,14 @@ import netgen.meshing
 def Draw(obj, *args, tab=None, **kwargs):
     """Draw a Mesh or a CoefficientFunction, this function is overridden by
     the new gui and returns the drawn scene."""
-    for _type, creator in G.GUI.sceneCreators:
-        if isinstance(obj,_type):
-            scene = creator(obj, *args, **kwargs)
-            break
+    for t in type(obj).__mro__:
+        if t in G.GUI.sceneCreators:
+            scene = creator(obj,*args,**kwargs)
     else:
-        scene = None
-    if scene:
-        G.gui.draw(scene, tab=tab)
-        return scene
-    print("Cannot draw object of type ",type(obj))
+        print("Cannot draw object of type ",type(obj))
+        return
+    G.gui.draw(scene, tab=tab)
+    return scene
 
 def Redraw(blocking=True,**kwargs):
     if blocking:
