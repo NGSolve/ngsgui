@@ -327,21 +327,21 @@ class Program(GLObject):
 
                 glTransformFeedbackVaryings(self.id, len(feedback), buff, GL_INTERLEAVED_ATTRIBS)
             glLinkProgram(self.id)
-#             if glGetProgramiv( self.id, GL_LINK_STATUS ) != GL_TRUE:
-#                 log = glGetProgramInfoLog( self.id )
-#                 # don't throw on following error message, since mesa emits it for valid shader programs
-#                 if log != b'active samplers with a different type refer to the same texture image unit':
-#                     raise RuntimeError( log )
+            if glGetProgramiv( self.id, GL_LINK_STATUS ) != GL_TRUE:
+                log = glGetProgramInfoLog( self.id )
+                # don't throw on following error message, since mesa emits it for valid shader programs
+                if log != b'active samplers with a different type refer to the same texture image unit':
+                    raise RuntimeError( log )
 
-#         glValidateProgram( self.id )
-#         if glGetProgramiv( self.id, GL_VALIDATE_STATUS ) != GL_TRUE:
-#             log = glGetProgramInfoLog( self.id )
-#             # don't throw on following error message, since mesa emits it for valid shader programs
-#             if log != b'active samplers with a different type refer to the same texture image unit':
-#                 raise RuntimeError( log )
+        glValidateProgram( self.id )
+        if glGetProgramiv( self.id, GL_VALIDATE_STATUS ) != GL_TRUE:
+            log = glGetProgramInfoLog( self.id )
+            # don't throw on following error message, since mesa emits it for valid shader programs
+            if log != b'active samplers with a different type refer to the same texture image unit':
+                raise RuntimeError( log )
 
-#         if glGetProgramiv(self.id, GL_LINK_STATUS) != GL_TRUE:
-#                 raise RuntimeError(glGetProgramInfoLog(self.id))
+        if glGetProgramiv(self.id, GL_LINK_STATUS) != GL_TRUE:
+                raise RuntimeError(glGetProgramInfoLog(self.id))
 
         self.uniforms = Program.Uniforms(self.id)
         self.attributes = Program.Attributes(self.id)
@@ -373,7 +373,6 @@ def getProgram(*shader_files, feedback=[], elements=None, params=None, **define_
             if type(flag)==bool:
                 flag = int(flag)
             defines += "#define {} {}\n".format(d, str(flag))
-            
     key = str(tuple([tuple(sorted(shader_files))]+feedback+[defines]))
     key = key.replace('(','').replace(')','').replace(',','-').replace("'","").replace(' ','')
 

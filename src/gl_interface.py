@@ -61,17 +61,17 @@ class MeshData(DataContainer):
     def update(self):
         meshdata = ngui.GetMeshData(self.obj())
 
-        self.vertices.store(meshdata['vertices'])
-        self.elements.store(meshdata["elements"])
-        self.nedge_elements = meshdata["n_edge_elements"]
-        self.nedges = meshdata["n_edges"]
-        self.nperiodic_vertices = meshdata["n_periodic_vertices"]
-
-        self.edges_offset = meshdata["edges_offset"]
-        self.periodic_vertices_offset = meshdata["periodic_vertices_offset"]
-        self.nsurface_elements = meshdata["n_surface_elements"]
-        self.volume_elements_offset = meshdata["volume_elements_offset"]
-        self.surface_elements_offset = meshdata["surface_elements_offset"]
+#         self.vertices.store(meshdata['vertices'])
+#         self.elements.store(meshdata["elements"])
+#         self.nedge_elements = meshdata["n_edge_elements"]
+#         self.nedges = meshdata["n_edges"]
+#         self.nperiodic_vertices = meshdata["n_periodic_vertices"]
+# 
+#         self.edges_offset = meshdata["edges_offset"]
+#         self.periodic_vertices_offset = meshdata["periodic_vertices_offset"]
+#         self.nsurface_elements = meshdata["n_surface_elements"]
+#         self.volume_elements_offset = meshdata["volume_elements_offset"]
+#         self.surface_elements_offset = meshdata["surface_elements_offset"]
 
         self.min = meshdata['min']
         self.max = meshdata['max']

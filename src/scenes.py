@@ -458,9 +458,8 @@ class MeshScene(BaseMeshScene):
         uniforms.set('mesh.vertices', 0)
 
         glActiveTexture(GL_TEXTURE1)
-        self.mesh_data.elements.bind()
-        uniforms.set('mesh.elements', 1)
         elements.tex.bind()
+        uniforms.set('mesh.elements', 1)
 
         glActiveTexture(GL_TEXTURE3)
         self.tex_edge_colors.bind()
@@ -486,20 +485,6 @@ class MeshScene(BaseMeshScene):
 
     def renderEdges(self, settings):
         els = []
-        if self.mesh.dim > 2 and self.getShowEdges():
-            for els in self.mesh_data.new_els["edges"]:
-                self._render1DElements(settings, els);
-        if self.getShowEdgeElements():
-            vb = [None, ngsolve.VOL, ngsolve.BND, ngsolve.BBND][self.mesh.dim]
-            for els in self.mesh_data.new_els[vb]:
-                if vb in [ngsolve.BBND, ngsolve.BND]:
-                    # glLineWidth(3) # TODO: replace with manually drawing quads (linewidth is not supported for OpenGL3.2
-                    self._render1DElements(settings, els);
-                    # glLineWidth(1)
-
-        if self.getShowPeriodicVertices():
-            for els in self.mesh_data.new_els["periodic"]:
-                self._render1DElements(settings, els);
 
 
     def _render2DElements(self, settings, elements, wireframe):
@@ -519,9 +504,8 @@ class MeshScene(BaseMeshScene):
         uniforms.set('mesh.vertices', 0)
 
         glActiveTexture(GL_TEXTURE1)
-        self.mesh_data.elements.bind()
-        uniforms.set('mesh.elements', 1)
         elements.tex.bind()
+        uniforms.set('mesh.elements', 1)
 
         if use_deformation:
             glActiveTexture(GL_TEXTURE4)
@@ -568,21 +552,11 @@ class MeshScene(BaseMeshScene):
             glDrawArrays(GL_TRIANGLES, 0, 3*len(elements.data)//elements.size)
         glDisable(offset_mode)
 
-    def renderSurface(self, settings):
-        els = []
-        if self.mesh.dim > 1:
-            vb = ngsolve.VOL if self.mesh.dim==2 else ngsolve.BND
-            for els in self.mesh_data.new_els[vb]:
-                if self.getShowSurface():
-                    self._render2DElements(settings, els, False);
-                if self.getShowWireframe():
-                    self._render2DElements(settings, els, True);
+    def _render3DElements(self, settings, elements):
+        use_deformation = self.getDeformation()
+        shader = ['mesh_simple.vert', 'mesh_simple.frag']
+        prog = getProgram(*shader, elements=elements, params=settings, DEFORMATION=0)
 
-
-    def renderElements(self, settings):
-        if self.mesh.dim < 3 or not self.getShowElements():
-            return
-        prog = getProgram('filter_elements.vert', 'tess.tesc', 'tess.tese', 'mesh.geom', 'mesh.frag', params=settings)
         uniforms = prog.uniforms
 
         glActiveTexture(GL_TEXTURE0)
@@ -590,35 +564,22 @@ class MeshScene(BaseMeshScene):
         uniforms.set('mesh.vertices', 0)
 
         glActiveTexture(GL_TEXTURE1)
-        self.mesh_data.elements.bind()
+        elements.tex.bind()
         uniforms.set('mesh.elements', 1)
 
-
         uniforms.set('do_clipping', True);
-        uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
-        uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
-        uniforms.set('mesh.surface_elements_offset', self.mesh_data.surface_elements_offset)
-        uniforms.set('mesh.dim', 2);
-        if self.mesh.dim > 2:
-            uniforms.set('shrink_elements', self.getShrink())
-        uniforms.set('clip_whole_elements', False)
-        glActiveTexture(GL_TEXTURE3)
-        self.tex_surf_colors.bind()
-        uniforms.set('colors', 3)
-
-
+        uniforms.set('shrink_elements', self.getShrink())
         uniforms.set('clip_whole_elements', True)
-        uniforms.set('light_ambient', 0.3)
-        uniforms.set('light_diffuse', 0.7)
-        uniforms.set('TessLevel', self.getGeomSubdivision())
-        uniforms.set('wireframe', False)
-        uniforms.set('mesh.dim', 3);
+
         glActiveTexture(GL_TEXTURE3)
         self.tex_vol_colors.bind()
         uniforms.set('colors', 3)
+
+        uniforms.set('light_ambient', 0.3)
+        uniforms.set('light_diffuse', 0.7)
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
-        glPatchParameteri(GL_PATCH_VERTICES, 1)
-        glDrawArrays(GL_PATCHES, 0, self.mesh.ne)
+        # todo: number of vertices per element, number of instances
+        glDrawArraysInstanced(GL_TRIANGLES, 0, 3*self.mesh.ne, 4)
 
     def renderNumbers(self, settings):
         prog = getProgram('filter_elements.vert', 'numbers.geom', 'font.frag', params=settings)
@@ -685,10 +646,37 @@ class MeshScene(BaseMeshScene):
         if not self.active:
             return
         with self._vao:
-            self.renderEdges(settings)
-            self.renderSurface(settings)
+            # 1D elements
+            if self.mesh.dim > 2 and self.getShowEdges():
+                for els in self.mesh_data.new_els["edges"]:
+                    self._render1DElements(settings, els);
+            if self.getShowEdgeElements():
+                vb = [None, ngsolve.VOL, ngsolve.BND, ngsolve.BBND][self.mesh.dim]
+                for els in self.mesh_data.new_els[vb]:
+                    if vb in [ngsolve.BBND, ngsolve.BND]:
+                        # glLineWidth(3) # TODO: replace with manually drawing quads (linewidth is not supported for OpenGL3.2
+                        self._render1DElements(settings, els);
+                        # glLineWidth(1)
+
+            if self.getShowPeriodicVertices():
+                for els in self.mesh_data.new_els["periodic"]:
+                    self._render1DElements(settings, els);
+
+            # 2D elements
+            if self.mesh.dim > 1:
+                vb = ngsolve.VOL if self.mesh.dim==2 else ngsolve.BND
+                for els in self.mesh_data.new_els[vb]:
+                    if self.getShowSurface():
+                        self._render2DElements(settings, els, False);
+                    if self.getShowWireframe():
+                        self._render2DElements(settings, els, True);
+
+            # 3D elements
+            if self.mesh.dim == 3 and self.getShowElements():
+                for elements in self.mesh_data.new_els[ngsolve.VOL]:
+                    self._render3DElements(settings, elements)
+
             self.renderNumbers(settings)
-            self.renderElements(settings)
 
     @inmain_decorator(True)
     def _createQtWidget(self):
@@ -1014,9 +1002,8 @@ class SolutionScene(BaseMeshScene):
             uniforms.set('mesh.vertices', 0)
 
             glActiveTexture(GL_TEXTURE1)
-            self.mesh_data.elements.bind()
-            uniforms.set('mesh.elements', 1)
             elements.tex.bind()
+            uniforms.set('mesh.elements', 1)
 
             glActiveTexture(GL_TEXTURE2)
             self.values[vb]['real'][(elements.type, elements.curved)].bind()
