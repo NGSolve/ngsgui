@@ -13,6 +13,8 @@ import sys, textwrap, inspect, re, pkgutil, ngsolve, pickle, pkg_resources
 from PySide2 import QtWidgets, QtCore, QtGui
 
 class Receiver(QtCore.QObject):
+    """Class responsible for piping the stdout to the internal output. Removes ansi escape characters.
+"""
     received = QtCore.Signal(str)
 
     def __init__(self,pipe, *args,**kwargs):
@@ -31,6 +33,8 @@ class Receiver(QtCore.QObject):
         self.kill = False
 
 class OutputBuffer(QtWidgets.QTextEdit):
+    """Textview where the stdoutput is piped into. Is not writable, so stdin is not piped (yet).
+"""
     def __init__(self,*args,**kwargs):
         super().__init__(*args,**kwargs)
         self.setReadOnly(True)
@@ -40,6 +44,9 @@ class OutputBuffer(QtWidgets.QTextEdit):
         self.insertPlainText(text)
 
 class SettingsToolBox(QtWidgets.QToolBox):
+    """Global Toolbox on the left hand side, independent of windows. This ToolBox can be used by plugins to
+to create Settings which are global to all windows.
+"""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.settings = []
@@ -75,6 +82,10 @@ def _dontCatchExceptions(gui, val):
     gui._dontCatchExceptions = val
 
 class GUI():
+    """Graphical user interface for NGSolve. This object is created when ngsolve is started and the ngsgui.gui.gui object is set to it. You can import it with:
+from ngsgui.gui import gui
+It can be used to manipulate any behaviour of the interface.
+"""
     # functions to modify the gui with flags. If the flag is not set, the function is called with False as argument
     flags = { "-noexec" : (_noexec, "Do not execute loaded Python file on startup"),
               "-fastmode" : (_fastmode, "Use fastmode for drawing large scenes faster"),
@@ -89,12 +100,12 @@ class GUI():
         ngui.SetLocale()
         self.multikernel_manager = MultiQtKernelManager()
         self._commonContext = glwindow.GLWidget()
-        self.createMenu()
-        self.createLayout()
+        self._createMenu()
+        self._createLayout()
         self.mainWidget.setWindowTitle("NGSolve")
-        self.crawlPlugins()
+        self._crawlPlugins()
 
-    def createMenu(self):
+    def _createMenu(self):
         self.menuBar = MenuBarWithDict()
         filemenu = self.menuBar.addMenu("&File")
         saveSolution = filemenu["&Save"].addAction("&Solution")
@@ -112,9 +123,10 @@ class GUI():
         newWindowAction.triggered.connect(lambda :self.window_tabber.make_window())
 
     def getScenesFromCurrentWindow(self):
+        """Get the list of the scenes of the currently active GLWindow"""
         return self.window_tabber.activeGLWindow.glWidget.scenes
 
-    def createLayout(self):
+    def _createLayout(self):
         self.mainWidget = QtWidgets.QWidget()
         menu_splitter = QtWidgets.QSplitter(parent=self.mainWidget)
         menu_splitter.setOrientation(QtCore.Qt.Vertical)
@@ -168,7 +180,7 @@ class GUI():
         addShortcut("Next Tab", "Ctrl+LeftArrow", lambda: switchTabWindow(-1))
         addShortcut("Previous Tab", "Ctrl+RightArrow", lambda: switchTabWindow(1))
 
-    def crawlPlugins(self):
+    def _crawlPlugins(self):
         for entry_point in pkg_resources.iter_entry_points(group="ngsgui.plugin",name=None):
             plugin = entry_point.load()
             plugin(self)
@@ -183,7 +195,7 @@ class GUI():
                 return
             GUI.file_loaders[ext](self, filename)
 
-    def parseFlags(self, flags):
+    def _parseFlags(self, flags):
         self._loadFiles = []
         for val in flags:
             if os.path.isfile(val):
@@ -202,6 +214,7 @@ class GUI():
                 _showHelp(self,True)
 
     def saveSolution(self):
+        """Opens a file dialog to save the current state of the GUI, including all drawn objects."""
         filename, filt = QtWidgets.QFileDialog.getSaveFileName(caption="Save Solution",
                                                                filter = "Solution Files (*.ngs)")
         if not filename[-4:] == ".ngs":
@@ -231,24 +244,28 @@ class GUI():
         self.window_tabber.activeGLWindow = self.window_tabber.widget(currentIndex)
 
     def loadSolution(self):
+        """Opens a file dialog to load a solution (*.ngs) file"""
         filename, filt = QtWidgets.QFileDialog.getOpenFileName(caption="Load Solution",
                                                                filter = "Solution Files (*.ngs)")
         self._loadSolutionFile(filename)
 
-    @inmain_decorator(wait_for_return=True)
     def draw(self, *args, **kwargs):
+        """Draw an object in the active GLWindow. The objects class must have a registered function/constructor (in GUI.sceneCreators) to create a scene from. Scenes, Meshes, (most) CoefficientFunctions, (most) GridFunctions and geometries can be drawn by default."""
         self.window_tabber.draw(*args,**kwargs)
 
     @inmain_decorator(wait_for_return=False)
     def redraw(self):
+        """Redraw non-blocking. This can create problems in the visualization if objects are drawn to fast after each other"""
         self.window_tabber.activeGLWindow.glWidget.updateScenes()
 
     @inmain_decorator(wait_for_return=True)
     def redraw_blocking(self):
+        """Draw blocking, this is the save option, but a bit slower than non-blocking redraw"""
         self.window_tabber.activeGLWindow.glWidget.updateScenes()
 
     @inmain_decorator(wait_for_return=True)
     def renderToImage(self, width, height, filename=None):
+        """Render the current active GLWindow into a file"""
         import copy
         import OpenGL.GL as GL
         from PySide2 import QtOpenGL
@@ -276,6 +293,7 @@ class GUI():
         return im
 
     def plot(self, *args, **kwargs):
+        """ Plot a matplotlib figure into a new Window"""
         self.window_tabber.plot(*args, **kwargs)
 
     @inmain_decorator(wait_for_return=True)
@@ -287,6 +305,7 @@ class GUI():
         return txt
 
     def loadPythonFile(self, filename):
+        """Load a Python file and execute it if gui.executeFileOnStartup is True"""
         editTab = code_editor.CodeEditor(filename=filename,gui=self,parent=self.window_tabber)
         pos = self.window_tabber.addTab(editTab,filename)
         editTab.windowTitleChanged.connect(lambda txt: self.window_tabber.setTabText(pos, txt))
@@ -294,7 +313,7 @@ class GUI():
             editTab.computation_started_at = 0
             editTab.run()
 
-    def run(self,do_after_run=lambda : None):
+    def _run(self,do_after_run=lambda : None):
         self.mainWidget.show()
         globs = inspect.stack()[1][0].f_globals
         self.console.pushVariables(globs)
@@ -327,6 +346,7 @@ class GUI():
         self.fastmode = fastmode
 
 class DummyObject:
+    """If code is not executed using ngsolve, then this dummy object allows to use the same code with a netgen or python3 call as well"""
     def __init__(self,*arg,**kwargs):
         pass
     def __getattr__(self,name):

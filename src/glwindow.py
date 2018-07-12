@@ -46,6 +46,7 @@ class ToolBoxItem(QtWidgets.QWidget):
         drag.start()
 
 class SceneToolBox(QtWidgets.QToolBox):
+    """Toolbox containing the settings for the drawn scene. This toolbox is connected to the GLWindow it is used with."""
     ic_visible = icon_path + "/visible.png"
     ic_hidden = icon_path + "/hidden.png"
     def __init__(self, window):
@@ -249,7 +250,7 @@ class GLWidget(QtOpenGL.QGLWidget):
     def __init__(self,shared=None, *args, **kwargs):
         f = QtOpenGL.QGLFormat()
         f.setVersion(3,2)
-#         f.setProfile(QtOpenGL.QGLFormat.CompatibilityProfile)
+        # f.setProfile(QtOpenGL.QGLFormat.CompatibilityProfile)
         f.setProfile(QtOpenGL.QGLFormat.CoreProfile)
         if _debug:
             f.setOption(QtGui.QSurfaceFormat.DebugContext)
