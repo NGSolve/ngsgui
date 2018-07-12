@@ -1,6 +1,6 @@
 #version 150 // 400 for subdivision with multiple invocations
 
-{include utils.inc}
+{include utilsnew.inc}
 
 uniform samplerBuffer coefficients;
 uniform bool clipping_plane_deformation;
@@ -30,7 +30,7 @@ uniform vec4 clipping_plane;
 
 void main() {
     outData.element = inData[0].element;
-    Element3d tet = getElement3d(mesh, inData[0].element);
+    ELEMENT_TYPE tet = getElement(mesh, inData[0].element);
     
     float values[4]; // = float[4](-colormap_max, -colormap_max, -colormap_max, -colormap_max);
     for (int i=0; i<4; i++) {

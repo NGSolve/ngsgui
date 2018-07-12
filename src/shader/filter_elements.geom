@@ -3,7 +3,7 @@
 layout(points) in;
 layout(points, max_vertices=1) out;
 
-{include utils.inc}
+{include utilsnew.inc}
 
 uniform Mesh mesh;
 uniform vec4 clipping_plane;
@@ -25,7 +25,7 @@ bool isCuttingClippingPlane() {
     float max_dist;
     float min_dist;
 
-    Element3d el = getElement3d(mesh, inData[0].element);
+    ELEMENT_TYPE el = getElement(mesh, inData[0].element);
     max_dist = dot(clipping_plane, vec4(el.pos[0], 1.0));
     min_dist = max_dist;
     for (int i=1; i<4; i++) {

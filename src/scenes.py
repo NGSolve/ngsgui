@@ -878,26 +878,22 @@ class SolutionScene(BaseMeshScene):
         if self.mesh.dim==3:
             try:
                 self._getValues2(ngsolve.BND, self.getSubdivision(), self.getOrder())
-                if values is None:
-                    return
-                self.surface_values.store(values["real"])
-                if self.cf.is_complex:
-                    self.surface_values_imag.store(values["imag"])
             except Exception as e:
                 print("Cannot evaluate given function on surface elements"+str(e))
 
 
-    def _filterElements(self, settings, filter_type):
+    def _filterElements(self, settings, elements, filter_type):
         glEnable(GL_RASTERIZER_DISCARD)
-        prog = getProgram('filter_elements.vert', 'filter_elements.geom', feedback=['element'], ORDER=self.getOrder(), params=settings)
+        prog = getProgram('filter_elements.vert', 'filter_elements.geom', feedback=['element'], ORDER=self.getOrder(), params=settings, elements=elements)
         uniforms = prog.uniforms
+
         glActiveTexture(GL_TEXTURE0)
         self.mesh_data.vertices.bind()
         uniforms.set('mesh.vertices', 0)
         uniforms.set('mesh.dim', 3);
 
         glActiveTexture(GL_TEXTURE1)
-        self.mesh_data.elements.bind()
+        elements.tex.bind()
         uniforms.set('mesh.elements', 1)
 
         glActiveTexture(GL_TEXTURE2)
@@ -905,7 +901,7 @@ class SolutionScene(BaseMeshScene):
             uniforms.set('iso_value', self.getIsoValue())
             self.iso_values.bind()
         else:
-            self.volume_values.bind()
+            self.values[ngsolve.VOL]['real'][elements.type, elements.curved].bind()
         uniforms.set('coefficients', 2)
         uniforms.set('subdivision', 2**self.getSubdivision()-1)
         if self.cf.dim > 1:
@@ -913,9 +909,6 @@ class SolutionScene(BaseMeshScene):
         else:
             uniforms.set('component', 0)
 
-        uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
-        uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
-        uniforms.set('mesh.surface_elements_offset', self.mesh_data.surface_elements_offset)
         uniforms.set('filter_type', filter_type)
 
         self.filter_feedback = glGenTransformFeedbacks(1)
@@ -1014,7 +1007,7 @@ class SolutionScene(BaseMeshScene):
             uniforms.set('is_complex', self.cf.is_complex)
             if self.cf.is_complex:
                 glActiveTexture(GL_TEXTURE3)
-                self.values[vb]['imag'][(elements.type, elements.curved)].bind()
+                self.values[vb]['imag'][elements.type, elements.curved].bind()
                 uniforms.set('coefficients_imag', 3)
 
                 uniforms.set('complex_vis_function', self._complex_eval_funcs[self.getComplexEvalFunc()])
@@ -1122,10 +1115,10 @@ class SolutionScene(BaseMeshScene):
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         glDrawArrays(GL_POINTS, 0, self.mesh.ne)
 
-    def renderClippingPlane(self, settings):
-        self._filterElements(settings, 0)
+    def _renderClippingPlane(self, settings, elements):
+        self._filterElements(settings, elements, 0)
         model, view, projection = settings.model, settings.view, settings.projection
-        prog = getProgram('mesh.vert', 'clipping.geom', 'solution.frag', ORDER=self.getOrder())
+        prog = getProgram('mesh.vert', 'clipping.geom', 'solution.frag', elements=elements, ORDER=self.getOrder())
 
         uniforms = prog.uniforms
         uniforms.set('P',projection)
@@ -1152,15 +1145,12 @@ class SolutionScene(BaseMeshScene):
         uniforms.set('mesh.vertices', 0)
 
         glActiveTexture(GL_TEXTURE1)
-        self.mesh_data.elements.bind()
+        elements.tex.bind()
         uniforms.set('mesh.elements', 1)
 
         glActiveTexture(GL_TEXTURE2)
-        self.volume_values.bind()
+        self.values[ngsolve.VOL]['real'][elements.type, elements.curved].bind()
         uniforms.set('coefficients', 2)
-
-        uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
-        uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
 
         uniforms.set('is_complex', self.cf.is_complex)
         if self.cf.is_complex:
@@ -1203,7 +1193,8 @@ class SolutionScene(BaseMeshScene):
                 if self.getShowIsoSurface():
                     self.renderIsoSurface(settings)
                 if self.getShowClippingPlane():
-                    self.renderClippingPlane(settings)
+                    for els in self.mesh_data.new_els[ngsolve.VOL]:
+                        self._renderClippingPlane(settings, els)
 
             if self.cf.dim > 1:
                 if self.getShowVectors():
