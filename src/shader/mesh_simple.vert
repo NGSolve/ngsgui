@@ -38,7 +38,7 @@ ELEMENT_TYPE getElement(Mesh mesh, int elnr ) {
 
 void main()
 {
-#if DIM<=2
+#if ELEMENT_DIM<=2
   int nverts = ELEMENT_N_VERTICES;
 #else
   int nverts = 3;
