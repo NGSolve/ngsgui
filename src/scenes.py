@@ -139,7 +139,7 @@ name : str = "action" + consecutive number
         if self._actions:
             self._actions[self.getAction()](point)
 
-GUI.sceneCreators.append((BaseScene,lambda scene,*args,**kwargs: scene))
+GUI.sceneCreators[BaseScene] = lambda scene,*args,**kwargs: scene
 
 class BaseMeshScene(BaseScene):
     """Base class for all scenes that depend on a mesh"""
@@ -682,7 +682,7 @@ class MeshScene(BaseMeshScene):
     def _createQtWidget(self):
         super()._createQtWidget()
 
-GUI.sceneCreators.append((ngsolve.Mesh, MeshScene))
+GUI.sceneCreators[ngsolve.Mesh] = MeshScene
 
 class SolutionScene(BaseMeshScene):
     _complex_eval_funcs = {"real" : 0,
@@ -1221,8 +1221,8 @@ def _createGFScene(gf, mesh=None, name=None, *args, **kwargs):
         name = gf.name
     return _createCFScene(gf,mesh,*args, name=name, **kwargs)
 
-GUI.sceneCreators.append((ngsolve.GridFunction, _createGFScene))
-GUI.sceneCreators.append((ngsolve.CoefficientFunction, _createCFScene))
+GUI.sceneCreators[ngsolve.GridFunction] =  _createGFScene
+GUI.sceneCreators[ngsolve.CoefficientFunction] =  _createCFScene
 
 class GeometryScene(BaseScene):
     def __init__(self, geo, *args, **kwargs):
@@ -1388,8 +1388,8 @@ class GeometryScene2D(BaseScene):
         glDrawArrays(GL_LINES, 0, self._nverts)
         # glLineWidth(1)
 
-GUI.sceneCreators.append((netgen.geom2d.SplineGeometry, GeometryScene2D))
-GUI.sceneCreators.append((netgen.meshing.NetgenGeometry,GeometryScene))
+GUI.sceneCreators[netgen.geom2d.SplineGeometry] = GeometryScene2D
+GUI.sceneCreators[netgen.meshing.NetgenGeometry] = GeometryScene
 
 
 def _load_gz_mesh(gui, filename):

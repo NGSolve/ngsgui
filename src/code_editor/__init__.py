@@ -1,8 +1,7 @@
 
 from . import syntax
-from .button_area import ButtonArea
 from .text_partition import Lines, Selection
-from ngsgui.widgets import ArrangeH, ArrangeV
+from ngsgui.widgets import ArrangeH, ArrangeV, ButtonArea
 from ngsgui.thread import inmain_decorator, inthread
 
 from PySide2 import QtWidgets, QtGui, QtCore
@@ -58,7 +57,29 @@ class CodeEditor(QtWidgets.QPlainTextEdit):
             self.setWindowTitle(filename)
         else:
             self.setWindowTitle("unsaved file")
-        self.buttonArea = ButtonArea(self)
+
+        # create ButtonArea
+        buttonArea = self.buttonArea = ButtonArea(parent=self)
+        buttonArea.setContentsMargins(-20,-20,15,-20)
+        buttonArea.addButton(self.save, icon="save.png", description="Save file", shortcut="Ctrl+s")
+        buttonArea.addButton(self.run, icon="run.png", description="Run file", icon_size=(40,40),
+                             shortcut="Ctrl+r")
+        def _run_cursor():
+            txt = ""
+            block = self.textCursor().block()
+            while block != self.document().end():
+                txt += block.text() + "\n"
+                block = block.next()
+            self.run(txt, reset_exec_locals=False, computation_started_at=self.textCursor().position())
+        buttonArea.addButton(_run_cursor, name="Run from cursor")
+        def _run_line():
+            self.run(self.textCursor().block().text(), reset_exec_locals=False,
+                     computation_started_at=self.textCursor().position())
+            self.moveCursor(self.textCursor().Down)
+        buttonArea.addButton(_run_line, name="Run line", shortcut = "Ctrl+l")
+        buttonArea.addButton(lambda : TextFinder(self).show(), icon="search.png", icon_size=(17,17),
+                             shortcut="Ctrl+f")
+
         self.lineNumberArea = LineNumberArea(self)
         self.blockCountChanged.connect(self.lineNumberArea.updateWidth)
         self.updateRequest.connect(self.lineNumberArea.update)
