@@ -93,7 +93,7 @@ It can be used to manipulate any behaviour of the interface.
               "-help" : (_showHelp, "Show this help function"),
               "-dontCatchExceptions" : (_dontCatchExceptions, "Do not catch exceptions up to user input, but show internal gui traceback")}
     # use a list of tuples instead of a dict to be able to sort it
-    sceneCreators = []
+    sceneCreators = {}
     file_loaders = {}
     def __init__(self):
         self.app = QtWidgets.QApplication([])
