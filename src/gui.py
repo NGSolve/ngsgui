@@ -381,7 +381,14 @@ def _loadGeo(gui, filename):
     import netgen.csg as csg
     geo = csg.CSGeometry(filename)
     ngsolve.Draw(geo)
+
+def _loadin2d(gui, filename):
+    import netgen.geom2d as geom2d
+    geo = geom2d.SplineGeometry(filename)
+    ngsolve.Draw(geo)
+
 GUI.file_loaders[".stl"] = _loadSTL
 GUI.file_loaders[".step"] = _loadOCC
 GUI.file_loaders[".geo"] = _loadGeo
+GUI.file_loaders[".in2d"] = _loadin2d
 gui = DummyObject()

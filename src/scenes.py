@@ -1497,7 +1497,6 @@ class GeometryScene2D(BaseScene):
         import numpy
         mat = settings.model * settings.view * settings.projection
         eps = 0.1 * numpy.sqrt(numpy.sqrt(abs(1./numpy.linalg.det(mat))))
-        print("eps = ", eps)
         if self.getShowPointNumbers():
             xpoints, ypoints, pointindex = self.geo.PointData()
             #offset
