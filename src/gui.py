@@ -189,9 +189,7 @@ It can be used to manipulate any behaviour of the interface.
         if os.path.isfile(filename):
             name, ext = os.path.splitext(filename)
             if not ext in GUI.file_loaders:
-                self.msgbox = QtWidgets.QMessageBox(text = "Cannot load file type: " + ext)
-                self.msgbox.setWindowTitle("File loading error")
-                self.msgbox.show()
+                self.showMessageBox("File loading error", "Cannot load file type: " + ext)
                 return
             GUI.file_loaders[ext](self, filename)
 
@@ -212,6 +210,11 @@ It can be used to manipulate any behaviour of the interface.
             if flg not in self.flags:
                 print("Don't know flag: ", flg)
                 _showHelp(self,True)
+
+    def showMessageBox(self, title, text):
+        self._msgbox = QtWidgets.QMessageBox(text=text)
+        self._msgbox.SetWindowTitle(title)
+        self._msgbox.show()
 
     def saveSolution(self):
         """Opens a file dialog to save the current state of the GUI, including all drawn objects."""
@@ -361,4 +364,24 @@ class DummyObject:
 
 GUI.file_loaders[".py"] = GUI.loadPythonFile
 GUI.file_loaders[".ngs"] = GUI._loadSolutionFile
+def _loadSTL(gui, filename):
+    import netgen.stl as stl
+    print("create stl geometry")
+    geo = stl.LoadSTLGeometry(filename)
+    ngsolve.Draw(geo)
+
+def _loadOCC(gui, filename):
+    try:
+        import netgen.NgOCC as occ
+        geo = occ.LoadOCCGeometry(filename)
+        ngsolve.Draw(geo)
+    except ImportError:
+        gui.showMessageBox("Netgen is not built with OCC support!")
+def _loadGeo(gui, filename):
+    import netgen.csg as csg
+    geo = csg.CSGeometry(filename)
+    ngsolve.Draw(geo)
+GUI.file_loaders[".stl"] = _loadSTL
+GUI.file_loaders[".step"] = _loadOCC
+GUI.file_loaders[".geo"] = _loadGeo
 gui = DummyObject()

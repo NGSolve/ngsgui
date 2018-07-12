@@ -116,7 +116,7 @@ class GeoData(DataContainer):
         self.npoints = len(self.geodata["triangles"])//4*3
 
     def getGeoData(self):
-        return ngui.GetGeoData(self.obj())
+        return self.obj()._visualizationData()
 
 _opengl_data_constructors = {ngs.Mesh : MeshData,
                              netgen.meshing.NetgenGeometry : GeoData}
