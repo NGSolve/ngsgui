@@ -33,8 +33,8 @@ def main():
     ngs.Draw = Draw
     ngs.Redraw = Redraw
     G.gui = G.GUI()
-    G.gui.parseFlags(sys.argv[1:])
-    G.gui.run()
+    G.gui._parseFlags(sys.argv[1:])
+    G.gui._run()
 
 if __name__ == "__main__":
     main()

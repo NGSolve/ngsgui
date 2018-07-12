@@ -4,6 +4,7 @@ from PySide2 import QtCore, QtGui, QtWidgets, QtOpenGL
 from PySide2.QtCore import Qt
 
 from .thread import inmain_decorator
+from ngsgui.icons import location as icon_path
 
 import sys, re, math
 
@@ -371,3 +372,51 @@ class WidgetWithLabel(QtWidgets.QWidget):
             self._value_widget.setCurrentIndex(value)
         else:
             self._value_widget.setValue(value)
+
+class ButtonArea(QtWidgets.QWidget):
+    """Widget containing buttons"""
+    def __init__(self,*args,**kwargs):
+        super().__init__(*args,**kwargs)
+        self.setLayout(ArrangeH())
+        # pal = QtGui.QPalette()
+        # pal.setColor(QtGui.QPalette.Background, QtCore.Qt.grey)
+        # self.setPalette(pal)
+
+    def addButton(self, function, name=None, icon=None, icon_size = (20,20), description=None,
+                  shortcut = None):
+        """Create a new button in the area.
+
+Parameters
+----------
+
+function: function
+  Function that is called when the button is clicked.
+
+name: str = None
+  If no icon is set, the button will have this text
+
+icon: str = None
+  Filename of the icon installed into the icon path
+
+icon_size: tuple = (20,20)
+  Size of the icon in the button
+
+description: str = None
+  Optional, tooltip for the button
+
+shortcut: str = None
+  Optional, set shortcut for the button
+"""
+        assert (name or icon), "Button needs name or icon"
+        btn = QtWidgets.QPushButton()
+        if not icon:
+            btn.setText(name)
+        else:
+            btn.setIcon(QtGui.QIcon(icon_path + "/" + icon))
+            btn.setIconSize(QtCore.QSize(*icon_size))
+        if description:
+            btn.setToolTip(description)
+        btn.clicked.connect(function)
+        if shortcut:
+            btn.setShortcut(shortcut)
+        self.layout().addWidget(btn)
