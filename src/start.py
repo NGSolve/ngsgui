@@ -12,7 +12,7 @@ def Draw(obj, *args, tab=None, **kwargs):
     the new gui and returns the drawn scene."""
     for t in type(obj).__mro__:
         if t in G.GUI.sceneCreators:
-            scene = creator(obj,*args,**kwargs)
+            scene = G.GUI.sceneCreators[t](obj,*args,**kwargs)
     else:
         print("Cannot draw object of type ",type(obj))
         return
