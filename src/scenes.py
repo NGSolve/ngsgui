@@ -275,7 +275,6 @@ class OverlayScene(BaseScene):
         with self._vao:
             self.text_renderer = TextRenderer()
             self.cross_points = ArrayBuffer()
-            self.program = getProgram('cross.vert','cross.frag')
 
 
     def render(self, settings):
@@ -283,15 +282,15 @@ class OverlayScene(BaseScene):
             return
         self.update()
         with self._vao:
-            glUseProgram(self.program.id)
 
             glDisable(GL_DEPTH_TEST)
             if self.getShowCross():
+                prog = getProgram('cross.vert','cross.frag')
                 model, view, projection = settings.model, settings.view, settings.projection
                 mvp = glmath.Translate(-1+0.15/settings.ratio,-0.85,0)*projection*view*glmath.Translate(0,0,-5)*settings.rotmat
 
-                self.program.uniforms.set('MVP',mvp)
-                self.program.attributes.bind('pos', self.cross_points)
+                prog.uniforms.set('MVP',mvp)
+                prog.attributes.bind('pos', self.cross_points)
                 coords = glmath.Identity()
                 for i in range(3):
                     for j in range(3):
