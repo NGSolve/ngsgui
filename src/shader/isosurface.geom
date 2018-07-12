@@ -1,6 +1,6 @@
 #version 400 // 400 for subdivision with multiple invocations
 
-{include utils.inc}
+{include utilsnew.inc}
 
 uniform samplerBuffer coefficients;
 uniform samplerBuffer coefficients_iso;
@@ -33,7 +33,7 @@ uniform int subdivision;
 
 void CutSubTet(float values[8], vec3 normals[8], vec3 pos[8], vec3 lams[8], int nodes[4]) {
         // subtet
-        Element3d el;
+        ELEMENT_TYPE el;
         vec3 norm[4];
         float vals[4];
         vec3 lam[4];
@@ -81,7 +81,7 @@ void main() {
 
     outData.element = inData[0].element;
     // undivided large tet
-    Element3d tet1 = getElement3d(mesh, inData[0].element);
+    ELEMENT_TYPE tet1 = getElement(mesh, inData[0].element);
 
     float h = 1.0/float(N-1);
 

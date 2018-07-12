@@ -162,3 +162,88 @@ int CutElement3d( TET tet, float values[4], out vec3 pos[4], inout vec3 lam[4] )
         return 4;
     }           
 }
+// Cut tet with plane and store 0-4 points (and barycentric coords), return the number of intersection points
+int CutElement3d( TET tet, float values[4], out vec3 pos[4], inout vec3 lam[4], inout vec3 normals[4] ) {
+    int nvertices_behind = 0;
+    int vertices_behind[3];
+    int nvertices_front = 0;
+    int vertices_front[3];
+    vec3 normals_ori[4];
+    for (int i=0; i<4; ++i) {
+      // float dist = dot(plane, vec4(tet.pos[i],1.0));
+      normals_ori[i] = normals[i];
+      float dist = values[i];
+      if(dist>0) {
+          vertices_behind[nvertices_behind] = i;
+          nvertices_behind++;
+      }
+      else {
+          vertices_front[nvertices_front] = i;
+          nvertices_front++;
+      }
+    }
+    // vec3 lams[4] = vec3[4]( vec3(0,0,0), vec3(1,0,0), vec3(0,1,0), vec3(0,0,1)); // vec3(0,0,0));
+    // vec3 lams[4] = vec3[4]( vec3(1,0,0), vec3(0,1,0), vec3(0,0,1), vec3(0,0,0));
+    vec3 lams[4] = lam;
+    if( nvertices_behind==0 || nvertices_behind==4 ) return 0;
+    if( nvertices_behind==3 ) {
+        for (int i=0; i<3; ++i) {
+          float vx = values[vertices_front[0]];
+          float vy = values[vertices_behind[i]];
+          float a = vx/(vx-vy);
+          // float a = CutEdge(plane, tet.pos[vertices_front[0]] , tet.pos[vertices_behind[i]]);
+          pos[i] =  mix(tet.pos[vertices_front[0]], tet.pos[vertices_behind[i]], a);
+          lam[i] =  mix(lams[vertices_front[0]], lams[vertices_behind[i]], a);
+          normals[i] =  mix(normals_ori[vertices_front[0]], normals_ori[vertices_behind[i]], a);
+        }
+        return 3;
+    }
+    if( nvertices_behind==1 ) {
+        for (int i=0; i<3; ++i) {
+          float vx = values[vertices_behind[0]];
+          float vy = values[vertices_front[i]];
+          float a = vx/(vx-vy);
+          // float a = CutEdge(plane, tet.pos[vertices_behind[0]], tet.pos[vertices_front[i]]);
+          pos[i] =  mix(tet.pos[vertices_behind[0]], tet.pos[vertices_front[i]], a);
+          lam[i] =  mix(lams[vertices_behind[0]], lams[vertices_front[i]], a);
+          normals[i] =  mix(normals_ori[vertices_behind[0]], normals_ori[vertices_front[i]], a);
+        }
+        return 3;
+    }
+
+    if( nvertices_behind==2 ) {
+        float a, vx, vy;
+        vx = values[vertices_front[0]];
+        vy = values[vertices_behind[1]];
+        a = vx/(vx-vy);
+        // a = CutEdge(plane, tet.pos[vertices_front[0]], tet.pos[vertices_behind[1]]);
+        pos[0] =  mix(tet.pos[vertices_front[0]], tet.pos[vertices_behind[1]], a);
+        lam[0] =  mix(lams[vertices_front[0]], lams[vertices_behind[1]], a);
+        normals[0] =  mix(normals_ori[vertices_front[0]], normals_ori[vertices_behind[1]], a);
+
+        vx = values[vertices_front[0]];
+        vy = values[vertices_behind[0]];
+        a = vx/(vx-vy);
+        // a = CutEdge(plane, tet.pos[vertices_front[0]], tet.pos[vertices_behind[0]]);
+        pos[1] =  mix(tet.pos[vertices_front[0]], tet.pos[vertices_behind[0]], a);
+        lam[1] =  mix(lams[vertices_front[0]], lams[vertices_behind[0]], a);
+        normals[1] =  mix(normals_ori[vertices_front[0]], normals_ori[vertices_behind[0]], a);
+
+        vx = values[vertices_front[1]];
+        vy = values[vertices_behind[1]];
+        a = vx/(vx-vy);
+        // a = CutEdge(plane, tet.pos[vertices_front[1]], tet.pos[vertices_behind[1]]);
+        pos[2] =  mix(tet.pos[vertices_front[1]], tet.pos[vertices_behind[1]], a);
+        lam[2] =  mix(lams[vertices_front[1]], lams[vertices_behind[1]], a);
+        normals[2] =  mix(normals_ori[vertices_front[1]], normals_ori[vertices_behind[1]], a);
+
+        vx = values[vertices_front[1]];
+        vy = values[vertices_behind[0]];
+        a = vx/(vx-vy);
+        // a = CutEdge(plane, tet.pos[vertices_front[1]], tet.pos[vertices_behind[0]]);
+        pos[3] =  mix(tet.pos[vertices_front[1]], tet.pos[vertices_behind[0]], a);
+        lam[3] =  mix(lams[vertices_front[1]], lams[vertices_behind[0]], a);
+        normals[3] =  mix(normals_ori[vertices_front[1]], normals_ori[vertices_behind[0]], a);
+        return 4;
+    }           
+}

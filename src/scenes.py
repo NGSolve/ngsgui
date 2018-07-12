@@ -899,7 +899,7 @@ class SolutionScene(BaseMeshScene):
         glActiveTexture(GL_TEXTURE2)
         if filter_type == 1: # iso surface
             uniforms.set('iso_value', self.getIsoValue())
-            self.iso_values.bind()
+            self.values[ngsolve.VOL]['real'][elements.type, elements.curved].bind() # todo: use iso_values
         else:
             self.values[ngsolve.VOL]['real'][elements.type, elements.curved].bind()
         uniforms.set('coefficients', 2)
@@ -1027,20 +1027,16 @@ class SolutionScene(BaseMeshScene):
             else:
                 glDrawArrays(GL_TRIANGLES, 0, 3*len(elements.data)//elements.size)
 
-    def renderIsoSurface(self, settings):
-        self._filterElements(settings, 1)
+    def _renderIsoSurface(self, settings, elements):
+        self._filterElements(settings, elements, 1)
         model, view, projection = settings.model, settings.view, settings.projection
-        prog = getProgram('mesh.vert', 'isosurface.geom', 'solution.frag', ORDER=self.getOrder())
+        prog = getProgram('mesh.vert', 'isosurface.geom', 'solution.frag', elements=elements, ORDER=self.getOrder(), params=settings)
 
         uniforms = prog.uniforms
         uniforms.set('P',projection)
         uniforms.set('MV',view*model)
-        uniforms.set('colormap_min', settings.colormap_min)
-        uniforms.set('colormap_max', settings.colormap_max)
         uniforms.set('iso_value', self.getIsoValue())
-        uniforms.set('colormap_linear', settings.colormap_linear)
         uniforms.set('have_gradient', self.have_gradient)
-        uniforms.set('clipping_plane', settings.clipping_plane)
         uniforms.set('do_clipping', True);
         uniforms.set('subdivision', 2**self.getSubdivision()-1)
         uniforms.set('order', self.getOrder())
@@ -1059,19 +1055,16 @@ class SolutionScene(BaseMeshScene):
         uniforms.set('mesh.vertices', 0)
 
         glActiveTexture(GL_TEXTURE1)
-        self.mesh_data.elements.bind()
+        elements.tex.bind()
         uniforms.set('mesh.elements', 1)
 
         glActiveTexture(GL_TEXTURE2)
-        self.volume_values.bind()
+        self.values[ngsolve.VOL]['real'][(elements.type, elements.curved)].bind()
         uniforms.set('coefficients', 2)
 
         glActiveTexture(GL_TEXTURE3)
-        self.iso_values.bind()
+        self.values[ngsolve.VOL]['real'][(elements.type, elements.curved)].bind() # todo: use iso_values
         uniforms.set('coefficients_iso', 3)
-
-        uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
-        uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
 
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         instances = (self.getOrder()*(2**self.getSubdivision()))**3
@@ -1118,16 +1111,12 @@ class SolutionScene(BaseMeshScene):
     def _renderClippingPlane(self, settings, elements):
         self._filterElements(settings, elements, 0)
         model, view, projection = settings.model, settings.view, settings.projection
-        prog = getProgram('mesh.vert', 'clipping.geom', 'solution.frag', elements=elements, ORDER=self.getOrder())
+        prog = getProgram('mesh.vert', 'clipping.geom', 'solution.frag', elements=elements, ORDER=self.getOrder(), params=settings)
 
         uniforms = prog.uniforms
         uniforms.set('P',projection)
         uniforms.set('MV',view*model)
-        uniforms.set('colormap_min', settings.colormap_min)
-        uniforms.set('colormap_max', settings.colormap_max)
-        uniforms.set('colormap_linear', settings.colormap_linear)
         uniforms.set('clipping_plane_deformation', False)
-        uniforms.set('clipping_plane', settings.clipping_plane)
         uniforms.set('do_clipping', False);
         uniforms.set('subdivision', 2**self.getSubdivision()-1)
         if self.cf.dim > 1:
@@ -1191,7 +1180,8 @@ class SolutionScene(BaseMeshScene):
 
             if self.mesh.dim > 2:
                 if self.getShowIsoSurface():
-                    self.renderIsoSurface(settings)
+                    for els in self.mesh_data.new_els[ngsolve.VOL]:
+                        self._renderIsoSurface(settings, els)
                 if self.getShowClippingPlane():
                     for els in self.mesh_data.new_els[ngsolve.VOL]:
                         self._renderClippingPlane(settings, els)
