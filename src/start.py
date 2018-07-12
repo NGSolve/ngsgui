@@ -13,6 +13,7 @@ def Draw(obj, *args, tab=None, **kwargs):
     for t in type(obj).__mro__:
         if t in G.GUI.sceneCreators:
             scene = G.GUI.sceneCreators[t](obj,*args,**kwargs)
+            break
     else:
         print("Cannot draw object of type ",type(obj))
         return
