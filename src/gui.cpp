@@ -397,7 +397,7 @@ PYBIND11_MODULE(ngui, m) {
           setlocale(LC_NUMERIC,"C");
         });
   m.def("GetReferenceRule", GetReferenceRule);
-  m.def("GetValues2", [] (shared_ptr<ngfem::CoefficientFunction> cf, shared_ptr<ngcomp::MeshAccess> ma, VorB vb, int subdivision, int order) {
+  m.def("GetValues", [] (shared_ptr<ngfem::CoefficientFunction> cf, shared_ptr<ngcomp::MeshAccess> ma, VorB vb, int subdivision, int order) {
             auto tm = task_manager;
             task_manager = nullptr;
             LocalHeap lh(10000000, "GetValues");
@@ -507,7 +507,7 @@ PYBIND11_MODULE(ngui, m) {
           return res;
       },py::call_guard<py::gil_scoped_release>());
 
-    m.def("GetMeshData2", [] (shared_ptr<ngcomp::MeshAccess> ma) {
+    m.def("GetMeshData", [] (shared_ptr<ngcomp::MeshAccess> ma) {
         Vector<> min(3);
         min = std::numeric_limits<double>::max();
         Vector<> max(3);

@@ -149,8 +149,7 @@ class BaseMeshScene(BaseScene):
         self.mesh = mesh
         self.deformation = None
         if 'deformation' in kwargs:
-            self.deformation = kwargs['deformation']
-            del kwargs['deformation']
+            self.deformation = kwargs.pop('deformation')
 
         super().__init__(**kwargs)
 
@@ -183,7 +182,7 @@ class BaseMeshScene(BaseScene):
             self.mesh_data = getOpenGLData(self.mesh)
             if self.deformation:
                 vb = ngsolve.BND if self.mesh.dim==3 else ngsolve.VOL
-                self._getValues2(vb, vals=self._deformation_values, sd=self.getDeformationSubdivision(), order=self.getDeformationOrder())
+                self._getValues(self.deformation, vb, self.getDeformationSubdivision(), self.getDeformationOrder(), self._deformation_values )
 
     def __getstate__(self):
         super_state = super().__getstate__()
@@ -200,6 +199,29 @@ class BaseMeshScene(BaseScene):
     # In case a deformation function is given in the constructor, this function will be replaced by a generated one in sellf.addParameters("Deformation", ...)
     def getDeformation(self):
         return False
+
+    # evaluate given CoefficientFunction and store results in vals (a dictionary with special structure)
+    def _getValues(self, cf, vb, sd, order, vals):
+        formats = [None, GL_R32F, GL_RG32F, GL_RGB32F, GL_RGBA32F];
+        if vb not in vals:
+            vals[vb] = {'real':{}, 'imag':{}}
+        try:
+            values = ngui.GetValues(cf, self.mesh, vb, 2**sd-1, order)
+            vals = vals[vb]
+            vals['min'] = values['min']
+            vals['max'] = values['max']
+            comps = ['real']
+            if cf.is_complex: comps.append('imag')
+            for comp in comps:
+                for et in values[comp]:
+                    if not et in vals[comp]:
+                        vals[comp][et] = Texture(GL_TEXTURE_BUFFER, formats[cf.dim])
+                    vals[comp][et].store(values[comp][et])
+
+        except RuntimeError as e:
+            assert("Local Heap" in str(e))
+            self.setSubdivision(self.getSubdivision()-1)
+            print("Localheap overflow, cannot increase subdivision!")
 
 
 class MeshScene(BaseMeshScene):
@@ -375,7 +397,8 @@ class MeshScene(BaseMeshScene):
 
         if use_deformation:
             glActiveTexture(GL_TEXTURE4)
-            self.deformation_values.bind()
+            vb = ngsolve.VOL if self.mesh.dim==2 else ngsolve.BND
+            self._deformation_values[vb]['real'][(elements.type, elements.curved)].bind()
             uniforms.set('deformation_coefficients', 4)
             uniforms.set('deformation_subdivision', 2**self.getDeformationSubdivision()-1)
             uniforms.set('deformation_order', self.getDeformationOrder())
@@ -705,45 +728,20 @@ class SolutionScene(BaseMeshScene):
         self.filter_buffer.bind()
         glBufferData(GL_ARRAY_BUFFER, 1000000, ctypes.c_void_p(), GL_STATIC_DRAW)
 
-    def _getValues2(self, vb, sd, order, cf = None, vals=None):
-        formats = [None, GL_R32F, GL_RG32F, GL_RGB32F, GL_RGBA32F];
-        cf = cf or self.cf
-        if vals==None:
-            vals = self.values
-        if vb not in vals:
-            vals[vb] = {'real':{}, 'imag':{}}
-        try:
-            values = ngui.GetValues2(cf, self.mesh, vb, 2**sd-1, order)
-            vals = vals[vb]
-            vals['min'] = values['min']
-            vals['max'] = values['max']
-            comps = ['real']
-            if cf.is_complex: comps.append('imag')
-            for comp in comps:
-                for et in values[comp]:
-                    if not et in vals[comp]:
-                        vals[comp][et] = Texture(GL_TEXTURE_BUFFER, formats[cf.dim])
-                    vals[comp][et].store(values[comp][et])
-
-        except RuntimeError as e:
-            assert("Local Heap" in str(e))
-            self.setSubdivision(self.getSubdivision()-1)
-            print("Localheap overflow, cannot increase subdivision!")
-
 
     @inmain_decorator(True)
     def update(self):
         super().update()
-        self._getValues2(ngsolve.VOL, self.getSubdivision(), self.getOrder())
+        self._getValues(self.cf, ngsolve.VOL, self.getSubdivision(), self.getOrder(), self.values)
         if self.mesh.dim==3:
             try:
-                self._getValues2(ngsolve.BND, self.getSubdivision(), self.getOrder())
+                self._getValues(self.cf, ngsolve.BND, self.getSubdivision(), self.getOrder(), self.values)
             except Exception as e:
                 print("Cannot evaluate given function on surface elements"+str(e))
         if self.iso_surface is self.cf:
             self.iso_values = self.values
         else:
-            self._getValues2(ngsolve.VOL, self.getSubdivision(), self.getOrder(), cf=self.iso_surface, vals=self.iso_values)
+            self._getValues(self.iso_surface, ngsolve.VOL, self.getSubdivision(), self.getOrder(), self.iso_values)
 
 
     def _filterElements(self, settings, elements, filter_type):
@@ -842,7 +840,7 @@ class SolutionScene(BaseMeshScene):
 
             if use_deformation:
                 glActiveTexture(GL_TEXTURE4)
-                self.deformation_values.bind()
+                self._deformation_values[vb]['real'][(elements.type, elements.curved)].bind()
                 uniforms.set('deformation_coefficients', 4)
                 uniforms.set('deformation_subdivision', 2**self.getDeformationSubdivision()-1)
                 uniforms.set('deformation_order', self.getDeformationOrder())

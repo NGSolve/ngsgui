@@ -58,7 +58,7 @@ class MeshData(DataContainer):
 
     @inmain_decorator(True)
     def update(self):
-        data = ngui.GetMeshData2(self.obj())
+        data = ngui.GetMeshData(self.obj())
 
         self.min = data.pop('min')
         self.max = data.pop('max')
