@@ -1,6 +1,6 @@
 import ngsolve
 from ngsolve import ET, ElementTransformation
-from ngsolve.gui.ngui import GetReferenceRule, GetValues2
+from ngsgui.ngui import GetReferenceRule
 
 import sympy
 from sympy import *
@@ -13,6 +13,21 @@ import time
 
 
 functions = {}
+functions[ET.SEGM] = """\
+{type} InterpolateSegm{vec}(int element, samplerBuffer values, int order, int subdivision, vec3 lam, int component) {{
+    int n = subdivision+1;
+    int N = ORDER*n+1;
+    int values_per_element = N;
+    vec3 lamn = lam*(n);
+    lam = lamn-floor(lamn);
+    int x = int(lamn.x);
+
+    int X = ORDER*x;
+
+    int first = element*values_per_element + X;
+    return InterpolateSegm{vec}(values, lam, first, component);
+}}
+"""
 functions[ET.TRIG] = """\
 {type} InterpolateTrig{vec}(int element, samplerBuffer values, int order, int subdivision, vec3 lam, int component) {{
     int n = subdivision+1;
@@ -153,7 +168,10 @@ functions[ET.TET] = """\
 
 
 def getBasisFunction(et,i,j=0,k=0):
-    if et==ET.TRIG:
+    if et==ET.SEGM:
+        def phi(x,y,z):
+            return  x**i
+    elif et==ET.TRIG:
         def phi(x,y,z):
             return  x**i*y**j
     elif et==ET.QUAD:
@@ -184,6 +202,19 @@ def GetHeader(et, p, basis, scalar):
     comps = '[component]' if scalar else '.xyz'
     type_ = 'float' if scalar else 'vec3'
     vec = '' if scalar else 'Vec'
+    if et==ET.SEGM:
+        code = """\
+#if ORDER=={p}
+{type} InterpolateSegm{vec}(samplerBuffer coefficients, vec3 lam, int first, int component) {{
+  float x = lam.x;
+  float y = lam.y;
+  float z = lam.z;
+  {type} f[{ndof}];
+  int offsety = 0;
+  for (int i=0; i<={p}; i++) {{
+    f[i] = getValue(coefficients, first+i){comps};
+  }}
+"""
     if et==ET.TRIG:
         code = """\
 #if ORDER=={p}
@@ -270,7 +301,7 @@ def GenerateInterpolationFunction(et, p, scalar):
     return code
 
 code = ""
-for et in [ET.TRIG, ET.TET, ET.QUAD]:
+for et in [ET.SEGM, ET.TRIG, ET.TET, ET.QUAD]:
     for scalar in [True, False]:
         for p in range(1,4):
             code += GenerateInterpolationFunction(et, p, scalar)

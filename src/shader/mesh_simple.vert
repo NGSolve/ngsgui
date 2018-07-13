@@ -35,7 +35,10 @@ void main()
   outData.pos = element.pos[vid];
 
 ///////////////////////////////////////////////////////////////////////////////
-#if   defined(ET_TRIG)
+#if   defined(ET_SEGM)
+  outData.lam[vid] = 1.0;
+///////////////////////////////////////////////////////////////////////////////
+#elif defined(ET_TRIG)
   outData.lam[vid] = 1.0;
   #ifdef CURVED
     outData.normal = texelFetch(mesh.vertices, element.curved_vertices+vid).xyz;

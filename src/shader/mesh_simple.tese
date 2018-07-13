@@ -145,7 +145,9 @@ void main()
       }
       else {
         vec3 value = vec3(deformation_scale,deformation_scale,deformation_scale);
-#if defined(ET_TRIG)
+#if defined(ET_SEGM)
+        value *= InterpolateSegmVec(inData[0].element, deformation_coefficients, ORDER, deformation_subdivision, outData.lam, 0);
+#elif defined(ET_TRIG)
         value *= InterpolateTrigVec(inData[0].element, deformation_coefficients, ORDER, deformation_subdivision, outData.lam, 0);
 #elif defined(ET_QUAD)
         value *= InterpolateTetVec(inData[0].element, deformation_coefficients, ORDER, deformation_subdivision, outData.lam, 0);

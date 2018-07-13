@@ -583,8 +583,8 @@ PYBIND11_MODULE(ngui, m) {
                         vertices.Append(p[i]);
                 }
             }
-            element_data[vb].append(edges[0]);
-            element_data[vb].append(edges[1]);
+            if(edges[0].nelements>0) element_data[vb].append(edges[0]);
+            if(edges[1].nelements>0) element_data[vb].append(edges[1]);
         }
         if(ma->GetDimension()>=2) {
             // 2d Elements

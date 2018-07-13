@@ -782,6 +782,86 @@ class SolutionScene(BaseMeshScene):
         glEndTransformFeedback()
         glDisable(GL_RASTERIZER_DISCARD)
 
+    def _render1D(self, settings, elements):
+        # use actual function values for deformation on 1d meshes
+        use_deformation = self.getDeformation()
+        vb = ngsolve.VOL
+
+        if self.cf.dim > 1:
+            comp = self.getComponent()
+        else:
+            comp = 0
+
+        if self.getAutoscale():
+            settings.colormap_min = self.values[vb]['min'][comp]
+            settings.colormap_max = self.values[vb]['max'][comp]
+
+        use_tessellation = use_deformation or elements.curved
+        options = dict(ORDER=self.getOrder(), DEFORMATION=use_deformation)
+
+        shader = ['mesh_simple.vert', 'solution_simple.frag']
+        if use_tessellation:
+            shader.append('mesh_simple.tese')
+        if use_deformation:
+            options["DEFORMATION_ORDER"] = self.getDeformationOrder()
+
+        prog = getProgram(*shader, elements=elements, params=settings, **options)
+        uniforms = prog.uniforms
+
+        uniforms.set('wireframe', False)
+        uniforms.set('do_clipping', False)
+        uniforms.set('subdivision', 2**self.getSubdivision()-1)
+
+        glActiveTexture(GL_TEXTURE0)
+        elements.tex_vertices.bind()
+        uniforms.set('mesh.vertices', 0)
+
+        glActiveTexture(GL_TEXTURE1)
+        elements.tex.bind()
+        uniforms.set('mesh.elements', 1)
+
+        glActiveTexture(GL_TEXTURE2)
+        self.values[vb]['real'][(elements.type, elements.curved)].bind()
+        uniforms.set('coefficients', 2)
+
+        if use_deformation:
+            glActiveTexture(GL_TEXTURE4)
+            self._deformation_values[vb]['real'][(elements.type, elements.curved)].bind()
+            uniforms.set('deformation_coefficients', 4)
+            uniforms.set('deformation_subdivision', 2**self.getDeformationSubdivision()-1)
+            uniforms.set('deformation_order', self.getDeformationOrder())
+            uniforms.set('deformation_scale', self.getDeformationScale())
+
+
+        uniforms.set('component', comp)
+
+        uniforms.set('is_complex', self.cf.is_complex)
+        if self.cf.is_complex:
+            glActiveTexture(GL_TEXTURE3)
+            self.values[vb]['imag'][elements.type, elements.curved].bind()
+            uniforms.set('coefficients_imag', 3)
+
+            uniforms.set('complex_vis_function', self._complex_eval_funcs[self.getComplexEvalFunc()])
+            w = cmath.exp(1j*self.getComplexPhaseShift()/180.0*math.pi)
+            uniforms.set('complex_factor', [w.real, w.imag])
+
+        tess_level = 10
+        if settings.fastmode and len(elements.data)//elements.size>10**5:
+            tess_level=1
+
+        uniforms.set('light_ambient', 0.3)
+        uniforms.set('light_diffuse', 0.7)
+        nverts = elements.nverts
+        nelements = elements.nelements
+        print('nverts', nverts, nelements, use_tessellation)
+        glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
+        if use_tessellation:
+            glPatchParameteri(GL_PATCH_VERTICES, nverts)
+            glPatchParameterfv(GL_PATCH_DEFAULT_OUTER_LEVEL, [tess_level]*4)
+            glPatchParameterfv(GL_PATCH_DEFAULT_INNER_LEVEL, [tess_level]*2)
+            glDrawArrays(GL_PATCHES, 0, nverts*nelements)
+        else:
+            glDrawArrays(GL_LINES, 0, nverts*nelements)
     def render1D(self, settings):
         prog = getProgram('solution1d.vert', 'solution1d.frag', ORDER=self.getOrder())
 
@@ -1033,7 +1113,8 @@ class SolutionScene(BaseMeshScene):
             settings.colormap_linear = self.getColorMapLinear()
 
             if self.mesh.dim==1:
-                self.render1D(settings)
+                for els in self.mesh_data.elements[ngsolve.VOL]:
+                    self._render1D(settings, els)
 
             if self.mesh.dim > 1:
                 if self.getShowSurface():
