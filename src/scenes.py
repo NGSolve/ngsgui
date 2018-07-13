@@ -448,6 +448,8 @@ class MeshScene(BaseMeshScene):
         glDrawArraysInstanced(GL_TRIANGLES, 0, 3*self.mesh.ne, 4)
 
     def renderNumbers(self, settings):
+        if not any([self.getShowPointNumbers(), self.getShowEdgeNumbers(), self.getShowElementNumbers()]):
+            return
         prog = getProgram('filter_elements.vert', 'numbers.geom', 'font.frag', params=settings)
         uniforms = prog.uniforms
 

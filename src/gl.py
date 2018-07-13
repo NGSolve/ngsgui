@@ -601,10 +601,13 @@ class TextRenderer:
             screen_width = viewport[2]-viewport[0]
             screen_height = viewport[3]-viewport[1]
 
+            uniforms = prog.uniforms
+
             font = self.fonts[font_size]
+            glActiveTexture(GL_TEXTURE0)
+            uniforms.set('font', 0)
             font.tex.bind()
 
-            uniforms = prog.uniforms
             uniforms.set('font_width_in_texture', font.width/font.tex_width)
             uniforms.set('font_height_in_texture', font.height/font.tex_height)
             uniforms.set('font_width_on_screen', 2*font.width/screen_width)
