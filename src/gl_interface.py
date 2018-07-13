@@ -49,9 +49,8 @@ class MeshData(DataContainer):
     """
     @inmain_decorator(True)
     def __init__(self, mesh):
-        self.elements = Texture(GL.GL_TEXTURE_BUFFER, GL.GL_R32I)
         self.vertices = Texture(GL.GL_TEXTURE_BUFFER, GL.GL_RGB32F)
-        self.new_els = {}
+        self.elements = {}
         super().__init__(mesh)
 
     def getTimestamp(self):
@@ -59,32 +58,19 @@ class MeshData(DataContainer):
 
     @inmain_decorator(True)
     def update(self):
-        meshdata = ngui.GetMeshData(self.obj())
+        data = ngui.GetMeshData2(self.obj())
 
-#         self.vertices.store(meshdata['vertices'])
-#         self.elements.store(meshdata["elements"])
-#         self.nedge_elements = meshdata["n_edge_elements"]
-#         self.nedges = meshdata["n_edges"]
-#         self.nperiodic_vertices = meshdata["n_periodic_vertices"]
-# 
-#         self.edges_offset = meshdata["edges_offset"]
-#         self.periodic_vertices_offset = meshdata["periodic_vertices_offset"]
-#         self.nsurface_elements = meshdata["n_surface_elements"]
-#         self.volume_elements_offset = meshdata["volume_elements_offset"]
-#         self.surface_elements_offset = meshdata["surface_elements_offset"]
+        self.min = data.pop('min')
+        self.max = data.pop('max')
+        self.vertices.store(data.pop('vertices'))
 
-        self.min = meshdata['min']
-        self.max = meshdata['max']
-
-        new_els = {}
-        verts,new_els = ngui.GetMeshData2(self.obj())
-        self.vertices.store(verts)
-        for vb in new_els:
-            for ei in new_els[vb]:
+        for vb in data:
+            for ei in data[vb]:
+                ei.tex_vertices = self.vertices
                 ei.tex = Texture(GL.GL_TEXTURE_BUFFER, GL.GL_R32I)
                 ei.tex.store(numpy.array(ei.data, dtype=numpy.int32))
 
-        self.new_els = new_els
+        self.elements = data
 
 def getMeshData(mesh):
     if hasattr(mesh,"_opengl_data"):

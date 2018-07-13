@@ -320,7 +320,7 @@ class MeshScene(BaseMeshScene):
         uniforms = prog.uniforms
 
         glActiveTexture(GL_TEXTURE0)
-        self.mesh_data.vertices.bind()
+        elements.tex_vertices.bind()
         uniforms.set('mesh.vertices', 0)
 
         glActiveTexture(GL_TEXTURE1)
@@ -366,7 +366,7 @@ class MeshScene(BaseMeshScene):
         uniforms = prog.uniforms
 
         glActiveTexture(GL_TEXTURE0)
-        self.mesh_data.vertices.bind()
+        elements.tex_vertices.bind()
         uniforms.set('mesh.vertices', 0)
 
         glActiveTexture(GL_TEXTURE1)
@@ -426,7 +426,7 @@ class MeshScene(BaseMeshScene):
         uniforms = prog.uniforms
 
         glActiveTexture(GL_TEXTURE0)
-        self.mesh_data.vertices.bind()
+        elements.tex_vertices.bind()
         uniforms.set('mesh.vertices', 0)
 
         glActiveTexture(GL_TEXTURE1)
@@ -471,7 +471,7 @@ class MeshScene(BaseMeshScene):
         uniforms.set('clipping_plane', settings.clipping_plane)
 
         glActiveTexture(GL_TEXTURE0)
-        self.mesh_data.vertices.bind()
+        elements.tex_vertices.bind()
         uniforms.set('mesh.vertices', 0)
 
         glActiveTexture(GL_TEXTURE1)
@@ -514,24 +514,24 @@ class MeshScene(BaseMeshScene):
         with self._vao:
             # 1D elements
             if self.mesh.dim > 2 and self.getShowEdges():
-                for els in self.mesh_data.new_els["edges"]:
+                for els in self.mesh_data.elements["edges"]:
                     self._render1DElements(settings, els);
             if self.getShowEdgeElements():
                 vb = [None, ngsolve.VOL, ngsolve.BND, ngsolve.BBND][self.mesh.dim]
-                for els in self.mesh_data.new_els[vb]:
+                for els in self.mesh_data.elements[vb]:
                     if vb in [ngsolve.BBND, ngsolve.BND]:
                         # glLineWidth(3) # TODO: replace with manually drawing quads (linewidth is not supported for OpenGL3.2
                         self._render1DElements(settings, els);
                         # glLineWidth(1)
 
             if self.getShowPeriodicVertices():
-                for els in self.mesh_data.new_els["periodic"]:
+                for els in self.mesh_data.elements["periodic"]:
                     self._render1DElements(settings, els);
 
             # 2D elements
             if self.mesh.dim > 1:
                 vb = ngsolve.VOL if self.mesh.dim==2 else ngsolve.BND
-                for els in self.mesh_data.new_els[vb]:
+                for els in self.mesh_data.elements[vb]:
                     if self.getShowSurface():
                         self._render2DElements(settings, els, False);
                     if self.getShowWireframe():
@@ -539,7 +539,7 @@ class MeshScene(BaseMeshScene):
 
             # 3D elements
             if self.mesh.dim == 3 and self.getShowElements():
-                for elements in self.mesh_data.new_els[ngsolve.VOL]:
+                for elements in self.mesh_data.elements[ngsolve.VOL]:
                     self._render3DElements(settings, elements)
 
             self.renderNumbers(settings)
@@ -759,7 +759,7 @@ class SolutionScene(BaseMeshScene):
         uniforms = prog.uniforms
 
         glActiveTexture(GL_TEXTURE0)
-        self.mesh_data.vertices.bind()
+        elements.tex_vertices.bind()
         uniforms.set('mesh.vertices', 0)
         uniforms.set('mesh.dim', 3);
 
@@ -803,7 +803,7 @@ class SolutionScene(BaseMeshScene):
         uniforms.set('element_type', 10)
 
         glActiveTexture(GL_TEXTURE0)
-        self.mesh_data.vertices.bind()
+        elements.tex_vertices.bind()
         uniforms.set('mesh.vertices', 0)
 
         glActiveTexture(GL_TEXTURE1)
@@ -835,7 +835,7 @@ class SolutionScene(BaseMeshScene):
             settings.colormap_min = self.values[vb]['min'][comp]
             settings.colormap_max = self.values[vb]['max'][comp]
 
-        for elements in self.mesh_data.new_els[vb]:
+        for elements in self.mesh_data.elements[vb]:
             shader = ['mesh_simple.vert', 'solution_simple.frag']
             use_tessellation = use_deformation or elements.curved
             options = dict(ORDER=self.getOrder(), DEFORMATION=use_deformation)
@@ -861,7 +861,7 @@ class SolutionScene(BaseMeshScene):
             uniforms.set('subdivision', 2**self.getSubdivision()-1)
 
             glActiveTexture(GL_TEXTURE0)
-            self.mesh_data.vertices.bind()
+            elements.tex_vertices.bind()
             uniforms.set('mesh.vertices', 0)
 
             glActiveTexture(GL_TEXTURE1)
@@ -921,7 +921,7 @@ class SolutionScene(BaseMeshScene):
             uniforms.set('element_type', 20)
 
         glActiveTexture(GL_TEXTURE0)
-        self.mesh_data.vertices.bind()
+        elements.tex_vertices.bind()
         uniforms.set('mesh.vertices', 0)
 
         glActiveTexture(GL_TEXTURE1)
@@ -961,7 +961,7 @@ class SolutionScene(BaseMeshScene):
             uniforms.set('element_type', 20)
 
         glActiveTexture(GL_TEXTURE0)
-        self.mesh_data.vertices.bind()
+        elements.tex_vertices.bind()
         uniforms.set('mesh.vertices', 0)
 
         glActiveTexture(GL_TEXTURE1)
@@ -1000,7 +1000,7 @@ class SolutionScene(BaseMeshScene):
             uniforms.set('element_type', 20)
 
         glActiveTexture(GL_TEXTURE0)
-        self.mesh_data.vertices.bind()
+        elements.tex_vertices.bind()
         uniforms.set('mesh.vertices', 0)
 
         glActiveTexture(GL_TEXTURE1)
@@ -1050,10 +1050,10 @@ class SolutionScene(BaseMeshScene):
 
             if self.mesh.dim > 2:
                 if self.getShowIsoSurface():
-                    for els in self.mesh_data.new_els[ngsolve.VOL]:
+                    for els in self.mesh_data.elements[ngsolve.VOL]:
                         self._renderIsoSurface(settings, els)
                 if self.getShowClippingPlane():
-                    for els in self.mesh_data.new_els[ngsolve.VOL]:
+                    for els in self.mesh_data.elements[ngsolve.VOL]:
                         self._renderClippingPlane(settings, els)
 
             if self.cf.dim > 1:
