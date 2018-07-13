@@ -561,6 +561,7 @@ class SolutionScene(BaseMeshScene):
         self.cf = cf
         self.iso_surface = iso_surface or cf
         self.values = {}
+        self.iso_values = {}
         self.__initial_values = {"Order" : order,
                                  "ColorMapMin" : float(min),
                                  "ColorMapMax" : float(max),
@@ -716,11 +717,11 @@ class SolutionScene(BaseMeshScene):
         cf = cf or self.cf
         if vals==None:
             vals = self.values
-        if vb not in self.values:
-            self.values[vb] = {'real':{}, 'imag':{}}
+        if vb not in vals:
+            vals[vb] = {'real':{}, 'imag':{}}
         try:
             values = ngui.GetValues2(cf, self.mesh, vb, 2**sd-1, order)
-            vals = self.values[vb]
+            vals = vals[vb]
             vals['min'] = values['min']
             vals['max'] = values['max']
             comps = ['real']
@@ -746,6 +747,10 @@ class SolutionScene(BaseMeshScene):
                 self._getValues2(ngsolve.BND, self.getSubdivision(), self.getOrder())
             except Exception as e:
                 print("Cannot evaluate given function on surface elements"+str(e))
+        if self.iso_surface is self.cf:
+            self.iso_values = self.values
+        else:
+            self._getValues2(ngsolve.VOL, self.getSubdivision(), self.getOrder(), cf=self.iso_surface, vals=self.iso_values)
 
 
     def _filterElements(self, settings, elements, filter_type):
@@ -765,9 +770,8 @@ class SolutionScene(BaseMeshScene):
         glActiveTexture(GL_TEXTURE2)
         if filter_type == 1: # iso surface
             uniforms.set('iso_value', self.getIsoValue())
-            self.values[ngsolve.VOL]['real'][elements.type, elements.curved].bind() # todo: use iso_values
-        else:
-            self.values[ngsolve.VOL]['real'][elements.type, elements.curved].bind()
+            self.iso_values[ngsolve.VOL]['real'][elements.type, elements.curved].bind()
+
         uniforms.set('coefficients', 2)
         uniforms.set('subdivision', 2**self.getSubdivision()-1)
         if self.cf.dim > 1:
@@ -929,7 +933,7 @@ class SolutionScene(BaseMeshScene):
         uniforms.set('coefficients', 2)
 
         glActiveTexture(GL_TEXTURE3)
-        self.values[ngsolve.VOL]['real'][(elements.type, elements.curved)].bind() # todo: use iso_values
+        self.iso_values[ngsolve.VOL]['real'][(elements.type, elements.curved)].bind()
         uniforms.set('coefficients_iso', 3)
 
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
@@ -1010,7 +1014,7 @@ class SolutionScene(BaseMeshScene):
         uniforms.set('is_complex', self.cf.is_complex)
         if self.cf.is_complex:
             glActiveTexture(GL_TEXTURE3)
-            self.volume_values_imag.bind()
+            self.values[ngsolve.VOL]['imag'][elements.type, elements.curved].bind()
             uniforms.set('coefficients_imag', 3)
 
             uniforms.set('complex_vis_function', self._complex_eval_funcs[self.getComplexEvalFunc()])

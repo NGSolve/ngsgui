@@ -426,6 +426,8 @@ def getProgram(*shader_files, feedback=[], elements=None, params=None, **define_
             u.set('colormap_min', params.colormap_min)
         if 'colormap_max' in u:
             u.set('colormap_max', params.colormap_max)
+        if 'colormap_linear' in u:
+            u.set('colormap_linear', params.colormap_linear)
 
     if elements != None:
         u.set('element_type', int(elements.type))

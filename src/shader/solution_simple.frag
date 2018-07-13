@@ -37,15 +37,14 @@ void main()
   FragColor = vec4(0,1,0,1);
   if(!do_clipping || dot(vec4(inData.pos,1.0),clipping_plane)>0)
   {
-      float x = inData.lam.x;
-      float y = inData.lam.y;
-      float z = inData.lam.z;
       float value;
-      vec3 lam = inData.lam.yzx;
-      lam.z = 1.0 - inData.lam.x - inData.lam.y - inData.lam.z;
+      vec3 lam = inData.lam;
 #if defined(ET_TRIG)
+       lam = inData.lam.yzx;
+       lam.z = 1.0 - inData.lam.x - inData.lam.y - inData.lam.z;
        value = InterpolateTrig(inData.element, coefficients, ORDER, subdivision, inData.lam, component);
 #elif defined(ET_QUAD)
+       lam = inData.lam.yxz;
        value = InterpolateQuad(inData.element, coefficients, ORDER, subdivision, lam, component);
 #endif
 

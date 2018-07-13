@@ -45,8 +45,8 @@ void main()
 ///////////////////////////////////////////////////////////////////////////////
 #elif defined(ET_QUAD)
   #ifdef CURVED
-    if(vid>2) outData.lam.y = 1.0;
-    if(vid==1 || vid==2) outData.lam.x = 1.0;
+    if(vid>2) outData.lam.x = 1.0;
+    if(vid==1 || vid==2) outData.lam.y = 1.0;
     outData.normal = texelFetch(mesh.vertices, element.curved_vertices+vid).xyz;
   #else
     outData.lam[vid] = 1.0;
