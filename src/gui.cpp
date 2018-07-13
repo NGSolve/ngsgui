@@ -17,11 +17,22 @@ using std::is_same;
 
 namespace py = pybind11;
 
+VorB getVB(int codim) {
+    switch(codim) {
+      case 0: return VOL;
+      case 1: return BND;
+      case 2: return BBND;
+      case 3: return BBBND;
+      default: throw Exception("invalid codim");
+    }
+}
+
 struct ElementInformation {
     ElementInformation() = default;
     ElementInformation( size_t size_, ELEMENT_TYPE type_, bool curved_=false)
-      : size(size_), type(type_), curved(curved_) {
+      : size(size_), type(type_), curved(curved_), nelements(0) {
           switch(type) {
+            case ET_POINT: nverts=1; break;
             case ET_SEGM: nverts=2; break;
             case ET_TRIG: nverts=3; break;
             case ET_QUAD: nverts=4; break;
@@ -32,6 +43,8 @@ struct ElementInformation {
             default: throw Exception("ElementInformation(): unknown element type " + ToString(type));
           }
           switch(type) {
+            case ET_POINT:
+              dim=0; break;
             case ET_SEGM:
               dim=1; break;
             case ET_TRIG:
@@ -51,6 +64,7 @@ struct ElementInformation {
     int dim;
     ELEMENT_TYPE type;
     bool curved;
+    int nelements;
 };
 
 template<typename T>
@@ -376,6 +390,7 @@ PYBIND11_MODULE(ngui, m) {
     .def_readwrite("curved",  &ElementInformation::curved)
     .def_readwrite("nverts",  &ElementInformation::nverts)
     .def_readwrite("dim",  &ElementInformation::dim)
+    .def_readwrite("nelements",  &ElementInformation::nelements)
     ;
   m.def("SetLocale", []()
         {
@@ -511,8 +526,12 @@ PYBIND11_MODULE(ngui, m) {
 
         LocalHeap lh(1000000, "GetMeshData");
 
-        ElementInformation edges(4, ET_SEGM);
         std::map<VorB, py::list> element_data;
+        ElementInformation points(0, ET_POINT);
+        points.nelements = ma->GetNV();
+        element_data[getVB(ma->GetDimension())].append(py::cast(points));
+
+        ElementInformation edges(4, ET_SEGM);
 
         if(ma->GetDimension()>=2) {
             // collect edges
@@ -527,7 +546,8 @@ PYBIND11_MODULE(ngui, m) {
 
         ElementInformation periodic_vertices(4, ET_SEGM);
         int n_periodic_vertices = ma->GetNPeriodicNodes(NT_VERTEX);
-        edges.data.SetAllocSize(n_periodic_vertices*periodic_vertices.size);
+        periodic_vertices.nelements = n_periodic_vertices;
+        periodic_vertices.data.SetAllocSize(periodic_vertices.nelements*periodic_vertices.size);
         for(auto idnr : Range(ma->GetNPeriodicIdentifications()))
             for (const auto& pair : ma->GetPeriodicNodes(NT_VERTEX, idnr))
                 periodic_vertices.data.Append({idnr, -1, pair[0],pair[1]});
@@ -536,11 +556,12 @@ PYBIND11_MODULE(ngui, m) {
             ElementInformation edges[2] = { {4, ET_SEGM}, {5, ET_SEGM, true } };
 
             // 1d Elements
-            VorB vb = ma->GetDimension() == 1 ? VOL : (ma->GetDimension() == 2 ? BND : BBND);
+            VorB vb = getVB(ma->GetDimension()-1);
             for (auto el : ma->Elements(vb)) {
                 auto verts = el.Vertices();
                 auto &ei = edges[el.is_curved];
 
+                ei.nelements++;
                 ei.data.Append({int(el.Nr()), int(el.GetIndex()), int(verts[0]), int(verts[1])});
                 if(el.is_curved) {
                     ei.data.Append(vertices.Size()/3);
@@ -570,11 +591,12 @@ PYBIND11_MODULE(ngui, m) {
             ElementInformation trigs[2] = { {5, ET_TRIG}, {6, ET_TRIG, true } };
             ElementInformation quads[2] = { {6, ET_QUAD}, {7, ET_QUAD, true } };
 
-            VorB vb = ma->GetDimension() == 2 ? VOL : BND;
+            VorB vb = getVB(ma->GetDimension()-2);
             for (auto el : ma->Elements(vb)) {
                 auto verts = el.Vertices();
                 auto nverts = verts.Size();
                 auto &ei = (nverts==3) ? trigs[el.is_curved] : quads[el.is_curved];
+                ei.nelements++;
                 ei.data.Append(el.Nr());
                 ei.data.Append(el.GetIndex());
                 for (auto i : Range(nverts))
@@ -638,6 +660,7 @@ PYBIND11_MODULE(ngui, m) {
                     throw Exception("GetMeshData(): unknown element");
                 }
                 ElementInformation &ei = pei[el.is_curved];
+                ei.nelements++;
                 ei.data.Append(el.Nr());
                 ei.data.Append(el.GetIndex());
                 for (auto v : verts)
@@ -674,6 +697,7 @@ PYBIND11_MODULE(ngui, m) {
         py_periodic_vertices.append(periodic_vertices);
         py_eldata["periodic"] = py_periodic_vertices;
 
+        py_eldata[py::cast(BBBND)] = element_data[BBBND];
         py_eldata[py::cast(BBND)] = element_data[BBND];
         py_eldata[py::cast(BND)] = element_data[BND];
         py_eldata[py::cast(VOL)] = element_data[VOL];

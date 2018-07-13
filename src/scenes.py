@@ -276,7 +276,7 @@ class MeshScene(BaseMeshScene):
                            settings.CheckboxParameter(name="ShowEdgeNumbers",
                                                       label="Edges",
                                                       default_value=self.__initial_values["ShowEdgeNumbers"]))
-        if self.mesh.dim > 2:
+        if self.mesh.dim > 1:
             self.addParameters("Numbers",
                                settings.CheckboxParameter(name="ShowElementNumbers",
                                                           label="Elements",
@@ -447,10 +447,8 @@ class MeshScene(BaseMeshScene):
         # todo: number of vertices per element, number of instances
         glDrawArraysInstanced(GL_TRIANGLES, 0, 3*self.mesh.ne, 4)
 
-    def renderNumbers(self, settings):
-        if not any([self.getShowPointNumbers(), self.getShowEdgeNumbers(), self.getShowElementNumbers()]):
-            return
-        prog = getProgram('filter_elements.vert', 'numbers.geom', 'font.frag', params=settings)
+    def _renderNumbers(self, settings, elements):
+        prog = getProgram('filter_elements.vert', 'numbers.geom', 'font.frag', params=settings, elements=elements)
         uniforms = prog.uniforms
 
         viewport = glGetIntegerv( GL_VIEWPORT )
@@ -470,41 +468,19 @@ class MeshScene(BaseMeshScene):
         uniforms.set('font_height_in_texture', font.height/font.tex_height)
         uniforms.set('font_width_on_screen', 2*font.width/screen_width)
         uniforms.set('font_height_on_screen', 2*font.height/screen_height)
-        uniforms.set('clipping_plane', settings.clipping_plane)
 
         glActiveTexture(GL_TEXTURE0)
         elements.tex_vertices.bind()
         uniforms.set('mesh.vertices', 0)
 
-        glActiveTexture(GL_TEXTURE1)
-        self.mesh_data.elements.bind()
-        uniforms.set('mesh.elements', 1)
+        if elements.dim>0:
+            glActiveTexture(GL_TEXTURE1)
+            elements.tex.bind()
+            uniforms.set('mesh.elements', 1)
 
-        if self.getShowPointNumbers():
-            uniforms.set('mesh.dim', 0);
-            glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
-            glPolygonOffset (0,0)
-            glDrawArrays(GL_POINTS, 0, self.mesh.nv)
-
-        if self.getShowEdgeNumbers():
-            uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
-            uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
-            uniforms.set('mesh.surface_elements_offset', self.mesh_data.surface_elements_offset)
-            uniforms.set('mesh.dim', 1)
-            glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
-            glPolygonOffset (0,0)
-            glDrawArrays(GL_POINTS, 0, self.mesh_data.nedges)
-
-        if self.mesh.dim > 2 and self.getShowElementNumbers():
-            uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
-            uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
-            uniforms.set('mesh.surface_elements_offset', self.mesh_data.surface_elements_offset)
-            uniforms.set('mesh.dim', self.mesh.dim)
-            glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
-            glPolygonOffset (0,0)
-            glDrawArrays(GL_POINTS, 0, self.mesh.ne)
-
-
+        glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
+        glPolygonOffset (0,0)
+        glDrawArrays(GL_POINTS, 0, elements.nelements)
 
     @inmain_decorator(True)
     def update(self):
@@ -514,12 +490,14 @@ class MeshScene(BaseMeshScene):
         if not self.active:
             return
         with self._vao:
+            vbs = [ngsolve.VOL, ngsolve.BND, ngsolve.BBND, ngsolve.BBBND]
+            dim = self.mesh.dim
             # 1D elements
             if self.mesh.dim > 2 and self.getShowEdges():
                 for els in self.mesh_data.elements["edges"]:
                     self._render1DElements(settings, els);
             if self.getShowEdgeElements():
-                vb = [None, ngsolve.VOL, ngsolve.BND, ngsolve.BBND][self.mesh.dim]
+                vb = vbs[dim-1]
                 for els in self.mesh_data.elements[vb]:
                     if vb in [ngsolve.BBND, ngsolve.BND]:
                         # glLineWidth(3) # TODO: replace with manually drawing quads (linewidth is not supported for OpenGL3.2
@@ -532,7 +510,7 @@ class MeshScene(BaseMeshScene):
 
             # 2D elements
             if self.mesh.dim > 1:
-                vb = ngsolve.VOL if self.mesh.dim==2 else ngsolve.BND
+                vb = vbs[dim-2]
                 for els in self.mesh_data.elements[vb]:
                     if self.getShowSurface():
                         self._render2DElements(settings, els, False);
@@ -544,7 +522,20 @@ class MeshScene(BaseMeshScene):
                 for elements in self.mesh_data.elements[ngsolve.VOL]:
                     self._render3DElements(settings, elements)
 
-            self.renderNumbers(settings)
+            # Numbers
+            if self.getShowPointNumbers():
+                vb = vbs[ self.mesh.dim ]
+                for elements in self.mesh_data.elements[vb]:
+                    self._renderNumbers(settings, elements)
+
+            if self.getShowEdgeNumbers():
+                vb = vbs[self.mesh.dim-1]
+                for elements in self.mesh_data.elements[vb]:
+                    self._renderNumbers(settings, elements)
+
+            if self.mesh.dim > 1 and self.getShowElementNumbers():
+                for elements in self.mesh_data.elements[ngsolve.VOL]:
+                    self._renderNumbers(settings, elements)
 
     @inmain_decorator(True)
     def _createQtWidget(self):

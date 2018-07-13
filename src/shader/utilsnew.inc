@@ -1,5 +1,9 @@
 {include utils.inc}
 
+struct POINT {
+  vec3 pos[1];
+};
+
 struct SEGM {
   vec3 pos[2];
   vec3 normal;
@@ -71,6 +75,9 @@ PointData interpolatePoint(Mesh mesh, TRIG el, vec3 lam) {
 
 ELEMENT_TYPE getElement(Mesh mesh, int elnr ) {
     ELEMENT_TYPE el;
+#ifdef ET_POINT
+    el.pos[0] = texelFetch(mesh.vertices, elnr).xyz;
+#else // ET_POINT
     int offset = ELEMENT_SIZE*elnr;
     el.index = texelFetch(mesh.elements, offset +1).r;
     for (int i=0; i<ELEMENT_N_VERTICES; i++) {
@@ -83,6 +90,7 @@ ELEMENT_TYPE getElement(Mesh mesh, int elnr ) {
 #if defined(ET_TRIG) || defined(ET_QUAD)
     el.normal = cross(el.pos[1]-el.pos[0], el.pos[2]-el.pos[0]);
 #endif
+#endif // ET_POINT
     return el;
 }
 

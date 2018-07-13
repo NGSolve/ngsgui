@@ -1,7 +1,7 @@
 #version 150 
 
-{include utils.inc}
-
+{include utilsnew.inc}
+#line 4
 uniform mat4 P;
 uniform mat4 MV;
 
@@ -31,24 +31,13 @@ vec2 tex_coordinate;
 
 vec3 getPosition() {
     vec3 p;
-    if(mesh.dim==0) {
-        p = texelFetch(vertices, inData[0].element).xyz;
-    }
-    if(mesh.dim==1) {
-        Element1d el = getElement1d(mesh, inData[0].element);
-        p = 0.7*el.pos[0] +0.3*el.pos[1];
-    }
-    if(mesh.dim==2) {
-        Element2d el = getElement2d(mesh, inData[0].element);
-        p = el.pos[0] +el.pos[1] + el.pos[2];
-        p *= 1.0/3;
-    }
-    if(mesh.dim==3) {
-        Element3d el = getElement3d(mesh, inData[0].element);
-        p = el.pos[0] +el.pos[1] + el.pos[2] + el.pos[3];
-        p *= 1.0/4;
+    ELEMENT_TYPE el = getElement(mesh, inData[0].element);
+
+    for (int i=0; i<ELEMENT_N_VERTICES; i++) {
+        p += el.pos[i];
     }
 
+    p *= 1.0/ELEMENT_N_VERTICES;
     return p;
 }
 
