@@ -3,6 +3,7 @@ from . import glmath, scenes
 from . import widgets as wid
 from . import gl as mygl
 from .plot import PlotTab
+from .gl import TextRenderer, ArrayBuffer, VertexArray, getProgram
 import copy
 from .widgets import ArrangeV, ArrangeH
 from .thread import inthread, inmain_decorator
@@ -11,7 +12,7 @@ from ngsgui import _debug
 from ngsgui.icons import location as icon_path
 import numpy as np
 
-import time
+import time, ngsolve
 from ngsolve.bla import Vector
 from math import exp, sqrt
 
@@ -93,6 +94,108 @@ class SceneToolBox(QtWidgets.QToolBox):
                 self.window.glWidget.scenes.remove(scene)
                 self.window.glWidget.updateGL()
 
+class GLWindowButtonArea(wid.ButtonArea):
+    def __init__(self, glWidget):
+        super().__init__()
+        self.glWidget = glWidget
+        glWidget._btn_area = self
+        self._renderingParameters = glWidget._rendering_parameters
+        def clipX():
+            self.renderingParameters.setClippingPlaneNormal([1,0,0])
+            self.glWidget.updateGL()
+        def clipY():
+            self.renderingParameters.setClippingPlaneNormal([0,1,0])
+            self.glWidget.updateGL()
+        def clipZ():
+            self.renderingParameters.setClippingPlaneNormal([0,0,1])
+            self.glWidget.updateGL()
+        def flip():
+            self.renderingParameters.setClippingPlaneNormal(-1. * self.renderingParameters.getClippingPlaneNormal())
+            self.glWidget.updateGL()
+        self.addButton(clipX, "clip X")
+        self.addButton(clipY, "clip Y")
+        self.addButton(clipZ, "clip Z")
+        self.addButton(flip, "flip")
+        self._showCross = True
+        self.addButton(lambda : setattr(self, "_showCross", not self._showCross) or self.glWidget.updateGL(),
+                       "Cross")
+        self.addButton(lambda : setattr(self.renderingParameters, "fastmode",
+                                        not self.renderingParameters.fastmode) or self.glWidget.updateGL(),
+                       "Fastmode")
+        self._showColorBar = True
+        self.addButton(lambda : setattr(self, "_showColorBar", not self._showColorBar) or self.glWidget.updateGL(),
+                       "Colorbar")
+        self._showVersion = True
+        self.addButton(lambda : setattr(self, "_showVersion", not self._showVersion) or self.glWidget.updateGL(),
+                       "Version")
+        self._gl_initialized = False
+
+    def initGL(self):
+        if self._gl_initialized:
+            return
+        self._vao = VertexArray()
+        with self._vao:
+            self._gl_initialized = True
+            self._text_renderer = TextRenderer()
+            self._cross_points = ArrayBuffer()
+            self._cross_scale = 0.3
+            self._cross_shift = -0.10
+            points = [self._cross_shift + (self._cross_scale if i%7==3 else 0) for i in range(24)]
+            self._cross_points.store(np.array(points, dtype=np.float32))
+
+    def _setRenderingParameters(self, pars):
+        self._renderingParameters.__dict__.update(pars)
+    def _getRenderingParameters(self):
+        return self._renderingParameters
+    renderingParameters = property(_getRenderingParameters, _setRenderingParameters)
+
+    def render(self):
+        if not self._gl_initialized:
+            self.initGL()
+        with self._vao:
+            GL.glDisable(GL.GL_DEPTH_TEST)
+            if self._showCross:
+                prog = getProgram("cross.vert", "cross.frag")
+                model, view, projection = self.renderingParameters.model, self.renderingParameters.view, self.renderingParameters.projection
+                mvp = glmath.Translate(-1+0.15/self.renderingParameters.ratio,-0.85,0)*projection*view*glmath.Translate(0,0,-5)*self.renderingParameters.rotmat
+                prog.uniforms.set("MVP", mvp)
+                prog.attributes.bind("pos", self._cross_points)
+                coords = glmath.Identity()
+                for i in range(3):
+                    for j in range(3):
+                        coords[i,j] = self._cross_shift+int(i==j)*self._cross_scale*1.2
+                coords[3,:] = 1.0
+                coords = mvp*coords
+                for i in range(4):
+                    for j in range(4):
+                        coords[i,j] = coords[i,j]/coords[3,j]
+
+                GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL)
+                GL.glDrawArrays(GL.GL_LINES, 0,6)
+                for i in range(3):
+                    self._text_renderer.draw(self.renderingParameters, "xyz"[i], coords[0:3,i], alignment=QtCore.Qt.AlignCenter|QtCore.Qt.AlignVCenter)
+            if self._showVersion:
+                self._text_renderer.draw(self.renderingParameters, "NGSolve " + ngsolve.__version__, [0.99,-0.99,0], alignment=QtCore.Qt.AlignRight|QtCore.Qt.AlignBottom)
+            if self._showColorBar:
+                prog = getProgram('colorbar.vert','colorbar.frag')
+                uniforms = prog.uniforms
+                x0,y0 = -0.6, 0.82
+                dx,dy = 1.2, 0.03
+                uniforms.set('x0', x0)
+                uniforms.set('dx', dx)
+                uniforms.set('y0', y0)
+                uniforms.set('dy', dy)
+
+                GL.glPolygonMode( GL.GL_FRONT_AND_BACK, GL.GL_FILL );
+                GL.glDrawArrays(GL.GL_TRIANGLES, 0, 6)
+                cmin = self.renderingParameters.colormap_min
+                cmax = self.renderingParameters.colormap_max
+                for i in range(5):
+                    x = x0+i*dx/4
+                    val = cmin + i*(cmax-cmin)/4
+                    self._text_renderer.draw(self.renderingParameters, '{:.2g}'.format(val).replace("e+", "e"), [x,y0-0.03,0], alignment=QtCore.Qt.AlignCenter|QtCore.Qt.AlignTop)
+            GL.glEnable(GL.GL_DEPTH_TEST)
+
 class RenderingParameters:
     def __init__(self):
         self.rotmat = glmath.Identity()
@@ -148,7 +251,7 @@ class RenderingParameters:
     def model(self):
         mat = glmath.Identity();
         mat = self.rotmat*mat;
-        mat = glmath.Scale(2./self._modelSize) * mat
+        mat = glmath.Scale(2./self._modelSize) * mat if self._modelSize else mat
         mat = glmath.Translate(self.dx, -self.dy, -0 )*mat;
         mat = glmath.Scale(exp(-self.zoom/100))*mat;
         mat = glmath.Translate(0, -0, -5 )*mat;
@@ -188,12 +291,13 @@ class RenderingParameters:
             self.clipping_point[i] = point[i]
 
 class WindowTab(QtWidgets.QWidget):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, rendering_parameters = None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._startup_scenes = []
+        self._rendering_parameters = rendering_parameters if rendering_parameters else RenderingParameters()
 
     def create(self,sharedContext):
-        self.glWidget = GLWidget(shared=sharedContext)
+        self.glWidget = GLWidget(shared=sharedContext, rendering_parameters = self._rendering_parameters)
         self.glWidget.makeCurrent()
 
         buttons = QtWidgets.QVBoxLayout()
@@ -207,29 +311,27 @@ class WindowTab(QtWidgets.QWidget):
         self.toolbox = SceneToolBox(self)
 
         splitter = QtWidgets.QSplitter()
-        splitter.addWidget(self.glWidget)
+        inner_splitter = QtWidgets.QSplitter()
+        inner_splitter.setOrientation(QtCore.Qt.Vertical)
+        btn_area = GLWindowButtonArea(self.glWidget)
+        inner_splitter.addWidget(btn_area)
+        inner_splitter.addWidget(self.glWidget)
+        splitter.addWidget(inner_splitter)
         tbwidget = QtWidgets.QWidget()
         tbwidget.setLayout(ArrangeV(self.toolbox, buttons))
         splitter.addWidget(tbwidget)
         splitter.setOrientation(QtCore.Qt.Horizontal)
         splitter.setSizes([75000, 25000])
         self.setLayout(ArrangeH(splitter))
-        self.overlay = scenes.OverlayScene(name="Global options",
-                                           rendering_parameters=self.glWidget._rendering_parameters)
-        self.draw(self.overlay)
         for scene in self._startup_scenes:
-            if isinstance(scene, scenes.OverlayScene):
-                self.overlay.copyOptionsFrom(scene)
-                for w in scene.widgets.groups:
-                    w.setVisible(False)
-            else:
-                self.draw(scene)
+            self.draw(scene)
 
     def __getstate__(self):
-        return (self.glWidget.scenes,)
+        return (self.glWidget.scenes, self.glWidget._rendering_parameters)
 
     def __setstate__(self,state):
         self.__init__()
+        self._rendering_parameters = state[1]
         self._startup_scenes = state[0]
 
     def isGLWindow(self):
@@ -247,7 +349,7 @@ class WindowTab(QtWidgets.QWidget):
 class GLWidget(QtOpenGL.QGLWidget):
     redraw_signal = QtCore.Signal()
 
-    def __init__(self,shared=None, *args, **kwargs):
+    def __init__(self,shared=None, rendering_parameters=None, *args, **kwargs):
         f = QtOpenGL.QGLFormat()
         f.setVersion(3,2)
         # f.setProfile(QtOpenGL.QGLFormat.CompatibilityProfile)
@@ -267,7 +369,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.do_move_clippingplane = False
         self.do_rotate_clippingplane = False
         self.old_time = time.time()
-        self._rendering_parameters = RenderingParameters()
+        self._rendering_parameters = rendering_parameters if rendering_parameters else RenderingParameters()
 
         self.redraw_update_done = QtCore.QWaitCondition()
         self.redraw_mutex = QtCore.QMutex()
@@ -328,6 +430,7 @@ class GLWidget(QtOpenGL.QGLWidget):
             rp.ratio = screen_width/max(screen_height,1)
             for scene in self.scenes:
                 scene.render(rp) #model, view, projection)
+            self._btn_area.render()
         # print('\rtotal trigs drawn ' + str(q.value)+' '*10, end='')
 
     def addScene(self, scene):
