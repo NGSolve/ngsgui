@@ -216,6 +216,7 @@ class BaseMeshScene(BaseScene):
                 for et in values[comp]:
                     if not et in vals[comp]:
                         vals[comp][et] = Texture(GL_TEXTURE_BUFFER, formats[cf.dim])
+                    print('got ', len(values[comp][et]), 'values')
                     vals[comp][et].store(values[comp][et])
 
         except RuntimeError as e:
@@ -601,7 +602,9 @@ class SolutionScene(BaseMeshScene):
         else:
             self.have_gradient = False
         if not 'deformation' in kwargs:
-            if mesh.dim<3 and cf.dim==1:
+            if mesh.dim==1 and cf.dim==1:
+                kwargs['deformation'] = ngsolve.CoefficientFunction((0,cf,0))
+            elif mesh.dim==2 and cf.dim==1:
                 kwargs['deformation'] = ngsolve.CoefficientFunction((0,0,cf))
             else:
                 kwargs['deformation'] = cf
@@ -853,7 +856,6 @@ class SolutionScene(BaseMeshScene):
         uniforms.set('light_diffuse', 0.7)
         nverts = elements.nverts
         nelements = elements.nelements
-        print('nverts', nverts, nelements, use_tessellation)
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         if use_tessellation:
             glPatchParameteri(GL_PATCH_VERTICES, nverts)
@@ -862,36 +864,6 @@ class SolutionScene(BaseMeshScene):
             glDrawArrays(GL_PATCHES, 0, nverts*nelements)
         else:
             glDrawArrays(GL_LINES, 0, nverts*nelements)
-    def render1D(self, settings):
-        prog = getProgram('solution1d.vert', 'solution1d.frag', ORDER=self.getOrder())
-
-        uniforms = prog.uniforms
-
-        uniforms.set('do_clipping', self.mesh.dim==3);
-        uniforms.set('subdivision', 2**self.getSubdivision()-1)
-
-
-        uniforms.set('element_type', 10)
-
-        glActiveTexture(GL_TEXTURE0)
-        elements.tex_vertices.bind()
-        uniforms.set('mesh.vertices', 0)
-
-        glActiveTexture(GL_TEXTURE1)
-        self.mesh_data.elements.bind()
-        uniforms.set('mesh.elements', 1)
-
-        glActiveTexture(GL_TEXTURE2)
-        self.surface_values.bind()
-        uniforms.set('coefficients', 2)
-
-        uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
-        uniforms.set('mesh.surface_elements_offset', self.mesh_data.surface_elements_offset)
-
-        glPolygonOffset (2,2)
-        glEnable(GL_POLYGON_OFFSET_FILL)
-        glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
-        glDrawArrays(GL_LINES, 0, self.mesh_data.nedge_elements*(2*(2**self.getSubdivision()*self.getOrder()+1)-2))
 
     def renderSurface(self, settings):
         vb = ngsolve.VOL if self.mesh.dim==2 else ngsolve.BND
@@ -971,7 +943,7 @@ class SolutionScene(BaseMeshScene):
     def _renderIsoSurface(self, settings, elements):
         self._filterElements(settings, elements, 1)
         model, view, projection = settings.model, settings.view, settings.projection
-        prog = getProgram('mesh.vert', 'isosurface.geom', 'solution.frag', elements=elements, ORDER=self.getOrder(), params=settings)
+        prog = getProgram('mesh.vert', 'isosurface.geom', 'solution_simple.frag', elements=elements, ORDER=self.getOrder(), params=settings)
 
         uniforms = prog.uniforms
         uniforms.set('P',projection)
@@ -1012,47 +984,50 @@ class SolutionScene(BaseMeshScene):
         prog.attributes.bind('element', self.filter_buffer)
         glDrawTransformFeedbackInstanced(GL_POINTS, self.filter_feedback, instances)
 
+    # TODO: implement (surface or clipping plane) vector rendering
     def renderVectors(self, settings):
-        model, view, projection = settings.model, settings.view, settings.projection
-        prog = getProgram('mesh.vert', 'vector.geom', 'solution.frag', ORDER=self.getOrder())
-
-        uniforms = prog.uniforms
-        uniforms.set('P',projection)
-        uniforms.set('MV',view*model)
-        uniforms.set('colormap_min', 1e99)
-        uniforms.set('colormap_max', -1e99)
-        uniforms.set('colormap_linear', settings.colormap_linear)
-        uniforms.set('clipping_plane', settings.clipping_plane)
-        uniforms.set('do_clipping', True);
-        uniforms.set('subdivision', 2**self.getSubdivision()-1)
-
-        if(self.mesh.dim==2):
-            uniforms.set('element_type', 10)
-        if(self.mesh.dim==3):
-            uniforms.set('element_type', 20)
-
-        glActiveTexture(GL_TEXTURE0)
-        elements.tex_vertices.bind()
-        uniforms.set('mesh.vertices', 0)
-
-        glActiveTexture(GL_TEXTURE1)
-        self.mesh_data.elements.bind()
-        uniforms.set('mesh.elements', 1)
-
-        glActiveTexture(GL_TEXTURE2)
-        self.volume_values.bind()
-        uniforms.set('coefficients', 2)
-
-        uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
-        uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
-
-        glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
-        glDrawArrays(GL_POINTS, 0, self.mesh.ne)
+        print('rendering vectors not implemented')
+        return
+#         model, view, projection = settings.model, settings.view, settings.projection
+#         prog = getProgram('mesh.vert', 'vector.geom', 'solution.frag', ORDER=self.getOrder())
+# 
+#         uniforms = prog.uniforms
+#         uniforms.set('P',projection)
+#         uniforms.set('MV',view*model)
+#         uniforms.set('colormap_min', 1e99)
+#         uniforms.set('colormap_max', -1e99)
+#         uniforms.set('colormap_linear', settings.colormap_linear)
+#         uniforms.set('clipping_plane', settings.clipping_plane)
+#         uniforms.set('do_clipping', True);
+#         uniforms.set('subdivision', 2**self.getSubdivision()-1)
+# 
+#         if(self.mesh.dim==2):
+#             uniforms.set('element_type', 10)
+#         if(self.mesh.dim==3):
+#             uniforms.set('element_type', 20)
+# 
+#         glActiveTexture(GL_TEXTURE0)
+#         elements.tex_vertices.bind()
+#         uniforms.set('mesh.vertices', 0)
+# 
+#         glActiveTexture(GL_TEXTURE1)
+#         self.mesh_data.elements.bind()
+#         uniforms.set('mesh.elements', 1)
+# 
+#         glActiveTexture(GL_TEXTURE2)
+#         self.volume_values.bind()
+#         uniforms.set('coefficients', 2)
+# 
+#         uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
+#         uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
+# 
+#         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
+#         glDrawArrays(GL_POINTS, 0, self.mesh.ne)
 
     def _renderClippingPlane(self, settings, elements):
         self._filterElements(settings, elements, 0)
         model, view, projection = settings.model, settings.view, settings.projection
-        prog = getProgram('mesh.vert', 'clipping.geom', 'solution.frag', elements=elements, ORDER=self.getOrder(), params=settings)
+        prog = getProgram('mesh.vert', 'clipping.geom', 'solution_simple.frag', elements=elements, ORDER=self.getOrder(), params=settings)
 
         uniforms = prog.uniforms
         uniforms.set('P',projection)

@@ -1,6 +1,7 @@
 #version 150
 
 {include utilsnew.inc}
+{include interpolation.inc}
 #line 4
 
 uniform mat4 P;
@@ -9,6 +10,9 @@ uniform Mesh mesh;
 uniform float shrink_elements;
 uniform bool clip_whole_elements;
 uniform vec4 clipping_plane;
+uniform samplerBuffer coefficients;
+uniform int subdivision;
+uniform int component;
 
 out VertexData
 {
@@ -36,7 +40,7 @@ void main()
 
 ///////////////////////////////////////////////////////////////////////////////
 #if   defined(ET_SEGM)
-  outData.lam[vid] = 1.0;
+  outData.lam[1-vid] = 1.0;
 ///////////////////////////////////////////////////////////////////////////////
 #elif defined(ET_TRIG)
   outData.lam[vid] = 1.0;
