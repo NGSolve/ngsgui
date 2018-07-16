@@ -1,7 +1,6 @@
 #version 150
 
 {include utilsnew.inc}
-{include interpolation.inc}
 #line 4
 
 uniform mat4 P;

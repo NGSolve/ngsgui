@@ -97,7 +97,7 @@ It can be used to manipulate any behaviour of the interface.
     file_loaders = {}
     def __init__(self):
         self.app = QtWidgets.QApplication([])
-        ngui.SetLocale()
+        ngsolve.solve._SetLocale()
         self.multikernel_manager = MultiQtKernelManager()
         self._commonContext = glwindow.GLWidget()
         self._createMenu()

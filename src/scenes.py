@@ -8,7 +8,7 @@ from . import glmath
 from . import ngui
 import math, cmath
 from .thread import inmain_decorator
-from .gl_interface import getOpenGLData
+from .gl_interface import getOpenGLData, getReferenceRules
 from .gui import GUI
 import netgen.meshing, netgen.geom2d
 from . import settings
@@ -206,7 +206,8 @@ class BaseMeshScene(BaseScene):
         if vb not in vals:
             vals[vb] = {'real':{}, 'imag':{}}
         try:
-            values = ngui.GetValues(cf, self.mesh, vb, 2**sd-1, order)
+            irs = getReferenceRules(order, 2**sd-1)
+            values = ngsolve.solve._GetValues(cf, self.mesh, vb, irs)
             vals = vals[vb]
             vals['min'] = values['min']
             vals['max'] = values['max']
@@ -216,7 +217,6 @@ class BaseMeshScene(BaseScene):
                 for et in values[comp]:
                     if not et in vals[comp]:
                         vals[comp][et] = Texture(GL_TEXTURE_BUFFER, formats[cf.dim])
-                    print('got ', len(values[comp][et]), 'values')
                     vals[comp][et].store(values[comp][et])
 
         except RuntimeError as e:

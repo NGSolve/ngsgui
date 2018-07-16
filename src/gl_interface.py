@@ -7,6 +7,53 @@ import netgen.meshing
 from . import ngui
 from .thread import inmain_decorator
 
+def getP2Rules():
+    res = {}
+    res[ngs.ET.SEGM] = ngs.IntegrationRule([(0,0,0), (1.0,0,0), (0.5,0,0)], [0.0]*3)
+
+    # for 2d elements we need to get the normal vectors at the corner vertices plus mapped coordinates of edge midpoints
+    res[ngs.ET.TRIG] = ngs.IntegrationRule([(1,0,0), (0,1,0), (0,0,0),
+        (0.5,0.0,0.0), (0.0,0.5,0.0), (0.5,0.5,0.0)], [0.0]*6)
+    res[ngs.ET.QUAD] = ngs.IntegrationRule([(0,0,0), (1,0,0), (1,1,0), (0,1,0),
+        (0.5,0.0,0.0), (0.0,0.5,0.0), (0.5,0.5,0.0), (1.0,0.5,0.0), (0.5,1.0,0.0)], [0.0]*9)
+
+    # 3d elements have no normal vectors, so only evaluate at edge midpoints
+    res[ngs.ET.TET] = ngs.IntegrationRule([ (0.5,0.0,0.0), (0.0,0.5,0.0), (0.5,0.5,0.0), (0.5,0.0,0.5), (0.0,0.5,0.5), (0.0,0.0,0.5)], [0.0]*6)
+
+#         // PRISM
+#         for (auto & ip : ir_trig.Range(3,6))
+#             ir_prism.Append(ip);
+#         for (auto & ip : ir_trig.Range(0,3))
+#             ir_prism.Append(IntegrationPoint(ip(0), ip(1), 0.5));
+#         for (auto & ip : ir_trig.Range(3,6))
+#             ir_prism.Append(IntegrationPoint(ip(0), ip(1), 1.0));
+# 
+#         // PYRAMID
+#         for (auto & ip : ir_quad.Range(4,9))
+#             ir_pyramid.Append(ip);
+#         for (auto & ip : ir_quad.Range(0,4))
+#             ir_pyramid.Append(IntegrationPoint(ip(0), ip(1), 0.5));
+# 
+#         // HEX
+#         for (auto & ip : ir_quad.Range(4,9))
+#             ir_hex.Append(ip);
+#         for (auto x : {0.0, 0.5, 1.0})
+#           for (auto y : {0.0, 0.5, 1.0})
+#             ir_hex.Append(IntegrationPoint(x,y,0.5));
+#         for (auto & ip : ir_quad.Range(4,9))
+#             ir_hex.Append(IntegrationPoint(ip(0), ip(1), 1.0));
+    return res
+
+def getReferenceRules(order, sd):
+  n = (order)*(sd+1)+1;
+  h = 1.0/(n-1);
+  res = {}
+  res[ngs.ET.SEGM] = ngs.IntegrationRule([ (1.0-i*h,0.0,0.0) for i in range(n) ], [0.0 for i in range(n)])
+  res[ngs.ET.TRIG] = ngs.IntegrationRule([ (    i*h,j*h,0.0) for j in range(n) for i in range(n-j) ], [0.0 for i in range(n*(n+1)//2)])
+  res[ngs.ET.QUAD] = ngs.IntegrationRule([ (    i*h,j*h,0.0) for j in range(n) for i in range(n) ],   [0.0 for i in range(n**2)])
+  res[ngs.ET.TET]  = ngs.IntegrationRule([ (    i*h,j*h,k*h) for k in range(n) for j in range(n-k) for i in range(n-k-j) ],   [0.0 for i in range(n*(n+1)*(n+2)//6)])
+  return res
+
 class DataContainer:
     """Class to avoid redundant copies of same objects on GPU"""
     def __init__(self, obj):
@@ -47,6 +94,47 @@ class MeshData(DataContainer):
         vec3 gradients[N]; // N depends on order, subdivision
 
     """
+
+    class ElementData():
+        """ Contains data of a mesh belonging one type of element (e.g. curved Trigs) """
+        nverts = { 
+                ngs.ET.POINT: 1,
+                ngs.ET.SEGM: 2,
+                ngs.ET.TRIG: 3,
+                ngs.ET.QUAD: 4,
+                ngs.ET.TET: 4,
+                ngs.ET.PRISM: 6,
+                ngs.ET.PYRAMID: 5,
+                ngs.ET.HEX: 6
+                }
+        dims = { 
+                ngs.ET.POINT: 0,
+                ngs.ET.SEGM: 1,
+                ngs.ET.TRIG: 2,
+                ngs.ET.QUAD: 2,
+                ngs.ET.TET: 3,
+                ngs.ET.PRISM: 3,
+                ngs.ET.PYRAMID: 3,
+                ngs.ET.HEX: 3
+                }
+
+        def __init__(self, ei, vertices):
+            self.type = ei['type']
+            self.nelements = ei['nelements']
+            self.data = ei['data']
+            self.curved = ei['curved']
+            self.nverts = MeshData.ElementData.nverts[self.type]
+            self.dim = MeshData.ElementData.dims[self.type]
+            self.size = self.nverts+2
+            if self.curved:
+                self.size += 1
+            if self.type == ngs.ET.POINT:
+                self.size = 0
+            assert len(self.data) == self.nelements*self.size
+            self.tex_vertices = vertices
+            self.tex = Texture(GL.GL_TEXTURE_BUFFER, GL.GL_R32I)
+            self.tex.store(numpy.array(self.data, dtype=numpy.int32))
+
     @inmain_decorator(True)
     def __init__(self, mesh):
         self.vertices = Texture(GL.GL_TEXTURE_BUFFER, GL.GL_RGB32F)
@@ -58,19 +146,18 @@ class MeshData(DataContainer):
 
     @inmain_decorator(True)
     def update(self):
-        data = ngui.GetMeshData(self.obj())
+        data = ngs.solve._GetVisualizationData( self.obj(), getP2Rules() )
 
+        self.elements = {}
         self.min = data.pop('min')
         self.max = data.pop('max')
         self.vertices.store(data.pop('vertices'))
 
         for vb in data:
+            els = []
             for ei in data[vb]:
-                ei.tex_vertices = self.vertices
-                ei.tex = Texture(GL.GL_TEXTURE_BUFFER, GL.GL_R32I)
-                ei.tex.store(numpy.array(ei.data, dtype=numpy.int32))
-
-        self.elements = data
+                els.append(MeshData.ElementData(ei, self.vertices))
+            self.elements[vb] = els
 
 def getMeshData(mesh):
     if hasattr(mesh,"_opengl_data"):
