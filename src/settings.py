@@ -286,9 +286,9 @@ class SingleOptionParameter(Parameter):
         super().setValue()
 
     def append(self, value):
+        self._values.append(value)
         self._combobox.addItem(value)
         self._combobox.setCurrentText(value)
-        self._values.append(value)
         self._widget.setVisible(True)
         self._widget._hidden = False
 
