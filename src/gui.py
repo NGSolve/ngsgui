@@ -2,7 +2,7 @@
 import os
 os.environ['QT_API'] = 'pyside2'
 
-from . import glwindow, code_editor, ngui
+from . import glwindow, code_editor
 from . widgets import ArrangeV
 from .thread import inthread, inmain_decorator
 from .menu import MenuBarWithDict

@@ -5,7 +5,6 @@ from .gl import Texture, getProgram, ArrayBuffer, VertexArray, TextRenderer
 from . import widgets as wid
 from .widgets import ArrangeH, ArrangeV
 from . import glmath
-from . import ngui
 import math, cmath
 from .thread import inmain_decorator
 from .gl_interface import getOpenGLData, getReferenceRules

@@ -4,7 +4,6 @@ import OpenGL.GL as GL
 from .gl import Texture
 import ngsolve as ngs
 import netgen.meshing
-from . import ngui
 from .thread import inmain_decorator
 
 def getP2Rules():
