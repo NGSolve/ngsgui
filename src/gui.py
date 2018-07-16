@@ -2,7 +2,7 @@
 import os
 os.environ['QT_API'] = 'pyside2'
 
-from . import glwindow, code_editor, ngui
+from . import glwindow, code_editor
 from . widgets import ArrangeV
 from .thread import inthread, inmain_decorator
 from .menu import MenuBarWithDict
@@ -97,7 +97,7 @@ It can be used to manipulate any behaviour of the interface.
     file_loaders = {}
     def __init__(self):
         self.app = QtWidgets.QApplication([])
-        ngui.SetLocale()
+        ngsolve.solve._SetLocale()
         self.multikernel_manager = MultiQtKernelManager()
         self._commonContext = glwindow.GLWidget()
         self._createMenu()
@@ -189,9 +189,7 @@ It can be used to manipulate any behaviour of the interface.
         if os.path.isfile(filename):
             name, ext = os.path.splitext(filename)
             if not ext in GUI.file_loaders:
-                self.msgbox = QtWidgets.QMessageBox(text = "Cannot load file type: " + ext)
-                self.msgbox.setWindowTitle("File loading error")
-                self.msgbox.show()
+                self.showMessageBox("File loading error", "Cannot load file type: " + ext)
                 return
             GUI.file_loaders[ext](self, filename)
 
@@ -212,6 +210,11 @@ It can be used to manipulate any behaviour of the interface.
             if flg not in self.flags:
                 print("Don't know flag: ", flg)
                 _showHelp(self,True)
+
+    def showMessageBox(self, title, text):
+        self._msgbox = QtWidgets.QMessageBox(text=text)
+        self._msgbox.SetWindowTitle(title)
+        self._msgbox.show()
 
     def saveSolution(self):
         """Opens a file dialog to save the current state of the GUI, including all drawn objects."""
@@ -361,4 +364,31 @@ class DummyObject:
 
 GUI.file_loaders[".py"] = GUI.loadPythonFile
 GUI.file_loaders[".ngs"] = GUI._loadSolutionFile
+def _loadSTL(gui, filename):
+    import netgen.stl as stl
+    print("create stl geometry")
+    geo = stl.LoadSTLGeometry(filename)
+    ngsolve.Draw(geo)
+
+def _loadOCC(gui, filename):
+    try:
+        import netgen.NgOCC as occ
+        geo = occ.LoadOCCGeometry(filename)
+        ngsolve.Draw(geo)
+    except ImportError:
+        gui.showMessageBox("Netgen is not built with OCC support!")
+def _loadGeo(gui, filename):
+    import netgen.csg as csg
+    geo = csg.CSGeometry(filename)
+    ngsolve.Draw(geo)
+
+def _loadin2d(gui, filename):
+    import netgen.geom2d as geom2d
+    geo = geom2d.SplineGeometry(filename)
+    ngsolve.Draw(geo)
+
+GUI.file_loaders[".stl"] = _loadSTL
+GUI.file_loaders[".step"] = _loadOCC
+GUI.file_loaders[".geo"] = _loadGeo
+GUI.file_loaders[".in2d"] = _loadin2d
 gui = DummyObject()

@@ -5,10 +5,9 @@ from .gl import Texture, getProgram, ArrayBuffer, VertexArray, TextRenderer
 from . import widgets as wid
 from .widgets import ArrangeH, ArrangeV
 from . import glmath
-from . import ngui
 import math, cmath
 from .thread import inmain_decorator
-from .gl_interface import getOpenGLData
+from .gl_interface import getOpenGLData, getReferenceRules
 from .gui import GUI
 import netgen.meshing, netgen.geom2d
 from . import settings
@@ -206,7 +205,8 @@ class BaseMeshScene(BaseScene):
         if vb not in vals:
             vals[vb] = {'real':{}, 'imag':{}}
         try:
-            values = ngui.GetValues(cf, self.mesh, vb, 2**sd-1, order)
+            irs = getReferenceRules(order, 2**sd-1)
+            values = ngsolve.solve._GetValues(cf, self.mesh, vb, irs)
             vals = vals[vb]
             vals['min'] = values['min']
             vals['max'] = values['max']
@@ -216,7 +216,6 @@ class BaseMeshScene(BaseScene):
                 for et in values[comp]:
                     if not et in vals[comp]:
                         vals[comp][et] = Texture(GL_TEXTURE_BUFFER, formats[cf.dim])
-                    print('got ', len(values[comp][et]), 'values')
                     vals[comp][et].store(values[comp][et])
 
         except RuntimeError as e:
@@ -1200,9 +1199,15 @@ class GeometryScene(BaseScene):
 class GeometryScene2D(BaseScene):
     def __init__(self, geo, *args, **kwargs):
         self.geo = geo
-        self._data = geo.PlotData()
-        self._seg_data = geo.SegmentData()
-        self._vertices, self._domains, self._xmin, self._xmax, self._bcnames = ngui.GetGeometry2dData(self.geo)
+        # self._data = geo.PlotData()
+        # self._seg_data = geo.SegmentData()
+        data = self.geo._visualizationData()
+        self._vertices = data["vertices"]
+        self._domains = data["domains"]
+        self._xmin = data["min"]
+        self._xmax = data["max"]
+        self._bcnames = data["bcnames"]
+        self._segdata = data["segment_data"]
         super().__init__(*args, **kwargs)
 
     @inmain_decorator(True)
@@ -1249,18 +1254,21 @@ class GeometryScene2D(BaseScene):
             self.__renderNumbers(settings)
 
     def __renderNumbers(self, settings):
-        eps = math.sqrt(sum([(self._xmax[i]-self._xmin[i])**2 for i in range(2)])) / 500
+        import numpy
+        mat = settings.model * settings.view * settings.projection
+        eps = 0.1 * numpy.sqrt(numpy.sqrt(abs(1./numpy.linalg.det(mat))))
         if self.getShowPointNumbers():
             xpoints, ypoints, pointindex = self.geo.PointData()
             #offset
             for x,y,index in zip(xpoints, ypoints, pointindex):
-                self._text_renderer.draw(settings, str(index), [x+eps,y-eps,0], use_absolute_pos=False)
+                self._text_renderer.draw(settings, str(index), [x+0.1*eps,y-0.1*eps,0], use_absolute_pos=False)
         if self.getShowDomainNumbers():
-            points, normals, leftdom, rightdom = ngui.GetSegmentData(self.geo)
-            for pnt, normal, dom in zip(points, normals, leftdom):
-                self._text_renderer.draw(settings, str(dom), [pnt[0]-10*eps*normal[0],
-                                                              pnt[1]-10*eps*normal[1], 0], use_absolute_pos=False)
-            for pnt, normal, dom in zip(points, normals, rightdom):
+            for pnt, normal, dom in zip(self._segdata["midpoints"], self._segdata["normals"],
+                                        self._segdata["leftdom"]):
+                self._text_renderer.draw(settings, str(dom), [pnt[0]-eps*normal[0],
+                                                              pnt[1]-eps*normal[1], 0], use_absolute_pos=False)
+            for pnt, normal, dom in zip(self._segdata["midpoints"], self._segdata["normals"],
+                                        self._segdata["rightdom"]):
                 self._text_renderer.draw(settings, str(dom), [pnt[0]+eps*normal[0],
                                                               pnt[1]+eps*normal[1], 0], use_absolute_pos=False)
 

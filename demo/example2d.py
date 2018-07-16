@@ -5,8 +5,8 @@ from netgen.csg import unit_cube
 ngsglobals.msg_level = 0
 nrefinements = 1
 
-#mesh = Mesh(unit_square.GenerateMesh(maxh=0.1))
-mesh = Mesh(unit_cube.GenerateMesh(maxh=0.3))
+mesh = Mesh(unit_square.GenerateMesh(maxh=0.1))
+#mesh = Mesh(unit_cube.GenerateMesh(maxh=0.3))
 for i in range(nrefinements):
     print('refine')
     mesh.Refine()
@@ -21,9 +21,9 @@ print(fes.ndof,'ndofs')
 cf = cos(n*x)*cos(n*y)*cos(n*z)
 cf = x+1.0j*y
 cf = CoefficientFunction((x-1,y,x*y))
-scene1 = Draw(mesh,'func', tab="foobar")
-scene1.setShowSurface(False)
-scene1.setShowElements(True)
+scene1 = Draw(cf, mesh,'func', tab="foobar")
+# scene1.setShowSurface(False)
+# scene1.setShowElements(True)
 # scene2 = Draw(cf, mesh,'func 2', tab="foooo")
 # scene3 = Draw(cf, mesh,'func 3', tab="foobar")
 # scene4 = Draw(cf, mesh,'func 4', tab="baaaar")
