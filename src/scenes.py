@@ -336,9 +336,9 @@ class MeshScene(BaseMeshScene):
 
     def _render1DElements(self, settings, elements):
         if elements.curved:
-            prog = getProgram('mesh_simple.vert', 'mesh_simple.tese', 'mesh_simple.frag', elements=elements, params=settings)
+            prog = getProgram('mesh.vert', 'mesh.tese', 'mesh.frag', elements=elements, params=settings)
         else:
-            prog = getProgram('mesh_simple.vert', 'mesh_simple.frag', elements=elements, params=settings)
+            prog = getProgram('mesh.vert', 'mesh.frag', elements=elements, params=settings)
         uniforms = prog.uniforms
 
         glActiveTexture(GL_TEXTURE0)
@@ -378,10 +378,10 @@ class MeshScene(BaseMeshScene):
     def _render2DElements(self, settings, elements, wireframe):
         use_deformation = self.getDeformation()
         use_tessellation = elements.curved or use_deformation
-        shader = ['mesh_simple.vert', 'mesh_simple.frag']
+        shader = ['mesh.vert', 'mesh.frag']
         options = {}
         if use_tessellation:
-            shader.append('mesh_simple.tese')
+            shader.append('mesh.tese')
         if use_deformation:
             options["DEFORMATION_ORDER"] = self.getDeformationOrder()
         prog = getProgram(*shader, elements=elements, params=settings, DEFORMATION=use_deformation, **options)
@@ -443,7 +443,7 @@ class MeshScene(BaseMeshScene):
 
     def _render3DElements(self, settings, elements):
         use_deformation = self.getDeformation()
-        shader = ['mesh_simple.vert', 'mesh_simple.frag']
+        shader = ['mesh.vert', 'mesh.frag']
         prog = getProgram(*shader, elements=elements, params=settings, DEFORMATION=0)
 
         uniforms = prog.uniforms
@@ -801,9 +801,9 @@ class SolutionScene(BaseMeshScene):
         use_tessellation = use_deformation or elements.curved
         options = dict(ORDER=self.getOrder(), DEFORMATION=use_deformation)
 
-        shader = ['mesh_simple.vert', 'solution_simple.frag']
+        shader = ['mesh.vert', 'solution.frag']
         if use_tessellation:
-            shader.append('mesh_simple.tese')
+            shader.append('mesh.tese')
         if use_deformation:
             options["DEFORMATION_ORDER"] = self.getDeformationOrder()
 
@@ -878,11 +878,11 @@ class SolutionScene(BaseMeshScene):
             settings.colormap_max = self.values[vb]['max'][comp]
 
         for elements in self.mesh_data.elements[vb]:
-            shader = ['mesh_simple.vert', 'solution_simple.frag']
+            shader = ['mesh.vert', 'solution.frag']
             use_tessellation = use_deformation or elements.curved
             options = dict(ORDER=self.getOrder(), DEFORMATION=use_deformation)
             if use_tessellation:
-                shader.append('mesh_simple.tese')
+                shader.append('mesh.tese')
             if use_deformation:
                 options["DEFORMATION_ORDER"] = self.getDeformationOrder()
 
@@ -942,7 +942,7 @@ class SolutionScene(BaseMeshScene):
     def _renderIsoSurface(self, settings, elements):
         self._filterElements(settings, elements, 1)
         model, view, projection = settings.model, settings.view, settings.projection
-        prog = getProgram('pass_through.vert', 'isosurface.geom', 'solution_simple.frag', elements=elements, ORDER=self.getOrder(), params=settings)
+        prog = getProgram('pass_through.vert', 'isosurface.geom', 'solution.frag', elements=elements, ORDER=self.getOrder(), params=settings)
 
         uniforms = prog.uniforms
         uniforms.set('P',projection)
@@ -1028,7 +1028,7 @@ class SolutionScene(BaseMeshScene):
     def _renderClippingPlane(self, settings, elements):
         self._filterElements(settings, elements, 0)
         model, view, projection = settings.model, settings.view, settings.projection
-        prog = getProgram('pass_through.vert', 'clipping.geom', 'solution_simple.frag', elements=elements, ORDER=self.getOrder(), params=settings)
+        prog = getProgram('pass_through.vert', 'clipping.geom', 'solution.frag', elements=elements, ORDER=self.getOrder(), params=settings)
 
         uniforms = prog.uniforms
         uniforms.set('P',projection)
@@ -1168,7 +1168,7 @@ class GeometryScene(BaseScene):
         if not self.active:
             return
         with self._vao:
-            prog = getProgram('geo.vert', 'mesh.frag')
+            prog = getProgram('geo.vert', 'geo.frag')
             model, view, projection = settings.model, settings.view, settings.projection
             uniforms = prog.uniforms
             uniforms.set('P', projection)
@@ -1275,7 +1275,7 @@ class GeometryScene2D(BaseScene):
                                                               pnt[1]+eps*normal[1], 0], use_absolute_pos=False)
 
     def __renderGeometry(self, settings):
-        prog = getProgram('geom2d.vert', 'mesh.frag')
+        prog = getProgram('geom2d.vert', 'geo.frag')
         model,view,projection = settings.model, settings.view, settings.projection
         uniforms = prog.uniforms
         uniforms.set('P',projection)
