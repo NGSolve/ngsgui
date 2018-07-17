@@ -8,6 +8,7 @@ uniform float colormap_min, colormap_max, iso_value;
 uniform Mesh mesh;
 uniform bool have_gradient;
 uniform int component;
+uniform int instance;
 
 layout(points) in;
 layout(triangle_strip, max_vertices=24) out;
@@ -15,7 +16,6 @@ layout(triangle_strip, max_vertices=24) out;
 in VertexData
 {
   flat int element;
-  flat int instance;
 } inData[];
 
 out VertexData
@@ -69,7 +69,7 @@ void main() {
     int N = ORDER*(subdivision+1)+1;
     int n = N-1;
 
-    int index = inData[0].instance;
+    int index = instance;
     ivec3 ind;
     ind.x = index - n*(index/n);
     index = index/n;

@@ -471,7 +471,7 @@ class MeshScene(BaseMeshScene):
         glDrawArraysInstanced(GL_TRIANGLES, 0, 3*self.mesh.ne, 4)
 
     def _renderNumbers(self, settings, elements):
-        prog = getProgram('filter_elements.vert', 'numbers.geom', 'font.frag', params=settings, elements=elements)
+        prog = getProgram('pass_through.vert', 'numbers.geom', 'font.frag', params=settings, elements=elements, USE_GL_VERTEX_ID=True)
         uniforms = prog.uniforms
 
         viewport = glGetIntegerv( GL_VIEWPORT )
@@ -748,7 +748,7 @@ class SolutionScene(BaseMeshScene):
 
     def _filterElements(self, settings, elements, filter_type):
         glEnable(GL_RASTERIZER_DISCARD)
-        prog = getProgram('filter_elements.vert', 'filter_elements.geom', feedback=['element'], ORDER=self.getOrder(), params=settings, elements=elements)
+        prog = getProgram('pass_through.vert', 'filter_elements.geom', feedback=['element'], ORDER=self.getOrder(), params=settings, elements=elements, USE_GL_VERTEX_ID=True)
         uniforms = prog.uniforms
 
         glActiveTexture(GL_TEXTURE0)
@@ -942,7 +942,7 @@ class SolutionScene(BaseMeshScene):
     def _renderIsoSurface(self, settings, elements):
         self._filterElements(settings, elements, 1)
         model, view, projection = settings.model, settings.view, settings.projection
-        prog = getProgram('mesh.vert', 'isosurface.geom', 'solution_simple.frag', elements=elements, ORDER=self.getOrder(), params=settings)
+        prog = getProgram('pass_through.vert', 'isosurface.geom', 'solution_simple.frag', elements=elements, ORDER=self.getOrder(), params=settings)
 
         uniforms = prog.uniforms
         uniforms.set('P',projection)
@@ -981,7 +981,9 @@ class SolutionScene(BaseMeshScene):
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         instances = (self.getOrder()*(2**self.getSubdivision()))**3
         prog.attributes.bind('element', self.filter_buffer)
-        glDrawTransformFeedbackInstanced(GL_POINTS, self.filter_feedback, instances)
+        for inst in range(instances):
+            uniforms.set('instance', inst)
+            glDrawTransformFeedback(GL_POINTS, self.filter_feedback)
 
     # TODO: implement (surface or clipping plane) vector rendering
     def renderVectors(self, settings):
@@ -1026,7 +1028,7 @@ class SolutionScene(BaseMeshScene):
     def _renderClippingPlane(self, settings, elements):
         self._filterElements(settings, elements, 0)
         model, view, projection = settings.model, settings.view, settings.projection
-        prog = getProgram('mesh.vert', 'clipping.geom', 'solution_simple.frag', elements=elements, ORDER=self.getOrder(), params=settings)
+        prog = getProgram('pass_through.vert', 'clipping.geom', 'solution_simple.frag', elements=elements, ORDER=self.getOrder(), params=settings)
 
         uniforms = prog.uniforms
         uniforms.set('P',projection)
