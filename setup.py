@@ -12,8 +12,7 @@ except ImportError as e:
     print("")
     raise e
 
-from skbuild import setup
-from setuptools import find_packages
+from setuptools import find_packages, setup
 import os
 
 icons = [ "icons/" + filename for filename in os.listdir("src/icons")]
@@ -30,6 +29,7 @@ setup(name="ngsgui",
       package_data = {'ngsgui':[],
                       'ngsgui.shader': shaders,
                       'ngsgui.icons':  icons},
+      include_package_data=True,
       classifiers=("Programming Language :: Python :: 3",
                    "Operating System :: OS Independent",
                    "Development Status :: 2 - Pre-Alpha",
