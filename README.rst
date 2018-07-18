@@ -18,7 +18,6 @@ Getting started
 ----------------
 - Install dependencies:
 
-  `pip3 install scikit-build`
   `pip3 install --index-url=http://download.qt.io/snapshots/ci/pyside/5.11/latest/ pyside2 --trusted-host download.qt.io`
 
 - Install via pip:
@@ -30,6 +29,10 @@ Getting started
   `pip3 install git+https://github.com/NGSolve/ngsgui.git@master`
 
 - Run `ngsolve` or try to load some python file: `ngsolve example.py`
+
+- On some systems you have to set `PATH` in order to find `ngsolve`, an alternative way to start the GUI is
+
+  `python3 -m ngsgui`
 
 Troubleshooting
 ---------------
