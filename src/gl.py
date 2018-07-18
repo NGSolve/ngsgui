@@ -12,7 +12,7 @@ from . import glmath # , shader
 from PySide2 import QtCore, QtGui, QtWidgets, QtOpenGL
 from PySide2.QtCore import Qt
 
-from ngsgui.shader import location as shaderpath
+from ngsgui.shader import locations as shaderpaths
 
 _DEVELOP=True
 
@@ -118,7 +118,11 @@ class Shader(GLObject):
             raise RuntimeError('Error when compiling ' + filename + ': '+glGetShaderInfoLog(self.id).decode())
 
 def readShaderFile(filename, defines):
-    fullpath = os.path.join(shaderpath, filename)
+    for shaderpath in shaderpaths:
+        fullpath = os.path.join(shaderpath, filename)
+        if os.path.exists(fullpath):
+            break
+
     code = open(fullpath,'r').read()
 
     for incfile in glob.glob(os.path.join(shaderpath, '*.inc')):
@@ -329,19 +333,15 @@ class Program(GLObject):
             glLinkProgram(self.id)
             if glGetProgramiv( self.id, GL_LINK_STATUS ) != GL_TRUE:
                 log = glGetProgramInfoLog( self.id )
-                # don't throw on following error message, since mesa emits it for valid shader programs
-                if log != b'active samplers with a different type refer to the same texture image unit':
-                    raise RuntimeError( log )
+                print(log)
 
         glValidateProgram( self.id )
         if glGetProgramiv( self.id, GL_VALIDATE_STATUS ) != GL_TRUE:
             log = glGetProgramInfoLog( self.id )
-            # don't throw on following error message, since mesa emits it for valid shader programs
-            if log != b'active samplers with a different type refer to the same texture image unit':
-                raise RuntimeError( log )
+            print(log)
 
         if glGetProgramiv(self.id, GL_LINK_STATUS) != GL_TRUE:
-                raise RuntimeError(glGetProgramInfoLog(self.id))
+                print(glGetProgramInfoLog(self.id))
 
         self.uniforms = Program.Uniforms(self.id)
         self.attributes = Program.Attributes(self.id)
