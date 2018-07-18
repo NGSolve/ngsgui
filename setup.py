@@ -37,5 +37,5 @@ setup(name="ngsgui",
                    "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)"),
       install_requires=["PyOpenGL", "psutil", "qtconsole", "numpy",
                         "matplotlib"],
-      entry_points={ "gui_scripts" : "ngsolve = ngsgui.start:main" })
+      entry_points={ "console_scripts" : "ngsolve = ngsgui.__main__:main" })
 
