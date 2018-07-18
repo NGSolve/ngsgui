@@ -356,19 +356,13 @@ class BaseSettings():
         self._createQtWidget()
 
     def __getstate__(self):
-        values = {}
-        for key, group in self._widgets.items():
-            for name in group:
-                if hasattr(self, "get" + name):
-                    values[name] = getattr(self, "get" + name)()
-        return (values,self._parameters)
+        return (self._parameters,)
 
     def __setstate__(self, state):
-        self._initial_values = state[0]
         self._parameters = {}
         self._par_name_dict = {}
-        for group in state[1]:
-            self.addParameters(group,*state[1][group])
+        for group in state[0]:
+            self.addParameters(group,*state[0][group])
         self._createOptions()
         self._createQtWidget()
 

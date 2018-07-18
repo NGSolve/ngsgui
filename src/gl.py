@@ -122,6 +122,8 @@ def readShaderFile(filename, defines):
         fullpath = os.path.join(shaderpath, filename)
         if os.path.exists(fullpath):
             break
+    else:
+        raise FileNotFoundError("Couldn't find shader file: " + filename)
 
     code = open(fullpath,'r').read()
 

@@ -250,8 +250,6 @@ class MeshScene(BaseMeshScene):
             surf_values = self.mesh.GetBoundaries() if self.mesh.dim == 3 else self.mesh.GetMaterials()
             surf_color = settings.ColorParameter(name="SurfaceColors", values = surf_values,
                                                  default_value = (0,255,0,255))
-            surf_color.changed.connect(lambda : self.tex_surf_colors.store(surf_color.getValue(),
-                                                                           data_format=GL_UNSIGNED_BYTE))
             self.addParameters("Show",
                                settings.CheckboxParameterCluster(name="ShowSurface", label="Surface Elements",
                                                                  default_value = self.__initial_values["ShowSurface"],
@@ -262,8 +260,6 @@ class MeshScene(BaseMeshScene):
                                                  default_value=1.0, min_value = 0.0, max_value = 1.0,
                                                  step = 0.1)
             color_par = settings.ColorParameter(name="MaterialColors", values=self.mesh.GetMaterials())
-            color_par.changed.connect(lambda : self.tex_vol_colors.store(color_par.getValue(),
-                                                                         data_format=GL_UNSIGNED_BYTE))
             self.addParameters("Show",
                                settings.CheckboxParameterCluster(name="ShowElements",
                                                                  label="Volume Elements",
@@ -281,8 +277,6 @@ class MeshScene(BaseMeshScene):
             edge_names = self.mesh.GetBBoundaries()
         edge_color = settings.ColorParameter(name="EdgeColors", default_value=(0,0,0,255),
                                              values = edge_names)
-        edge_color.changed.connect(lambda : self.tex_edge_colors.store(edge_color.getValue(),
-                                                                       data_format=GL_UNSIGNED_BYTE))
         self.addParameters("Show",
                            settings.CheckboxParameterCluster(name="ShowEdgeElements", label="Edge Elements",
                                                              default_value=self.__initial_values["ShowEdgeElements"],
@@ -306,7 +300,20 @@ class MeshScene(BaseMeshScene):
         self.addParameters("",
                            settings.ValueParameter(name="GeomSubdivision", label="Subdivision",
                                                    default_value=5, min_value=1, max_value=20))
-                                 
+
+    @inmain_decorator(True)
+    def _attachParameter(self, parameter):
+        if parameter.name == "SurfaceColors":
+            parameter.changed.connect(lambda : self.tex_surf_colors.store(self.getSurfaceColors(),
+                                                                          data_format=GL_UNSIGNED_BYTE))
+        if parameter.name == "MaterialColors":
+            parameter.changed.connect(lambda : self.tex_vol_colors.store(self.getMaterialColors(),
+                                                                         data_format=GL_UNSIGNED_BYTE))
+        if parameter.name == "EdgeColors":
+            parameter.changed.connect(lambda : self.tex_edge_colors.store(self.getEdgeColors(),
+                                                                          data_format=GL_UNSIGNED_BYTE))
+        super()._attachParameter(parameter)
+
     @inmain_decorator(True)
     def _createOptions(self):
         super()._createOptions()
@@ -654,27 +661,6 @@ class SolutionScene(BaseMeshScene):
                                                           default_value=self.__initial_values["ShowVectors"]))
 
         if self.cf.is_complex:
-            animate_checkbox = settings.CheckboxParameter(name="Animate", label="Animate",
-                                                          default_value=False)
-            self._timer_thread = QtCore.QThread()
-            def animate(val):
-                if val:
-                    self._timer_thread = QtCore.QThread()
-                    def run_animate():
-                        self._animation_timer = QtCore.QTimer()
-                        self._animation_timer.setInterval(20)
-                        self._animation_timer.timeout.connect(lambda : self.setComplexPhaseShift(self.getComplexPhaseShift()-10))
-                        self._animation_timer.start()
-                    def stop_animate():
-                        self._animation_timer.stop()
-                    self._timer_thread.started.connect(run_animate)
-                    self._timer_thread.finished.connect(stop_animate)
-                    self._timer_thread.start()
-                else:
-                    self._timer_thread.finished.emit()
-                    self._timer_thread.quit()
-
-            animate_checkbox.changed.connect(animate)
             self.addParameters("Complex",
                                settings.SingleOptionParameter(name="ComplexEvalFunc",
                                                               values = list(self._complex_eval_funcs.keys()),
@@ -683,33 +669,55 @@ class SolutionScene(BaseMeshScene):
                                settings.ValueParameter(name="ComplexPhaseShift",
                                                       label="Value shift angle",
                                                        default_value = 0.0),
-                               animate_checkbox)
+                               settings.CheckboxParameter(name="Animate", label="Animate",
+                                                          default_value=False))
 
-        boxmin = settings.ValueParameter(name = "ColorMapMin",
+        self.addParameters("Colormap",
+                           settings.ValueParameter(name = "ColorMapMin",
                                          label = "Min",
-                                         default_value = self.__initial_values["ColorMapMin"])
-        boxmax = settings.ValueParameter(name= "ColorMapMax",
+                                         default_value = self.__initial_values["ColorMapMin"]),
+                           settings.ValueParameter(name= "ColorMapMax",
                                          label = "Max",
-                                         default_value = self.__initial_values["ColorMapMax"])
-        autoscale = settings.CheckboxParameter(name="Autoscale",
+                                         default_value = self.__initial_values["ColorMapMax"]),
+                           settings.CheckboxParameter(name="Autoscale",
                                                label="Autoscale",
-                                               default_value = self.__initial_values["Autoscale"])
-        boxmin.changed.connect(lambda val: autoscale.changed.emit(False))
-        boxmax.changed.connect(lambda val: autoscale.changed.emit(False))
-        self.addParameters("Colormap", boxmin, boxmax, autoscale,
+                                               default_value = self.__initial_values["Autoscale"]),
                            settings.CheckboxParameter(name="ColorMapLinear",
                                                       label="Linear",
                                                       default_value=self.__initial_values["ColorMapLinear"]))
         if self._gfComponents:
-            components = settings.ValueParameter(label = "Multidim",
+            self.addParameters("Components", settings.ValueParameter(label = "Multidim",
                                                  default_value = 0,
                                                  max_value = len(self._gfComponents.vecs)-1,
-                                                 min_value = 0)
-            def setVec(val):
-                self.cf.vec.data = self._gfComponents.vecs[val]
-                self.update()
-            components.changed.connect(setVec)
-            self.addParameters("Components", components)
+                                                 min_value = 0,
+                                                 updateScene = True))
+
+    def _animate(self,val):
+        if val:
+            self._timer_thread = QtCore.QThread()
+            def run_animate():
+                self._animation_timer = QtCore.QTimer()
+                self._animation_timer.setInterval(20)
+                self._animation_timer.timeout.connect(lambda : self.setComplexPhaseShift(self.getComplexPhaseShift()-10))
+                self._animation_timer.start()
+            def stop_animate():
+                self._animation_timer.stop()
+            self._timer_thread.started.connect(run_animate)
+            self._timer_thread.finished.connect(stop_animate)
+            self._timer_thread.start()
+        else:
+            self._timer_thread.finished.emit()
+            self._timer_thread.quit()
+
+    @inmain_decorator(True)
+    def _attachParameter(self, parameter):
+        if parameter.name == "Animate":
+            parameter.changed.connect(self._animate)
+        if parameter.name == "ColorMapMin" or parameter.name == "ColorMapMax":
+            parameter.changed.connect(lambda val: self.setAutoscale(False))
+        if parameter.name == "Multidim":
+            parameter.changed.connect(lambda val: setattr(self.cf.vec, "data", self._gfComponents.vecs[val]))
+        super()._attachParameter(parameter)
 
     def __getstate__(self):
         super_state = super().__getstate__()
@@ -719,6 +727,7 @@ class SolutionScene(BaseMeshScene):
         self.cf = state[1]
         self.iso_surface = state[2]
         self.values = {}
+        self.iso_values = {}
         super().__setstate__(state[0])
 
     def initGL(self):
@@ -1147,11 +1156,14 @@ class GeometryScene(BaseScene):
     @inmain_decorator(True)
     def _createParameters(self):
         super()._createParameters()
-        colorParameter = settings.ColorParameter(name="SurfaceColors",
-                                                 values=list(self._geo_data.surfnames))
-        colorParameter.changed.connect(lambda : self._tex_colors.store(self.getSurfaceColors(),
-                                                                       data_format=GL_UNSIGNED_BYTE))
-        self.addParameters("Surface Colors",colorParameter)
+        self.addParameters("Surface Colors",settings.ColorParameter(name="SurfaceColors",
+                                                 values=list(self._geo_data.surfnames)))
+
+    def _attachParameter(self, parameter):
+        if parameter.name == "SurfaceColors":
+            parameter.changed.connect(lambda : self._tex_colors.store(self.getSurfaceColors(),
+                                                                      data_format=GL_UNSIGNED_BYTE))
+        super()._attachParameter(parameter)
 
     def _generateMesh(self):
         mesh = self.geo.GenerateMesh()
@@ -1201,8 +1213,6 @@ class GeometryScene(BaseScene):
 class GeometryScene2D(BaseScene):
     def __init__(self, geo, *args, **kwargs):
         self.geo = geo
-        # self._data = geo.PlotData()
-        # self._seg_data = geo.SegmentData()
         data = self.geo._visualizationData()
         self._vertices = data["vertices"]
         self._domains = data["domains"]
@@ -1232,11 +1242,8 @@ class GeometryScene2D(BaseScene):
     @inmain_decorator(True)
     def _createParameters(self):
         super()._createParameters()
-        bc_color = settings.ColorParameter(name="BoundaryColors", values=self._bcnames,
-                                           default_value=(0,0,0,255))
-        bc_color.changed.connect(lambda : self._tex_bc_colors.store(self.getBoundaryColors(),
-                                                                    data_format=GL_UNSIGNED_BYTE))
-        self.addParameters("Boundary Colors", bc_color)
+        self.addParameters("Boundary Colors", settings.ColorParameter(name="BoundaryColors", values=self._bcnames,
+                                           default_value=(0,0,0,255)))
         self.addParameters("Show",
                            settings.CheckboxParameter(name="ShowPointNumbers",
                                                       label="Point Numbers",
@@ -1244,6 +1251,12 @@ class GeometryScene2D(BaseScene):
                            settings.CheckboxParameter(name="ShowDomainNumbers",
                                                       label="Domain Numbers",
                                                       default_value = False))
+
+    def _attachParameter(self, parameter):
+        if parameter.name == "BoundaryColors":
+            parameter.changed.connect(lambda : self._tex_bc_colors.store(self.getBoundaryColors(),
+                                                                         data_format=GL_UNSIGNED_BYTE))
+        super()._attachParameter(parameter)
 
     def getBoundingBox(self):
         return (self._xmin, self._xmax)
