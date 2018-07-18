@@ -16,8 +16,8 @@ from skbuild import setup
 from setuptools import find_packages
 import os
 
-icons = [ "src/icons/" + filename for filename in os.listdir("src/icons")]
-shaders = [ "src/shader/" + filename for filename in os.listdir("src/shader")]
+icons = [ "icons/" + filename for filename in os.listdir("src/icons")]
+shaders = [ "shader/" + filename for filename in os.listdir("src/shader")]
 
 modules = ['ngsgui'] + ['ngsgui.' + pkg for pkg in find_packages('src')]
 dirs = { module : module.replace('ngsgui.','src/') if 'ngsgui.' in module else 'src' for module in modules}
@@ -27,8 +27,9 @@ setup(name="ngsgui",
       description="New graphical interface for NGSolve",
       packages=modules,
       package_dir=dirs,
-      data_files = [('share/ngsgui/icons', icons),
-                    ('share/ngsgui/shader', shaders)],
+      package_data = {'ngsgui':[],
+                      'ngsgui.shader': shaders,
+                      'ngsgui.icons':  icons},
       classifiers=("Programming Language :: Python :: 3",
                    "Operating System :: OS Independent",
                    "Development Status :: 2 - Pre-Alpha",

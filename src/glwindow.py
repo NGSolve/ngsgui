@@ -9,7 +9,6 @@ from .widgets import ArrangeV, ArrangeH
 from .thread import inthread, inmain_decorator
 from qtconsole.inprocess import QtInProcessRichJupyterWidget
 from ngsgui import _debug
-from ngsgui.icons import location as icon_path
 import numpy as np
 
 import time, ngsolve
@@ -48,6 +47,7 @@ class ToolBoxItem(QtWidgets.QWidget):
 
 class SceneToolBox(QtWidgets.QToolBox):
     """Toolbox containing the settings for the drawn scene. This toolbox is connected to the GLWindow it is used with."""
+    from ngsgui.icons import location as icon_path
     ic_visible = icon_path + "/visible.png"
     ic_hidden = icon_path + "/hidden.png"
     def __init__(self, window):

@@ -4,7 +4,6 @@ from PySide2 import QtCore, QtGui, QtWidgets, QtOpenGL
 from PySide2.QtCore import Qt
 
 from .thread import inmain_decorator
-from ngsgui.icons import location as icon_path
 
 import sys, re, math
 
@@ -412,6 +411,7 @@ shortcut: str = None
         if not icon:
             btn.setText(name)
         else:
+            from ngsgui.icons import location as icon_path
             btn.setIcon(QtGui.QIcon(icon_path + "/" + icon))
             btn.setIconSize(QtCore.QSize(*icon_size))
         if description:
