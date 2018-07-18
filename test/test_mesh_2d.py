@@ -1,32 +1,31 @@
 from ngsolve import *
 from PySide2 import QtGui, QtCore
+import numpy as np
 
 width = 1024
 height = 768
 
-from ngsgui import gui
+from ngsgui.gui import gui
 
 def TestImage(filename, width=width, height=height):
     gui.renderToImage(width, height,'out/'+filename)
     im = QtGui.QImage('out/'+filename)
     im_ref = QtGui.QImage('ref/'+filename)
     im_diff = QtGui.QImage(im)
-    im_diff.fill(QtCore.Qt.white)
+
+    np_im = np.asarray(im.bits(), dtype=np.int16)
+    np_im_ref = np.asarray(im_ref.bits(), dtype=np.int16)
+    np_im_diff = np.asarray(im_diff.bits())
     if im == im_ref:
         print('working')
     else:
         print('difference')
-        for i in range(im.width()):
-            for j in range(im.height()):
-                p1 = im.pixelColor(i,j).getRgb()
-                p2 = im_ref.pixelColor(i,j).getRgb()
-                diff = [255-abs(a-b) for a,b in zip(p1,p2)]
-                c = QtGui.QColor.fromRgb(*diff)
-                im_diff.setPixelColor(i,j, c)
+        np_im_diff[:] = 255-abs(np_im-np_im_ref)
         im_diff.save('diff/'+filename)
-        print('done')
+    print('done')
 
 
 mesh = Mesh('cube.vol.gz')
 s = Draw(mesh)
 TestImage('mesh_2d.png')
+gui.app.quit()
