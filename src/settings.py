@@ -22,6 +22,10 @@ class Parameter(QtCore.QObject):
     def _attachTo(self, obj):
         pass
 
+    def setVisible(self, val):
+        self._widget._visible = val
+        self._widget.setVisible(val)
+
     def _createWithLabel(self):
         if self.label:
             self._widget = QtWidgets.QWidget()
@@ -119,10 +123,10 @@ class CombinedParameters(Parameter):
             obj._attachParameter(par)
 
     def __getstate__(self):
-        return (super().__getstate__(), self._parameters, self._vertical, self._label)
+        return (super().__getstate__(), self._parameters, self._vertical)
 
     def __setstate__(self,state):
-        self._parameters, self._vertical, self._label = state[1:]
+        self._parameters, self._vertical = state[1:]
         super().__setstate__(state[0])
 
 class ColorParameter(Parameter):
@@ -318,8 +322,7 @@ class SingleOptionParameter(Parameter):
         self._initial_value = default_value
         super().__init__(name, *args, **kwargs)
         if not self._values:
-            self._widget.setVisible(False)
-            self._widget._hidden = True
+            self.setVisible(False)
 
     def _createWidget(self):
         self._combobox = QtWidgets.QComboBox()
@@ -337,8 +340,7 @@ class SingleOptionParameter(Parameter):
         self._values.append(value)
         self._combobox.addItem(value)
         self._combobox.setCurrentText(value)
-        self._widget.setVisible(True)
-        self._widget._hidden = False
+        self.setVisible(True)
 
     def getValue(self):
         return self._values[self._combobox.currentIndex()] if self._values else ""
@@ -353,9 +355,7 @@ class SingleOptionParameter(Parameter):
         self._values = state[1]
         super().__setstate__(state[0])
         if not self._values:
-            self._widget.setVisible(False)
-            self._widget._hidden = True
-
+            self.setVisible(False)
 
 class FileParameter(Parameter):
     def __init__(self, filt, *args,**kwargs):
