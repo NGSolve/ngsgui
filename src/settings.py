@@ -55,7 +55,7 @@ class Parameter(QtCore.QObject):
         return (self.name, self.label, self.__options, self._label_above)
 
     def __setstate__(self, state):
-        Parameter.__init__(self, name=state[0], label=state[1], label_above=self._label_above)
+        Parameter.__init__(self, name=state[0], label=state[1], label_above=state[3])
         self.__options = state[2]
 
 class Button(Parameter):
@@ -74,6 +74,13 @@ class Button(Parameter):
             btn.setToolTip(self._tooltip)
         btn.clicked.connect(lambda : self.changed.emit(None))
         return btn
+
+    def __getstate__(self):
+        return (super().__getstate__(), self._label, self._icon, self._tooltip)
+
+    def __setstate__(self, state):
+        self._label, self._icon, self._tooltip = state[1:]
+        super().__setstate__(state[0])
 
 class Slider(Parameter):
     def __init__(self, range = (0,100), tickInterval=1, default_value = None, *args, **kwargs):
