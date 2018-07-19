@@ -41,7 +41,7 @@ class Parameter(QtCore.QObject):
         else:
             return self.__options[name]
 
-    def setValue(self, val):
+    def setValue(self, val=None):
         self.changed.emit(val)
 
     def getWidget(self):
@@ -53,6 +53,23 @@ class Parameter(QtCore.QObject):
     def __setstate__(self, state):
         Parameter.__init__(self, name=state[0], label=state[1])
         self.__options = state[2]
+
+class Button(Parameter):
+    def __init__(self, label=None, icon=None, tooltip=None, **kwargs):
+        assert label or icon, "Button must be created with a label or an icon"
+        self._label = label
+        self._icon = icon
+        self._tooltip = tooltip
+        super().__init__(**kwargs)
+
+    def _createWidget(self):
+        btn = QtWidgets.QPushButton(self._label)
+        if self._icon:
+            btn.setIcon(self._icon)
+        if self._tooltip:
+            btn.setToolTip(self._tooltip)
+        btn.clicked.connect(lambda : self.changed.emit(None))
+        return btn
 
 class CombinedParameters(Parameter):
     def __init__(self, parameters, vertical=False, **kwargs):
@@ -352,7 +369,6 @@ class FileParameter(Parameter):
 class BaseSettings():
     def __init__(self):
         self._createParameters()
-        self._createOptions()
         self._createQtWidget()
 
     def __getstate__(self):
@@ -363,21 +379,15 @@ class BaseSettings():
         self._par_name_dict = {}
         for group in state[0]:
             self.addParameters(group,*state[0][group])
-        self._createOptions()
         self._createQtWidget()
 
     def _createParameters(self):
         self._parameters = {}
         self._par_name_dict = {}
 
-    def _createOptions(self):
-        self._widgets = {}
-
     @inmain_decorator(True)
     def _createQtWidget(self):
         self.widgets = wid.OptionWidgets()
-        for group in self._widgets:
-            self.widgets.addGroup(group,*self._widgets[group].values())
         for group,params in self._parameters.items():
             for param in params:
                 if param.getOption("updateWidgets"):

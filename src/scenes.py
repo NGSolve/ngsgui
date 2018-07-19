@@ -300,6 +300,8 @@ class MeshScene(BaseMeshScene):
         self.addParameters("",
                            settings.ValueParameter(name="GeomSubdivision", label="Subdivision",
                                                    default_value=5, min_value=1, max_value=20))
+        self.addParameters("Save",
+                           settings.Button(name="SaveMesh", label="Save Mesh"))
 
     @inmain_decorator(True)
     def _attachParameter(self, parameter):
@@ -312,11 +314,15 @@ class MeshScene(BaseMeshScene):
         if parameter.name == "EdgeColors":
             parameter.changed.connect(lambda : self.tex_edge_colors.store(self.getEdgeColors(),
                                                                           data_format=GL_UNSIGNED_BYTE))
+        if parameter.name == "SaveMesh":
+            def saveMesh(val):
+                filename, filt = QtWidgets.QFileDialog.getSaveFileName(caption="Save Mesh",
+                                                                       filter="(*vol, *.vol.gz)")
+                if not (filename.endswith(".vol") or filename.endswith(".vol.gz")):
+                    filename += ".vol.gz"
+                self.mesh.ngmesh.Save(filename)
+            parameter.changed.connect(saveMesh)
         super()._attachParameter(parameter)
-
-    @inmain_decorator(True)
-    def _createOptions(self):
-        super()._createOptions()
 
     def __getstate__(self):
         super_state = super().__getstate__()
@@ -1156,6 +1162,8 @@ class GeometryScene(BaseScene):
     @inmain_decorator(True)
     def _createParameters(self):
         super()._createParameters()
+        self.addParameters("Mesh Generation", settings.Button(label="Generate Mesh",
+                                                              name="CreateMesh"))
         self.addParameters("Surface Colors",settings.ColorParameter(name="SurfaceColors",
                                                  values=list(self._geo_data.surfnames)))
 
@@ -1163,15 +1171,13 @@ class GeometryScene(BaseScene):
         if parameter.name == "SurfaceColors":
             parameter.changed.connect(lambda : self._tex_colors.store(self.getSurfaceColors(),
                                                                       data_format=GL_UNSIGNED_BYTE))
+        if parameter.name == "CreateMesh":
+            parameter.changed.connect(self._generateMesh)
         super()._attachParameter(parameter)
 
     def _generateMesh(self):
         mesh = self.geo.GenerateMesh()
         ngsolve.Draw(ngsolve.Mesh(mesh))
-
-    def _createOptions(self):
-        super()._createOptions()
-        self.addButton("Mesh Generatation", "createMesh", self._generateMesh, label="Generate Mesh")
 
     def getBoundingBox(self):
         return self._geo_data.min, self._geo_data.max
