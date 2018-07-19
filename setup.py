@@ -15,8 +15,8 @@ except ImportError as e:
 from setuptools import find_packages, setup
 import os
 
-icons = [ "icons/" + filename for filename in os.listdir("src/icons")]
-shaders = [ "shader/" + filename for filename in os.listdir("src/shader")]
+icons = [ filename for filename in os.listdir("src/icons")]
+shaders = [ filename for filename in os.listdir("src/shader")]
 
 modules = ['ngsgui'] + ['ngsgui.' + pkg for pkg in find_packages('src')]
 dirs = { module : module.replace('ngsgui.','src/') if 'ngsgui.' in module else 'src' for module in modules}
