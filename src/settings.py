@@ -48,10 +48,10 @@ class Parameter(QtCore.QObject):
         return self._widget
 
     def __getstate__(self):
-        return (self.name, self.label, self.__options)
+        return (self.name, self.label, self.__options, self._label_above)
 
     def __setstate__(self, state):
-        Parameter.__init__(self, name=state[0], label=state[1])
+        Parameter.__init__(self, name=state[0], label=state[1], label_above=self._label_above)
         self.__options = state[2]
 
 class Button(Parameter):
@@ -70,6 +70,37 @@ class Button(Parameter):
             btn.setToolTip(self._tooltip)
         btn.clicked.connect(lambda : self.changed.emit(None))
         return btn
+
+class Slider(Parameter):
+    def __init__(self, range = (0,100), tickInterval=1, default_value = None, *args, **kwargs):
+        self._range = range
+        self._tickInterval = tickInterval
+        self._default_value = int(default_value)
+        super().__init__(*args,**kwargs)
+
+    def _createWidget(self):
+        self._slider = slider = QtWidgets.QSlider()
+        slider.setRange(*self._range)
+        slider.setTickInterval(self._tickInterval)
+        slider.setOrientation(QtCore.Qt.Horizontal)
+        slider.sliderMoved.connect(self.changed.emit)
+        if self._default_value:
+            self._slider.setValue(self._default_value)
+        return slider
+
+    def setValue(self, value):
+        super().setValue(value)
+        self._slider.setValue(value)
+
+    def getValue(self):
+        return self._slider.value()
+
+    def __getstate__(self):
+        return (super().__getstate__(), self._range, self._tickInterval, self._slider.value())
+
+    def __setstate__(self, state):
+        self._range, self._tickInterval, self._default_value = state[1:]
+        super().__setstate__(state[0])
 
 class CombinedParameters(Parameter):
     def __init__(self, parameters, vertical=False, **kwargs):
