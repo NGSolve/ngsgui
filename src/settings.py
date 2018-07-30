@@ -147,6 +147,7 @@ class ColorParameter(Parameter):
         self._colorWidget.colors_changed.connect(lambda : self.changed.emit(None))
         return self._colorWidget
 
+    @inmain_decorator(True)
     def getValue(self):
         return [f() for c in self._colorWidget.getColors() for f in [c.red, c.green, c.blue, c.alpha] ]
 

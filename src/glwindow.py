@@ -388,6 +388,19 @@ class GLWidget(QtOpenGL.QGLWidget):
         self._rendering_parameters.zoom = 0.0
         self._rendering_parameters.dx = 0.0
         self._rendering_parameters.dy = 0.0
+        box_min = Vector(3)
+        box_max = Vector(3)
+        box_min[:] = 1e99
+        box_max[:] = -1e99
+        for scene in self.scenes:
+            if not scene.active:
+                continue
+            s_min, s_max = scene.getBoundingBox()
+            for i in range(3):
+                box_min[i] = min(s_min[i], box_min[i])
+                box_max[i] = max(s_max[i], box_max[i])
+        self._rendering_parameters.min = box_min
+        self._rendering_parameters.max = box_max
         self.updateGL()
 
     def minimumSizeHint(self):
