@@ -30,7 +30,7 @@ vec2 tex_coordinate;
 
 
 vec3 getPosition() {
-    vec3 p;
+    vec3 p = vec3(0,0,0);
     ELEMENT_TYPE el = getElement(mesh, inData[0].element);
 
     for (int i=0; i<ELEMENT_N_VERTICES; i++) {
