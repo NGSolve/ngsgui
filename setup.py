@@ -15,8 +15,8 @@ except ImportError as e:
 from setuptools import find_packages, setup
 import os
 
-icons = [ "icons/" + filename for filename in os.listdir("src/icons")]
-shaders = [ "shader/" + filename for filename in os.listdir("src/shader")]
+icons = [ filename for filename in os.listdir("src/icons")]
+shaders = [ filename for filename in os.listdir("src/shader")]
 
 modules = ['ngsgui'] + ['ngsgui.' + pkg for pkg in find_packages('src')]
 dirs = { module : module.replace('ngsgui.','src/') if 'ngsgui.' in module else 'src' for module in modules}
@@ -26,9 +26,7 @@ setup(name="ngsgui",
       description="New graphical interface for NGSolve",
       packages=modules,
       package_dir=dirs,
-      package_data = {'ngsgui':[],
-                      'ngsgui.shader': shaders,
-                      'ngsgui.icons':  icons},
+      package_data = {'ngsgui': shaders+icons},
       include_package_data=True,
       classifiers=("Programming Language :: Python :: 3",
                    "Operating System :: OS Independent",

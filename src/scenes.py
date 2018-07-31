@@ -1150,6 +1150,10 @@ class GeometryScene(BaseScene):
         super().initGL()
         self._geo_data.initGL()
         self._tex_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
+
+    @inmain_decorator(True)
+    def update(self):
+        super().update()
         self._tex_colors.store(self.getSurfaceColors(), data_format=GL_UNSIGNED_BYTE)
 
     def __getstate__(self):
@@ -1166,7 +1170,7 @@ class GeometryScene(BaseScene):
         self.addParameters("Mesh Generation", settings.Button(label="Generate Mesh",
                                                               name="CreateMesh"))
         self.addParameters("Surface Colors",settings.ColorParameter(name="SurfaceColors",
-                                                 values=list(self._geo_data.surfnames)))
+                                                                    values=list(self._geo_data.surfnames)))
 
     def _attachParameter(self, parameter):
         if parameter.name == "SurfaceColors":
