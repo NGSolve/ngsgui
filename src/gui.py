@@ -104,6 +104,13 @@ It can be used to manipulate any behaviour of the interface.
         self._createLayout()
         self.mainWidget.setWindowTitle("NGSolve")
         self._crawlPlugins()
+        # set shader include files
+        import ngsgui.shader
+        from . import gl
+        import glob
+        for shaderpath in ngsgui.shader.locations:
+            for incfile in glob.glob(os.path.join(shaderpath, '*.inc')):
+                gl.Shader.includes[os.path.basename(incfile)] = open(incfile,'r').read()
 
     def _createMenu(self):
         self.menuBar = MenuBarWithDict()

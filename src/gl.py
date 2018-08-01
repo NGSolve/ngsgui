@@ -127,13 +127,11 @@ def readShaderFile(filename, defines):
 
     code = open(fullpath,'r').read()
 
-    for incfile in glob.glob(os.path.join(shaderpath, '*.inc')):
-        Shader.includes[os.path.basename(incfile)] = open(incfile,'r').read()
-
     while code.find('{include ')>-1:
         for token in Shader.includes:
+            if token not in Shader.includes:
+                raise Exception("Can't find include file " + token)
             code = code.replace('{include '+token+'}', Shader.includes[token])
-
 
     pos = code.find('\n', code.find('version'))
     code = code[:pos+1] + defines + code[pos+1:]
