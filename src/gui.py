@@ -7,6 +7,7 @@ from . widgets import ArrangeV
 from .thread import inthread, inmain_decorator
 from .menu import MenuBarWithDict
 from .console import NGSJupyterWidget, MultiQtKernelManager
+from .systemmonitor import SystemMonitor
 
 import sys, textwrap, inspect, re, pkgutil, ngsolve, pickle, pkg_resources
 
@@ -157,7 +158,13 @@ It can be used to manipulate any behaviour of the interface.
         self.output_tabber.addTab(self.console,"Console")
         self.output_tabber.addTab(self.outputBuffer, "Output")
         self.output_tabber.setCurrentIndex(1)
-        window_splitter.addWidget(self.output_tabber)
+        self._SysMonitor = SystemMonitor()
+        sysmon_splitter = QtWidgets.QSplitter()
+        sysmon_splitter.addWidget(self.output_tabber)
+        sysmon_splitter.addWidget(self._SysMonitor)
+        sysmon_splitter.setOrientation(QtCore.Qt.Vertical)
+        sysmon_splitter.setSizes([10000,2000])
+        window_splitter.addWidget(sysmon_splitter)
         menu_splitter.setSizes([100, 10000])
         toolbox_splitter.setSizes([0, 85000])
         window_splitter.setSizes([70000, 30000])
@@ -342,6 +349,10 @@ It can be used to manipulate any behaviour of the interface.
             receiver.moveToThread(self.stdoutThread)
             self.stdoutThread.started.connect(receiver.run)
             self.stdoutThread.start()
+        self._cpuTimer = QtCore.QTimer()
+        self._cpuTimer.setInterval(1000)
+        self._cpuTimer.timeout.connect(self._SysMonitor.update)
+        self._cpuTimer.start()
         do_after_run()
         for f in self._loadFiles:
             self._tryLoadFile(f)

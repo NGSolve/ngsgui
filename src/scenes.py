@@ -1154,6 +1154,7 @@ class GeometryScene(BaseScene):
     @inmain_decorator(True)
     def update(self):
         super().update()
+        self._geo_data.update()
         self._tex_colors.store(self.getSurfaceColors(), data_format=GL_UNSIGNED_BYTE)
 
     def __getstate__(self):
@@ -1167,8 +1168,15 @@ class GeometryScene(BaseScene):
     @inmain_decorator(True)
     def _createParameters(self):
         super()._createParameters()
-        self.addParameters("Mesh Generation", settings.Button(label="Generate Mesh",
-                                                              name="CreateMesh"))
+        self.addParameters("Mesh Generation",
+                           settings.ValueParameter(label="Meshsize",
+                                                   name="Meshsize",
+                                                   default_value=0.2),
+                           settings.SingleOptionParameter(label="Meshtype",
+                                                          name="Meshtype",
+                                                          values=["Volume Mesh", "Surface Mesh"]),
+                           settings.Button(label="Generate Mesh",
+                                           name="CreateMesh"))
         self.addParameters("Surface Colors",settings.ColorParameter(name="SurfaceColors",
                                                                     values=list(self._geo_data.surfnames)))
 
@@ -1177,12 +1185,13 @@ class GeometryScene(BaseScene):
             parameter.changed.connect(lambda : self._tex_colors.store(self.getSurfaceColors(),
                                                                       data_format=GL_UNSIGNED_BYTE))
         if parameter.name == "CreateMesh":
-            parameter.changed.connect(self._generateMesh)
+            def genMesh(val):
+                import netgen.meshing as meshing
+                mesh = self.geo.GenerateMesh(maxh=self.getMeshsize(),
+                                             perfstepsend = meshing.MeshingStep.MESHSURFACE if self.getMeshtype() == "Surface Mesh" else meshing.MeshingStep.MESHVOLUME)
+                ngsolve.Draw(ngsolve.Mesh(mesh))
+            parameter.changed.connect(genMesh)
         super()._attachParameter(parameter)
-
-    def _generateMesh(self):
-        mesh = self.geo.GenerateMesh()
-        ngsolve.Draw(ngsolve.Mesh(mesh))
 
     def getBoundingBox(self):
         return self._geo_data.min, self._geo_data.max
