@@ -619,8 +619,9 @@ class SolutionScene(BaseMeshScene):
                 kwargs['deformation'] = ngsolve.CoefficientFunction((0,cf,0))
             elif mesh.dim==2 and cf.dim==1:
                 kwargs['deformation'] = ngsolve.CoefficientFunction((0,0,cf))
-            else:
-                kwargs['deformation'] = cf
+
+        if 'draw_surf' in kwargs:
+            self.__initial_values["ShowSurface"] = kwargs.pop('draw_surf')
 
         super().__init__(mesh,*args, name=name, **kwargs)
 
