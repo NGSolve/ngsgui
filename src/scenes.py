@@ -1,7 +1,7 @@
 
 import numpy, os, ngsolve
 
-from .gl import Texture, getProgram, ArrayBuffer, VertexArray, TextRenderer
+from .gl import Texture, getProgram, ArrayBuffer, VertexArray, TextRenderer, Query
 from . import widgets as wid
 from .widgets import ArrangeH, ArrangeV
 from . import glmath
@@ -660,13 +660,17 @@ class SolutionScene(BaseMeshScene):
                                )
 
         if self.cf.dim > 1:
+            grid_size = settings.ValueParameter(name="GridSize", label="grid size", default_value=0.5, min_value=1e-2, step=0.1)
             self.addParameters("Show",
                                settings.ValueParameter(name="Component", label="Component",
                                                        default_value=0,
                                                        min_value=0,
                                                        max_value=self.cf.dim-1),
-                               settings.CheckboxParameter(name="ShowVectors", label="Vectors",
-                                                          default_value=self.__initial_values["ShowVectors"]))
+                               settings.CheckboxParameterCluster(name="ShowVectors",
+                                                          label="Vectors",
+                                                          default_value = self.__initial_values["ShowVectors"],
+                                                             sub_parameters = [grid_size], updateWidgets=True)
+                               )
 
         if self.cf.is_complex:
             self.addParameters("Complex",
@@ -1003,44 +1007,59 @@ class SolutionScene(BaseMeshScene):
             glDrawTransformFeedback(GL_POINTS, self.filter_feedback)
 
     # TODO: implement (surface or clipping plane) vector rendering
-    def renderVectors(self, settings):
-        print('rendering vectors not implemented')
-        return
-#         model, view, projection = settings.model, settings.view, settings.projection
-#         prog = getProgram('mesh.vert', 'vector.geom', 'solution.frag', ORDER=self.getOrder())
-# 
-#         uniforms = prog.uniforms
-#         uniforms.set('P',projection)
-#         uniforms.set('MV',view*model)
-#         uniforms.set('colormap_min', 1e99)
-#         uniforms.set('colormap_max', -1e99)
-#         uniforms.set('colormap_linear', settings.colormap_linear)
-#         uniforms.set('clipping_plane', settings.clipping_plane)
-#         uniforms.set('do_clipping', True);
-#         uniforms.set('subdivision', 2**self.getSubdivision()-1)
-# 
-#         if(self.mesh.dim==2):
-#             uniforms.set('element_type', 10)
-#         if(self.mesh.dim==3):
-#             uniforms.set('element_type', 20)
-# 
-#         glActiveTexture(GL_TEXTURE0)
-#         elements.tex_vertices.bind()
-#         uniforms.set('mesh.vertices', 0)
-# 
-#         glActiveTexture(GL_TEXTURE1)
-#         self.mesh_data.elements.bind()
-#         uniforms.set('mesh.elements', 1)
-# 
-#         glActiveTexture(GL_TEXTURE2)
-#         self.volume_values.bind()
-#         uniforms.set('coefficients', 2)
-# 
-#         uniforms.set('mesh.surface_curved_offset', self.mesh.nv)
-#         uniforms.set('mesh.volume_elements_offset', self.mesh_data.volume_elements_offset)
-# 
-#         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
-#         glDrawArrays(GL_POINTS, 0, self.mesh.ne)
+    def renderVectors(self, settings, elements):
+        print('render')
+        # use transform feedback to get position (and direction) of vectors on regular grid
+        grid_size = self.getGridSize()
+        glEnable(GL_RASTERIZER_DISCARD)
+        prog = getProgram('pass_through.vert', 'vectors_filter.geom', feedback=['pos','val'], ORDER=self.getOrder(), params=settings, elements=elements, USE_GL_VERTEX_ID=True)
+        uniforms = prog.uniforms
+
+        glActiveTexture(GL_TEXTURE0)
+        elements.tex_vertices.bind()
+        uniforms.set('mesh.vertices', 0)
+        uniforms.set('mesh.dim', 3);
+
+        glActiveTexture(GL_TEXTURE1)
+        elements.tex.bind()
+        uniforms.set('mesh.elements', 1)
+
+        uniforms.set('grid_size', grid_size)
+
+        glActiveTexture(GL_TEXTURE2)
+        self.values[ngsolve.VOL]['real'][elements.type, elements.curved].bind()
+        uniforms.set('coefficients', 2)
+        uniforms.set('subdivision', 2**self.getSubdivision()-1)
+
+        filter_feedback = glGenTransformFeedbacks(1)
+        glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, filter_feedback)
+        glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, self.filter_buffer.id)
+        glBeginTransformFeedback(GL_POINTS)
+
+        with Query(GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN) as q:
+            glDrawArrays(GL_POINTS, 0, self.mesh.ne)
+#         print('generated vectors', q.value)
+
+        glEndTransformFeedback()
+        glDisable(GL_RASTERIZER_DISCARD)
+
+        # render actual vectors
+        prog = getProgram('vectors.vert', 'vectors_draw.geom', 'vectors.frag', elements=elements, ORDER=self.getOrder(), params=settings)
+        uniforms = prog.uniforms
+        uniforms.set('grid_size', grid_size)
+        glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
+
+        glActiveTexture(GL_TEXTURE0)
+        elements.tex_vertices.bind()
+        uniforms.set('mesh.vertices', 0)
+
+        glActiveTexture(GL_TEXTURE1)
+        elements.tex.bind()
+        uniforms.set('mesh.elements', 1)
+        prog.attributes.bind('pos', self.filter_buffer, stride=24, offset=0)
+        prog.attributes.bind('val', self.filter_buffer, stride=24, offset=12)
+        glDrawTransformFeedback(GL_POINTS, filter_feedback)
+
 
     def _renderClippingPlane(self, settings, elements):
         self._filterElements(settings, elements, 0)
@@ -1123,7 +1142,8 @@ class SolutionScene(BaseMeshScene):
 
             if self.cf.dim > 1:
                 if self.getShowVectors():
-                    self.renderVectors(settings)
+                    for els in self.mesh_data.elements[ngsolve.VOL]:
+                        self.renderVectors(settings, els)
 
 def _createCFScene(cf, mesh, *args, **kwargs):
     return SolutionScene(cf, mesh, *args,

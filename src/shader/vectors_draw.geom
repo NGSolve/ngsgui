@@ -1,37 +1,33 @@
 #version 400
 
 {include utils.inc}
-
-uniform samplerBuffer coefficients;
-uniform Mesh mesh;
+#line 4
 
 layout(points) in;
 layout(triangle_strip, max_vertices=48) out;
 
+uniform mat4 MV;
+uniform mat4 P;
+uniform float grid_size;
+uniform float colormap_min, colormap_max;
+uniform bool colormap_linear;
+
+void DrawVertex( vec3 pos ) {
+    gl_Position = P * MV *vec4(pos,1);
+    EmitVertex();
+}
+
 in VertexData
 {
-  flat int element;
-  flat int instance;
+  vec3 pos;
+  vec3 val;
 } inData[];
 
 out VertexData
 {
-  vec3 lam;
-  vec3 pos;
   vec3 normal;
-  flat int element;
+  vec3 color;
 } outData;
-
-uniform mat4 MV;
-uniform mat4 P;
-uniform int subdivision;
-uniform int order;
-
-void DrawVertex( vec3 pos ) {
-    outData.pos = pos;
-    gl_Position = P * MV *vec4(outData.pos,1);
-    EmitVertex();
-}
 
 void DrawTrig( float radius, vec3 base, vec3 v1, vec3 v2, vec3 c ) {
     vec3 a = base+radius*v1;
@@ -86,19 +82,17 @@ void DrawCone( vec3 base, vec3 top, float radius ) {
 }
 
 void main() {
-    outData.element = inData[0].element;
-    outData.lam = vec3(0,0,0);
+    float s = 0.5*grid_size;
+    vec3 val = s* normalize(inData[0].val);
 
-    int N = order*(subdivision+1)+1;
-    int n = N-1;
-    int values_per_element = N*(N+1)*(N+2)/6;
-    vec4 data = texelFetch(coefficients, values_per_element*inData[0].element);
+    float value = (length(inData[0].val)-colormap_min)/(colormap_max-colormap_min);
+    value = clamp(value, 0.0, 1.0);
+    value = (1.0 - value);
+    if(!colormap_linear)
+        value = floor(8*value)/7.0;
+    outData.color.r = MapColor(value).r;
+    outData.color.g = MapColor(value).g;
+    outData.color.b = MapColor(value).b;
 
-    Element3d tet = getElement3d(mesh, inData[0].element);
-    vec3 pmin = min(min(tet.pos[0], tet.pos[1]), min(tet.pos[2], tet.pos[3]));
-    vec3 pmax = max(max(tet.pos[0], tet.pos[1]), max(tet.pos[2], tet.pos[3]));
-    vec3 base = 0.25*(tet.pos[0]+tet.pos[1]+tet.pos[2]+tet.pos[3]);
-    float radius = 0.06;
-    vec3 val = normalize(data.xyz);
-    DrawCone( base-0.5*radius*val, base+0.5*radius*val, radius/20);
+    DrawCone( inData[0].pos-0.5*val, inData[0].pos+0.5*val, s/4);
 }

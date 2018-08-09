@@ -273,28 +273,30 @@ class Program(GLObject):
             glEnableVertexAttribArray(loc)
             if type_ == GL_INT:
                 glVertexAttribIPointer(loc,1,GL_INT,stride,p)
-            if type_ == GL_INT_VEC2:
+            elif type_ == GL_INT_VEC2:
                 glVertexAttribIPointer(loc,2,GL_INT,stride,p)
-            if type_ == GL_INT_VEC3:
+            elif type_ == GL_INT_VEC3:
                 glVertexAttribIPointer(loc,3,GL_INT,stride,p)
-            if type_ == GL_INT_VEC4:
+            elif type_ == GL_INT_VEC4:
                 glVertexAttribIPointer(loc,4,GL_INT,stride,p)
-            if type_ == GL_UNSIGNED_INT:
+            elif type_ == GL_UNSIGNED_INT:
                 glVertexAttribIPointer(loc,1,GL_UNSIGNED_INT,stride,p)
-            if type_ == GL_UNSIGNED_INT_VEC2:
+            elif type_ == GL_UNSIGNED_INT_VEC2:
                 glVertexAttribIPointer(loc,2,GL_UNSIGNED_INT,stride,p)
-            if type_ == GL_UNSIGNED_INT_VEC3:
+            elif type_ == GL_UNSIGNED_INT_VEC3:
                 glVertexAttribIPointer(loc,3,GL_UNSIGNED_INT,stride,p)
-            if type_ == GL_UNSIGNED_INT_VEC4:
+            elif type_ == GL_UNSIGNED_INT_VEC4:
                 glVertexAttribIPointer(loc,4,GL_UNSIGNED_INT,stride,p)
-            if type_ == GL_FLOAT:
+            elif type_ == GL_FLOAT:
                 glVertexAttribPointer(loc,1,GL_FLOAT,GL_FALSE,stride,p)
-            if type_ == GL_FLOAT_VEC2:
+            elif type_ == GL_FLOAT_VEC2:
                 glVertexAttribPointer(loc,2,GL_FLOAT,GL_FALSE,stride,p)
-            if type_ == GL_FLOAT_VEC3:
+            elif type_ == GL_FLOAT_VEC3:
                 glVertexAttribPointer(loc,3,GL_FLOAT,GL_FALSE,stride,p)
-            if type_ == GL_FLOAT_VEC4:
+            elif type_ == GL_FLOAT_VEC4:
                 glVertexAttribPointer(loc,4,GL_FLOAT,GL_FALSE,stride,p)
+            else:
+                raise RuntimeError("Unknown attribute type", name, type_)
 
             glEnableVertexAttribArray(0)
 
