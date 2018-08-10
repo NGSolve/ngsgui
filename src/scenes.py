@@ -1008,7 +1008,6 @@ class SolutionScene(BaseMeshScene):
 
     # TODO: implement (surface or clipping plane) vector rendering
     def renderVectors(self, settings, elements):
-        print('render')
         # use transform feedback to get position (and direction) of vectors on regular grid
         grid_size = self.getGridSize()
         glEnable(GL_RASTERIZER_DISCARD)
