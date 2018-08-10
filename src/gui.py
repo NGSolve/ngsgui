@@ -323,12 +323,34 @@ It can be used to manipulate any behaviour of the interface.
 
     def loadPythonFile(self, filename):
         """Load a Python file and execute it if gui.executeFileOnStartup is True"""
-        editTab = code_editor.CodeEditor(filename=filename,gui=self,parent=self.window_tabber)
-        pos = self.window_tabber.addTab(editTab,filename)
-        editTab.windowTitleChanged.connect(lambda txt: self.window_tabber.setTabText(pos, txt))
-        if self.executeFileOnStartup:
-            editTab.computation_started_at = 0
-            editTab.run()
+        self.proc = QtCore.QProcess()
+        self.proc.start("emacs " + filename)
+        self.proc.waitForStarted()
+        import time
+        time.sleep(0.5)
+        import subprocess
+        print("proc id = ", str(self.proc.processId()))
+        output = subprocess.check_output(["wmctrl","-lp", "|", "grep",str(self.proc.processId())]).decode("utf-8")
+        print(output)
+        for line in output.splitlines():
+            splitted = line.split(" ")
+            if int(splitted[3]) == self.proc.processId():
+                winid = splitted[0]
+                break
+        else:
+            print("couldnt find emacs window, abort")
+            return
+        print("id = ", winid)
+        self._emacs_window = QtGui.QWindow.fromWinId(int(winid,16))
+        self._emacs_widget = QtWidgets.QWidget.createWindowContainer(self._emacs_window)
+        self._emacs_widget.show()
+        self.window_tabber.addTab(self._emacs_widget, filename)
+        # editTab = code_editor.CodeEditor(filename=filename,gui=self,parent=self.window_tabber)
+        # pos = self.window_tabber.addTab(editTab,filename)
+        # editTab.windowTitleChanged.connect(lambda txt: self.window_tabber.setTabText(pos, txt))
+        # if self.executeFileOnStartup:
+        #     editTab.computation_started_at = 0
+        #     editTab.run()
 
     def _run(self,do_after_run=lambda : None):
         self.mainWidget.show()
