@@ -355,14 +355,6 @@ class MeshScene(BaseMeshScene):
             prog = getProgram('mesh.vert', 'mesh.frag', elements=elements, params=settings)
         uniforms = prog.uniforms
 
-        glActiveTexture(GL_TEXTURE0)
-        elements.tex_vertices.bind()
-        uniforms.set('mesh.vertices', 0)
-
-        glActiveTexture(GL_TEXTURE1)
-        elements.tex.bind()
-        uniforms.set('mesh.elements', 1)
-
         glActiveTexture(GL_TEXTURE3)
         self.tex_edge_colors.bind()
         uniforms.set('colors', 3)
@@ -400,14 +392,6 @@ class MeshScene(BaseMeshScene):
             options["DEFORMATION_ORDER"] = self.getDeformationOrder()
         prog = getProgram(*shader, elements=elements, params=settings, DEFORMATION=use_deformation, **options)
         uniforms = prog.uniforms
-
-        glActiveTexture(GL_TEXTURE0)
-        elements.tex_vertices.bind()
-        uniforms.set('mesh.vertices', 0)
-
-        glActiveTexture(GL_TEXTURE1)
-        elements.tex.bind()
-        uniforms.set('mesh.elements', 1)
 
         if use_deformation:
             glActiveTexture(GL_TEXTURE4)
@@ -462,14 +446,6 @@ class MeshScene(BaseMeshScene):
 
         uniforms = prog.uniforms
 
-        glActiveTexture(GL_TEXTURE0)
-        elements.tex_vertices.bind()
-        uniforms.set('mesh.vertices', 0)
-
-        glActiveTexture(GL_TEXTURE1)
-        elements.tex.bind()
-        uniforms.set('mesh.elements', 1)
-
         uniforms.set('do_clipping', True);
         uniforms.set('shrink_elements', self.getShrink())
         uniforms.set('clip_whole_elements', True)
@@ -505,15 +481,6 @@ class MeshScene(BaseMeshScene):
         uniforms.set('font_height_in_texture', font.height/font.tex_height)
         uniforms.set('font_width_on_screen', 2*font.width/screen_width)
         uniforms.set('font_height_on_screen', 2*font.height/screen_height)
-
-        glActiveTexture(GL_TEXTURE0)
-        elements.tex_vertices.bind()
-        uniforms.set('mesh.vertices', 0)
-
-        if elements.dim>0:
-            glActiveTexture(GL_TEXTURE1)
-            elements.tex.bind()
-            uniforms.set('mesh.elements', 1)
 
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
         glPolygonOffset (0,0)
@@ -778,15 +745,6 @@ class SolutionScene(BaseMeshScene):
         prog = getProgram('pass_through.vert', 'filter_elements.geom', feedback=['element'], ORDER=self.getOrder(), params=settings, elements=elements, USE_GL_VERTEX_ID=True)
         uniforms = prog.uniforms
 
-        glActiveTexture(GL_TEXTURE0)
-        elements.tex_vertices.bind()
-        uniforms.set('mesh.vertices', 0)
-        uniforms.set('mesh.dim', 3);
-
-        glActiveTexture(GL_TEXTURE1)
-        elements.tex.bind()
-        uniforms.set('mesh.elements', 1)
-
         glActiveTexture(GL_TEXTURE2)
         if filter_type == 1: # iso surface
             uniforms.set('iso_value', self.getIsoValue())
@@ -840,14 +798,6 @@ class SolutionScene(BaseMeshScene):
         uniforms.set('wireframe', False)
         uniforms.set('do_clipping', False)
         uniforms.set('subdivision', 2**self.getSubdivision()-1)
-
-        glActiveTexture(GL_TEXTURE0)
-        elements.tex_vertices.bind()
-        uniforms.set('mesh.vertices', 0)
-
-        glActiveTexture(GL_TEXTURE1)
-        elements.tex.bind()
-        uniforms.set('mesh.elements', 1)
 
         glActiveTexture(GL_TEXTURE2)
         self.values[vb]['real'][(elements.type, elements.curved)].bind()
@@ -929,14 +879,6 @@ class SolutionScene(BaseMeshScene):
             uniforms.set('do_clipping', self.mesh.dim==3 or use_deformation)
             uniforms.set('subdivision', 2**self.getSubdivision()-1)
 
-            glActiveTexture(GL_TEXTURE0)
-            elements.tex_vertices.bind()
-            uniforms.set('mesh.vertices', 0)
-
-            glActiveTexture(GL_TEXTURE1)
-            elements.tex.bind()
-            uniforms.set('mesh.elements', 1)
-
             glActiveTexture(GL_TEXTURE2)
             self.values[vb]['real'][(elements.type, elements.curved)].bind()
             uniforms.set('coefficients', 2)
@@ -988,14 +930,6 @@ class SolutionScene(BaseMeshScene):
             uniforms.set('element_type', 10)
         if(self.mesh.dim==3):
             uniforms.set('element_type', 20)
-
-        glActiveTexture(GL_TEXTURE0)
-        elements.tex_vertices.bind()
-        uniforms.set('mesh.vertices', 0)
-
-        glActiveTexture(GL_TEXTURE1)
-        elements.tex.bind()
-        uniforms.set('mesh.elements', 1)
 
         glActiveTexture(GL_TEXTURE2)
         self.values[ngsolve.VOL]['real'][(elements.type, elements.curved)].bind()
@@ -1074,14 +1008,6 @@ class SolutionScene(BaseMeshScene):
             uniforms.set('element_type', 10)
         if(self.mesh.dim==3):
             uniforms.set('element_type', 20)
-
-        glActiveTexture(GL_TEXTURE0)
-        elements.tex_vertices.bind()
-        uniforms.set('mesh.vertices', 0)
-
-        glActiveTexture(GL_TEXTURE1)
-        elements.tex.bind()
-        uniforms.set('mesh.elements', 1)
 
         glActiveTexture(GL_TEXTURE2)
         self.values[ngsolve.VOL]['real'][elements.type, elements.curved].bind()

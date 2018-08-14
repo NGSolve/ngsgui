@@ -437,10 +437,10 @@ def getProgram(*shader_files, feedback=[], elements=None, params=None, **define_
         elements.tex_vertices.bind()
         u.set('mesh.vertices', 0)
         u.set('mesh.dim', elements.dim);
-
-        glActiveTexture(GL_TEXTURE1)
-        elements.tex.bind()
-        u.set('mesh.elements', 1)
+        if elements.dim>0:
+            glActiveTexture(GL_TEXTURE1)
+            elements.tex.bind()
+            u.set('mesh.elements', 1)
 
     check_debug_output()
 
