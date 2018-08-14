@@ -600,7 +600,8 @@ class SolutionScene(BaseMeshScene):
                                  "ShowClippingPlane" : clippingPlane,
                                  "Subdivision" : kwargs['sd'] if "sd" in kwargs else 1,
                                  "ShowIsoSurface" : False,
-                                 "ShowVectors" : False,
+                                 "ShowVolumeVectors" : False,
+                                 "ShowClippingPlaneVectors" : False,
                                  "ShowSurface" : True}
 
         if hasattr(self.cf,"vecs") and len(self.cf.vecs) > 1:
@@ -660,16 +661,21 @@ class SolutionScene(BaseMeshScene):
                                )
 
         if self.cf.dim > 1:
-            grid_size = settings.ValueParameter(name="GridSize", label="grid size", default_value=0.5, min_value=1e-2, step=0.1)
+            vol_grid_size = settings.ValueParameter(name="VolumeGridSize", label="grid size", default_value=0.5, min_value=1e-2, step=0.1)
+            cp_grid_size = settings.ValueParameter(name="ClippingPlaneGridSize", label="grid size", default_value=0.5, min_value=1e-2, step=0.1)
             self.addParameters("Show",
                                settings.ValueParameter(name="Component", label="Component",
                                                        default_value=0,
                                                        min_value=0,
                                                        max_value=self.cf.dim-1),
-                               settings.CheckboxParameterCluster(name="ShowVectors",
-                                                          label="Vectors",
-                                                          default_value = self.__initial_values["ShowVectors"],
-                                                             sub_parameters = [grid_size], updateWidgets=True)
+                               settings.CheckboxParameterCluster(name="ShowVolumeVectors",
+                                                          label="Volume vectors",
+                                                          default_value = self.__initial_values["ShowVolumeVectors"],
+                                                             sub_parameters = [vol_grid_size], updateWidgets=True),
+                               settings.CheckboxParameterCluster(name="ShowClippingPlaneVectors",
+                                                          label="Clipping plane vectors",
+                                                          default_value = self.__initial_values["ShowClippingPlaneVectors"],
+                                                             sub_parameters = [cp_grid_size], updateWidgets=True)
                                )
 
         if self.cf.is_complex:
@@ -1007,21 +1013,18 @@ class SolutionScene(BaseMeshScene):
             glDrawTransformFeedback(GL_POINTS, self.filter_feedback)
 
     # TODO: implement (surface or clipping plane) vector rendering
-    def renderVectors(self, settings, elements):
+    def renderVectors(self, settings, elements, mode):
         # use transform feedback to get position (and direction) of vectors on regular grid
-        grid_size = self.getGridSize()
+        if mode == 'VOLUME_GRID':
+            grid_size = self.getVolumeGridSize()
+        elif mode == 'CLIPPING_PLANE_GRID':
+            grid_size = self.getClippingPlaneGridSize()
+        else:
+            raise RuntimeError("invalid mode: "+str(mode))
+
         glEnable(GL_RASTERIZER_DISCARD)
-        prog = getProgram('pass_through.vert', 'vectors_filter.geom', feedback=['pos','val'], ORDER=self.getOrder(), params=settings, elements=elements, USE_GL_VERTEX_ID=True)
+        prog = getProgram('pass_through.vert', 'vectors_filter.geom', feedback=['pos','val'], ORDER=self.getOrder(), params=settings, elements=elements, USE_GL_VERTEX_ID=True, FILTER_MODE=mode)
         uniforms = prog.uniforms
-
-        glActiveTexture(GL_TEXTURE0)
-        elements.tex_vertices.bind()
-        uniforms.set('mesh.vertices', 0)
-        uniforms.set('mesh.dim', 3);
-
-        glActiveTexture(GL_TEXTURE1)
-        elements.tex.bind()
-        uniforms.set('mesh.elements', 1)
 
         uniforms.set('grid_size', grid_size)
 
@@ -1035,9 +1038,7 @@ class SolutionScene(BaseMeshScene):
         glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, self.filter_buffer.id)
         glBeginTransformFeedback(GL_POINTS)
 
-        with Query(GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN) as q:
-            glDrawArrays(GL_POINTS, 0, self.mesh.ne)
-#         print('generated vectors', q.value)
+        glDrawArrays(GL_POINTS, 0, self.mesh.ne)
 
         glEndTransformFeedback()
         glDisable(GL_RASTERIZER_DISCARD)
@@ -1048,13 +1049,6 @@ class SolutionScene(BaseMeshScene):
         uniforms.set('grid_size', grid_size)
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
 
-        glActiveTexture(GL_TEXTURE0)
-        elements.tex_vertices.bind()
-        uniforms.set('mesh.vertices', 0)
-
-        glActiveTexture(GL_TEXTURE1)
-        elements.tex.bind()
-        uniforms.set('mesh.elements', 1)
         prog.attributes.bind('pos', self.filter_buffer, stride=24, offset=0)
         prog.attributes.bind('val', self.filter_buffer, stride=24, offset=12)
         glDrawTransformFeedback(GL_POINTS, filter_feedback)
@@ -1140,9 +1134,12 @@ class SolutionScene(BaseMeshScene):
                         self._renderClippingPlane(settings, els)
 
             if self.cf.dim > 1:
-                if self.getShowVectors():
+                if self.getShowVolumeVectors():
                     for els in self.mesh_data.elements[ngsolve.VOL]:
-                        self.renderVectors(settings, els)
+                        self.renderVectors(settings, els, mode="VOLUME_GRID")
+                if self.getShowClippingPlaneVectors():
+                    for els in self.mesh_data.elements[ngsolve.VOL]:
+                        self.renderVectors(settings, els, mode="CLIPPING_PLANE_GRID")
 
 def _createCFScene(cf, mesh, *args, **kwargs):
     return SolutionScene(cf, mesh, *args,
