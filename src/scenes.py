@@ -528,9 +528,12 @@ class MeshScene(BaseMeshScene):
 
             # Numbers
             if self.getShowPointNumbers():
-                vb = vbs[ self.mesh.dim ]
-                for elements in self.mesh_data.elements[vb]:
-                    self._renderNumbers(settings, elements)
+                data = numpy.array([i for i in range(self.mesh.nv)])
+                elements = MeshData.ElementData(dict(type=ngsolve.ET.POINT,
+                                                     nelements=self.mesh.nv,
+                                                     data=data,
+                                                     curved=False), self.mesh_data.vertices)
+                self._renderNumbers(settings, elements)
 
             if self.getShowEdgeNumbers():
                 vb = vbs[self.mesh.dim-1]

@@ -132,7 +132,7 @@ class MeshData(DataContainer):
             if self.curved:
                 self.size += 1
             if self.type == ngs.ET.POINT:
-                self.size = 0
+                self.size = 1
             assert len(self.data) == self.nelements*self.size
             self.tex_vertices = vertices
             self.tex = Texture(GL.GL_TEXTURE_BUFFER, GL.GL_R32I)
