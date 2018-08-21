@@ -7,7 +7,7 @@ from .widgets import ArrangeH, ArrangeV
 from . import glmath
 import math, cmath
 from .thread import inmain_decorator
-from .gl_interface import getOpenGLData, getReferenceRules
+from .gl_interface import getOpenGLData, getReferenceRules, MeshData
 from .gui import GUI
 import netgen.meshing, netgen.geom2d
 from . import settings
@@ -1070,10 +1070,101 @@ class SolutionScene(BaseMeshScene):
                     for els in self.mesh_data.elements[ngsolve.VOL]:
                         self.renderVectors(settings, els, mode="CLIPPING_PLANE_GRID")
 
+class FacetSolutionScene(BaseMeshScene):
+    def __init__(self, cf, *args, **kwargs):
+        self.cf = cf
+        self.values = { 'real' : {}, 'imag' : {}}
+        super().__init__(*args,**kwargs)
+
+    def update(self):
+        super().update()
+        irs = getReferenceRules(self.getOrder(), 2**self.getSubdivision()-1)
+        values = ngsolve.solve._GetFacetValues(self.cf, self.mesh, irs)
+        comps = ['real']
+        if self.cf.is_complex: comps.append('imag')
+        for comp in comps:
+            for et in values[comp]:
+                if not et in self.values[comp]:
+                    self.values[comp][et] = Texture(GL_TEXTURE_BUFFER, GL_R32F)
+                # self.values[comp][et].store(numpy.array([float(i) for i in range(len(values[comp][et]))]))
+                self.values[comp][et].store(values[comp][et])
+
+    def _createParameters(self):
+        super()._createParameters()
+        self.addParameters("Subdivision",
+                           settings.ValueParameter(name="Subdivision",
+                                                   label="Subdivision",
+                                                   default_value=1,
+                                                   min_value = 0,
+                                                   updateScene=True),
+                           settings.ValueParameter(name="Order",
+                                                   label="Order",
+                                                   default_value=1,
+                                                   min_value=1,
+                                                   max_value=4,
+                                                   updateScene=True))
+        self.addParameters("Colormap",
+                           settings.ValueParameter(name = "ColorMapMin",
+                                                   label = "Min",
+                                                   default_value = 0.),
+                           settings.ValueParameter(name= "ColorMapMax",
+                                                   label = "Max",
+                                                   default_value = 1.),
+                           settings.CheckboxParameter(name="Autoscale",
+                                                      label="Autoscale",
+                                                      default_value = False),
+                           settings.CheckboxParameter(name="ColorMapLinear",
+                                                      label="Linear",
+                                                      default_value=False))
+
+    def render(self, settings):
+        if not self.active:
+            return
+        if self.cf.dim > 1:
+            comp = self.getComponent()
+        else:
+            comp = 0
+        if self.getAutoscale():
+            comp = 0 if self.cf.dim==1 else self.getComponent()
+            settings.colormap_min = self.values[ngsolve.VOL]['min'][comp]
+            settings.colormap_max = self.values[ngsolve.VOL]['max'][comp]
+        else:
+            settings.colormap_min = self.getColorMapMin()
+            settings.colormap_max = self.getColorMapMax()
+        settings.colormap_linear = self.getColorMapLinear()
+        with self._vao:
+            for facets in self.mesh_data.elements["facets"]:
+                shader = ['mesh.vert', 'solution.frag']
+                options = dict(ORDER=self.getOrder(), DEFORMATION=False)
+                prog = getProgram(*shader, elements=facets, params=settings, **options)
+                uniforms = prog.uniforms
+                uniforms.set('do_clipping', True)
+                glActiveTexture(GL_TEXTURE2)
+                self.values['real'][(facets.type, facets.curved)].bind()
+                uniforms.set('coefficients', 2)
+                uniforms.set('subdivision', 2**self.getSubdivision()-1)
+                uniforms.set('component',0)
+                uniforms.set('is_complex', self.cf.is_complex)
+                if self.cf.is_complex:
+                    glActiveTexture(GL_TEXTURE3)
+                    self.values[vb]['imag'][elements.type, elements.curved].bind()
+                    uniforms.set('coefficients_imag', 3)
+
+                    uniforms.set('complex_vis_function', self._complex_eval_funcs[self.getComplexEvalFunc()])
+                    w = cmath.exp(1j*self.getComplexPhaseShift()/180.0*math.pi)
+                    uniforms.set('complex_factor', [w.real, w.imag])
+
+                glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
+                if self.mesh.dim == 2:
+                    glDrawArrays(GL_LINES, 0, 2*len(facets.data)//facets.size)
+                else:
+                    glDrawArrays(GL_TRIANGLES, 0, 3*len(facets.data)//facets.size)
+
 def _createCFScene(cf, mesh, *args, **kwargs):
-    return SolutionScene(cf, mesh, *args,
-                         autoscale = kwargs["autoscale"] if "autoscale" in kwargs else not ("min" in kwargs or "max" in kwargs),
-                         **kwargs)
+    autoscale = kwargs["autoscale"] if "autoscale" in kwargs else not ("min" in kwargs or "max" in kwargs)
+    if "facet" in kwargs and kwargs["facet"]:
+        return FacetSolutionScene(cf, mesh, *args, autoscale = autoscale, **kwargs)
+    return SolutionScene(cf, mesh, *args, autoscale = autoscale, **kwargs)
 
 def _createGFScene(gf, mesh=None, name=None, *args, **kwargs):
     if not mesh:
