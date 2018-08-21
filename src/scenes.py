@@ -142,15 +142,14 @@ GUI.sceneCreators[BaseScene] = lambda scene,*args,**kwargs: scene
 
 class BaseMeshScene(BaseScene):
     """Base class for all scenes that depend on a mesh"""
-    @inmain_decorator(wait_for_return=True)
-    def __init__(self, mesh,**kwargs):
+    def __init__(self, mesh,*args, **kwargs):
         self.__initial_values = {"Deformation" : False}
         self.mesh = mesh
         self.deformation = None
         if 'deformation' in kwargs:
             self.deformation = kwargs.pop('deformation')
 
-        super().__init__(**kwargs)
+        super().__init__(*args, **kwargs)
 
     @inmain_decorator(True)
     def _createParameters(self):
