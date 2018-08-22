@@ -1076,6 +1076,7 @@ class FacetSolutionScene(BaseMeshScene):
 
     def update(self):
         super().update()
+        formats = [None, GL_R32F, GL_RG32F, GL_RGB32F, GL_RGBA32F];
         irs = getReferenceRules(self.getOrder(), 2**self.getSubdivision()-1)
         values = ngsolve.solve._GetFacetValues(self.cf, self.mesh, irs)
         comps = ['real']
@@ -1085,8 +1086,7 @@ class FacetSolutionScene(BaseMeshScene):
         for comp in comps:
             for et in values[comp]:
                 if not et in self.values[comp]:
-                    self.values[comp][et] = Texture(GL_TEXTURE_BUFFER, GL_R32F)
-                # self.values[comp][et].store(numpy.array([float(i) for i in range(len(values[comp][et]))]))
+                    self.values[comp][et] = Texture(GL_TEXTURE_BUFFER, formats[self.cf.dim])
                 self.values[comp][et].store(values[comp][et])
 
     def _createParameters(self):
@@ -1116,6 +1116,11 @@ class FacetSolutionScene(BaseMeshScene):
                            settings.CheckboxParameter(name="ColorMapLinear",
                                                       label="Linear",
                                                       default_value=False))
+        if self.cf.dim > 1:
+            self.addParameters("Show",settings.ValueParameter(name="Component", label="Component",
+                                                       default_value=0,
+                                                       min_value=0,
+                                                       max_value=self.cf.dim-1))
 
     def render(self, settings):
         if not self.active:
@@ -1143,7 +1148,7 @@ class FacetSolutionScene(BaseMeshScene):
                 self.values['real'][(facets.type, facets.curved)].bind()
                 uniforms.set('coefficients', 2)
                 uniforms.set('subdivision', 2**self.getSubdivision()-1)
-                uniforms.set('component',0)
+                uniforms.set('component',comp)
                 uniforms.set('is_complex', self.cf.is_complex)
                 if self.cf.is_complex:
                     glActiveTexture(GL_TEXTURE3)
