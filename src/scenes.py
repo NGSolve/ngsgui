@@ -1080,6 +1080,8 @@ class FacetSolutionScene(BaseMeshScene):
         irs = getReferenceRules(self.getOrder(), 2**self.getSubdivision()-1)
         values = ngsolve.solve._GetFacetValues(self.cf, self.mesh, irs)
         comps = ['real']
+        self.values['min'] = values['min']
+        self.values['max'] = values['max']
         if self.cf.is_complex: comps.append('imag')
         for comp in comps:
             for et in values[comp]:
@@ -1125,8 +1127,8 @@ class FacetSolutionScene(BaseMeshScene):
             comp = 0
         if self.getAutoscale():
             comp = 0 if self.cf.dim==1 else self.getComponent()
-            settings.colormap_min = self.values[ngsolve.VOL]['min'][comp]
-            settings.colormap_max = self.values[ngsolve.VOL]['max'][comp]
+            settings.colormap_min = self.values['min'][comp]
+            settings.colormap_max = self.values['max'][comp]
         else:
             settings.colormap_min = self.getColorMapMin()
             settings.colormap_max = self.getColorMapMax()

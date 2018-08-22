@@ -439,7 +439,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         screen_width = viewport[2]-viewport[0]
         screen_height = viewport[3]-viewport[1]
         with mygl.Query(GL.GL_PRIMITIVES_GENERATED) as q:
-            rp = copy.copy(self._rendering_parameters)
+            rp = self._rendering_parameters
             rp.ratio = screen_width/max(screen_height,1)
             for scene in self.scenes:
                 scene.render(rp) #model, view, projection)
