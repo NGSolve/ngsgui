@@ -1121,6 +1121,17 @@ class FacetSolutionScene(BaseMeshScene):
                                                        default_value=0,
                                                        min_value=0,
                                                        max_value=self.cf.dim-1))
+        if self.cf.is_complex:
+            self.addParameters("Complex",
+                               settings.SingleOptionParameter(name="ComplexEvalFunc",
+                                                              values = list(SolutionScene._complex_eval_funcs.keys()),
+                                                              label="Func",
+                                                              default_value = "real"),
+                               settings.ValueParameter(name="ComplexPhaseShift",
+                                                      label="Value shift angle",
+                                                       default_value = 0.0),
+                               settings.CheckboxParameter(name="Animate", label="Animate",
+                                                          default_value=False))
 
     def render(self, settings):
         if not self.active:
@@ -1152,10 +1163,10 @@ class FacetSolutionScene(BaseMeshScene):
                 uniforms.set('is_complex', self.cf.is_complex)
                 if self.cf.is_complex:
                     glActiveTexture(GL_TEXTURE3)
-                    self.values[vb]['imag'][elements.type, elements.curved].bind()
+                    self.values['imag'][facets.type, facets.curved].bind()
                     uniforms.set('coefficients_imag', 3)
 
-                    uniforms.set('complex_vis_function', self._complex_eval_funcs[self.getComplexEvalFunc()])
+                    uniforms.set('complex_vis_function', SolutionScene._complex_eval_funcs[self.getComplexEvalFunc()])
                     w = cmath.exp(1j*self.getComplexPhaseShift()/180.0*math.pi)
                     uniforms.set('complex_factor', [w.real, w.imag])
 
