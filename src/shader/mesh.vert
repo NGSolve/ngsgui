@@ -84,6 +84,48 @@ void main()
           return;
       } 
     }
+#elif defined(ET_HEX)
+    // draw faces of 3d elements using multiple instances (gl_InstanceID)
+    // 6 quads -> 12 triangles in total
+    int fid = gl_InstanceID;
+    ivec3 verts;
+    if (fid<4) {
+        verts = ivec3(fid,(fid+1)%4,fid+4);
+    }
+    else if(fid<8) {
+        verts.x = (fid-3)%4;
+        verts.y = fid;
+        verts.z = verts.x+4;
+    }
+    // quad 0123
+    else if(fid== 8) verts = ivec3(0,1,2);
+    else if(fid== 9) verts = ivec3(0,2,3);
+    // quad 4567 
+    else if(fid==10) verts = ivec3(4,5,6);
+    else if(fid==11) verts = ivec3(4,6,7);
+    else return;
+
+    vec3 center = vec3(0.0,0.0,0.0);
+    for (int i=0; i<ELEMENT_N_VERTICES;i++)
+        center += element.pos[i];
+
+    center *= 1.0/ELEMENT_N_VERTICES;
+
+    outData.normal = cross(element.pos[verts[1]]-element.pos[verts[0]], element.pos[verts[2]]-element.pos[verts[0]]);
+    outData.pos = element.pos[verts[vid]];
+    if(dot(outData.normal, outData.pos-center)<0)
+        outData.normal = -outData.normal;
+    outData.pos = mix(center,outData.pos,  shrink_elements);
+    if(clip_whole_elements) {
+      float min_dist = 1.0;
+      for (int i=0; i<ELEMENT_N_VERTICES; i++)
+          min_dist = min(min_dist, dot(vec4(element.pos[i],1.0),clipping_plane));
+      if(min_dist<0) {
+          // discard
+          gl_Position = vec4(0,0,0,0);
+          return;
+      } 
+    }
 #endif
 ///////////////////////////////////////////////////////////////////////////////
   gl_Position = P * MV * vec4(outData.pos, 1);

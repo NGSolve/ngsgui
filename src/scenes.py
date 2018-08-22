@@ -456,8 +456,7 @@ class MeshScene(BaseMeshScene):
         uniforms.set('light_ambient', 0.3)
         uniforms.set('light_diffuse', 0.7)
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
-        # todo: number of vertices per element, number of instances
-        glDrawArraysInstanced(GL_TRIANGLES, 0, 3*self.mesh.ne, 4)
+        glDrawArraysInstanced(GL_TRIANGLES, 0, 3*self.mesh.ne, elements.n_instances_2d)
 
     def _renderNumbers(self, settings, elements):
         prog = getProgram('pass_through.vert', 'numbers.geom', 'font.frag', params=settings, elements=elements, USE_GL_VERTEX_ID=True)
