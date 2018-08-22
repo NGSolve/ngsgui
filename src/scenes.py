@@ -1151,7 +1151,9 @@ class FacetSolutionScene(BaseMeshScene):
         with self._vao:
             for facets in self.mesh_data.elements["facets"]:
                 shader = ['mesh.vert', 'solution.frag']
-                options = dict(ORDER=self.getOrder(), DEFORMATION=False)
+                options = dict(ORDER=self.getOrder())
+                if self.mesh.dim == 2:
+                    options["NOLIGHT"] = True
                 prog = getProgram(*shader, elements=facets, params=settings, **options)
                 uniforms = prog.uniforms
                 uniforms.set('do_clipping', True)

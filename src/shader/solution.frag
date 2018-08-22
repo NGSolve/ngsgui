@@ -90,7 +90,9 @@ void main()
       FragColor.g = MapColor(value).g;
       FragColor.b = MapColor(value).b;
       FragColor.a = 1.0;
+#ifndef NOLIGHT
       FragColor.rgb = light(FragColor.rgb, MV, inData.pos, inData.normal);
+#endif
   }
   else
     discard;
