@@ -48,6 +48,14 @@ void main()
       } 
   }
 
+#if ELEMENT_DIM==3
+  vec3 center = vec3(0.0,0.0,0.0);
+  for (int i=0; i<ELEMENT_N_VERTICES;i++)
+      center += element.pos[i];
+
+  center *= 1.0/ELEMENT_N_VERTICES;
+#endif
+
 ///////////////////////////////////////////////////////////////////////////////
 #if   defined(ET_SEGM)
   outData.lam[1-vid] = 1.0;
@@ -77,12 +85,6 @@ void main()
     ivec3 verts = ivec3(0,1,2);
     for (int i=fid; i<3; i++)
         verts[i]++;
-    vec3 center = 0.25*(element.pos[0]+element.pos[1]+element.pos[2]+element.pos[3]);
-    outData.normal = cross(element.pos[verts[1]]-element.pos[verts[0]], element.pos[verts[2]]-element.pos[verts[0]]);
-    outData.pos = element.pos[verts[vid]];
-    if(dot(outData.normal, outData.pos-center)<0)
-        outData.normal = -outData.normal;
-    outData.pos = mix(center,outData.pos,  shrink_elements);
 #elif defined(ET_HEX)
     // draw faces of 3d elements using multiple instances (gl_InstanceID)
     // 6 quads -> 12 triangles in total
@@ -103,14 +105,36 @@ void main()
     else if(fid==10) verts = ivec3(4,5,6);
     else if(fid==11) verts = ivec3(4,6,7);
     else return;
+#elif defined(ET_PRISM)
+    // draw faces of 3d elements using multiple instances (gl_InstanceID)
+    // 3 quads + 2 trigs -> 8 triangles in total
+    int fid = gl_InstanceID;
+    ivec3 verts;
+    if (fid==0) verts = ivec3(0,1,2);
+    else if (fid==1) verts = ivec3(0,1,3);
+    else if (fid==2) verts = ivec3(1,3,4);
+    else if (fid==3) verts = ivec3(1,2,4);
+    else if (fid==4) verts = ivec3(2,4,5);
+    else if (fid==5) verts = ivec3(2,0,3);
+    else if (fid==6) verts = ivec3(2,3,5);
+    else if (fid==7) verts = ivec3(3,4,5);
+    else return;
+#elif defined(ET_PYRAMID)
+    // draw faces of 3d elements using multiple instances (gl_InstanceID)
+    // 1 quads + 4 trigs -> 6 triangles in total
+    int fid = gl_InstanceID;
+    ivec3 verts;
+    if (fid==0) verts = ivec3(0,1,2);
+    else if (fid==1) verts = ivec3(2,3,0);
+    else if (fid==2) verts = ivec3(0,1,4);
+    else if (fid==3) verts = ivec3(1,2,4);
+    else if (fid==4) verts = ivec3(2,3,4);
+    else if (fid==5) verts = ivec3(3,0,4);
+    else return;
+#endif
 
-    vec3 center = vec3(0.0,0.0,0.0);
-    for (int i=0; i<ELEMENT_N_VERTICES;i++)
-        center += element.pos[i];
-
-    center *= 1.0/ELEMENT_N_VERTICES;
-
-    outData.normal = cross(element.pos[verts[1]]-element.pos[verts[0]], element.pos[verts[2]]-element.pos[verts[0]]);
+#if ELEMENT_DIM==3
+    outData.normal = normalize(cross(element.pos[verts[1]]-element.pos[verts[0]], element.pos[verts[2]]-element.pos[verts[0]]));
     outData.pos = element.pos[verts[vid]];
     if(dot(outData.normal, outData.pos-center)<0)
         outData.normal = -outData.normal;
