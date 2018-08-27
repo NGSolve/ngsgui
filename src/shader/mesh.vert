@@ -37,6 +37,17 @@ void main()
   outData.lam = vec3(0,0,0);
   outData.pos = element.pos[vid];
 
+  if(clip_whole_elements) {
+      float min_dist = 1.0;
+      for (int i=0; i<ELEMENT_N_VERTICES; i++)
+          min_dist = min(min_dist, dot(vec4(element.pos[i],1.0),clipping_plane));
+      if(min_dist<0) {
+          // discard
+          gl_Position = vec4(0,0,0,0);
+          return;
+      } 
+  }
+
 ///////////////////////////////////////////////////////////////////////////////
 #if   defined(ET_SEGM)
   outData.lam[1-vid] = 1.0;
@@ -72,18 +83,6 @@ void main()
     if(dot(outData.normal, outData.pos-center)<0)
         outData.normal = -outData.normal;
     outData.pos = mix(center,outData.pos,  shrink_elements);
-    if(clip_whole_elements) {
-      float min_dist = 1.0;
-      min_dist = min(min_dist, dot(vec4(element.pos[0],1.0),clipping_plane));
-      min_dist = min(min_dist, dot(vec4(element.pos[1],1.0),clipping_plane));
-      min_dist = min(min_dist, dot(vec4(element.pos[2],1.0),clipping_plane));
-      min_dist = min(min_dist, dot(vec4(element.pos[3],1.0),clipping_plane));
-      if(min_dist<0) {
-          // discard
-          gl_Position = vec4(0,0,0,0);
-          return;
-      } 
-    }
 #elif defined(ET_HEX)
     // draw faces of 3d elements using multiple instances (gl_InstanceID)
     // 6 quads -> 12 triangles in total
@@ -116,16 +115,6 @@ void main()
     if(dot(outData.normal, outData.pos-center)<0)
         outData.normal = -outData.normal;
     outData.pos = mix(center,outData.pos,  shrink_elements);
-    if(clip_whole_elements) {
-      float min_dist = 1.0;
-      for (int i=0; i<ELEMENT_N_VERTICES; i++)
-          min_dist = min(min_dist, dot(vec4(element.pos[i],1.0),clipping_plane));
-      if(min_dist<0) {
-          // discard
-          gl_Position = vec4(0,0,0,0);
-          return;
-      } 
-    }
 #endif
 ///////////////////////////////////////////////////////////////////////////////
   gl_Position = P * MV * vec4(outData.pos, 1);
