@@ -1025,9 +1025,11 @@ class SolutionScene(BaseMeshScene):
             uniforms.set('complex_factor', [w.real, w.imag])
 
 
-        glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
-        prog.attributes.bind('element', self.filter_buffer)
-        glDrawTransformFeedback(GL_POINTS, self.filter_feedback)
+        for i in range(elements.n_instances_3d):
+            uniforms.set('subtet', i)
+            glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
+            prog.attributes.bind('element', self.filter_buffer)
+            glDrawTransformFeedback(GL_POINTS, self.filter_feedback)
 
 
     def render(self, settings):

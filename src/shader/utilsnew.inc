@@ -1,4 +1,5 @@
 {include utils.inc}
+#line 2
 
 struct POINT {
   vec3 pos[1];
@@ -48,6 +49,57 @@ struct HEX {
   int curved_vertices;
   int index;
 };
+
+ivec4 getTetFromElement( PYRAMID el, int subtet, out TET tet, out vec3 lam[4]) {
+  vec3 all_lams[5] = vec3[5]( vec3(0,0,0), vec3(1,0,0), vec3(1,1,0), vec3(0,1,0), vec3(0,0,1) );
+  ivec4 vi;
+
+  if(subtet==0) vi=ivec4( 0,1,2,4 );
+  else if(subtet==1) vi=ivec4( 0,2,3,4 );
+  else vi=ivec4( 1,3,4,5 );
+
+  for (int i=0; i<4; i++) {
+    tet.pos[i] = el.pos[vi[i]];
+    lam[i] = all_lams[vi[i]];
+  }
+  return vi;
+}
+
+ivec4 getTetFromElement( PRISM el, int subtet, out TET tet, out vec3 lam[4]) {
+  vec3 all_lams[6] = vec3[6](
+    vec3(1,0,0), vec3(0,1,0), vec3(0,0,0),
+    vec3(1,0,1), vec3(0,1,1), vec3(0,0,1) );
+  ivec4 vi;
+
+  if(subtet==0) vi=ivec4( 0,1,2,3 );
+  else if(subtet==1) vi=ivec4( 1,2,3,5 );
+  else vi=ivec4( 1,3,4,5 );
+
+  for (int i=0; i<4; i++) {
+    tet.pos[i] = el.pos[vi[i]];
+    lam[i] = all_lams[vi[i]];
+  }
+  return vi;
+}
+
+ivec4 getTetFromElement( HEX el, int subtet, out TET tet, out vec3 lam[4]) {
+  vec3 all_lams[8] = vec3[8](
+    vec3(0,0,0), vec3(1,0,0), vec3(1,1,0), vec3(0,1,0),
+    vec3(0,0,1), vec3(1,0,1), vec3(1,1,1), vec3(0,1,1) );
+  ivec4 vi;
+  if(subtet==0) vi=ivec4( 0,1,3,4 );
+  else if(subtet==1) vi=ivec4( 1,3,4,7 );
+  else if(subtet==2) vi=ivec4( 1,4,5,7 );
+  else if(subtet==3) vi=ivec4( 2,5,6,7 );
+  else if(subtet==4) vi=ivec4( 1,2,3,7 );
+  else vi=ivec4( 1,2,5,7 );
+
+  for (int i=0; i<4; i++) {
+    tet.pos[i] = el.pos[vi[i]];
+    lam[i] = all_lams[vi[i]];
+  }
+  return vi;
+}
 
 struct PointData {
   vec3 pos;
@@ -170,6 +222,16 @@ int CutElement3d( TET tet, float values[4], out vec3 pos[4], inout vec3 lam[4] )
         return 4;
     }           
 }
+
+int CutElement3d( HEX el, int subtet, float values[8], out vec3 pos[4], inout vec3 lam[4] ) {
+  TET tet;
+  ivec4 vi = getTetFromElement( el, subtet, tet, lam);
+  float tet_values[4];
+  for (int i=0; i<4; i++)
+    tet_values[i] = values[vi[i]];
+  return CutElement3d(tet, tet_values, pos, lam);
+}
+
 // Cut tet with plane and store 0-4 points (and barycentric coords), return the number of intersection points
 int CutElement3d( TET tet, float values[4], out vec3 pos[4], inout vec3 lam[4], inout vec3 normals[4] ) {
     int nvertices_behind = 0;
