@@ -1,6 +1,6 @@
 import ngsolve
 from ngsolve import ET, ElementTransformation
-from ngsgui.ngui import GetReferenceRule
+from ngsgui.gl_interface import getReferenceRules
 
 import sympy
 from sympy import *
@@ -166,6 +166,60 @@ functions[ET.TET] = """\
 }}
 """
 
+functions[ET.HEX] = """\
+{type} InterpolateHex{vec}(int element, samplerBuffer values, int order, int subdivision, vec3 lam, int component) {{
+    int n = subdivision+1;
+    int N = ORDER*n+1; // number of values on one edge
+    int values_per_element = N*N*N;
+    vec3 lamn = lam*(n);
+    lam = lamn-floor(lamn);
+    int x = int(lamn.x);
+    int y = int(lamn.y);
+    int z = int(lamn.z);
+
+    int X = ORDER*x;
+    int Y = ORDER*y;
+    int Z = ORDER*z;
+
+    int dy = N;
+    int dz = N*N;
+    int first = element*values_per_element+Z*dz+Y*dy+X;
+    return InterpolateHex{vec}(values, lam, first, dy, dz, component);
+}}
+"""
+
+functions[ET.PRISM] = """\
+{type} InterpolatePrism{vec}(int element, samplerBuffer values, int order, int subdivision, vec3 lam, int component) {{
+    int n = subdivision+1;
+    int N = ORDER*n+1;
+    int values_per_element = N*N*(N+1)/2;
+    vec3 lamn = lam*(n);
+    lam = lamn-floor(lamn);
+    int x = int(lamn.x);
+    int y = int(lamn.y);
+    int z = int(lamn.z);
+
+    int X = ORDER*x;
+    int Y = ORDER*y;
+    int Z = ORDER*z;
+
+    int first, dx, dy, dz;
+    dz = N*(N+1)/2;
+    if(lam.x+lam.y<1.0) {{ // lower left trig of quad
+        first = element*values_per_element+getIndex(N,X,Y);
+        dx = getIndex(N,X+1, Y)-getIndex(N,X,Y);
+        dy = getIndex(N,X, Y+1)-getIndex(N,X,Y);
+    }}
+    else {{ // upper right trig of quad
+        first = element*values_per_element+getIndex(N,X+ORDER,Y+ORDER);
+        dx = getIndex(N,X, Y)-getIndex(N,X+1,Y);
+        dy = getIndex(N,X, Y+ORDER-1)-getIndex(N,X,Y+ORDER);
+        lam.x = 1-lam.x;
+        lam.y = 1-lam.y;
+    }}
+    return InterpolatePrism{vec}(values, lam, first, dx, dy, dz, component);
+}}
+"""
 
 def getBasisFunction(et,i,j=0,k=0):
     if et==ET.SEGM:
@@ -178,6 +232,12 @@ def getBasisFunction(et,i,j=0,k=0):
         def phi(x,y,z):
             return  x**i*y**j
     elif et==ET.TET:
+        def phi(x,y,z):
+            return  x**i*y**j*z**k
+    elif et==ET.HEX:
+        def phi(x,y,z):
+            return  x**i*y**j*z**k
+    elif et==ET.PRISM:
         def phi(x,y,z):
             return  x**i*y**j*z**k
     else:
@@ -197,6 +257,10 @@ def getBasisFunctions(et, p):
         return [getBasisFunction(et,i,j) for i in range(p+1) for j in range(p+1)]
     if et==ET.TET:
         return [getBasisFunction(et,i,j,k) for i in range(p+1) for j in range(p+1-i) for k in range(p+1-i-j)]
+    if et==ET.HEX:
+        return [getBasisFunction(et,i,j,k) for i in range(p+1) for j in range(p+1) for k in range(p+1)]
+    if et==ET.PRISM:
+        return [getBasisFunction(et,i,j,k) for k in range(p+1) for j in range(p+1) for i in range(p+1-j)]
 
 def GetHeader(et, p, basis, scalar):
     comps = '[component]' if scalar else '.xyz'
@@ -274,10 +338,51 @@ def GetHeader(et, p, basis, scalar):
   float y = lam.y;
   float z = lam.z;
 """
+    if et==ET.HEX:
+        code = """\
+#if ORDER=={p}
+{type} InterpolateHex{vec}(samplerBuffer coefficients, vec3 lam, int first, int dy, int dz, int component) {{
+  float x = lam.x;
+  float y = lam.y;
+  float z = lam.z;
+  {type} f[{ndof}];
+  int ii=0;
+  for (int i=0; i<={p}; i++) {{
+    for (int j=0; j<={p}; j++) {{
+      for (int k=0; k<={p}; k++) {{
+        f[ii] = getValue(coefficients, first+k+j*dy+i*dz){comps};
+        ii++;
+      }}
+    }}
+  }}
+"""
+    if et==ET.PRISM:
+        code = """\
+#if ORDER=={p}
+{type} InterpolatePrism{vec}(samplerBuffer coefficients, vec3 lam, int first, int dx, int dy, int dz, int component) {{
+  float x = lam.x;
+  float y = lam.y;
+  float z = lam.z;
+  {type} f[{ndof}];
+  int ii=0;
+  for (int k=0; k<={p}; k++) {{
+      int offsety = 0;
+      for (int i=0; i<={p}; i++) {{
+        int offsetx = 0;
+        for (int j=0; j<={p}-i; j++) {{
+          f[ii] = getValue(coefficients, first+offsetx+offsety){comps};
+          offsetx += dx;
+          ii++;
+        }}
+        offsety += dy-i;
+      }}
+  first += dz;
+  }}
+"""
     return code.format(comps=comps, p=p, type=type_, vec=vec, ndof=len(basis))
 
 def GenerateInterpolationFunction(et, p, scalar):
-    ir = GetReferenceRule(et, p, 0)
+    ir = getReferenceRules(p, 0)[et]
     basis = getBasisFunctions(et, p)
     ndof = len(basis)
     nips = len(ir.points)
@@ -300,12 +405,22 @@ def GenerateInterpolationFunction(et, p, scalar):
     code += "#endif\n\n"
     return code
 
-code = ""
-for et in [ET.SEGM, ET.TRIG, ET.TET, ET.QUAD]:
-    for scalar in [True, False]:
-        for p in range(1,4):
-            code += GenerateInterpolationFunction(et, p, scalar)
-        code += functions[et].format(type='float' if scalar else 'vec3', vec='' if scalar else 'Vec')
-# print(code)
+code = "#line 1\n"
 
-open('generated_interpolation.inc', 'w').write(code)
+
+from multiprocessing import Pool
+
+if __name__ == '__main__':
+    p = Pool(24)
+
+    ets = [ET.SEGM, ET.TRIG, ET.TET, ET.QUAD, ET.HEX, ET.PRISM]
+    maxp = 2
+    args = [(et,p,scalar) for et in ets for p in range(1,maxp+1) for scalar in [True,False]]
+
+    codes = p.starmap(GenerateInterpolationFunction, args)
+    code += ''.join(codes)
+    for et in ets:
+        for scalar in [True, False]:
+            code += functions[et].format(type='float' if scalar else 'vec3', vec='' if scalar else 'Vec')
+
+    open('generated_interpolation.inc', 'w').write(code)

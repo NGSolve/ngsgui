@@ -50,6 +50,10 @@ void main()
        value = InterpolateQuad(inData.element, coefficients, ORDER, subdivision, lam, component);
 #elif defined(ET_TET)
        value = InterpolateTet(inData.element, coefficients, ORDER, subdivision, inData.lam, component);
+#elif defined(ET_HEX)
+       value = InterpolateHex(inData.element, coefficients, ORDER, subdivision, inData.lam, component);
+#elif defined(ET_PRISM)
+       value = InterpolatePrism(inData.element, coefficients, ORDER, subdivision, inData.lam, component);
 #endif
 
       if(is_complex) {
@@ -62,6 +66,10 @@ void main()
           value_imag = InterpolateQuad(inData.element, coefficients_imag, ORDER, subdivision, lam, component);
 #elif defined(ET_TET)
           value_imag = InterpolateTet(inData.element, coefficients_imag, ORDER, subdivision, inData.lam, component);
+#elif defined(ET_HEX)
+       value = InterpolateHex(inData.element, coefficients_imag, ORDER, subdivision, inData.lam, component);
+#elif defined(ET_PRISM)
+       value = InterpolatePrism(inData.element, coefficients_imag, ORDER, subdivision, inData.lam, component);
 #endif
           float r = value*complex_factor.x - value_imag*complex_factor.y;
           value_imag = value*complex_factor.y + value_imag*complex_factor.x;
@@ -90,7 +98,9 @@ void main()
       FragColor.g = MapColor(value).g;
       FragColor.b = MapColor(value).b;
       FragColor.a = 1.0;
+#ifndef NOLIGHT
       FragColor.rgb = light(FragColor.rgb, MV, inData.pos, inData.normal);
+#endif
   }
   else
     discard;

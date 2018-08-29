@@ -19,6 +19,11 @@ def getP2Rules():
     # 3d elements have no normal vectors, so only evaluate at edge midpoints
     res[ngs.ET.TET] = ngs.IntegrationRule([ (0.5,0.0,0.0), (0.0,0.5,0.0), (0.5,0.5,0.0), (0.5,0.0,0.5), (0.0,0.5,0.5), (0.0,0.0,0.5)], [0.0]*6)
 
+    # no curved hexes/prims/pyramids yet
+    res[ngs.ET.HEX] = ngs.IntegrationRule([], [])
+    res[ngs.ET.PRISM] = ngs.IntegrationRule([], [])
+    res[ngs.ET.PYRAMID] = ngs.IntegrationRule([], [])
+
 #         // PRISM
 #         for (auto & ip : ir_trig.Range(3,6))
 #             ir_prism.Append(ip);
@@ -47,10 +52,15 @@ def getReferenceRules(order, sd):
   n = (order)*(sd+1)+1;
   h = 1.0/(n-1);
   res = {}
+  n2 = n*(n+1)//2
+  n3 = n*(n+1)*(n+2)//6
   res[ngs.ET.SEGM] = ngs.IntegrationRule([ (1.0-i*h,0.0,0.0) for i in range(n) ], [0.0 for i in range(n)])
-  res[ngs.ET.TRIG] = ngs.IntegrationRule([ (    i*h,j*h,0.0) for j in range(n) for i in range(n-j) ], [0.0 for i in range(n*(n+1)//2)])
-  res[ngs.ET.QUAD] = ngs.IntegrationRule([ (    i*h,j*h,0.0) for j in range(n) for i in range(n) ],   [0.0 for i in range(n**2)])
-  res[ngs.ET.TET]  = ngs.IntegrationRule([ (    i*h,j*h,k*h) for k in range(n) for j in range(n-k) for i in range(n-k-j) ],   [0.0 for i in range(n*(n+1)*(n+2)//6)])
+  res[ngs.ET.TRIG] = ngs.IntegrationRule([ (    i*h,j*h,0.0) for j in range(n) for i in range(n-j) ], [0.0]*n2)
+  res[ngs.ET.QUAD] = ngs.IntegrationRule([ (    i*h,j*h,0.0) for j in range(n) for i in range(n) ],   [0.0]*(n+1)**2)
+  res[ngs.ET.TET]  = ngs.IntegrationRule([ (    i*h,j*h,k*h) for k in range(n) for j in range(n-k) for i in range(n-k-j) ],   [0.0]*n3)
+  res[ngs.ET.HEX]  = ngs.IntegrationRule([ (    i*h,j*h,k*h) for k in range(n) for j in range(n) for i in range(n) ],   [0.0]*(n+1)**3)
+  res[ngs.ET.PRISM]= ngs.IntegrationRule([ (    i*h,j*h,k*h) for k in range(n) for j in range(n) for i in range(n-j) ], [0.0]*((n+1)*n2))
+  res[ngs.ET.PYRAMID]= ngs.IntegrationRule([ (    i*h,j*h,k*h) for k in range(n) for j in range(n) for i in range(n-j) ], [0.0]*((n+1)*n2))
   return res
 
 class DataContainer:
@@ -108,7 +118,7 @@ class MeshData(DataContainer):
                 ngs.ET.TET: 4,
                 ngs.ET.PRISM: 6,
                 ngs.ET.PYRAMID: 5,
-                ngs.ET.HEX: 6
+                ngs.ET.HEX: 8
                 }
         dims = { 
                 ngs.ET.POINT: 0,
@@ -121,18 +131,43 @@ class MeshData(DataContainer):
                 ngs.ET.HEX: 3
                 }
 
+        # number of triangles needed to draw the surface
+        n_instances_2d = { 
+                ngs.ET.POINT: 0,
+                ngs.ET.SEGM: 0,
+                ngs.ET.TRIG: 1,
+                ngs.ET.QUAD: 2,
+                ngs.ET.TET: 4,
+                ngs.ET.PRISM: 8,
+                ngs.ET.PYRAMID: 6,
+                ngs.ET.HEX: 12
+                }
+        # number of subtets
+        n_instances_3d = { 
+                ngs.ET.POINT: 0,
+                ngs.ET.SEGM: 0,
+                ngs.ET.TRIG: 0,
+                ngs.ET.QUAD: 0,
+                ngs.ET.TET: 1,
+                ngs.ET.PRISM: 3,
+                ngs.ET.PYRAMID: 2,
+                ngs.ET.HEX: 6
+                }
+
         def __init__(self, ei, vertices):
             self.type = ei['type']
             self.nelements = ei['nelements']
             self.data = ei['data']
             self.curved = ei['curved']
             self.nverts = MeshData.ElementData.nverts[self.type]
+            self.n_instances_2d= MeshData.ElementData.n_instances_2d[self.type]
+            self.n_instances_3d= MeshData.ElementData.n_instances_3d[self.type]
             self.dim = MeshData.ElementData.dims[self.type]
             self.size = self.nverts+2
             if self.curved:
                 self.size += 1
             if self.type == ngs.ET.POINT:
-                self.size = 0
+                self.size = 1
             assert len(self.data) == self.nelements*self.size
             self.tex_vertices = vertices
             self.tex = Texture(GL.GL_TEXTURE_BUFFER, GL.GL_R32I)

@@ -28,7 +28,7 @@ bool isCuttingClippingPlane() {
     ELEMENT_TYPE el = getElement(mesh, inData[0].element);
     max_dist = dot(clipping_plane, vec4(el.pos[0], 1.0));
     min_dist = max_dist;
-    for (int i=1; i<4; i++) {
+    for (int i=1; i<ELEMENT_N_VERTICES; i++) {
         float dist = dot(clipping_plane, vec4(el.pos[i], 1.0));
         min_dist = min(dist, min_dist);
         max_dist = max(dist, max_dist);
