@@ -3,6 +3,7 @@ import os
 os.environ['QT_API'] = 'pyside2'
 
 from . import glwindow, code_editor
+import ngsgui.code_editor.emacs as emacs_editor
 from . widgets import ArrangeV
 from .thread import inthread, inmain_decorator
 from .menu import MenuBarWithDict
@@ -112,6 +113,8 @@ It can be used to manipulate any behaviour of the interface.
         for shaderpath in ngsgui.shader.locations:
             for incfile in glob.glob(os.path.join(shaderpath, '*.inc')):
                 gl.Shader.includes[os.path.basename(incfile)] = open(incfile,'r').read()
+        self.app.setOrganizationName("NGSolve")
+        self.app.setApplicationName("NGSolve")
 
     def _createMenu(self):
         self.menuBar = MenuBarWithDict()
@@ -252,7 +255,7 @@ It can be used to manipulate any behaviour of the interface.
         for tab,name in tabs:
             if isinstance(tab, glwindow.WindowTab):
                 tab.create(self._commonContext)
-            if isinstance(tab, code_editor.CodeEditor):
+            if isinstance(tab, code_editor.texteditor.CodeEditor):
                 tab.gui = self
             self.window_tabber.addTab(tab, name)
         for setting in settings:
@@ -323,34 +326,20 @@ It can be used to manipulate any behaviour of the interface.
 
     def loadPythonFile(self, filename):
         """Load a Python file and execute it if gui.executeFileOnStartup is True"""
-        self.proc = QtCore.QProcess()
-        self.proc.start("emacs " + filename)
-        self.proc.waitForStarted()
-        import time
-        time.sleep(0.5)
-        import subprocess
-        print("proc id = ", str(self.proc.processId()))
-        output = subprocess.check_output(["wmctrl","-lp", "|", "grep",str(self.proc.processId())]).decode("utf-8")
-        print(output)
-        for line in output.splitlines():
-            splitted = line.split(" ")
-            if int(splitted[3]) == self.proc.processId():
-                winid = splitted[0]
-                break
-        else:
-            print("couldnt find emacs window, abort")
-            return
-        print("id = ", winid)
-        self._emacs_window = QtGui.QWindow.fromWinId(int(winid,16))
-        self._emacs_widget = QtWidgets.QWidget.createWindowContainer(self._emacs_window)
-        self._emacs_widget.show()
-        self.window_tabber.addTab(self._emacs_widget, filename)
-        # editTab = code_editor.CodeEditor(filename=filename,gui=self,parent=self.window_tabber)
-        # pos = self.window_tabber.addTab(editTab,filename)
-        # editTab.windowTitleChanged.connect(lambda txt: self.window_tabber.setTabText(pos, txt))
-        # if self.executeFileOnStartup:
-        #     editTab.computation_started_at = 0
-        #     editTab.run()
+        settings = QtCore.QSettings()
+        import ngsgui.code_editor.texteditor as texteditor
+        editorType = settings.value("editor/type", "default")
+        if editorType == "emacs":
+            editTab = emacs_editor.EmacsEditor(filename, self)
+            self.window_tabber.addTab(editTab, filename)
+        elif editorType == "default":
+            editTab = texteditor.CodeEditor(filename=filename,gui=self,parent=self.window_tabber)
+            self.window_tabber.addTab(editTab, filename)
+        elif not editorType:
+            editTab = NoEditor(filename=filename, gui=self)
+        if self.executeFileOnStartup:
+            editTab.computation_started_at = 0
+            editTab.run()
 
     def _run(self,do_after_run=lambda : None):
         self.mainWidget.show()

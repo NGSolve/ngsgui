@@ -22,7 +22,7 @@ modules = ['ngsgui'] + ['ngsgui.' + pkg for pkg in find_packages('src')]
 dirs = { module : module.replace('ngsgui.','src/') if 'ngsgui.' in module else 'src' for module in modules}
 
 setup(name="ngsgui",
-      version="0.1.9",
+      version="0.1.10",
       description="New graphical interface for NGSolve",
       packages=modules,
       package_dir=dirs,
