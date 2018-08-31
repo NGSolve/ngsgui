@@ -1,11 +1,8 @@
 import threading
-import inspect
-import ctypes
-import psutil
-import sys
 
 def _async_raise(tid, exctype):
     '''Raises an exception in the threads with id tid'''
+    import inspect, ctypes
     if not inspect.isclass(exctype):
         raise TypeError("Only types can be raised (not instances)")
     res = ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_long(tid),ctypes.py_object(exctype))
@@ -115,6 +112,7 @@ class Caller(QObject):
             result = event.fn(*event.args, **event.kwargs)
         except Exception:
             # Store for re-raising the exception in the calling thread:
+            import sys
             exception = sys.exc_info()
             result = None
             if event._exceptions_in_main:

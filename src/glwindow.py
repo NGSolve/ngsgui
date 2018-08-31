@@ -1,13 +1,9 @@
 
 from . import glmath, scenes
 from . import widgets as wid
-from . import gl as mygl
-from .plot import PlotTab
 from .gl import TextRenderer, ArrayBuffer, VertexArray, getProgram
-import copy
 from .widgets import ArrangeV, ArrangeH
-from .thread import inthread, inmain_decorator
-from qtconsole.inprocess import QtInProcessRichJupyterWidget
+from .thread import inmain_decorator
 from ngsgui import _debug
 import numpy as np
 
@@ -438,13 +434,11 @@ class GLWidget(QtOpenGL.QGLWidget):
         viewport = GL.glGetIntegerv( GL.GL_VIEWPORT )
         screen_width = viewport[2]-viewport[0]
         screen_height = viewport[3]-viewport[1]
-        with mygl.Query(GL.GL_PRIMITIVES_GENERATED) as q:
-            rp = self._rendering_parameters
-            rp.ratio = screen_width/max(screen_height,1)
-            for scene in self.scenes:
-                scene.render(rp) #model, view, projection)
-            self._btn_area.render()
-        # print('\rtotal trigs drawn ' + str(q.value)+' '*10, end='')
+        rp = self._rendering_parameters
+        rp.ratio = screen_width/max(screen_height,1)
+        for scene in self.scenes:
+            scene.render(rp) #model, view, projection)
+        self._btn_area.render()
 
     def addScene(self, scene):
         self.scenes.append(scene)
@@ -831,6 +825,7 @@ class WindowTabber(QtWidgets.QTabWidget):
 
     @inmain_decorator(True)
     def plot(self, *args, **kwargs):
+        from .plot import PlotTab
         window = PlotTab()
         window.plot(*args, **kwargs)
         self.addTab(window, kwargs["label"] if "label" in kwargs else "plot")
