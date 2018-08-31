@@ -118,13 +118,8 @@ void main()
 #if DEFORMATION
       if(is_complex) {
         float value, value_imag;
-#if defined(ET_TRIG)
-        value = InterpolateTrig(inData[0].element, coefficients, ORDER, subdivision, outData.lam, component);
-        value_imag = InterpolateTrig(inData[0].element, coefficients_imag, ORDER, subdivision, outData.lam, component);
-#elif defined(ET_QUAD)
-        value_imag = InterpolateQuad(inData[0].element, coefficients_imag, ORDER, subdivision, outData.lam, component);
-        value = InterpolateQuad(inData[0].element, coefficients, ORDER, subdivision, outData.lam, component);
-#endif
+        value = EvaluateElement(inData[0].element, coefficients, ORDER, subdivision, outData.lam, component);
+        value_imag = EvaluateElement(inData[0].element, coefficients_imag, ORDER, subdivision, outData.lam, component);
         float r = value*complex_factor.x - value_imag*complex_factor.y;
         value_imag = value*complex_factor.y + value_imag*complex_factor.x;
         value = r;
@@ -145,13 +140,7 @@ void main()
       }
       else {
         vec3 value = vec3(deformation_scale,deformation_scale,deformation_scale);
-#if defined(ET_SEGM)
-        value *= InterpolateSegmVec(inData[0].element, deformation_coefficients, ORDER, deformation_subdivision, outData.lam, 0);
-#elif defined(ET_TRIG)
-        value *= InterpolateTrigVec(inData[0].element, deformation_coefficients, ORDER, deformation_subdivision, outData.lam, 0);
-#elif defined(ET_QUAD)
-        value *= InterpolateTetVec(inData[0].element, deformation_coefficients, ORDER, deformation_subdivision, outData.lam, 0);
-#endif
+        value *= EvaluateElementVec(inData[0].element, deformation_coefficients, ORDER, deformation_subdivision, outData.lam, 0);
         outData.pos += value;
       }
 #endif // DEFORMATION

@@ -60,7 +60,11 @@ def getReferenceRules(order, sd):
   res[ngs.ET.TET]  = ngs.IntegrationRule([ (    i*h,j*h,k*h) for k in range(n) for j in range(n-k) for i in range(n-k-j) ],   [0.0]*n3)
   res[ngs.ET.HEX]  = ngs.IntegrationRule([ (    i*h,j*h,k*h) for k in range(n) for j in range(n) for i in range(n) ],   [0.0]*(n+1)**3)
   res[ngs.ET.PRISM]= ngs.IntegrationRule([ (    i*h,j*h,k*h) for k in range(n) for j in range(n) for i in range(n-j) ], [0.0]*((n+1)*n2))
-  res[ngs.ET.PYRAMID]= ngs.IntegrationRule([ (    i*h,j*h,k*h) for k in range(n) for j in range(n) for i in range(n-j) ], [0.0]*((n+1)*n2))
+
+  # no subdivision or high order for pyramids
+  n = 2;
+  h = 1.0/(n-1);
+  res[ngs.ET.PYRAMID]= ngs.IntegrationRule([ (    i*h*(1.0-0*h),j*h*(1.0-0*h),k*h) for k in range(n) for j in range(n-k) for i in range(n-k) ], [0.0]*(n*(n+1)*(n+2*n+1)//6))
   return res
 
 class DataContainer:
