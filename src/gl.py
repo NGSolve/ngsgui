@@ -554,7 +554,6 @@ class TextRenderer:
 
         self._vao = VertexArray()
 
-        self.addFont(0)
         with self._vao:
             self.characters = ArrayBuffer(usage=GL_DYNAMIC_DRAW)
 
