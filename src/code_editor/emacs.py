@@ -27,14 +27,16 @@ class MyEPCServer(ThreadingEPCServer):
         self.server_thread = threading.Thread(target=self.serve_forever)
         self.server_thread.allow_reuse_address = True
 
-        self.register_function(self.editor.run)
+        def run():
+            self.editor.run()
+        self.register_function(run)
 
     def start(self):
         self.server_thread.start()
 
     def write_file(self):
         with open(".printport.py", "w") as f:
-            f.write("import sys\nprint(" + str(self.server_address[1]) + ")")
+            f.write("print(" + str(self.server_address[1]) + ")")
 
 class EmacsEditor(QtWidgets.QWidget):
     def __init__(self, filename=None, gui=None, *args, **kwargs):

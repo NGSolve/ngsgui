@@ -26,6 +26,15 @@
                    'set-height
                    (lambda (arg) (set-frame-height (selected-frame) arg nil t)))
 
+(defun pyepc-ngsolve-run ()
+  "Run buffer"
+  (interactive)
+  (deferred:nextc
+    (epc:call-deferred pyepc-ngsolve-epc 'run nil)))
+
+(require 'python)
+(define-key python-mode-map (kbd "C-c r") 'pyepc-ngsolve-run)
+
 
 ;; (defun pyepc-sample-gtk-destroy ()
 ;;   "Close GTK window"
