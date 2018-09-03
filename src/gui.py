@@ -4,12 +4,10 @@ os.environ['QT_API'] = 'pyside2'
 
 from . import glwindow, code_editor
 from . widgets import ArrangeV
-from .thread import inthread, inmain_decorator
+from .thread import inmain_decorator
 from .menu import MenuBarWithDict
-from .console import NGSJupyterWidget, MultiQtKernelManager
-from .systemmonitor import SystemMonitor
 
-import sys, textwrap, inspect, re, pkgutil, ngsolve, pickle, pkg_resources
+import ngsolve
 
 from PySide2 import QtWidgets, QtCore, QtGui
 
@@ -19,6 +17,7 @@ class Receiver(QtCore.QObject):
     received = QtCore.Signal(str)
 
     def __init__(self,pipe, *args,**kwargs):
+        import re
         super().__init__(*args,**kwargs)
         self.pipe = pipe
         self.ansi_escape = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
@@ -72,6 +71,7 @@ def _noOutputpipe(gui,val):
     gui.pipeOutput = not val
 
 def _showHelp(gui, val):
+    import textwrap
     if val:
         print("Available flags:")
         for flag, tup in gui.flags.items():
@@ -97,6 +97,7 @@ It can be used to manipulate any behaviour of the interface.
     sceneCreators = {}
     file_loaders = {}
     def __init__(self):
+        from .console import MultiQtKernelManager
         self.app = QtWidgets.QApplication([])
         ngsolve.solve._SetLocale()
         self.multikernel_manager = MultiQtKernelManager()
@@ -135,6 +136,8 @@ It can be used to manipulate any behaviour of the interface.
         return self.window_tabber.activeGLWindow.glWidget.scenes
 
     def _createLayout(self):
+        from .console import NGSJupyterWidget
+        from .systemmonitor import SystemMonitor
         self.mainWidget = QtWidgets.QWidget()
         menu_splitter = QtWidgets.QSplitter(parent=self.mainWidget)
         menu_splitter.setOrientation(QtCore.Qt.Vertical)
@@ -195,6 +198,7 @@ It can be used to manipulate any behaviour of the interface.
         addShortcut("Previous Tab", "Ctrl+RightArrow", lambda: switchTabWindow(1))
 
     def _crawlPlugins(self):
+        import pkg_resources
         for entry_point in pkg_resources.iter_entry_points(group="ngsgui.plugin",name=None):
             plugin = entry_point.load()
             plugin(self)
@@ -231,6 +235,7 @@ It can be used to manipulate any behaviour of the interface.
         self._msgbox.show()
 
     def saveSolution(self):
+        import pickle
         """Opens a file dialog to save the current state of the GUI, including all drawn objects."""
         filename, filt = QtWidgets.QFileDialog.getSaveFileName(caption="Save Solution",
                                                                filter = "Solution Files (*.ngs)")
@@ -245,6 +250,7 @@ It can be used to manipulate any behaviour of the interface.
             pickle.dump((tabs,settings, currentIndex), f)
 
     def _loadSolutionFile(self, filename):
+        import pickle
         if not filename[-4:] == ".ngs":
             filename += ".ngs"
         with open(filename, "rb") as f:
@@ -331,6 +337,7 @@ It can be used to manipulate any behaviour of the interface.
             editTab.run()
 
     def _run(self,do_after_run=lambda : None):
+        import sys, inspect
         self.mainWidget.show()
         globs = inspect.stack()[1][0].f_globals
         self.console.pushVariables(globs)

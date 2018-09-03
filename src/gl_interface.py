@@ -1,5 +1,3 @@
-
-import weakref, numpy
 import OpenGL.GL as GL
 from .gl import Texture
 import ngsolve as ngs
@@ -70,6 +68,7 @@ def getReferenceRules(order, sd):
 class DataContainer:
     """Class to avoid redundant copies of same objects on GPU"""
     def __init__(self, obj):
+        import weakref
         self.obj = weakref.ref(obj)
         obj._opengl_data = self
         self.update()
@@ -159,6 +158,7 @@ class MeshData(DataContainer):
                 }
 
         def __init__(self, ei, vertices):
+            import numpy
             self.type = ei['type']
             self.nelements = ei['nelements']
             self.data = ei['data']

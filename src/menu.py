@@ -1,6 +1,4 @@
-
 from .thread import inmain_decorator
-
 from PySide2 import QtWidgets
 
 class MenuWithDict(QtWidgets.QMenu):
