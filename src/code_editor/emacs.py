@@ -4,7 +4,7 @@ from ngsgui.widgets import ArrangeH, ArrangeV
 from .utils import PythonFileButtonArea
 from ngsgui.thread import inmain_decorator, inthread
 from epc.server import ThreadingEPCServer
-import logging, threading, os, time
+import logging, threading, os, time, weakref
 
 emacs_script = os.path.join(os.path.dirname(os.path.abspath(__file__)),"emacs-integration.el")
 
@@ -19,25 +19,20 @@ class EmacsProcess(QtCore.QProcess):
 class MyEPCServer(ThreadingEPCServer):
     def __init__(self, editor):
         super().__init__(('localhost',0), log_traceback=True)
-        self.editor = editor
-        self.logger.setLevel(logging.DEBUG)
+        self.editor = weakref.ref(editor)
+        self.logger.setLevel(logging.WARNING)
         ch = logging.FileHandler(filename='python-epc.log',mode='w')
-        ch.setLevel(logging.DEBUG)
+        ch.setLevel(logging.WARNING)
         self.logger.addHandler(ch)
         self.server_thread = threading.Thread(target=self.serve_forever)
         self.server_thread.allow_reuse_address = True
-
-        def run(buffer_filename):
-            print("got buffer filename = ", buffer_filename)
-            self.editor.run(buffer_filename)
-        self.register_function(run)
-
-    def start(self):
         self.server_thread.start()
-
-    def write_file(self):
         with open(".printport.py", "w") as f:
             f.write("print(" + str(self.server_address[1]) + ")")
+
+        def run(buffer_filename):
+            self.editor().run(buffer_filename)
+        self.register_function(run)
 
 class EmacsEditor(QtWidgets.QWidget):
     def __init__(self, filename=None, gui=None, *args, **kwargs):
@@ -49,8 +44,7 @@ class EmacsEditor(QtWidgets.QWidget):
         self.buttonArea.setFixedHeight(35)
         self.active_thread = None
         self._server = MyEPCServer(self)
-        self._server.start()
-        self._server.write_file()
+        gui.app.aboutToQuit.connect(self._server.shutdown)
         self._emacs_window = QtGui.QWindow()
         self._emacs_widget = QtWidgets.QWidget.createWindowContainer(self._emacs_window)
         self.proc = EmacsProcess(self._emacs_window)
@@ -61,7 +55,6 @@ class EmacsEditor(QtWidgets.QWidget):
     def _resize_emacs(self):
         while not self._server.clients:
             time.sleep(0.1)
-        print("width = ", self.geometry().width())
         self._server.clients[0].call("set-width", [int(self.geometry().width()*0.97)])
         self._server.clients[0].call("set-height", [int(self.geometry().height()*0.92)])
 
