@@ -34,18 +34,3 @@
 
 (require 'python)
 (define-key python-mode-map (kbd "C-c r") 'pyepc-ngsolve-run)
-
-
-;; (defun pyepc-sample-gtk-destroy ()
-;;   "Close GTK window"
-;;   (interactive)
-;;   (deferred:nextc
-;;     (epc:call-deferred pyepc-sample-gtk-epc 'destroy nil)
-;;     (lambda ()
-;;       (epc:stop-epc pyepc-sample-gtk-epc)
-;;       (message "EPC server is stopped."))))
-
-;; (defun pyepc-sample-gtk-set-button-label (label)
-;;   "Change GUI button label."
-;;   (interactive "sButton label: ")
-;; (epc:call-deferred pyepc-sample-gtk-epc 'set_button_label (list label)))
