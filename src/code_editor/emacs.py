@@ -3,13 +3,38 @@ from PySide2 import QtGui, QtWidgets, QtCore
 from ngsgui.widgets import ArrangeH, ArrangeV
 from .utils import PythonFileButtonArea
 from ngsgui.thread import inmain_decorator, inthread
+from epc.server import ThreadingEPCServer
+import logging, threading, os, time
+
+emacs_script = os.path.join(os.path.dirname(os.path.abspath(__file__)),"emacs-integration.el")
 
 class EmacsProcess(QtCore.QProcess):
     def __init__(self, *args, **kwargs):
         super().__init__(*args,**kwargs)
 
     def start(self, winId, filename):
-        super().start("emacs --parent-id " + str(winId) + " " + filename)
+        super().start("emacs --load " + emacs_script + " --maximized --parent-id " + str(winId) + " " + filename)
+
+
+class MyEPCServer(ThreadingEPCServer):
+    def __init__(self, editor):
+        super().__init__(('localhost',0), log_traceback=True)
+        self.editor = editor
+        self.logger.setLevel(logging.DEBUG)
+        ch = logging.FileHandler(filename='python-epc.log',mode='w')
+        ch.setLevel(logging.DEBUG)
+        self.logger.addHandler(ch)
+        self.server_thread = threading.Thread(target=self.serve_forever)
+        self.server_thread.allow_reuse_address = True
+
+        self.register_function(self.editor.run)
+
+    def start(self):
+        self.server_thread.start()
+
+    def write_file(self):
+        with open(".printport.py", "w") as f:
+            f.write("import sys\nprint(" + str(self.server_address[1]) + ")")
 
 class EmacsEditor(QtWidgets.QWidget):
     def __init__(self, filename=None, gui=None, *args, **kwargs):
@@ -20,11 +45,27 @@ class EmacsEditor(QtWidgets.QWidget):
         self.buttonArea = PythonFileButtonArea(code_editor=self, parent=self, search_button=False)
         self.buttonArea.setFixedHeight(35)
         self.active_thread = None
+        self._server = MyEPCServer(self)
+        self._server.start()
+        self._server.write_file()
         self._emacs_window = QtGui.QWindow()
         self._emacs_widget = QtWidgets.QWidget.createWindowContainer(self._emacs_window)
         self.proc = EmacsProcess(self._emacs_window)
         self.proc.start(self._emacs_window.winId(), filename)
         self.setLayout(ArrangeV(self.buttonArea, self._emacs_widget))
+        inthread(self._resize_emacs)
+
+    def _resize_emacs(self):
+        while not self._server.clients:
+            time.sleep(0.1)
+        print("width = ", self.geometry().width())
+        self._server.clients[0].call("set-width", [int(self.geometry().width()*0.97)])
+        self._server.clients[0].call("set-height", [int(self.geometry().height()*0.92)])
+
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        inthread(self._resize_emacs)
 
     @inmain_decorator(True)
     def show_exception(self, e, lineno):

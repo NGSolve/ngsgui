@@ -9,6 +9,7 @@ from .thread import inthread, inmain_decorator
 from .menu import MenuBarWithDict
 from .console import NGSJupyterWidget, MultiQtKernelManager
 from .systemmonitor import SystemMonitor
+from .globalSettings import SettingDialog
 
 import sys, textwrap, inspect, re, pkgutil, ngsolve, pickle, pkg_resources
 
@@ -102,6 +103,8 @@ It can be used to manipulate any behaviour of the interface.
         ngsolve.solve._SetLocale()
         self.multikernel_manager = MultiQtKernelManager()
         self._commonContext = glwindow.GLWidget()
+        self.app.setOrganizationName("NGSolve")
+        self.app.setApplicationName("NGSolve")
         self._createMenu()
         self._createLayout()
         self.mainWidget.setWindowTitle("NGSolve")
@@ -113,8 +116,6 @@ It can be used to manipulate any behaviour of the interface.
         for shaderpath in ngsgui.shader.locations:
             for incfile in glob.glob(os.path.join(shaderpath, '*.inc')):
                 gl.Shader.includes[os.path.basename(incfile)] = open(incfile,'r').read()
-        self.app.setOrganizationName("NGSolve")
-        self.app.setApplicationName("NGSolve")
 
     def _createMenu(self):
         self.menuBar = MenuBarWithDict()
@@ -132,6 +133,11 @@ It can be used to manipulate any behaviour of the interface.
         loadPython.triggered.connect(selectPythonFile)
         newWindowAction = self.menuBar["&Create"].addAction("New &Window")
         newWindowAction.triggered.connect(lambda :self.window_tabber.make_window())
+        settings = self.menuBar["&Settings"].addAction("&Settings")
+        def showSettings():
+            self.settings = SettingDialog()
+            self.settings.show()
+        settings.triggered.connect(showSettings)
 
     def getScenesFromCurrentWindow(self):
         """Get the list of the scenes of the currently active GLWindow"""
