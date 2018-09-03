@@ -30,7 +30,7 @@
   "Run buffer"
   (interactive)
   (deferred:nextc
-    (epc:call-deferred pyepc-ngsolve-epc 'run nil)))
+    (epc:call-deferred pyepc-ngsolve-epc 'run (list buffer-file-name))))
 
 (require 'python)
 (define-key python-mode-map (kbd "C-c r") 'pyepc-ngsolve-run)

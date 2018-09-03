@@ -27,8 +27,9 @@ class MyEPCServer(ThreadingEPCServer):
         self.server_thread = threading.Thread(target=self.serve_forever)
         self.server_thread.allow_reuse_address = True
 
-        def run():
-            self.editor.run()
+        def run(buffer_filename):
+            print("got buffer filename = ", buffer_filename)
+            self.editor.run(buffer_filename)
         self.register_function(run)
 
     def start(self):
@@ -81,8 +82,9 @@ class EmacsEditor(QtWidgets.QWidget):
     def save(self):
         pass
 
-    def run(self, *args, **kwargs):
-        with open(self.filename,"r") as f:
+    def run(self, filename=None, *args, **kwargs):
+        filename = filename or self.filename
+        with open(filename,"r") as f:
             code = f.read()
         self.exec_locals = { "__name__" : "__main__" }
         def _run():
