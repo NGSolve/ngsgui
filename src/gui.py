@@ -115,6 +115,13 @@ It can be used to manipulate any behaviour of the interface.
         for shaderpath in ngsgui.shader.locations:
             for incfile in glob.glob(os.path.join(shaderpath, '*.inc')):
                 gl.Shader.includes[os.path.basename(incfile)] = open(incfile,'r').read()
+        self._procs = []
+        self.app.aboutToQuit.connect(self._killProcs)
+
+    def _killProcs(self):
+        for proc in self._procs:
+            proc.kill()
+            proc.waitForFinished()
 
     def _createMenu(self):
         self.menuBar = MenuBarWithDict()
