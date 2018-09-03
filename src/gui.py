@@ -3,7 +3,6 @@ import os
 os.environ['QT_API'] = 'pyside2'
 
 from . import glwindow, code_editor
-import ngsgui.code_editor.emacs as emacs_editor
 from . widgets import ArrangeV
 from .thread import inthread, inmain_decorator
 from .menu import MenuBarWithDict
@@ -336,6 +335,7 @@ It can be used to manipulate any behaviour of the interface.
         import ngsgui.code_editor.texteditor as texteditor
         editorType = settings.value("editor/type", "default")
         if editorType == "emacs":
+            import ngsgui.code_editor.emacs as emacs_editor
             editTab = emacs_editor.EmacsEditor(filename, self)
             self.window_tabber.addTab(editTab, filename)
         elif editorType == "default":
