@@ -41,10 +41,6 @@ void main()
       vec3 lam = inData.lam;
 #if defined(ET_QUAD)
        lam = inData.lam.yxz;
-#elif defined(ET_PYRAMID)
-       // lam.z *= (1.0-1e-6);
-       // lam.x *= (1.0-lam.z);
-       // lam.y *= (1.0-lam.z);
 #endif
        value = EvaluateElement(inData.element, coefficients, ORDER, subdivision, lam, component);
 

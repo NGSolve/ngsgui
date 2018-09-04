@@ -215,7 +215,6 @@ class BaseMeshScene(BaseScene):
                 for et in values[comp]:
                     if not et in vals[comp]:
                         vals[comp][et] = Texture(GL_TEXTURE_BUFFER, formats[cf.dim])
-                    print('values', comp, et, values[comp][et])
                     vals[comp][et].store(values[comp][et])
         except RuntimeError as e:
             assert("Local Heap" in str(e))
@@ -991,8 +990,6 @@ class SolutionScene(BaseMeshScene):
 
 
     def _renderClippingPlane(self, settings, elements):
-#         if elements.type == ngsolve.ET.PYRAMID:
-#             return
         self._filterElements(settings, elements, 0)
         model, view, projection = settings.model, settings.view, settings.projection
         prog = getProgram('pass_through.vert', 'clipping.geom', 'solution.frag', elements=elements, ORDER=self.getOrder(), params=settings)
