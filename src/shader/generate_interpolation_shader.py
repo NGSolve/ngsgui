@@ -1,16 +1,33 @@
-import ngsolve
+import ngsolve as ngs
 from ngsolve import ET, ElementTransformation
-from ngsgui.gl_interface import getReferenceRules
 
 import sympy
 from sympy import *
 import sympy.printing.ccode as ccode
 from scipy.special import legendre
 
-from numpy import * 
+# from numpy import * 
 import numpy 
 import time
 
+def getReferenceRules(order, sd):
+  n = S(order)*S(sd+1)+1;
+  h = S(1)/(n-1);
+  res = {}
+  n2 = n*(n+1)//2
+  n3 = n*(n+1)*(n+2)//6
+  res[ngs.ET.SEGM] = [ (S(1)-i*h,S(0),S(0)) for i in range(n) ]
+  res[ngs.ET.TRIG] = [ (    i*h,j*h,S(0)) for j in range(n) for i in range(n-j) ]
+  res[ngs.ET.QUAD] = [ (    i*h,j*h,S(0)) for j in range(n) for i in range(n) ]
+  res[ngs.ET.TET]  = [ (    i*h,j*h,k*h) for k in range(n) for j in range(n-k) for i in range(n-k-j) ]
+  res[ngs.ET.HEX]  = [ (    i*h,j*h,k*h) for k in range(n) for j in range(n) for i in range(n) ]
+  res[ngs.ET.PRISM]= [ (    i*h,j*h,k*h) for k in range(n) for j in range(n) for i in range(n-j) ]
+
+  # no high order pyramids
+  n = S(2);
+  h = S(1)/(n-1);
+  res[ngs.ET.PYRAMID]= [ (    i*h,j*h,k*h) for k in range(n) for j in range(n-k) for i in range(n-k) ]
+  return res
 
 functions = {}
 functions[ET.SEGM] = """\
@@ -419,15 +436,18 @@ def GenerateInterpolationFunction(et, p, scalar):
     ir = getReferenceRules(p, 0)[et]
     basis = getBasisFunctions(et, p)
     ndof = len(basis)
-    nips = len(ir.points)
+    nips = len(ir)
     if nips!=ndof:
         raise RuntimeError("Number of ips ({}) and dofs ({}) doesn't match for element {} and order {}".format(nips, ndof, et,p))
-    mat = zeros((ndof,ndof), numpy.float64)
+#     mat = zeros((ndof,ndof), numpy.float64)
+    mat = zeros(ndof)
     for i,ip in enumerate(ir):
         for j,phi in enumerate(basis):
-            mat[i,j] = phi(*ip.point)
+            mat[i,j] = phi(*ip)
 
-    invmat = numpy.linalg.inv(mat)
+    
+    invmat = mat**-1
+#     invmat = numpy.linalg.inv(mat)
     code = "#ifdef {}\n".format(str(et).replace('.','_'))
     code += "#if ORDER=={}\n".format(p)
     code += GetHeader(et, p, basis, scalar)
@@ -435,8 +455,8 @@ def GenerateInterpolationFunction(et, p, scalar):
     func = 0*x
     values = symbols(("f[{}] "*ndof).format(*range(ndof)))
     for i in range(ndof):
-        func += basis[i](x,y,z)*sum([invmat[i][j]*values[j] for j in range(ndof)])
-    code += "  return " + ccode(simplify(func)) + ";\n"
+        func += basis[i](x,y,z)*sum([invmat[i,j]*values[j] for j in range(ndof)])
+    code += "  return " + str(ccode(horner(func,wrt=x))) + ";\n"
     code += "}\n"
     code += "#endif\n"
     code += "#endif\n\n"
@@ -455,6 +475,9 @@ if __name__ == '__main__':
     args = [(et,p,scalar) for et in ets for p in range(1,maxp+1) for scalar in [True,False]]
 
     codes = p.starmap(GenerateInterpolationFunction, args)
+#     codes = []
+#     for arg in args:
+#         codes.append(GenerateInterpolationFunction(*arg))
     code += ''.join(codes)
     for et in ets:
         for scalar in [True, False]:
