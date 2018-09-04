@@ -6,6 +6,7 @@ from . import glwindow, code_editor
 from . widgets import ArrangeV
 from .thread import inmain_decorator
 from .menu import MenuBarWithDict
+from .globalSettings import SettingDialog
 
 import ngsolve
 
@@ -102,6 +103,8 @@ It can be used to manipulate any behaviour of the interface.
         ngsolve.solve._SetLocale()
         self.multikernel_manager = MultiQtKernelManager()
         self._commonContext = glwindow.GLWidget()
+        self.app.setOrganizationName("NGSolve")
+        self.app.setApplicationName("NGSolve")
         self._createMenu()
         self._createLayout()
         self.mainWidget.setWindowTitle("NGSolve")
@@ -113,6 +116,13 @@ It can be used to manipulate any behaviour of the interface.
         for shaderpath in ngsgui.shader.locations:
             for incfile in glob.glob(os.path.join(shaderpath, '*.inc')):
                 gl.Shader.includes[os.path.basename(incfile)] = open(incfile,'r').read()
+        self._procs = []
+        self.app.aboutToQuit.connect(self._killProcs)
+
+    def _killProcs(self):
+        for proc in self._procs:
+            proc.kill()
+            proc.waitForFinished()
 
     def _createMenu(self):
         self.menuBar = MenuBarWithDict()
@@ -130,6 +140,11 @@ It can be used to manipulate any behaviour of the interface.
         loadPython.triggered.connect(selectPythonFile)
         newWindowAction = self.menuBar["&Create"].addAction("New &Window")
         newWindowAction.triggered.connect(lambda :self.window_tabber.make_window())
+        settings = self.menuBar["&Settings"].addAction("&Settings")
+        def showSettings():
+            self.settings = SettingDialog()
+            self.settings.show()
+        settings.triggered.connect(showSettings)
 
     def getScenesFromCurrentWindow(self):
         """Get the list of the scenes of the currently active GLWindow"""
@@ -258,7 +273,7 @@ It can be used to manipulate any behaviour of the interface.
         for tab,name in tabs:
             if isinstance(tab, glwindow.WindowTab):
                 tab.create(self._commonContext)
-            if isinstance(tab, code_editor.CodeEditor):
+            if isinstance(tab, code_editor.texteditor.CodeEditor):
                 tab.gui = self
             self.window_tabber.addTab(tab, name)
         for setting in settings:
@@ -329,9 +344,18 @@ It can be used to manipulate any behaviour of the interface.
 
     def loadPythonFile(self, filename):
         """Load a Python file and execute it if gui.executeFileOnStartup is True"""
-        editTab = code_editor.CodeEditor(filename=filename,gui=self,parent=self.window_tabber)
-        pos = self.window_tabber.addTab(editTab,filename)
-        editTab.windowTitleChanged.connect(lambda txt: self.window_tabber.setTabText(pos, txt))
+        settings = QtCore.QSettings()
+        import ngsgui.code_editor.texteditor as texteditor
+        editorType = settings.value("editor/type", "default")
+        if editorType == "emacs":
+            import ngsgui.code_editor.emacs as emacs_editor
+            editTab = emacs_editor.EmacsEditor(filename, self)
+            self.window_tabber.addTab(editTab, filename)
+        elif editorType == "default":
+            editTab = texteditor.CodeEditor(filename=filename,gui=self,parent=self.window_tabber)
+            self.window_tabber.addTab(editTab, filename)
+        elif not editorType:
+            editTab = NoEditor(filename=filename, gui=self)
         if self.executeFileOnStartup:
             editTab.computation_started_at = 0
             editTab.run()
