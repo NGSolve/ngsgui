@@ -1,5 +1,6 @@
 
-import sys, psutil
+import sys, psutil, os
+os.environ["MPLBACKEND"] = "Qt5Agg"
 from matplotlib.backends.backend_qt5agg import (FigureCanvas, NavigationToolbar2QT as NavigationToolbar)
 from PySide2 import QtWidgets
 import matplotlib.pyplot as plt
