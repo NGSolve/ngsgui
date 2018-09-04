@@ -20,7 +20,8 @@ class Parameter(QtCore.QObject):
         self._createWithLabel()
 
     def _attachTo(self, obj):
-        pass
+        if self.name:
+            obj._par_name_dict[self.name] = self
 
     def setVisible(self, val):
         self._widget._visible = val
@@ -126,6 +127,7 @@ class CombinedParameters(Parameter):
         return widget
 
     def _attachTo(self, obj):
+        super()._attachTo(obj)
         for par in self._parameters:
             obj._attachParameter(par)
 
@@ -197,6 +199,7 @@ class CheckboxParameterCluster(CheckboxParameter):
         super().__init__(*args, **kwargs)
 
     def _attachTo(self, obj):
+        super()._attachTo(obj)
         for par in self._sub_parameters:
             obj._attachParameter(par)
 
@@ -280,6 +283,7 @@ class SingleChoiceParameter(Parameter):
         super().__init__(*args, **kwargs)
 
     def _attachTo(self, obj):
+        super()._attachTo(obj)
         for lst in self._sub_parameters:
             for par in lst:
                 obj._attachParameter(par)
@@ -400,7 +404,8 @@ class FileParameter(Parameter):
         return (self.name, self.filt, self.filename, txt)
 
     def __setstate__(self, state):
-        super().__setstate__(state[0],state[1])
+        super().__setstate__(state[0])
+        self.filt = state[1]
         self.filename = state[2]
         self.txt = state[3]
         self.createWidget()
@@ -412,6 +417,14 @@ class BaseSettings():
 
     def __getstate__(self):
         return (self._parameters,)
+
+    def _saveForTest(self, filename):
+        import pickle
+        with open(filename, "wb") as f:
+            save_getstate = BaseSettings.__getstate__
+            BaseSettings.__getstate__ = lambda self: None
+            pickle.dump([self,self.window.glWidget._rendering_parameters, {key: par.getValue() for key, par in self._par_name_dict.items() if hasattr(par,"getValue")}],f)
+            BaseSettings.__getstate__ = save_getstate
 
     def __setstate__(self, state):
         self._parameters = {}
@@ -455,8 +468,6 @@ class BaseSettings():
         for par in parameters:
             self._parameters[group].append(par)
             self._attachParameter(par)
-            if par.name:
-                self._par_name_dict[par.name] = par
 
     def addButton(self, group, name, function, update_on_change=False, label = None,*args,**kwargs):
         if not group in self._widgets:

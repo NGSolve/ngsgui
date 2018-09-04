@@ -15,6 +15,7 @@ from . import settings
 from PySide2 import QtWidgets, QtCore, QtGui
 from OpenGL.GL import *
 
+TEST_CREATION = False
 
 class BaseScene(settings.BaseSettings):
     """Base class for drawing opengl objects.
@@ -97,6 +98,8 @@ center of this box. Rotation will be around this center."""
         self.addParameters("Actions",
                            settings.SingleOptionParameter(name="Action",
                                                           values=list(self._actions.values())))
+        self.addParameters("Test creation",
+                           settings.Button(name="CreateTest", label="Create test"))
 
     @inmain_decorator(True)
     def _createQtWidget(self):
@@ -113,6 +116,14 @@ center of this box. Rotation will be around this center."""
             parameter.changed.connect(lambda *args, **kwargs: self.update())
         if not parameter.getOption("notUpdateGL"):
             parameter.changed.connect(lambda *args, **kwargs: self._updateGL())
+        if parameter.name == "CreateTest":
+            def saveTest():
+                filename, filt = QtWidgets.QFileDialog.getSaveFileName(caption="Save Test",
+                                                                       filter = "Test files (*.test)")
+                if not filename.endswith(".test"):
+                    filename += ".test"
+                self._saveForTest(filename)
+            parameter.changed.connect(saveTest)
 
     def addAction(self,action,name=None):
         """Add double click action. Adds a checkbox to the widget to activate/deactivate the action.
@@ -623,9 +634,9 @@ class SolutionScene(BaseMeshScene):
                                                           label="Solution in clipping plane",
                                                           default_value=self.__initial_values["ShowClippingPlane"]),
                                settings.CheckboxParameterCluster(name="ShowIsoSurface",
-                                                          label="Isosurface",
-                                                          default_value = self.__initial_values["ShowIsoSurface"],
-                                                             sub_parameters = [iso_value], updateWidgets=True)
+                                                                 label="Isosurface",
+                                                                 default_value = self.__initial_values["ShowIsoSurface"],
+                                                                 sub_parameters = [iso_value], updateWidgets=True)
                                )
 
         if self.cf.dim > 1:
