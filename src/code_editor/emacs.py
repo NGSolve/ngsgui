@@ -56,8 +56,6 @@ class EmacsEditor(QtWidgets.QWidget):
     def _resize_emacs(self):
         while not self._server.clients:
             time.sleep(0.1)
-        if os.path.exists(".printport.py"):
-            os.remove(".printport.py")
         self._server.clients[0].call("set-width", [int(self.geometry().width()*0.97)])
         self._server.clients[0].call("set-height", [int(self.geometry().height()*0.92)])
 
