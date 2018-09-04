@@ -94,7 +94,7 @@ void main() {
                     counter++;
                     if(counter==40) return;
                     pos = p.xyz;
-                    val = InterpolateTetVec(inData[0].element, coefficients, ORDER, subdivision, lam.xyz, component);
+                    val = EvaluateElementVec(inData[0].element, coefficients, ORDER, subdivision, lam.xyz, component);
                     EmitVertex();
                     EndPrimitive();
                 }
@@ -155,7 +155,7 @@ void main() {
                 counter++;
                 if(counter==40) return;
                 pos = base*p.xyz;
-                val = InterpolateTetVec(inData[0].element, coefficients, ORDER, subdivision, lam.xyz, component);
+                val = EvaluateElementVec(inData[0].element, coefficients, ORDER, subdivision, lam.xyz, component);
                 EmitVertex();
                 EndPrimitive();
             }
