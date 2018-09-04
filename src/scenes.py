@@ -718,11 +718,14 @@ class SolutionScene(BaseMeshScene):
 
     def __getstate__(self):
         super_state = super().__getstate__()
-        return (super_state,self.cf, self.iso_surface)
+        return (super_state,self.cf, self.iso_surface, self.have_gradient)
 
     def __setstate__(self,state):
         self.cf = state[1]
         self.iso_surface = state[2]
+        # to be backwards compatible to old pickled files
+        if len(state) > 3:
+            self.have_gradient = state[3]
         self.values = {}
         self.iso_values = {}
         super().__setstate__(state[0])
