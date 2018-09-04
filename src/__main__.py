@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 
 # -*- coding: utf-8 -*-
-import sys, os
 import ngsgui.gui as G
 import ngsolve as ngs
 import netgen.meshing
@@ -29,6 +28,7 @@ def Redraw(blocking=True,**kwargs):
 
 
 def main():
+    import sys
     ngs.Draw = Draw
     ngs.Redraw = Redraw
     G.gui = G.GUI()

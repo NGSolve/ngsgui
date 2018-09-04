@@ -3,10 +3,7 @@ from jupyter_client.multikernelmanager import MultiKernelManager
 from qtconsole.inprocess import QtInProcessRichJupyterWidget
 from traitlets import DottedObjectName
 
-import ngsolve
 from .thread import inmain_decorator
-
-from IPython.lib import guisupport
 
 class MultiQtKernelManager(MultiKernelManager):
     kernel_manager_class = DottedObjectName("qtconsole.inprocess.QtInProcessKernelManager",
@@ -16,6 +13,7 @@ class MultiQtKernelManager(MultiKernelManager):
 
 class NGSJupyterWidget(QtInProcessRichJupyterWidget):
     def __init__(self, gui,*args, **kwargs):
+        import ngsolve
         super().__init__(*args,**kwargs)
         self.gui = gui
         self.banner = """NGSolve %s

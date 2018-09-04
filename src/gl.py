@@ -5,12 +5,9 @@ from ngsgui import _debug
 
 from OpenGL.GL.ARB import debug_output
 from OpenGL.extensions import alternate
-import array, ctypes, time, ngsolve, numpy, pickle, io, base64, zlib, os, glob, hashlib
+import ctypes, ngsolve, numpy
 
-from . import glmath # , shader
-
-from PySide2 import QtCore, QtGui, QtWidgets, QtOpenGL
-from PySide2.QtCore import Qt
+from PySide2 import QtCore, QtGui
 
 from ngsgui.shader import locations as shaderpaths
 
@@ -118,6 +115,7 @@ class Shader(GLObject):
             raise RuntimeError('Error when compiling ' + filename + ': '+glGetShaderInfoLog(self.id).decode())
 
 def readShaderFile(filename, defines):
+    import os
     for shaderpath in shaderpaths:
         fullpath = os.path.join(shaderpath, filename)
         if os.path.exists(fullpath):
@@ -128,10 +126,12 @@ def readShaderFile(filename, defines):
     code = open(fullpath,'r').read()
 
     while code.find('{include ')>-1:
-        for token in Shader.includes:
-            if token not in Shader.includes:
-                raise Exception("Can't find include file " + token)
-            code = code.replace('{include '+token+'}', Shader.includes[token])
+        start = code.find('{include ')+9
+        end = code.find('}',start)
+        token = code[start:end].strip()
+        if token not in Shader.includes:
+            raise Exception("Can't find include file " + token)
+        code = code.replace('{include '+token+'}', Shader.includes[token])
 
     pos = code.find('\n', code.find('version'))
     code = code[:pos+1] + defines + code[pos+1:]
@@ -139,6 +139,7 @@ def readShaderFile(filename, defines):
     return code
 
 def getProgramHash(filenames, defines):
+    import hashlib
     res = ""
     h = hashlib.sha256()
     h.update(glGetString(GL_VENDOR))
@@ -349,6 +350,7 @@ class Program(GLObject):
         self.attributes = Program.Attributes(self.id)
 
 def getProgram(*shader_files, feedback=[], elements=None, params=None, **define_flags):
+    import base64, zlib
     check_debug_output()
     cache = getProgram._cache
 
@@ -552,7 +554,6 @@ class TextRenderer:
 
         self._vao = VertexArray()
 
-        self.addFont(0)
         with self._vao:
             self.characters = ArrayBuffer(usage=GL_DYNAMIC_DRAW)
 
