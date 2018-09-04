@@ -1,6 +1,7 @@
 
 import os
 os.environ['QT_API'] = 'pyside2'
+TEST_CREATION = os.getenv("TEST_CREATION")
 
 from . import glwindow, code_editor
 from . widgets import ArrangeV
@@ -145,6 +146,54 @@ It can be used to manipulate any behaviour of the interface.
             self.settings = SettingDialog()
             self.settings.show()
         settings.triggered.connect(showSettings)
+        if TEST_CREATION:
+            from .settings import BaseSettings
+            save_test =  filemenu["&Save"].addAction("&Test")
+            def saveTest():
+                import pickle
+                filename, filt = QtWidgets.QFileDialog.getSaveFileName(caption="Save Test",
+                                                                       filter = "Test files (*.test)")
+                if not filename.endswith(".test"):
+                    filename += ".test"
+                save_getstate = BaseSettings.__getstate__
+                BaseSettings.__getstate__ = lambda self: ({key : par.getValue() for key, par in self._par_name_dict.items() if hasattr(par, "getValue")},)
+                tabs = []
+                for i in range(self.window_tabber.count()):
+                    if self.window_tabber.widget(i).isGLWindow():
+                        tabs.append(((self.window_tabber.widget(i).glWidget.scenes,
+                                      self.window_tabber.widget(i)._rendering_parameters),
+                                     self.window_tabber.tabBar().tabText(i)))
+                with open(filename, "wb") as f:
+                    pickle.dump(tabs,f)
+                BaseSettings.__getstate__ = save_getstate
+            save_test.triggered.connect(saveTest)
+            load_test = filemenu["&Load"].addAction("&Test")
+            def loadTest():
+                filename, filt = getOpenFileName(caption="Load Test",
+                                                 filter = "Test files (*.test)")
+                if filename:
+                    self._loadTest(filename)
+            load_test.triggered.connect(loadTest)
+
+    def _loadTest(self, filename):
+        import pickle
+        from .settings import BaseSettings
+        from .glwindow import WindowTab
+        save_setstate = BaseSettings.__setstate__
+        def newSetstate(scene, state):
+            BaseSettings.__init__(scene)
+            for key, value in state[0].items():
+                scene.__getattribute__("set" + key)(value)
+        BaseSettings.__setstate__ = newSetstate
+        with open(filename, "rb") as f:
+            tabs = pickle.load(f)
+        for (scenes, parameters), name in tabs:
+            tab = WindowTab(rendering_parameters=parameters)
+            tab._startup_scenes = scenes
+            tab.create(self._commonContext)
+            self.window_tabber.addTab(tab, name)
+        BaseSettings.__setstate__ = save_setstate
+
 
     def getScenesFromCurrentWindow(self):
         """Get the list of the scenes of the currently active GLWindow"""
@@ -254,8 +303,8 @@ It can be used to manipulate any behaviour of the interface.
         self._msgbox.show()
 
     def saveSolution(self):
-        import pickle
         """Opens a file dialog to save the current state of the GUI, including all drawn objects."""
+        import pickle
         filename, filt = QtWidgets.QFileDialog.getSaveFileName(caption="Save Solution",
                                                                filter = "Solution Files (*.ngs)")
         if not filename[-4:] == ".ngs":
@@ -419,6 +468,7 @@ class DummyObject:
 
 GUI.file_loaders[".py"] = GUI.loadPythonFile
 GUI.file_loaders[".ngs"] = GUI._loadSolutionFile
+GUI.file_loaders[".test"] = GUI._loadTest
 def _loadSTL(gui, filename):
     import netgen.stl as stl
     print("create stl geometry")

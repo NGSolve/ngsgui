@@ -418,14 +418,6 @@ class BaseSettings():
     def __getstate__(self):
         return (self._parameters,)
 
-    def _saveForTest(self, filename):
-        import pickle
-        with open(filename, "wb") as f:
-            save_getstate = BaseSettings.__getstate__
-            BaseSettings.__getstate__ = lambda self: None
-            pickle.dump([self,self.window.glWidget._rendering_parameters, {key: par.getValue() for key, par in self._par_name_dict.items() if hasattr(par,"getValue")}],f)
-            BaseSettings.__getstate__ = save_getstate
-
     def __setstate__(self, state):
         self._parameters = {}
         self._par_name_dict = {}

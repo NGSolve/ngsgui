@@ -15,8 +15,6 @@ from . import settings
 from PySide2 import QtWidgets, QtCore, QtGui
 from OpenGL.GL import *
 
-TEST_CREATION = False
-
 class BaseScene(settings.BaseSettings):
     """Base class for drawing opengl objects.
 
@@ -98,9 +96,6 @@ center of this box. Rotation will be around this center."""
         self.addParameters("Actions",
                            settings.SingleOptionParameter(name="Action",
                                                           values=list(self._actions.values())))
-        if TEST_CREATION:
-            self.addParameters("Test creation",
-                               settings.Button(name="CreateTest", label="Create test"))
 
     @inmain_decorator(True)
     def _createQtWidget(self):
@@ -117,14 +112,6 @@ center of this box. Rotation will be around this center."""
             parameter.changed.connect(lambda *args, **kwargs: self.update())
         if not parameter.getOption("notUpdateGL"):
             parameter.changed.connect(lambda *args, **kwargs: self._updateGL())
-        if parameter.name == "CreateTest":
-            def saveTest():
-                filename, filt = QtWidgets.QFileDialog.getSaveFileName(caption="Save Test",
-                                                                       filter = "Test files (*.test)")
-                if not filename.endswith(".test"):
-                    filename += ".test"
-                self._saveForTest(filename)
-            parameter.changed.connect(saveTest)
 
     def addAction(self,action,name=None):
         """Add double click action. Adds a checkbox to the widget to activate/deactivate the action.
@@ -154,8 +141,8 @@ GUI.sceneCreators[BaseScene] = lambda scene,*args,**kwargs: scene
 
 class BaseMeshScene(BaseScene):
     """Base class for all scenes that depend on a mesh"""
+    __initial_values = {"Deformation" : False}
     def __init__(self, mesh,*args, **kwargs):
-        self.__initial_values = {"Deformation" : False}
         self.mesh = mesh
         self.deformation = None
         if 'deformation' in kwargs:
@@ -237,18 +224,27 @@ class BaseMeshScene(BaseScene):
 
 
 class MeshScene(BaseMeshScene):
+    __initial_values = { "ShowWireframe" : True,
+                         "ShowSurface" : True,
+                         "ShowElements" : False,
+                         "ShowEdges" : False,
+                         "ShowEdgeElements" : False,
+                         "ShowPeriodicVertices" : False,
+                         "ShowPointNumbers" : False,
+                         "ShowEdgeNumbers" : False,
+                         "ShowElementNumbers" : False}
     @inmain_decorator(wait_for_return=True)
     def __init__(self, mesh, wireframe=True, surface=True, elements=False, edgeElements=False, edges=False,
                  showPeriodic=False, pointNumbers=False, edgeNumbers=False, elementNumbers=False, **kwargs):
-        self.__initial_values = { "ShowWireframe" : wireframe,
-                                 "ShowSurface" : surface,
-                                 "ShowElements" : elements,
-                                 "ShowEdges" : edges,
-                                 "ShowEdgeElements" : edgeElements,
-                                 "ShowPeriodicVertices" : showPeriodic,
-                                 "ShowPointNumbers" : pointNumbers,
-                                 "ShowEdgeNumbers" : edgeNumbers,
-                                 "ShowElementNumbers" : elementNumbers}
+        self.__initial_values.update({ "ShowWireframe" : wireframe,
+                                       "ShowSurface" : surface,
+                                       "ShowElements" : elements,
+                                       "ShowEdges" : edges,
+                                       "ShowEdgeElements" : edgeElements,
+                                       "ShowPeriodicVertices" : showPeriodic,
+                                       "ShowPointNumbers" : pointNumbers,
+                                       "ShowEdgeNumbers" : edgeNumbers,
+                                       "ShowElementNumbers" : elementNumbers})
         self.tex_vol_colors = self.tex_surf_colors = self.tex_edge_colors = None
         super().__init__(mesh, **kwargs)
 
@@ -565,6 +561,17 @@ class SolutionScene(BaseMeshScene):
                            "imag" : 1,
                            "abs" : 2,
                            "arg" : 3}
+    __initial_values = {"Order" : 2,
+                        "ColorMapMin" : 0.,
+                        "ColorMapMax" : 1.,
+                        "Autoscale" : True,
+                        "ColorMapLinear" : False,
+                        "ShowClippingPlane" : True,
+                        "Subdivision" : 1,
+                        "ShowIsoSurface" : False,
+                        "ShowVolumeVectors" : False,
+                        "ShowClippingPlaneVectors" : False,
+                        "ShowSurface" : True}
     @inmain_decorator(wait_for_return=True)
     def __init__(self, cf, mesh, name=None, min=0.0,max=1.0, autoscale=True, linear=False, clippingPlane=True,
                  order=2, gradient=None, iso_surface=None, *args, **kwargs):
@@ -572,17 +579,13 @@ class SolutionScene(BaseMeshScene):
         self.iso_surface = iso_surface or cf
         self.values = {}
         self.iso_values = {}
-        self.__initial_values = {"Order" : order,
-                                 "ColorMapMin" : float(min),
-                                 "ColorMapMax" : float(max),
-                                 "Autoscale" : autoscale,
-                                 "ColorMapLinear" : linear,
-                                 "ShowClippingPlane" : clippingPlane,
-                                 "Subdivision" : kwargs['sd'] if "sd" in kwargs else 1,
-                                 "ShowIsoSurface" : False,
-                                 "ShowVolumeVectors" : False,
-                                 "ShowClippingPlaneVectors" : False,
-                                 "ShowSurface" : True}
+        self.__initial_values.update({"Order" : order,
+                                      "ColorMapMin" : float(min),
+                                      "ColorMapMax" : float(max),
+                                      "Autoscale" : autoscale,
+                                      "ColorMapLinear" : linear,
+                                      "ShowClippingPlane" : clippingPlane,
+                                      "Subdivision" : kwargs['sd'] if "sd" in kwargs else 1})
 
         if hasattr(self.cf,"vecs") and len(self.cf.vecs) > 1:
             self._gfComponents = self.cf
@@ -719,14 +722,14 @@ class SolutionScene(BaseMeshScene):
 
     def __getstate__(self):
         super_state = super().__getstate__()
-        return (super_state,self.cf, self.iso_surface, self.have_gradient)
+        return (super_state,self.cf, self.iso_surface, self.have_gradient, self._gfComponents)
 
     def __setstate__(self,state):
         self.cf = state[1]
         self.iso_surface = state[2]
         # to be backwards compatible to old pickled files
-        if len(state) > 3:
-            self.have_gradient = state[3]
+        self.have_gradient = state[3]
+        self._gfComponents = state[4]
         self.values = {}
         self.iso_values = {}
         super().__setstate__(state[0])

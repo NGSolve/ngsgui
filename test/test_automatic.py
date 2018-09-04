@@ -6,32 +6,41 @@ ngsglobals.msg_level = 0
 import OpenGL.GL as GL
 
 import pickle, os
-# BaseSettings.__init__ = lambda self: self
-BaseSettings.__setstate__ = lambda self, state: None
 
-def loadFromFile(filename):
-    with open(filename, "rb") as f:
-        scene, renderingParameters, parameters = pickle.load(f)
-    print("parameters = ", parameters)
+def runSceneTest(gui, name, scene, settings):
+    print("*******************************************************")
+    print("test scene ", scene.name)
+    gui.clear()
+    scene.update()
+    scene.render(settings)
+    GL.glFinish()
+    gui.check_image(name + "_" + scene.name)
+
+def runFileTest(gui, filename):
+    parameters = {}
+    def newSetstate(self, state):
+        parameters[self] = state[0]
     def newgetattr(self, name):
         funcname = name.replace("get","")
-        if funcname in parameters:
-            parameter = parameters[funcname]
-            return lambda: parameter
+        if funcname in parameters[self]:
+            return lambda: parameters[self][funcname]
         raise AttributeError
+    BaseSettings.__setstate__ = newSetstate
     BaseSettings.__getattr__ = newgetattr
-    return scene, renderingParameters
+    with open("automatic_tests/" + filename, "rb") as f:
+        tabs = pickle.load(f)
+    for (scenes, settings), name in tabs:
+        for scene in scenes:
+            runSceneTest(gui, filename.replace(".test",""), scene, settings)
 
 
 def test_autotests():
     files = os.listdir("automatic_tests")
     gui = Gui()
     for filename in files:
-        name = filename.replace(".test","")
-        gui.clear()
-        scene, settings = loadFromFile("automatic_tests/" + filename)
-        scene.initGL()
-        scene.update()
-        scene.render(settings)
-        GL.glFinish()
-        gui.check_image(name)
+        print("################################################################")
+        print("test file ", filename)
+        runFileTest(gui, filename)
+
+if __name__ == "__main__":
+    test_autotests()
