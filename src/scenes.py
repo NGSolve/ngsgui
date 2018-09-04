@@ -98,8 +98,9 @@ center of this box. Rotation will be around this center."""
         self.addParameters("Actions",
                            settings.SingleOptionParameter(name="Action",
                                                           values=list(self._actions.values())))
-        self.addParameters("Test creation",
-                           settings.Button(name="CreateTest", label="Create test"))
+        if TEST_CREATION:
+            self.addParameters("Test creation",
+                               settings.Button(name="CreateTest", label="Create test"))
 
     @inmain_decorator(True)
     def _createQtWidget(self):
