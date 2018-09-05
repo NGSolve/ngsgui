@@ -63,9 +63,12 @@ name : str = type(self).__name__ + scene_counter
 
     def _createShortcut(self, widget, name, key, func):
         """Helper function to create shortcuts"""
+        settings = QtCore.QSettings()
         action = QtWidgets.QAction(name)
         action.triggered.connect(func)
-        action.setShortcut(QtGui.QKeySequence(key))
+        if not settings.value("shortcuts/" + name):
+            settings.setValue("shortcuts/" + name, key)
+        action.setShortcut(QtGui.QKeySequence(settings.value("shortcuts/"+ name)))
         widget.addAction(action)
         if not hasattr(widget, "_qactions"):
             widget._qactions = []
@@ -75,7 +78,7 @@ name : str = type(self).__name__ + scene_counter
         """Adds shortcuts to the widget"""
         def toggleActive():
             self.active = not self.active
-        self._createShortcut(widget, "ToggleActive", "a", toggleActive)
+        self._createShortcut(widget, "Scene-ToggleActive", "a", toggleActive)
 
     @inmain_decorator(True)
     def update(self):
@@ -360,7 +363,7 @@ class MeshScene(BaseMeshScene):
 
     def addShortcuts(self, widget):
         super().addShortcuts(widget)
-        self._createShortcut(widget, "ShowWireframe", "w", lambda : self.setShowWireframe(not self.getShowWireframe()))
+        self._createShortcut(widget, "MeshScene-ShowWireframe", "w", lambda : self.setShowWireframe(not self.getShowWireframe()))
 
     def initGL(self):
         super().initGL()

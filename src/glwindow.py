@@ -298,18 +298,21 @@ class WindowTab(QtWidgets.QWidget):
         self._startup_scenes = []
         self._rendering_parameters = rendering_parameters if rendering_parameters else RenderingParameters()
         self._actions = []
+        settings = QtCore.QSettings()
         def addShortcut(name, key, func):
             action = QtWidgets.QAction(name)
             action.triggered.connect(func)
-            action.setShortcut(QtGui.QKeySequence(key))
+            if not settings.value("shortcuts/" + name):
+                settings.setValue("shortcuts/" + name, key)
+            action.setShortcut(QtGui.QKeySequence(settings.value("shortcuts/" + name)))
             self.addAction(action)
             self._actions.append(action)
         def nextScene():
             self.toolbox.setCurrentIndex((self.toolbox.currentIndex()+1)%self.toolbox.count())
         def lastScene():
             self.toolbox.setCurrentIndex((self.toolbox.currentIndex()-1)%self.toolbox.count())
-        addShortcut("NextScene", "d", nextScene)
-        addShortcut("LastScene", "s", lastScene)
+        addShortcut("GLWindow-NextScene", "d", nextScene)
+        addShortcut("GLWindow-LastScene", "s", lastScene)
 
     def create(self,sharedContext):
         self.glWidget = GLWidget(shared=sharedContext, rendering_parameters = self._rendering_parameters)
