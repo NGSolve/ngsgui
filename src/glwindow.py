@@ -27,6 +27,7 @@ class ToolBoxItem(QtWidgets.QWidget):
         scene.widgets.setParent(self)
         scene.widgets.update()
         self.scene = weakref.ref(scene)
+        scene.addShortcuts(self)
 
     def changeActive(self):
         self.scene().active = not self.scene().active
@@ -307,11 +308,8 @@ class WindowTab(QtWidgets.QWidget):
             self.toolbox.setCurrentIndex((self.toolbox.currentIndex()+1)%self.toolbox.count())
         def lastScene():
             self.toolbox.setCurrentIndex((self.toolbox.currentIndex()-1)%self.toolbox.count())
-        def toggleActive():
-            self.toolbox.currentWidget().scene.active = not self.toolbox.currentWidget().scene.active
         addShortcut("NextScene", "d", nextScene)
         addShortcut("LastScene", "s", lastScene)
-        addShortcut("ToggleActive", "a", toggleActive)
 
     def create(self,sharedContext):
         self.glWidget = GLWidget(shared=sharedContext, rendering_parameters = self._rendering_parameters)

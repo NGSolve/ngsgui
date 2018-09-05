@@ -61,6 +61,22 @@ name : str = type(self).__name__ + scene_counter
         self._gl_initialized = True
         self._vao = VertexArray()
 
+    def _createShortcut(self, widget, name, key, func):
+        """Helper function to create shortcuts"""
+        action = QtWidgets.QAction(name)
+        action.triggered.connect(func)
+        action.setShortcut(QtGui.QKeySequence(key))
+        widget.addAction(action)
+        if not hasattr(widget, "_qactions"):
+            widget._qactions = []
+        widget._qactions.append(action)
+
+    def addShortcuts(self, widget):
+        """Adds shortcuts to the widget"""
+        def toggleActive():
+            self.active = not self.active
+        self._createShortcut(widget, "ToggleActive", "a", toggleActive)
+
     @inmain_decorator(True)
     def update(self):
         """Called on startup and if underlying object changes, reloads data on GPU if drawn object changed"""
@@ -341,6 +357,10 @@ class MeshScene(BaseMeshScene):
     def __setstate__(self, state):
         self.tex_vol_colors = self.tex_surf_colors = self.tex_edge_colors = None
         super().__setstate__(state[0])
+
+    def addShortcuts(self, widget):
+        super().addShortcuts(widget)
+        self._createShortcut(widget, "ShowWireframe", "w", lambda : self.setShowWireframe(not self.getShowWireframe()))
 
     def initGL(self):
         super().initGL()

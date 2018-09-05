@@ -20,8 +20,6 @@ class Receiver(QtCore.QObject):
         print("killme")
 
     def run(self):
-        with open("output.out", "w") as f:
-            f.write("receiver started")
         while not self.kill:
             self.received.emit(self.ansi_escape.sub("",os.read(self.pipe,1024).decode("ascii")))
         self.kill = False
