@@ -31,7 +31,6 @@ class ToolBoxItem(QtWidgets.QWidget):
 
     def changeActive(self):
         self.scene.active = not self.scene.active
-        self.window.glWidget.updateGL()
 
     def mousePressEvent(self, event):
         drag = QtGui.QDrag(self)
@@ -56,6 +55,10 @@ class SceneToolBox(QtWidgets.QToolBox):
         icon = QtGui.QIcon(SceneToolBox.ic_visible if scene.active else SceneToolBox.ic_hidden)
         widget = ToolBoxItem(self.window,scene)
         self.setCurrentIndex(self.addItem(widget,icon, scene.name))
+        def setIcon(val):
+            icon = QtGui.QIcon(SceneToolBox.ic_visible if val else SceneToolBox.ic_hidden)
+            self.setItemIcon(self.scenes.index(scene), icon)
+        scene.activeChanged.connect(setIcon)
 
     def mousePressEvent(self, event):
         if event.buttons() == QtCore.Qt.RightButton:
@@ -72,8 +75,6 @@ class SceneToolBox(QtWidgets.QToolBox):
                 widget.changeActive()
                 if widget.scene.active:
                     self.setCurrentIndex(index)
-                self.setItemIcon(index, QtGui.QIcon(SceneToolBox.ic_visible if
-                                                    widget.scene.active else SceneToolBox.ic_hidden))
         if event.buttons() == QtCore.Qt.MidButton:
             event.accept()
             clicked = self.childAt(event.pos())
@@ -291,6 +292,22 @@ class WindowTab(QtWidgets.QWidget):
         super().__init__(*args, **kwargs)
         self._startup_scenes = []
         self._rendering_parameters = rendering_parameters if rendering_parameters else RenderingParameters()
+        self._actions = []
+        def addShortcut(name, key, func):
+            action = QtWidgets.QAction(name)
+            action.triggered.connect(func)
+            action.setShortcut(QtGui.QKeySequence(key))
+            self.addAction(action)
+            self._actions.append(action)
+        def nextScene():
+            self.toolbox.setCurrentIndex((self.toolbox.currentIndex()+1)%self.toolbox.count())
+        def lastScene():
+            self.toolbox.setCurrentIndex((self.toolbox.currentIndex()-1)%self.toolbox.count())
+        def toggleActive():
+            self.toolbox.currentWidget().scene.active = not self.toolbox.currentWidget().scene.active
+        addShortcut("NextScene", "d", nextScene)
+        addShortcut("LastScene", "s", lastScene)
+        addShortcut("ToggleActive", "a", toggleActive)
 
     def create(self,sharedContext):
         self.glWidget = GLWidget(shared=sharedContext, rendering_parameters = self._rendering_parameters)

@@ -26,6 +26,7 @@ name : str = type(self).__name__ + scene_counter
   Name of scene in right hand side menu.
 """
     scene_counter = 1
+    activeChanged = QtCore.Signal(bool)
     @inmain_decorator(wait_for_return=True)
     def __init__(self,active=True, name = None, **kwargs):
         self.window = None
@@ -39,6 +40,7 @@ name : str = type(self).__name__ + scene_counter
         else:
             self.name = name
         super().__init__()
+        self.activeChanged.connect(lambda val: self._updateGL())
 
     def __getstate__(self):
         super_state = super().__getstate__()
@@ -86,7 +88,7 @@ center of this box. Rotation will be around this center."""
     def _setActive(self, _active):
         """Toggle visibility of scene"""
         self._active = _active
-        self._updateGL()
+        self.activeChanged.emit(_active)
     def _getActive(self):
         return self._active
     active = property(_getActive,_setActive)

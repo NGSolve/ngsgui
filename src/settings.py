@@ -410,8 +410,9 @@ class FileParameter(Parameter):
         self.txt = state[3]
         self.createWidget()
 
-class BaseSettings():
+class BaseSettings(QtCore.QObject):
     def __init__(self):
+        super().__init__()
         self._createParameters()
         self._createQtWidget()
 

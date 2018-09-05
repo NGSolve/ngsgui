@@ -5,6 +5,7 @@ from .utils import PythonFileButtonArea
 from ngsgui.thread import inmain_decorator, inthread
 from epc.server import ThreadingEPCServer
 import logging, threading, os, time, weakref
+from .baseEditor import BaseEditor
 
 emacs_script = os.path.join(os.path.dirname(os.path.abspath(__file__)),"emacs-integration.el")
 
@@ -27,6 +28,7 @@ class MyEPCServer(ThreadingEPCServer):
         def run(buffer_filename):
             self.editor().run(buffer_filename)
         self.register_function(run)
+        @inmain_decorator(True)
         def switchTabWindow(direction):
             tabber = self.editor().gui.window_tabber
             tabber.setCurrentIndex((tabber.currentIndex() + direction)%tabber.count())
@@ -36,17 +38,17 @@ class MyEPCServer(ThreadingEPCServer):
             switchTabWindow(-1)
         self.register_function(nextTab)
         self.register_function(previousTab)
+        @inmain_decorator(False)
         def activateConsole():
             gui = self.editor().gui
             gui.output_tabber.setCurrentWidget(gui.console)
             gui.console._control.setFocus()
         self.register_function(activateConsole)
 
-class EmacsEditor(QtWidgets.QWidget):
+class EmacsEditor(QtWidgets.QWidget, BaseEditor):
     def __init__(self, filename=None, gui=None, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.filename = filename
-        self.gui = gui
+        QtWidgets.QWidget.__init__(self, *args, **kwargs)
+        BaseEditor.__init__(self, filename, gui)
         self.setWindowTitle("emacs")
         self.buttonArea = PythonFileButtonArea(code_editor=self, parent=self, search_button=False)
         self.buttonArea.setFixedHeight(35)
@@ -59,7 +61,6 @@ class EmacsEditor(QtWidgets.QWidget):
         self.proc.start(self._emacs_window.winId(), filename, self._server.server_address[1])
         gui._procs.append(self.proc)
         self.setLayout(ArrangeV(self.buttonArea, self._emacs_widget))
-        inthread(self._resize_emacs)
 
     def _resize_emacs(self):
         while not self._server.clients:
@@ -72,15 +73,6 @@ class EmacsEditor(QtWidgets.QWidget):
         super().resizeEvent(event)
         inthread(self._resize_emacs)
 
-    @inmain_decorator(True)
-    def show_exception(self, e, lineno):
-        self.gui.window_tabber.setCurrentWidget(self)
-        self.msgbox = QtWidgets.QMessageBox(text = type(e).__name__ + ": " + str(e))
-        self.msgbox.setWindowTitle("Exception caught!")
-        self.msgbox.show()
-        if self.gui._dontCatchExceptions:
-            raise e
-
     def save(self):
         pass
 
@@ -88,26 +80,5 @@ class EmacsEditor(QtWidgets.QWidget):
         filename = filename or self.filename
         with open(filename,"r") as f:
             code = f.read()
-        self.exec_locals = { "__name__" : "__main__" }
-        def _run():
-            try:
-                exec(code,self.exec_locals)
-            except Exception as e:
-                import sys
-                count_frames = 0
-                tbc = sys.exc_info()[2]
-                while tbc is not None:
-                    tb = tbc
-                    tbc = tb.tb_next
-                self.show_exception(e,tb.tb_frame.f_lineno)
-            self.active_thread = None
-            self.gui.console.pushVariables(self.exec_locals)
-        if self.active_thread:
-            self.msgbox = QtWidgets.QMessageBox(text="Already running, please stop the other computation before starting a new one!")
-            self.msgbox.setWindowTitle("Multiple computations error")
-            self.msgbox.show()
-            return
-        self.active_thread = inthread(_run)
+        BaseEditor.run(self, code,True)
 
-    def isGLWindow(self):
-        return False

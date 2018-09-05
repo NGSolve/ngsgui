@@ -259,11 +259,20 @@ It can be used to manipulate any behaviour of the interface.
                 self.mainWidget._actions = []
             self.mainWidget._actions.append(action)
 
+        def focusEditor():
+            from ngsgui.code_editor.baseEditor import BaseEditor
+            for i in range(self.window_tabber.count()):
+                if isinstance(self.window_tabber.widget(i), BaseEditor):
+                    self.window_tabber.setCurrentIndex(i)
+                    self.window_tabber.widget(i).setFocus()
+                    return
+
         addShortcut("Activate Console", "Ctrl+j", activateConsole)
         addShortcut("Quit", "Ctrl+q", lambda: self.app.quit())
         addShortcut("Close Tab", "Ctrl+w", lambda: self.window_tabber._remove_tab(self.window_tabber.currentIndex()))
         addShortcut("Next Tab", "Ctrl+LeftArrow", lambda: switchTabWindow(-1))
         addShortcut("Previous Tab", "Ctrl+RightArrow", lambda: switchTabWindow(1))
+        addShortcut("Editor", "Ctrl+e", focusEditor)
 
     def _crawlPlugins(self):
         import pkg_resources

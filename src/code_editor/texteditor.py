@@ -4,15 +4,15 @@ from .text_partition import Lines, Selection
 from ngsgui.widgets import ArrangeH, ArrangeV, ButtonArea
 from .utils import LineNumberArea, PythonFileButtonArea
 from ngsgui.thread import inmain_decorator, inthread
+from .baseEditor import BaseEditor
 
 from PySide2 import QtWidgets, QtGui, QtCore
 
 
-class CodeEditor(QtWidgets.QPlainTextEdit):
+class CodeEditor(QtWidgets.QPlainTextEdit, BaseEditor):
     def __init__(self, filename=None, gui=None, *args, **kwargs):
-        super().__init__(*args,**kwargs)
-        self.gui = gui
-        self.filename = filename
+        QtWidgets.QPlainTextEdit.__init__(self, *args,**kwargs)
+        BaseEditor.__init__(self, filename, gui)
         if filename:
             self.setWindowTitle(filename)
         else:
@@ -80,20 +80,12 @@ class CodeEditor(QtWidgets.QPlainTextEdit):
         cursor.movePosition(cursor.EndOfLine, cursor.KeepAnchor)
         self.setTextCursor(cursor)
 
-    def isGLWindow(self):
-        return False
-
     @inmain_decorator(wait_for_return=False)
     def show_exception(self, e, lineno):
-        self.gui.window_tabber.setCurrentWidget(self)
+        super().show_exception(e,lineno)
         self.setTextCursor(QtGui.QTextCursor(self.document().findBlock(self.computation_started_at)))
         for i in range(lineno-1):
             self.moveCursor(QtGui.QTextCursor.Down)
-        self.msgbox = QtWidgets.QMessageBox(text = type(e).__name__ + ": " + str(e))
-        self.msgbox.setWindowTitle("Exception caught!")
-        self.msgbox.show()
-        if self.gui._dontCatchExceptions:
-            raise e
 
     def contextMenuEvent(self, event):
         # is there a selection
@@ -126,30 +118,7 @@ class CodeEditor(QtWidgets.QPlainTextEdit):
         self.computation_started_at = computation_started_at
         if code is None:
             code = self.text
-        if reset_exec_locals:
-            self.clear_locals()
-        def _run():
-            try:
-                exec(code,self.exec_locals)
-            except Exception as e:
-                import sys
-                count_frames = 0
-                tbc = sys.exc_info()[2]
-                while tbc is not None:
-                    tb = tbc
-                    tbc = tb.tb_next
-                self.show_exception(e,tb.tb_frame.f_lineno)
-            self.active_thread = None
-            self.gui.console.pushVariables(self.exec_locals)
-        if self.active_thread:
-            self.msgbox = QtWidgets.QMessageBox(text="Already running, please stop the other computation before starting a new one!")
-            self.msgbox.setWindowTitle("Multiple computations error")
-            self.msgbox.show()
-            return
-        self.active_thread = inthread(_run)
-
-    def clear_locals(self):
-        self.exec_locals = { "__name__" : "__main__" }
+        super().run(code, reset_exec_locals)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
