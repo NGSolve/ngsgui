@@ -15,10 +15,6 @@
   "EPC manager object for GTK server example.")
 
 (epc:define-method pyepc-ngsolve-epc
-                   'message
-                   (lambda (&rest args) (message "%S" args)))
-
-(epc:define-method pyepc-ngsolve-epc
                    'set-width
                    (lambda (arg) (set-frame-width (selected-frame) arg nil t)))
 
@@ -32,5 +28,26 @@
   (deferred:nextc
     (epc:call-deferred pyepc-ngsolve-epc 'run (list buffer-file-name))))
 
+(defun pyepc-ngsolve-next-tab ()
+  "Next tab"
+  (interactive)
+  (deferred:nextc
+    (epc:call-deferred pyepc-ngsolve-epc 'nextTab nil)))
+
+(defun pyepc-ngsolve-previous-tab ()
+  "Previous tab"
+  (interactive)
+  (deferred:nextc
+    (epc:call-deferred pyepc-ngsolve-epc 'previousTab nil)))
+
+(defun pyepc-ngsolve-activate-console ()
+  "Activete interactive ipython console"
+  (interactive)
+  (deferred:nextc
+    (epc:call-deferred pyepc-ngsolve-epc 'activateConsole nil)))
+
 (require 'python)
 (define-key python-mode-map (kbd "C-c r") 'pyepc-ngsolve-run)
+(global-set-key (kbd "C-<left>") 'pyepc-ngsolve-previous-tab)
+(global-set-key (kbd "C-<right>") 'pyepc-ngsolve-next-tab)
+(global-set-key (kbd "C-c j") 'pyepc-ngsolve-activate-console)

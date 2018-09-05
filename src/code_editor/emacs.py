@@ -27,6 +27,20 @@ class MyEPCServer(ThreadingEPCServer):
         def run(buffer_filename):
             self.editor().run(buffer_filename)
         self.register_function(run)
+        def switchTabWindow(direction):
+            tabber = self.editor().gui.window_tabber
+            tabber.setCurrentIndex((tabber.currentIndex() + direction)%tabber.count())
+        def nextTab():
+            switchTabWindow(1)
+        def previousTab():
+            switchTabWindow(-1)
+        self.register_function(nextTab)
+        self.register_function(previousTab)
+        def activateConsole():
+            gui = self.editor().gui
+            gui.output_tabber.setCurrentWidget(gui.console)
+            gui.console._control.setFocus()
+        self.register_function(activateConsole)
 
 class EmacsEditor(QtWidgets.QWidget):
     def __init__(self, filename=None, gui=None, *args, **kwargs):
