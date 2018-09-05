@@ -31,8 +31,7 @@ def main():
     import sys
     ngs.Draw = Draw
     ngs.Redraw = Redraw
-    G.gui = G.GUI()
-    G.gui._parseFlags(sys.argv[1:])
+    G.gui = G.GUI(sys.argv[1:])
     G.gui._run()
 
 if __name__ == "__main__":

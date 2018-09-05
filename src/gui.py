@@ -8,42 +8,12 @@ from . widgets import ArrangeV
 from .thread import inmain_decorator
 from .menu import MenuBarWithDict
 from .globalSettings import SettingDialog
+from .stdPipes import OutputBuffer
 
 import ngsolve
 
 from PySide2 import QtWidgets, QtCore, QtGui
 
-class Receiver(QtCore.QObject):
-    """Class responsible for piping the stdout to the internal output. Removes ansi escape characters.
-"""
-    received = QtCore.Signal(str)
-
-    def __init__(self,pipe, *args,**kwargs):
-        import re
-        super().__init__(*args,**kwargs)
-        self.pipe = pipe
-        self.ansi_escape = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
-        self.kill = False
-
-    def SetKill(self):
-        self.kill = True
-        print("killme")
-
-    def run(self):
-        while not self.kill:
-            self.received.emit(self.ansi_escape.sub("",os.read(self.pipe,1024).decode("ascii")))
-        self.kill = False
-
-class OutputBuffer(QtWidgets.QTextEdit):
-    """Textview where the stdoutput is piped into. Is not writable, so stdin is not piped (yet).
-"""
-    def __init__(self,*args,**kwargs):
-        super().__init__(*args,**kwargs)
-        self.setReadOnly(True)
-
-    def append_text(self, text):
-        self.moveCursor(QtGui.QTextCursor.End)
-        self.insertPlainText(text)
 
 class SettingsToolBox(QtWidgets.QToolBox):
     """Global Toolbox on the left hand side, independent of windows. This ToolBox can be used by plugins to
@@ -68,7 +38,7 @@ to create Settings which are global to all windows.
 def _noexec(gui, val):
     gui.executeFileOnStartup = not val
 def _fastmode(gui,val):
-    gui.window_tabber._fastmode = val
+    gui._fastmode = val
 def _noOutputpipe(gui,val):
     gui.pipeOutput = not val
 
@@ -98,7 +68,7 @@ It can be used to manipulate any behaviour of the interface.
     # use a list of tuples instead of a dict to be able to sort it
     sceneCreators = {}
     file_loaders = {}
-    def __init__(self):
+    def __init__(self, flags):
         from .console import MultiQtKernelManager
         self.app = QtWidgets.QApplication([])
         ngsolve.solve._SetLocale()
@@ -106,6 +76,7 @@ It can be used to manipulate any behaviour of the interface.
         self._commonContext = glwindow.GLWidget()
         self.app.setOrganizationName("NGSolve")
         self.app.setApplicationName("NGSolve")
+        self._parseFlags(flags)
         self._createMenu()
         self._createLayout()
         self.mainWidget.setWindowTitle("NGSolve")
@@ -215,14 +186,16 @@ It can be used to manipulate any behaviour of the interface.
         window_splitter.setOrientation(QtCore.Qt.Vertical)
         self.window_tabber = glwindow.WindowTabber(commonContext = self._commonContext,
                                                    parent=window_splitter)
+        self.window_tabber._fastmode = self._fastmode
         window_splitter.addWidget(self.window_tabber)
         self.console = NGSJupyterWidget(gui=self,multikernel_manager = self.multikernel_manager)
         self.console.exit_requested.connect(self.app.quit)
-        self.outputBuffer = OutputBuffer()
         self.output_tabber = glwindow.WindowTabber(commonContext=self._commonContext,
                                                    parent=window_splitter)
         self.output_tabber.addTab(self.console,"Console")
-        self.output_tabber.addTab(self.outputBuffer, "Output")
+        if self.pipeOutput:
+            self.outputBuffer = OutputBuffer()
+            self.output_tabber.addTab(self.outputBuffer, "Output")
         self.output_tabber.setCurrentIndex(1)
         settings = QtCore.QSettings()
         if settings.value("sysmon/active", "false") == "true":
@@ -427,22 +400,9 @@ It can be used to manipulate any behaviour of the interface.
         self.mainWidget.show()
         globs = inspect.stack()[1][0].f_globals
         self.console.pushVariables(globs)
-        if self.pipeOutput:
-            stdout_fileno = sys.stdout.fileno()
-            stderr_fileno = sys.stderr.fileno()
-            stderr_save = os.dup(stderr_fileno)
-            stdout_save = os.dup(stdout_fileno)
-            stdout_pipe = os.pipe()
-            os.dup2(stdout_pipe[1], stdout_fileno)
-            os.dup2(stdout_pipe[1], stderr_fileno)
-            os.close(stdout_pipe[1])
-            receiver = Receiver(stdout_pipe[0])
-            receiver.received.connect(self.outputBuffer.append_text)
-            self.stdoutThread = QtCore.QThread()
-            receiver.moveToThread(self.stdoutThread)
-            self.stdoutThread.started.connect(receiver.run)
-            self.stdoutThread.start()
         settings = QtCore.QSettings()
+        if self.pipeOutput:
+            self.outputBuffer.start()
         if settings.value("sysmon/active", "false") == "true":
             self._cpuTimer = QtCore.QTimer()
             self._cpuTimer.setInterval(1000)
@@ -453,13 +413,9 @@ It can be used to manipulate any behaviour of the interface.
             self._tryLoadFile(f)
         def onQuit():
             if self.pipeOutput:
-                receiver.SetKill()
-                self.stdoutThread.exit()
+                self.outputBuffer.onQuit()
         self.app.aboutToQuit.connect(onQuit)
         sys.exit(self.app.exec_())
-
-    def setFastMode(self, fastmode):
-        self.fastmode = fastmode
 
 class DummyObject:
     """If code is not executed using ngsolve, then this dummy object allows to use the same code with a netgen or python3 call as well"""
