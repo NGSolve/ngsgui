@@ -11,7 +11,7 @@
 (setq frame-resize-pixelwise t)
 
 (defvar pyepc-ngsolve-epc
-  (epc:start-epc "python3" (list ".printport.py"))
+  (epc:start-epc "python3" `(,(concat "-c \rprint(" (number-to-string portnumber) ")")))
   "EPC manager object for GTK server example.")
 
 (epc:define-method pyepc-ngsolve-epc

@@ -12,8 +12,8 @@ class EmacsProcess(QtCore.QProcess):
     def __init__(self, *args, **kwargs):
         super().__init__(*args,**kwargs)
 
-    def start(self, winId, filename):
-        super().start("emacs --load " + emacs_script + " --maximized --parent-id " + str(winId) + " " + filename)
+    def start(self, winId, filename, port):
+        super().start('emacs --eval "(setq portnumber ' + str(port) + ')" --load ' + emacs_script + ' --maximized --parent-id ' + str(winId) + ' ' + filename)
 
 
 class MyEPCServer(ThreadingEPCServer):
@@ -21,15 +21,9 @@ class MyEPCServer(ThreadingEPCServer):
         super().__init__(('localhost',0), log_traceback=True)
         self.editor = weakref.ref(editor)
         self.logger.setLevel(logging.WARNING)
-        ch = logging.FileHandler(filename='python-epc.log',mode='w')
-        ch.setLevel(logging.WARNING)
-        self.logger.addHandler(ch)
         self.server_thread = threading.Thread(target=self.serve_forever)
         self.server_thread.allow_reuse_address = True
         self.server_thread.start()
-        with open(".printport.py", "w") as f:
-            f.write("print(" + str(self.server_address[1]) + ")")
-
         def run(buffer_filename):
             self.editor().run(buffer_filename)
         self.register_function(run)
@@ -48,7 +42,7 @@ class EmacsEditor(QtWidgets.QWidget):
         self._emacs_window = QtGui.QWindow()
         self._emacs_widget = QtWidgets.QWidget.createWindowContainer(self._emacs_window)
         self.proc = EmacsProcess(self._emacs_window)
-        self.proc.start(self._emacs_window.winId(), filename)
+        self.proc.start(self._emacs_window.winId(), filename, self._server.server_address[1])
         gui._procs.append(self.proc)
         self.setLayout(ArrangeV(self.buttonArea, self._emacs_widget))
         inthread(self._resize_emacs)
