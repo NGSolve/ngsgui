@@ -7,7 +7,7 @@ from .thread import inmain_decorator
 from ngsgui import _debug
 import numpy as np
 
-import time, ngsolve
+import time, ngsolve, weakref
 from ngsolve.bla import Vector
 from math import exp, sqrt
 
@@ -17,7 +17,7 @@ import pickle
 
 
 class ToolBoxItem(QtWidgets.QWidget):
-    def __init__(self, window, scene, *args, **kwargs):
+    def __init__(self, scene, *args, **kwargs):
         super().__init__(*args, **kwargs)
         layout = QtWidgets.QVBoxLayout()
         for item in scene.widgets.groups:
@@ -26,16 +26,15 @@ class ToolBoxItem(QtWidgets.QWidget):
         self.layout().setAlignment(QtCore.Qt.AlignTop)
         scene.widgets.setParent(self)
         scene.widgets.update()
-        self.scene = scene
-        self.window = window
+        self.scene = weakref.ref(scene)
 
     def changeActive(self):
-        self.scene.active = not self.scene.active
+        self.scene().active = not self.scene().active
 
     def mousePressEvent(self, event):
         drag = QtGui.QDrag(self)
         mime_data = QtCore.QMimeData()
-        dump = pickle.dumps(self.scene)
+        dump = pickle.dumps(self.scene())
         mime_data.setData("scene", dump)
         drag.setMimeData(mime_data)
         drag.start()
@@ -47,13 +46,12 @@ class SceneToolBox(QtWidgets.QToolBox):
     ic_hidden = icon_path + "/hidden.png"
     def __init__(self, window):
         super().__init__()
-        self.window = window
-        self.scenes = []
+        self.window = weakref.ref(window)
+        self.scenes = window.glWidget.scenes
 
     def addScene(self, scene):
-        self.scenes.append(scene)
         icon = QtGui.QIcon(SceneToolBox.ic_visible if scene.active else SceneToolBox.ic_hidden)
-        widget = ToolBoxItem(self.window,scene)
+        widget = ToolBoxItem(scene)
         self.setCurrentIndex(self.addItem(widget,icon, scene.name))
         def setIcon(val):
             icon = QtGui.QIcon(SceneToolBox.ic_visible if val else SceneToolBox.ic_hidden)
@@ -73,8 +71,9 @@ class SceneToolBox(QtWidgets.QToolBox):
             if index is not None:
                 widget = self.widget(index)
                 widget.changeActive()
-                if widget.scene.active:
+                if widget.scene().active:
                     self.setCurrentIndex(index)
+            return
         if event.buttons() == QtCore.Qt.MidButton:
             event.accept()
             clicked = self.childAt(event.pos())
@@ -85,11 +84,16 @@ class SceneToolBox(QtWidgets.QToolBox):
                     index = i//2
                 i += 1
             if index is not None:
-                scene = self.scenes[index]
-                self.scenes.remove(scene)
-                self.removeItem(index)
-                self.window.glWidget.scenes.remove(scene)
-                self.window.glWidget.updateGL()
+                # circumvent bug in qt that deletes 2 items when deleting an inner one...
+                widgets = [(self.itemText(i), self.itemIcon(i), self.widget(i)) for i in range(index+1, self.count())]
+                for i in range(index, self.count()):
+                    self.removeItem(index)
+                del self.scenes[index]
+                for text, icon, widget in widgets:
+                    self.addItem(widget, icon, text)
+                self.window().glWidget.updateGL()
+            return
+        super().mousePressEvent(event)
 
 class GLWindowButtonArea(wid.ButtonArea):
     def __init__(self, glWidget):
@@ -353,7 +357,7 @@ class WindowTab(QtWidgets.QWidget):
     @inmain_decorator(True)
     def draw(self, scene):
         self.glWidget.makeCurrent()
-        scene.window = self
+        scene.window = weakref.ref(self)
         scene.update()
         self.glWidget.addScene(scene)
         self.toolbox.addScene(scene)

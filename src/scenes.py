@@ -106,7 +106,7 @@ center of this box. Rotation will be around this center."""
 
     def _updateGL(self):
         if self.window:
-            self.window.glWidget.updateGL()
+            self.window().glWidget.updateGL()
 
     def _attachParameter(self, parameter):
         super()._attachParameter(parameter)
@@ -1322,7 +1322,7 @@ class GeometryScene2D(BaseScene):
     @inmain_decorator(True)
     def initGL(self):
         super().initGL()
-        self.window.glWidget._rotation_enabled = False
+        self.window().glWidget._rotation_enabled = False
         self.vertices = ArrayBuffer()
         self.domains = ArrayBuffer()
         self._tex_bc_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
