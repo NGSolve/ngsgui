@@ -1,64 +1,37 @@
 stages:
   - build
+  - test
   - cleanup
 
-.build_linux:
-  stage: build
+.template_ubuntu: &ubuntu
   tags:
     - linux
-    - docker
-    - avx
-  script:
-    - export PATH="~/miniconda3/bin:$PATH"
-    - cd conda
-    - bash build.sh
+    - avx2
 
-.build_mac:
+cleanup:
+  <<: *ubuntu
+  stage: cleanup
+  when: always
+  script:
+    - pip3 uninstall -y ngsgui
+
+build:
+  <<: *ubuntu
   stage: build
-  tags:
-    - mac
   script:
-    - export PATH="~/miniconda3/bin:$PATH"
-    - cd conda
-    - bash build.sh
+    - python3 setup.py install --user --single-version-externally-managed --root=/
 
-.build_win:
-  stage: build
-  tags:
-    - windows
+test:
+  <<: *ubuntu
+  stage: test
+  before_script:
+    - export NETGENDIR=/opt/netgen_gitlab_runner/bin
+    - export PYTHONPATH=$NETGENDIR/../lib/python3.7/site-packages/:$PYTHONPATH
+    - export PATH=$NETGENDIR:$PATH
+    - export LD_LIBRARY_PATH=$NETGENDIR/../lib:$LD_LIBRARY_PATH
   script:
-    - call C:\Users\gitlabci\Miniconda3\Scripts\activate.bat C:\Users\gitlabci\Miniconda3
-    - cd conda
-    - bld.bat
-
-.cleanup_mac:
-  stage: cleanup
-  tags:
-    - mac
-  script:
-    - export PATH="~/miniconda3/bin:$PATH"
-    - conda build purge
-  when: always
-  allow_failure: true
-
-.cleanup_linux:
-  stage: cleanup
-  tags:
-    - linux
-    - docker
-    - avx
-  script:
-    - export PATH="~/miniconda3/bin:$PATH"
-    - conda build purge
-  when: always
-  allow_failure: true
-
-.cleanup_win:
-  stage: cleanup
-  tags:
-    - windows
-  script:
-    - call C:\Users\gitlabci\Miniconda3\Scripts\activate.bat C:\Users\gitlabci\Miniconda3
-    - conda build purge
-  when: always
-  allow_failure: true
+    - cd test && python3 -m pytest
+  artifacts:
+    paths:
+      - test/images/*
+    expire_in: 1 week
