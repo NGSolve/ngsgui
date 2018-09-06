@@ -4,6 +4,7 @@ from ngsgui.settings import BaseSettings
 from ngsolve import *
 ngsglobals.msg_level = 0
 import OpenGL.GL as GL
+import glob
 
 import pickle, os
 
@@ -35,7 +36,7 @@ def runFileTest(gui, filename):
 
 
 def test_autotests():
-    files = os.listdir("automatic_tests")
+    files = glob.glob('automatic_tests/*.test')
     gui = Gui()
     for filename in files:
         print("################################################################")

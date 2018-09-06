@@ -6,7 +6,7 @@ import OpenGL.GL as GL
 import OpenGL.EGL as EGL
 
 from ngsgui.settings import BaseSettings
-BaseSettings.__init__ = lambda self: self
+BaseSettings._have_qt = False
 import ngsgui, glob
 import ngsgui.gl as gl
 for shaderpath in ngsgui.shader.locations:

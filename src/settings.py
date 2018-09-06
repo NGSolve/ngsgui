@@ -411,10 +411,12 @@ class FileParameter(Parameter):
         self.createWidget()
 
 class BaseSettings(QtCore.QObject):
+    _have_qt = True
     def __init__(self):
         super().__init__()
-        self._createParameters()
-        self._createQtWidget()
+        if BaseSettings._have_qt:
+            self._createParameters()
+            self._createQtWidget()
 
     def __getstate__(self):
         return (self._parameters,)

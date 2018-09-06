@@ -34,3 +34,7 @@ def test_tet():
 
 def test_pyramid():
     mesh_test(meshes.Pyramid(), 'pyramid')
+
+if __name__ == '__main__':
+    test_tet()
+    test_pyramid()
