@@ -1318,7 +1318,6 @@ class GeometryScene(BaseScene):
             self._tex_colors.bind()
             uniforms.set('colors',3)
 
-            uniforms.set('wireframe',False)
             uniforms.set('clipping_plane', settings.clipping_plane)
             uniforms.set('do_clipping', True)
             uniforms.set('light_ambient', 0.3)
