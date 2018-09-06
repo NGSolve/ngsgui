@@ -55,8 +55,7 @@ ivec4 getTetFromElement( PYRAMID el, int subtet, out TET tet, out vec3 lam[4]) {
   ivec4 vi;
 
   if(subtet==0) vi=ivec4( 0,1,2,4 );
-  else if(subtet==1) vi=ivec4( 0,2,3,4 );
-  else vi=ivec4( 1,3,4,5 );
+  else vi=ivec4( 0,2,3,4 );
 
   for (int i=0; i<4; i++) {
     tet.pos[i] = el.pos[vi[i]];
