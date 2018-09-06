@@ -61,24 +61,11 @@ name : str = type(self).__name__ + scene_counter
         self._gl_initialized = True
         self._vao = VertexArray()
 
-    def _createShortcut(self, widget, name, key, func):
-        """Helper function to create shortcuts"""
-        settings = QtCore.QSettings()
-        action = QtWidgets.QAction(name)
-        action.triggered.connect(func)
-        if not settings.value("shortcuts/" + name):
-            settings.setValue("shortcuts/" + name, key)
-        action.setShortcut(QtGui.QKeySequence(settings.value("shortcuts/"+ name)))
-        widget.addAction(action)
-        if not hasattr(widget, "_qactions"):
-            widget._qactions = []
-        widget._qactions.append(action)
-
     def addShortcuts(self, widget):
         """Adds shortcuts to the widget"""
         def toggleActive():
             self.active = not self.active
-        self._createShortcut(widget, "Scene-ToggleActive", "a", toggleActive)
+        wid.addShortcut(widget, "Scene-ToggleActive", "a", toggleActive)
 
     @inmain_decorator(True)
     def update(self):
@@ -363,7 +350,7 @@ class MeshScene(BaseMeshScene):
 
     def addShortcuts(self, widget):
         super().addShortcuts(widget)
-        self._createShortcut(widget, "MeshScene-ShowWireframe", "w", lambda : self.setShowWireframe(not self.getShowWireframe()))
+        wid.addShortcut(widget, "MeshScene-ShowWireframe", "w", lambda : self.setShowWireframe(not self.getShowWireframe()))
 
     def initGL(self):
         super().initGL()
@@ -653,17 +640,17 @@ class SolutionScene(BaseMeshScene):
         if self.mesh.dim>1:
             self.addParameters("Show",
                                settings.CheckboxParameter(name="ShowSurface",
-                                                          label="Solution on Surface",
+                                                          label="Solution on &Surface",
                                                           default_value=self.__initial_values["ShowSurface"]))
 
         if self.mesh.dim > 2:
             iso_value = settings.ValueParameter(name="IsoValue", label="Value", default_value=0.0)
             self.addParameters("Show",
                                settings.CheckboxParameter(name="ShowClippingPlane",
-                                                          label="Solution in clipping plane",
+                                                          label="Solution in &Clipping plane",
                                                           default_value=self.__initial_values["ShowClippingPlane"]),
                                settings.CheckboxParameterCluster(name="ShowIsoSurface",
-                                                                 label="Isosurface",
+                                                                 label="&Isosurface",
                                                                  default_value = self.__initial_values["ShowIsoSurface"],
                                                                  sub_parameters = [iso_value], updateWidgets=True)
                                )
@@ -677,11 +664,11 @@ class SolutionScene(BaseMeshScene):
                                                        min_value=0,
                                                        max_value=self.cf.dim-1),
                                settings.CheckboxParameterCluster(name="ShowVolumeVectors",
-                                                          label="Volume vectors",
+                                                          label="&Volume vectors",
                                                           default_value = self.__initial_values["ShowVolumeVectors"],
                                                              sub_parameters = [vol_grid_size], updateWidgets=True),
                                settings.CheckboxParameterCluster(name="ShowClippingPlaneVectors",
-                                                          label="Clipping plane vectors",
+                                                          label="Vectors in &clipping plane",
                                                           default_value = self.__initial_values["ShowClippingPlaneVectors"],
                                                              sub_parameters = [cp_grid_size], updateWidgets=True)
                                )
@@ -717,6 +704,15 @@ class SolutionScene(BaseMeshScene):
                                                  max_value = len(self._gfComponents.vecs)-1,
                                                  min_value = 0,
                                                  updateScene = True))
+
+    def addShortcuts(self, widget):
+        super().addShortcuts(widget)
+        wid.addShortcut(widget, "SolutionScene-ShowSurface", "Shift+s", lambda: self.setShowSurface(not self.getShowSurface()))
+        wid.addShortcut(widget, "SolutionScene-ShowClipping", "Shift+c", lambda: self.setShowClippingPlane(not self.getShowClippingPlane()))
+        wid.addShortcut(widget, "SolutionScene-ShowIsosurface", "Shift+i", lambda: self.setShowIsoSurface(not self.getShowIsoSurface()))
+        if self.cf.dim > 1:
+            wid.addShortcut(widget, "SolutionScene-ShowVolumeVectors", "Shift+v", lambda: self.setShowVolumeVectors(not self.getShowVolumeVectors()))
+            wid.addShortcut(widget, "SolutionScene-ShowClippingVectors", "c", lambda: self.setShowClippingPlaneVectors(not self.getShowClippingPlaneVectors()))
 
     def _animate(self,val):
         if val:

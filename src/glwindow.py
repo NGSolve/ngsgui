@@ -2,7 +2,7 @@
 from . import glmath, scenes
 from . import widgets as wid
 from .gl import TextRenderer, ArrayBuffer, VertexArray, getProgram
-from .widgets import ArrangeV, ArrangeH
+from .widgets import ArrangeV, ArrangeH, addShortcut
 from .thread import inmain_decorator
 from ngsgui import _debug
 import numpy as np
@@ -114,10 +114,10 @@ class GLWindowButtonArea(wid.ButtonArea):
         def flip():
             self.renderingParameters.setClippingPlaneNormal(-1. * self.renderingParameters.getClippingPlaneNormal())
             self.glWidget.updateGL()
-        self.addButton(clipX, "clip X")
-        self.addButton(clipY, "clip Y")
-        self.addButton(clipZ, "clip Z")
-        self.addButton(flip, "flip")
+        self.addButton(clipX, "clip &x")
+        self.addButton(clipY, "clip &y")
+        self.addButton(clipZ, "clip &z")
+        self.addButton(flip, "&flip")
         self._showCross = True
         self.addButton(lambda : setattr(self, "_showCross", not self._showCross) or self.glWidget.updateGL(),
                        "Cross")
@@ -130,6 +130,10 @@ class GLWindowButtonArea(wid.ButtonArea):
         self._showVersion = True
         self.addButton(lambda : setattr(self, "_showVersion", not self._showVersion) or self.glWidget.updateGL(),
                        "Version")
+        addShortcut(self, "GLWindow-clipx", "x", clipX)
+        addShortcut(self, "GLWindow-clipy", "y", clipY)
+        addShortcut(self, "GLWindow-clipz", "z", clipZ)
+        addShortcut(self, "GLWindow-flip", "f", flip)
         self._gl_initialized = False
 
     def initGL(self):
@@ -299,20 +303,12 @@ class WindowTab(QtWidgets.QWidget):
         self._rendering_parameters = rendering_parameters if rendering_parameters else RenderingParameters()
         self._actions = []
         settings = QtCore.QSettings()
-        def addShortcut(name, key, func):
-            action = QtWidgets.QAction(name)
-            action.triggered.connect(func)
-            if not settings.value("shortcuts/" + name):
-                settings.setValue("shortcuts/" + name, key)
-            action.setShortcut(QtGui.QKeySequence(settings.value("shortcuts/" + name)))
-            self.addAction(action)
-            self._actions.append(action)
         def nextScene():
             self.toolbox.setCurrentIndex((self.toolbox.currentIndex()+1)%self.toolbox.count())
         def lastScene():
             self.toolbox.setCurrentIndex((self.toolbox.currentIndex()-1)%self.toolbox.count())
-        addShortcut("GLWindow-NextScene", "d", nextScene)
-        addShortcut("GLWindow-LastScene", "s", lastScene)
+        addShortcut(self, "GLWindow-NextScene", "d", nextScene)
+        addShortcut(self, "GLWindow-LastScene", "s", lastScene)
 
     def create(self,sharedContext):
         self.glWidget = GLWidget(shared=sharedContext, rendering_parameters = self._rendering_parameters)

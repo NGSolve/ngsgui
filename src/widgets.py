@@ -420,3 +420,16 @@ shortcut: str = None
         if shortcut:
             btn.setShortcut(shortcut)
         self.layout().addWidget(btn)
+
+def addShortcut(widget, name, key, func):
+    """Helper function to create shortcuts"""
+    settings = QtCore.QSettings()
+    action = QtWidgets.QAction(name)
+    action.triggered.connect(func)
+    if not settings.value("shortcuts/" + name):
+            settings.setValue("shortcuts/" + name, key)
+    action.setShortcut(QtGui.QKeySequence(settings.value("shortcuts/"+ name)))
+    widget.addAction(action)
+    if not hasattr(widget, "_qactions"):
+        widget._qactions = []
+    widget._qactions.append(action)
