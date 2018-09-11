@@ -14,14 +14,16 @@ laplace = SymbolicBFI(grad(u) * grad(v))
 mass = SymbolicBFI(u * v)
 
 def ShowLaplace(p):
-    ei = mesh(*p).elementid
+    pt = mesh(*p)
+    ei = ElementId(pt.vb,pt.nr)
     element = fes.GetFE(ei)
     trafo = mesh.GetTrafo(ei)
     print("lap ", ei.nr, " = ")
     print(laplace.CalcElementMatrix(element,trafo))
 
 def ShowMass(p):
-    ei = mesh(*p).elementid
+    pt = mesh(*p)
+    ei = ElementId(pt.vb,pt.nr)
     element = fes.GetFE(ei)
     trafo = mesh.GetTrafo(ei)
     print("mass ", ei.nr, " = ")
