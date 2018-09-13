@@ -21,7 +21,7 @@ def Draw(obj, *args, tab=None, **kwargs):
     return scene
 
 _last_time = 0
-def Redraw(blocking=True,**kwargs):
+def Redraw(blocking=False,**kwargs):
     global _last_time
     if blocking:
         G.gui.redraw_blocking()
