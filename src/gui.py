@@ -41,6 +41,8 @@ def _fastmode(gui,val):
     gui._fastmode = val
 def _noOutputpipe(gui,val):
     gui.pipeOutput = not val
+def _noConsole(gui,val):
+    gui._have_console = not val
 
 def _showHelp(gui, val):
     import textwrap
@@ -62,6 +64,7 @@ It can be used to manipulate any behaviour of the interface.
     # functions to modify the gui with flags. If the flag is not set, the function is called with False as argument
     flags = { "-noexec" : (_noexec, "Do not execute loaded Python file on startup"),
               "-fastmode" : (_fastmode, "Use fastmode for drawing large scenes faster"),
+              "-noConsole" : (_noConsole, "No console"),
               "-noOutputpipe" : (_noOutputpipe, "Do not pipe the std output to the output window in the gui"),
               "-help" : (_showHelp, "Show this help function"),
               "-dontCatchExceptions" : (_dontCatchExceptions, "Do not catch exceptions up to user input, but show internal gui traceback")}
@@ -69,14 +72,15 @@ It can be used to manipulate any behaviour of the interface.
     sceneCreators = {}
     file_loaders = {}
     def __init__(self, flags):
-        from .console import MultiQtKernelManager
         self.app = QtWidgets.QApplication([])
         ngsolve.solve._SetLocale()
-        self.multikernel_manager = MultiQtKernelManager()
         self._commonContext = glwindow.GLWidget()
         self.app.setOrganizationName("NGSolve")
         self.app.setApplicationName("NGSolve")
         self._parseFlags(flags)
+        if self._have_console:
+            from .console import MultiQtKernelManager
+            self.multikernel_manager = MultiQtKernelManager()
         self._createMenu()
         self._createLayout()
         self.mainWidget.setWindowTitle("NGSolve")
@@ -188,36 +192,36 @@ It can be used to manipulate any behaviour of the interface.
                                                    parent=window_splitter)
         self.window_tabber._fastmode = self._fastmode
         window_splitter.addWidget(self.window_tabber)
-        self.console = NGSJupyterWidget(gui=self,multikernel_manager = self.multikernel_manager)
-        self.console.exit_requested.connect(self.app.quit)
-        self.output_tabber = glwindow.WindowTabber(commonContext=self._commonContext,
-                                                   parent=window_splitter)
-        self.output_tabber.addTab(self.console,"Console")
+        if self._have_console:
+            self.console = NGSJupyterWidget(gui=self,multikernel_manager = self.multikernel_manager)
+            self.console.exit_requested.connect(self.app.quit)
         if self.pipeOutput:
+            self.output_tabber = glwindow.WindowTabber(commonContext=self._commonContext,
+                                                   parent=window_splitter)
+            if self._have_console:
+                self.output_tabber.addTab(self.console,"Console")
             self.outputBuffer = OutputBuffer()
             self.output_tabber.addTab(self.outputBuffer, "Output")
-        self.output_tabber.setCurrentIndex(1)
+            self.output_tabber.setCurrentIndex(1)
         settings = QtCore.QSettings()
         if settings.value("sysmon/active", "false") == "true":
             from .systemmonitor import SystemMonitor
             self._SysMonitor = SystemMonitor()
             sysmon_splitter = QtWidgets.QSplitter()
-            sysmon_splitter.addWidget(self.output_tabber)
+            if self.pipeOutput or self._have_console:
+                sysmon_splitter.addWidget(self.output_tabber)
             sysmon_splitter.addWidget(self._SysMonitor)
             sysmon_splitter.setOrientation(QtCore.Qt.Vertical)
             sysmon_splitter.setSizes([10000,2000])
             window_splitter.addWidget(sysmon_splitter)
         else:
-            window_splitter.addWidget(self.output_tabber)
+            if self.pipeOutput or self._have_console:
+                window_splitter.addWidget(self.output_tabber)
         menu_splitter.setSizes([100, 10000])
         toolbox_splitter.setSizes([0, 85000])
         window_splitter.setSizes([70000, 30000])
         self.mainWidget.setLayout(ArrangeV(menu_splitter))
 
-        # global shortkeys:
-        def activateConsole():
-            self.output_tabber.setCurrentWidget(self.console)
-            self.console._control.setFocus()
 
         def switchTabWindow(direction):
             self.window_tabber.setCurrentIndex((self.window_tabber.currentIndex() + direction)%self.window_tabber.count())
@@ -240,7 +244,13 @@ It can be used to manipulate any behaviour of the interface.
                     self.window_tabber.widget(i).setFocus()
                     return
 
-        addShortcut("Activate Console", "Ctrl+j", activateConsole)
+        if self._have_console:
+            # global shortkeys:
+            def activateConsole():
+                self.output_tabber.setCurrentWidget(self.console)
+                self.console._control.setFocus()
+            addShortcut("Activate Console", "Ctrl+j", activateConsole)
+
         addShortcut("Quit", "Ctrl+q", lambda: self.app.quit())
         addShortcut("Close Tab", "Ctrl+w", lambda: self.window_tabber._remove_tab(self.window_tabber.currentIndex()))
         addShortcut("Next Tab", "Ctrl+LeftArrow", lambda: switchTabWindow(-1))
@@ -395,11 +405,12 @@ It can be used to manipulate any behaviour of the interface.
             editTab.computation_started_at = 0
             editTab.run()
 
-    def _run(self,do_after_run=lambda : None):
+    def _run(self,do_after_run=lambda : None, run_event_loop=True):
         import sys, inspect
         self.mainWidget.show()
         globs = inspect.stack()[1][0].f_globals
-        self.console.pushVariables(globs)
+        if self._have_console:
+            self.console.pushVariables(globs)
         settings = QtCore.QSettings()
         if self.pipeOutput:
             self.outputBuffer.start()
@@ -415,7 +426,8 @@ It can be used to manipulate any behaviour of the interface.
             if self.pipeOutput:
                 self.outputBuffer.onQuit()
         self.app.aboutToQuit.connect(onQuit)
-        sys.exit(self.app.exec_())
+        if run_event_loop:
+            sys.exit(self.app.exec_())
 
 class DummyObject:
     """If code is not executed using ngsolve, then this dummy object allows to use the same code with a netgen or python3 call as well"""

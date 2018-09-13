@@ -4,6 +4,7 @@
 import ngsgui.gui as G
 import ngsolve as ngs
 import netgen.meshing
+from time import time
 
 
 def Draw(obj, *args, tab=None, **kwargs):
@@ -19,11 +20,19 @@ def Draw(obj, *args, tab=None, **kwargs):
     G.gui.draw(scene, tab=tab)
     return scene
 
+_last_time = 0
 def Redraw(blocking=True,**kwargs):
+    global _last_time
     if blocking:
         G.gui.redraw_blocking()
+        G.gui.app.processEvents()
     else:
-        G.gui.redraw()
+        t = time()
+        if t-_last_time > 0.02:
+            G.gui.app.processEvents()
+            G.gui.redraw()
+            _last_time = t
+
 
 
 
