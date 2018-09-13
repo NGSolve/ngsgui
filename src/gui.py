@@ -195,14 +195,15 @@ It can be used to manipulate any behaviour of the interface.
         if self._have_console:
             self.console = NGSJupyterWidget(gui=self,multikernel_manager = self.multikernel_manager)
             self.console.exit_requested.connect(self.app.quit)
-        if self.pipeOutput:
+        if self._have_console or self.pipeOutput:
             self.output_tabber = glwindow.WindowTabber(commonContext=self._commonContext,
                                                    parent=window_splitter)
-            if self._have_console:
-                self.output_tabber.addTab(self.console,"Console")
+        if self.pipeOutput:
             self.outputBuffer = OutputBuffer()
             self.output_tabber.addTab(self.outputBuffer, "Output")
             self.output_tabber.setCurrentIndex(1)
+        if self._have_console:
+            self.output_tabber.addTab(self.console,"Console")
         settings = QtCore.QSettings()
         if settings.value("sysmon/active", "false") == "true":
             from .systemmonitor import SystemMonitor
