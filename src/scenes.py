@@ -435,7 +435,7 @@ class MeshScene(BaseMeshScene):
             polygon_mode = GL_LINE
             uniforms.set('light_ambient', 0.0)
             uniforms.set('light_diffuse', 0.0)
-            offset = 0
+            offset = -2
         else:
             offset_mode = GL_POLYGON_OFFSET_FILL
             polygon_mode = GL_FILL
