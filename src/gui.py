@@ -314,7 +314,7 @@ another Redraw after a time loop may be needed to see the final solutions."""
             from .code_editor.baseEditor import BaseEditor
             editTab = BaseEditor(filename=filename, gui=self)
         elif editorType == "emacs":
-            from .code_editor.emacs_editor import EmacsEditor
+            from .code_editor.emacs import EmacsEditor
             editTab = EmacsEditor(filename, self)
             self.window_tabber.addTab(editTab, filename)
         elif editorType == "default":
