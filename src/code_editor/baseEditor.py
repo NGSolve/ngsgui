@@ -18,7 +18,10 @@ class BaseEditor:
         if self.gui._dontCatchExceptions:
             raise e
 
-    def run(self, code, reset_locals, *args, **kwargs):
+    def run(self, code=None, reset_locals=True, *args, **kwargs):
+        if code is None:
+            with open(self.filename,"r") as f:
+                code = f.read()
         if reset_locals:
             self._exec_locals = { "__name__" : "__main__" }
         def _run():
@@ -32,14 +35,14 @@ class BaseEditor:
                     tb = tbc
                     tbc = tb.tb_next
                 self.show_exception(e,tb.tb_frame.f_lineno)
-            self.active_thread = None
+            self._active_thread = None
             self.gui.console.pushVariables(self._exec_locals)
-        if self.active_thread:
+        if self._active_thread:
             self.msgbox = QtWidgets.QMessageBox(text="Already running, please stop the other computation before starting a new one!")
             self.msgbox.setWindowTitle("Multiple computations error")
             self.msgbox.show()
             return
-        self.active_thread = inthread(_run)
+        self._active_thread = inthread(_run)
 
     def isGLWindow(self):
         return False

@@ -38,7 +38,9 @@ from ngsgui.gui import gui
                                  "Do not pipe the std output to the output window in the gui"),
               "-help" : (_showHelp, "Show this help function"),
               "-dontCatchExceptions" : (lambda gui, val: setattr(gui, "_dontCatchExceptions", val),
-                                        "Do not catch exceptions up to user input, but show internal gui traceback")}
+                                        "Do not catch exceptions up to user input, but show internal gui traceback"),
+              "-noEditor" : (lambda gui, val: setattr(gui,"_noEditor", not val),
+                             "Do not open a code editor")}
     sceneCreators = {}
     file_loaders = {}
     def __init__(self, flags):
@@ -233,7 +235,7 @@ exist a load function for the file extension type registered in GUI.file_loaders
         for tab,name in tabs:
             if isinstance(tab, glwindow.WindowTab):
                 tab.create(self._commonContext)
-            if isinstance(tab, code_editor.texteditor.CodeEditor):
+            if isinstance(tab, code_editor.baseEditor.BaseEditor):
                 tab.gui = self
             self.window_tabber.addTab(tab, name)
         for setting in settings:
@@ -309,17 +311,18 @@ another Redraw after a time loop may be needed to see the final solutions."""
     def loadPythonFile(self, filename):
         """Load a Python file and execute it if gui.executeFileOnStartup is True"""
         settings = QtCore.QSettings()
-        import ngsgui.code_editor.texteditor as texteditor
         editorType = settings.value("editor/type", "default")
-        if editorType == "emacs":
-            import ngsgui.code_editor.emacs as emacs_editor
-            editTab = emacs_editor.EmacsEditor(filename, self)
+        if editorType ==  "none" or not self._noEditor:
+            from .code_editor.baseEditor import BaseEditor
+            editTab = BaseEditor(filename=filename, gui=self)
+        elif editorType == "emacs":
+            from .code_editor.emacs_editor import EmacsEditor
+            editTab = EmacsEditor(filename, self)
             self.window_tabber.addTab(editTab, filename)
         elif editorType == "default":
-            editTab = texteditor.CodeEditor(filename=filename,gui=self,parent=self.window_tabber)
+            from .code_editor.texteditor import CodeEditor
+            editTab = CodeEditor(filename=filename,gui=self,parent=self.window_tabber)
             self.window_tabber.addTab(editTab, filename)
-        elif not editorType:
-            editTab = NoEditor(filename=filename, gui=self)
         if self.executeFileOnStartup:
             editTab.computation_started_at = 0
             editTab.run()

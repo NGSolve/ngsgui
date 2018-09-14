@@ -52,7 +52,6 @@ class EmacsEditor(QtWidgets.QWidget, BaseEditor):
         self.setWindowTitle("emacs")
         self.buttonArea = PythonFileButtonArea(code_editor=self, parent=self, search_button=False)
         self.buttonArea.setFixedHeight(35)
-        self.active_thread = None
         self._server = MyEPCServer(self)
         gui.app.aboutToQuit.connect(self._server.shutdown)
         self._emacs_window = QtGui.QWindow()

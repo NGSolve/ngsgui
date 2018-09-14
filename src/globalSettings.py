@@ -8,7 +8,7 @@ class BaseSettings(QtWidgets.QWidget):
     def __init__(self, *args, **kwargs):
         super().__init__(*args,**kwargs)
         self._editorCB = QtWidgets.QComboBox()
-        self._editorCB.addItems(["default","emacs"])
+        self._editorCB.addItems(["default","emacs","none"])
         settings = QtCore.QSettings()
         self._editorCB.setCurrentText(settings.value("editor/type", "default"))
         self._editorCB.currentTextChanged.connect(self._checkValidSelection)

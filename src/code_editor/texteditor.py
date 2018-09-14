@@ -49,7 +49,6 @@ class CodeEditor(QtWidgets.QPlainTextEdit, BaseEditor):
         self.comment_action.triggered.connect(_comment)
         self.comment_action.setShortcut(QtGui.QKeySequence("Ctrl+d"))
         self.addAction(self.comment_action)
-        self.active_thread = None
 
     def search(self):
         TextFinder(self).show()

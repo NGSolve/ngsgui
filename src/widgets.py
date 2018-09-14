@@ -8,6 +8,19 @@ from .thread import inmain_decorator
 import sys, re, math
 
 class ObjectHolder():
+    """Utility class to be used in situations like these:
+for i in range(5):
+  btn = Button("btnname")
+  cb = CheckBox("cbname")
+  cb.stateChanged.connect(lambda val: btn.clicked.emit())
+  btns.append(btn)
+  cbs.append(cb)
+This would lead to all checkboxes being connected to the last button,
+since the lambda sould only store a reference to the btn object of the function
+which changes.
+This can be circumvented by using
+cb.stateChanged.connect(ObjectHolder(btn,btn.clicked.emit))
+"""
     def __init__(self, obj, call_func):
         self.obj = obj
         self.call_func = call_func
@@ -25,9 +38,11 @@ def Arrange(layout_type, *args):
     return layout
 
 def ArrangeV(*args):
+    """Creates vertically arrange layout of input widgets/layouts"""
     return Arrange(QtWidgets.QVBoxLayout, *args)
 
 def ArrangeH(*args):
+    """Creates horizontally arrange layout of input widgets/layouts"""
     return Arrange(QtWidgets.QHBoxLayout, *args)
 
 def CheckBox(name, *slots, checked=False):
@@ -59,11 +74,9 @@ def DoubleSpinBox(*slots, step=1, name=None):
         return box
 
 class RangeGroup(QtWidgets.QWidget):
-    valueChanged = QtCore.Signal(float) # TODO: this shouldn't be static
+    valueChanged = QtCore.Signal(float)
     def __init__(self, name, min=-1, max=1, value=0, direction=Qt.Horizontal):
         super(RangeGroup, self).__init__()
-        # self.valueChanged.connect(onValueChanged)
-
         self.scalingFactor = 1000 # scaling between integer widgets (scrollslider) and float values to get more resoltion
         self.scroll = QtWidgets.QScrollBar(direction)
         self.scroll.setFocusPolicy(Qt.StrongFocus)
@@ -422,7 +435,8 @@ shortcut: str = None
         self.layout().addWidget(btn)
 
 def addShortcut(widget, name, key, func):
-    """Helper function to create shortcuts"""
+    """Helper function to create shortcuts and register them in QSettings, so that
+user can change them."""
     settings = QtCore.QSettings()
     action = QtWidgets.QAction(name)
     action.triggered.connect(func)
