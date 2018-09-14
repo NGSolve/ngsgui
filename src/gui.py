@@ -127,7 +127,6 @@ state and being able to reload it without a graphical interface."""
         menu_splitter.addWidget(toolbox_splitter)
         toolbox_splitter.setOrientation(QtCore.Qt.Horizontal)
         self.settings_toolbox = SettingsToolBox(parent=toolbox_splitter)
-        toolbox_splitter.addWidget(self.settings_toolbox)
         window_splitter = QtWidgets.QSplitter(parent=toolbox_splitter)
         toolbox_splitter.addWidget(window_splitter)
         window_splitter.setOrientation(QtCore.Qt.Vertical)
@@ -135,29 +134,28 @@ state and being able to reload it without a graphical interface."""
                                                    parent=window_splitter)
         self.window_tabber._fastmode = self._fastmode
         window_splitter.addWidget(self.window_tabber)
+        if self._have_console or self.pipeOutput:
+            self.output_tabber = glwindow.WindowTabber(commonContext=self._commonContext,
+                                                   parent=window_splitter)
         if self._have_console:
             from .console import MultiQtKernelManager, NGSJupyterWidget
             self.multikernel_manager = MultiQtKernelManager()
             self.console = NGSJupyterWidget(gui=self,multikernel_manager = self.multikernel_manager)
             self.console.exit_requested.connect(self.app.quit)
-        if self._have_console or self.pipeOutput:
-            self.output_tabber = glwindow.WindowTabber(commonContext=self._commonContext,
-                                                   parent=window_splitter)
+            self.output_tabber.addTab(self.console,"Console")
         if self.pipeOutput:
             self.outputBuffer = OutputBuffer()
             self.output_tabber.addTab(self.outputBuffer, "Output")
             self.output_tabber.setCurrentIndex(1)
-        if self._have_console:
-            self.output_tabber.addTab(self.console,"Console")
         settings = QtCore.QSettings()
         if settings.value("sysmon/active", "false") == "true":
             from .systemmonitor import SystemMonitor
             self._SysMonitor = SystemMonitor()
-            sysmon_splitter = QtWidgets.QSplitter()
+            sysmon_splitter = QtWidgets.QSplitter(parent=window_splitter)
+            sysmon_splitter.setOrientation(QtCore.Qt.Vertical)
             if self.pipeOutput or self._have_console:
                 sysmon_splitter.addWidget(self.output_tabber)
             sysmon_splitter.addWidget(self._SysMonitor)
-            sysmon_splitter.setOrientation(QtCore.Qt.Vertical)
             sysmon_splitter.setSizes([10000,2000])
             window_splitter.addWidget(sysmon_splitter)
         else:
@@ -337,10 +335,7 @@ another Redraw after a time loop may be needed to see the final solutions."""
         if self.pipeOutput:
             self.outputBuffer.start()
         if settings.value("sysmon/active", "false") == "true":
-            self._cpuTimer = QtCore.QTimer()
-            self._cpuTimer.setInterval(1000)
-            self._cpuTimer.timeout.connect(self._SysMonitor.update)
-            self._cpuTimer.start()
+            self._SysMonitor.start()
         do_after_run()
         for f in self._loadFiles:
             self._tryLoadFile(f)

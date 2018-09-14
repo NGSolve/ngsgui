@@ -597,6 +597,7 @@ class WindowTabber(QtWidgets.QTabWidget):
         self._activeGLWindow = None
         self.tabCloseRequested.connect(self._remove_tab)
         self._fastmode = False
+        self.setTabBarAutoHide(True)
 
     ##
     #  The default movable functionality of QTabWidget must remain disabled

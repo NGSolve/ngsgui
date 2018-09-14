@@ -35,6 +35,12 @@ class SystemMonitor(QtWidgets.QWidget):
         self.setLayout(wid.ArrangeH(QtWidgets.QLabel("CPU:"),self.cpu_label,canvas,
                                     QtWidgets.QLabel("Memory:"), self.mem_label, canvasMem))
 
+    def start(self):
+        self._cpuTimer = QtCore.QTimer()
+        self._cpuTimer.setInterval(1000)
+        self._cpuTimer.timeout.connect(self.update)
+        self._cpuTimer.start()
+
     def update(self):
         cpuPercent = psutil.cpu_percent()
         mem = psutil.virtual_memory()
