@@ -1,12 +1,10 @@
 
 import os
 os.environ['QT_API'] = 'pyside2'
-TEST_CREATION = os.getenv("TEST_CREATION")
 
 from . import glwindow, code_editor
 from . widgets import ArrangeV
 from .thread import inmain_decorator
-from .menu import MenuBarWithDict
 from .globalSettings import SettingDialog
 from .stdPipes import OutputBuffer
 
@@ -14,61 +12,33 @@ import ngsolve
 
 from PySide2 import QtWidgets, QtCore, QtGui
 
-
-class SettingsToolBox(QtWidgets.QToolBox):
-    """Global Toolbox on the left hand side, independent of windows. This ToolBox can be used by plugins to
-to create Settings which are global to all windows.
-"""
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.settings = []
-
-    @inmain_decorator(wait_for_return=False)
-    def addSettings(self, sett):
-        self.settings.append(sett)
-        widget = QtWidgets.QWidget()
-        widget.setLayout(ArrangeV(*sett.widgets.groups))
-        widget.layout().setAlignment(QtCore.Qt.AlignTop)
-        self.addItem(widget, sett.name)
-        self.setCurrentIndex(len(self.settings)-1)
-        if self.parent():
-            self.parent().setSizes([20000,80000])
-
-
-def _noexec(gui, val):
-    gui.executeFileOnStartup = not val
-def _fastmode(gui,val):
-    gui._fastmode = val
-def _noOutputpipe(gui,val):
-    gui.pipeOutput = not val
-def _noConsole(gui,val):
-    gui._have_console = not val
-
 def _showHelp(gui, val):
     import textwrap
     if val:
         print("Available flags:")
         for flag, tup in gui.flags.items():
-            print(flag)
-            print(textwrap.indent(tup[1],"  "))
+            print(textwrap.indent(flag,"  "))
+            print(textwrap.indent(tup[1],"    "))
+        print("Loadable file extensions: (" + ",".join(gui.file_loaders.keys()) + ")")
         quit()
 
-def _dontCatchExceptions(gui, val):
-    gui._dontCatchExceptions = val
-
 class GUI():
-    """Graphical user interface for NGSolve. This object is created when ngsolve is started and the ngsgui.gui.gui object is set to it. You can import it with:
+    """Graphical user interface for NGSolve. This object is created when ngsolve is started and
+the ngsgui.gui.gui object is set to it. You can import it and manipulate it on the fly with:
 from ngsgui.gui import gui
-It can be used to manipulate any behaviour of the interface.
 """
     # functions to modify the gui with flags. If the flag is not set, the function is called with False as argument
-    flags = { "-noexec" : (_noexec, "Do not execute loaded Python file on startup"),
-              "-fastmode" : (_fastmode, "Use fastmode for drawing large scenes faster"),
-              "-noConsole" : (_noConsole, "No console"),
-              "-noOutputpipe" : (_noOutputpipe, "Do not pipe the std output to the output window in the gui"),
+    flags = { "-noexec" : (lambda gui, val: setattr(gui, "executeFileOnStartup", not val),
+                           "Do not execute loaded Python file on startup"),
+              "-fastmode" : (lambda gui, val: setattr(gui, "_fastmode", val),
+                             "Use fastmode for drawing large scenes faster"),
+              "-noConsole" : (lambda gui, val: setattr(gui, "_have_console", not val),
+                              "No console"),
+              "-noOutputpipe" : (lambda gui, val: setattr(gui, "pipeOutput", not val),
+                                 "Do not pipe the std output to the output window in the gui"),
               "-help" : (_showHelp, "Show this help function"),
-              "-dontCatchExceptions" : (_dontCatchExceptions, "Do not catch exceptions up to user input, but show internal gui traceback")}
-    # use a list of tuples instead of a dict to be able to sort it
+              "-dontCatchExceptions" : (lambda gui, val: setattr(gui, "_dontCatchExceptions", val),
+                                        "Do not catch exceptions up to user input, but show internal gui traceback")}
     sceneCreators = {}
     file_loaders = {}
     def __init__(self, flags):
@@ -78,31 +48,27 @@ It can be used to manipulate any behaviour of the interface.
         self.app.setOrganizationName("NGSolve")
         self.app.setApplicationName("NGSolve")
         self._parseFlags(flags)
-        if self._have_console:
-            from .console import MultiQtKernelManager
-            self.multikernel_manager = MultiQtKernelManager()
         self._createMenu()
         self._createLayout()
         self.mainWidget.setWindowTitle("NGSolve")
         self._crawlPlugins()
-        # set shader include files
-        import ngsgui.shader
-        from . import gl
-        import glob
-        for shaderpath in ngsgui.shader.locations:
-            for incfile in glob.glob(os.path.join(shaderpath, '*.inc')):
-                gl.Shader.includes[os.path.basename(incfile)] = open(incfile,'r').read()
+        from .gl import Shader
+        Shader.preloadShaderIncludes()
         self._procs = []
         self.app.aboutToQuit.connect(self._killProcs)
 
     def _killProcs(self):
+        """If external processes are spawned somewhere register them in self._procs to be killed when
+the gui is closed"""
         for proc in self._procs:
             proc.kill()
             proc.waitForFinished()
 
     def _createMenu(self):
+        """Creates menu bar. It can afterwards be modified by plugins"""
+        from .menu import MenuBarWithDict
         self.menuBar = MenuBarWithDict()
-        filemenu = self.menuBar.addMenu("&File")
+        filemenu = self.menuBar["&File"]
         saveSolution = filemenu["&Save"].addAction("&Solution")
         loadSolution = filemenu["&Load"].addAction("&Solution")
         loadSolution.triggered.connect(self.loadSolution)
@@ -117,40 +83,14 @@ It can be used to manipulate any behaviour of the interface.
         newWindowAction = self.menuBar["&Create"].addAction("New &Window")
         newWindowAction.triggered.connect(lambda :self.window_tabber.make_window())
         settings = self.menuBar["&Settings"].addAction("&Settings")
-        def showSettings():
-            self.settings = SettingDialog()
-            self.settings.show()
-        settings.triggered.connect(showSettings)
-        if TEST_CREATION:
-            from .settings import BaseSettings
-            save_test =  filemenu["&Save"].addAction("&Test")
-            def saveTest():
-                import pickle
-                filename, filt = QtWidgets.QFileDialog.getSaveFileName(caption="Save Test",
-                                                                       filter = "Test files (*.test)")
-                if not filename.endswith(".test"):
-                    filename += ".test"
-                save_getstate = BaseSettings.__getstate__
-                BaseSettings.__getstate__ = lambda self: ({key : par.getValue() for key, par in self._par_name_dict.items() if hasattr(par, "getValue")},)
-                tabs = []
-                for i in range(self.window_tabber.count()):
-                    if self.window_tabber.widget(i).isGLWindow():
-                        tabs.append(((self.window_tabber.widget(i).glWidget.scenes,
-                                      self.window_tabber.widget(i)._rendering_parameters),
-                                     self.window_tabber.tabBar().tabText(i)))
-                with open(filename, "wb") as f:
-                    pickle.dump(tabs,f)
-                BaseSettings.__getstate__ = save_getstate
-            save_test.triggered.connect(saveTest)
-            load_test = filemenu["&Load"].addAction("&Test")
-            def loadTest():
-                filename, filt = getOpenFileName(caption="Load Test",
-                                                 filter = "Test files (*.test)")
-                if filename:
-                    self._loadTest(filename)
-            load_test.triggered.connect(loadTest)
+        settings.triggered.connect(lambda : setattr(self, "settings", SettingDialog()) or self.settings.show())
+        if os.getenv("NGSGUI_TEST_CREATION"):
+            self._addTestMenu()
 
     def _loadTest(self, filename):
+        """Load a .test file, these files are created using the save test menu item, that is available if the
+environment variable NGSGUI_TEST_CREATION is set. It uses some monkeypatching to pickle the gui
+state and being able to reload it without a graphical interface."""
         import pickle
         from .settings import BaseSettings
         from .glwindow import WindowTab
@@ -175,7 +115,8 @@ It can be used to manipulate any behaviour of the interface.
         return self.window_tabber.activeGLWindow.glWidget.scenes
 
     def _createLayout(self):
-        from .console import NGSJupyterWidget
+        """Creates the main layout of the gui"""
+        from .globalSettings import SettingsToolBox
         self.mainWidget = QtWidgets.QWidget()
         menu_splitter = QtWidgets.QSplitter(parent=self.mainWidget)
         menu_splitter.setOrientation(QtCore.Qt.Vertical)
@@ -193,6 +134,8 @@ It can be used to manipulate any behaviour of the interface.
         self.window_tabber._fastmode = self._fastmode
         window_splitter.addWidget(self.window_tabber)
         if self._have_console:
+            from .console import MultiQtKernelManager, NGSJupyterWidget
+            self.multikernel_manager = MultiQtKernelManager()
             self.console = NGSJupyterWidget(gui=self,multikernel_manager = self.multikernel_manager)
             self.console.exit_requested.connect(self.app.quit)
         if self._have_console or self.pipeOutput:
@@ -222,49 +165,18 @@ It can be used to manipulate any behaviour of the interface.
         toolbox_splitter.setSizes([0, 85000])
         window_splitter.setSizes([70000, 30000])
         self.mainWidget.setLayout(ArrangeV(menu_splitter))
-
-
-        def switchTabWindow(direction):
-            self.window_tabber.setCurrentIndex((self.window_tabber.currentIndex() + direction)%self.window_tabber.count())
-
-        def addShortcut(name, key, func):
-            action = QtWidgets.QAction(name)
-            action.triggered.connect(func)
-            action.setShortcut(QtGui.QKeySequence(key))
-            self.mainWidget.addAction(action)
-            # why do we need to keep this reference?
-            if not hasattr(self.mainWidget,'_actions'):
-                self.mainWidget._actions = []
-            self.mainWidget._actions.append(action)
-
-        def focusEditor():
-            from ngsgui.code_editor.baseEditor import BaseEditor
-            for i in range(self.window_tabber.count()):
-                if isinstance(self.window_tabber.widget(i), BaseEditor):
-                    self.window_tabber.setCurrentIndex(i)
-                    self.window_tabber.widget(i).setFocus()
-                    return
-
-        if self._have_console:
-            # global shortkeys:
-            def activateConsole():
-                self.output_tabber.setCurrentWidget(self.console)
-                self.console._control.setFocus()
-            addShortcut("Activate Console", "Ctrl+j", activateConsole)
-
-        addShortcut("Quit", "Ctrl+q", lambda: self.app.quit())
-        addShortcut("Close Tab", "Ctrl+w", lambda: self.window_tabber._remove_tab(self.window_tabber.currentIndex()))
-        addShortcut("Next Tab", "Ctrl+LeftArrow", lambda: switchTabWindow(-1))
-        addShortcut("Previous Tab", "Ctrl+RightArrow", lambda: switchTabWindow(1))
-        addShortcut("Editor", "Ctrl+e", focusEditor)
+        self._addShortcuts()
 
     def _crawlPlugins(self):
+        """Crawls registered plugins, plugins can be added by using the entry point ngsgui.plugin"""
         import pkg_resources
         for entry_point in pkg_resources.iter_entry_points(group="ngsgui.plugin",name=None):
             plugin = entry_point.load()
             plugin(self)
 
     def _tryLoadFile(self, filename):
+        """Tries to load the given file, if the file doesn't exist it does nothing. There must
+exist a load function for the file extension type registered in GUI.file_loaders"""
         if os.path.isfile(filename):
             name, ext = os.path.splitext(filename)
             if not ext in GUI.file_loaders:
@@ -273,6 +185,7 @@ It can be used to manipulate any behaviour of the interface.
             GUI.file_loaders[ext](self, filename)
 
     def _parseFlags(self, flags):
+        """Parses command line arguments and calls functions registered in GUI.flags"""
         self._loadFiles = []
         for val in flags:
             if os.path.isfile(val):
@@ -311,6 +224,7 @@ It can be used to manipulate any behaviour of the interface.
             pickle.dump((tabs,settings, currentIndex), f)
 
     def _loadSolutionFile(self, filename):
+        """Loads a .ngs solutions file, which contains a pickled gui state"""
         import pickle
         if not filename[-4:] == ".ngs":
             filename += ".ngs"
@@ -334,17 +248,21 @@ It can be used to manipulate any behaviour of the interface.
         self._loadSolutionFile(filename)
 
     def draw(self, *args, **kwargs):
-        """Draw an object in the active GLWindow. The objects class must have a registered function/constructor (in GUI.sceneCreators) to create a scene from. Scenes, Meshes, (most) CoefficientFunctions, (most) GridFunctions and geometries can be drawn by default."""
+        """Draw an object in the active GLWindow. The objects class must have a registered
+ function/constructor (in GUI.sceneCreators) to create a scene from. Scenes,
+ Meshes, (most) CoefficientFunctions, (most) GridFunctions and geometries can
+ be drawn by default."""
         self.window_tabber.draw(*args,**kwargs)
 
     @inmain_decorator(wait_for_return=False)
     def redraw(self):
-        """Redraw non-blocking. This can create problems in the visualization if objects are drawn to fast after each other"""
+        """Redraw non-blocking. Redraw signals with a framerate higher than 50 fps are discarded, so
+another Redraw after a time loop may be needed to see the final solutions."""
         self.window_tabber.activeGLWindow.glWidget.updateScenes()
 
     @inmain_decorator(wait_for_return=True)
     def redraw_blocking(self):
-        """Draw blocking, this is the save option, but a bit slower than non-blocking redraw"""
+        """Draw blocking, no Redraw signals are discarded but it is a lot slower than non blocking"""
         self.window_tabber.activeGLWindow.glWidget.updateScenes()
 
     @inmain_decorator(wait_for_return=True)
@@ -430,8 +348,66 @@ It can be used to manipulate any behaviour of the interface.
         if run_event_loop:
             sys.exit(self.app.exec_())
 
+    def _addShortcuts(self):
+        """Adds shortcuts to the main widget"""
+        from .widgets import addShortcut
+        def switchTabWindow(direction):
+            self.window_tabber.setCurrentIndex((self.window_tabber.currentIndex() + direction)
+                                               %self.window_tabber.count())
+        def focusEditor():
+            from ngsgui.code_editor.baseEditor import BaseEditor
+            for i in range(self.window_tabber.count()):
+                if isinstance(self.window_tabber.widget(i), BaseEditor):
+                    self.window_tabber.setCurrentIndex(i)
+                    self.window_tabber.widget(i).setFocus()
+                    return
+        if self._have_console:
+            def activateConsole():
+                self.output_tabber.setCurrentWidget(self.console)
+                self.console._control.setFocus()
+            addShortcut(self.mainWidget, "Gui-Activate Console", "Ctrl+j", activateConsole)
+        addShortcut(self.mainWidget, "Gui-Quit", "Ctrl+q", lambda: self.app.quit())
+        addShortcut(self.mainWidget, "Gui-Close Tab", "Ctrl+w",
+                    lambda: self.window_tabber._remove_tab(self.window_tabber.currentIndex()))
+        addShortcut(self.mainWidget, "Gui-Next Tab", "Ctrl+LeftArrow", lambda: switchTabWindow(-1))
+        addShortcut(self.mainWidget, "Gui-Previous Tab", "Ctrl+RightArrow", lambda: switchTabWindow(1))
+        addShortcut(self.mainWidget, "Gui-Go to Editor", "Ctrl+e", focusEditor)
+
+
+    def _addTestMenu(self):
+        """Adds menu options to create tests"""
+        from .settings import BaseSettings
+        save_test =  filemenu["&Save"].addAction("&Test")
+        def saveTest():
+            import pickle
+            filename, filt = QtWidgets.QFileDialog.getSaveFileName(caption="Save Test",
+                                                                   filter = "Test files (*.test)")
+            if not filename.endswith(".test"):
+                filename += ".test"
+            save_getstate = BaseSettings.__getstate__
+            BaseSettings.__getstate__ = lambda self: ({key : par.getValue() for key, par in self._par_name_dict.items() if hasattr(par, "getValue")},)
+            tabs = []
+            for i in range(self.window_tabber.count()):
+                if self.window_tabber.widget(i).isGLWindow():
+                    tabs.append(((self.window_tabber.widget(i).glWidget.scenes,
+                                  self.window_tabber.widget(i)._rendering_parameters),
+                                 self.window_tabber.tabBar().tabText(i)))
+            with open(filename, "wb") as f:
+                pickle.dump(tabs,f)
+            BaseSettings.__getstate__ = save_getstate
+        save_test.triggered.connect(saveTest)
+        load_test = filemenu["&Load"].addAction("&Test")
+        def loadTest():
+            filename, filt = getOpenFileName(caption="Load Test",
+                                             filter = "Test files (*.test)")
+            if filename:
+                self._loadTest(filename)
+        load_test.triggered.connect(loadTest)
+
+
 class DummyObject:
-    """If code is not executed using ngsolve, then this dummy object allows to use the same code with a netgen or python3 call as well"""
+    """If code is not executed using ngsolve, then this dummy object allows to use the same code
+with a netgen or python3 call as well"""
     def __init__(self,*arg,**kwargs):
         pass
     def __getattr__(self,name):
@@ -446,7 +422,6 @@ class DummyObject:
 
 GUI.file_loaders[".py"] = GUI.loadPythonFile
 GUI.file_loaders[".ngs"] = GUI._loadSolutionFile
-GUI.file_loaders[".test"] = GUI._loadTest
 def _loadSTL(gui, filename):
     import netgen.stl as stl
     print("create stl geometry")
@@ -474,4 +449,7 @@ GUI.file_loaders[".stl"] = _loadSTL
 GUI.file_loaders[".step"] = _loadOCC
 GUI.file_loaders[".geo"] = _loadGeo
 GUI.file_loaders[".in2d"] = _loadin2d
+if os.getenv("NGSGUI_TEST_CREATION"):
+    GUI.file_loaders[".test"] = GUI._loadTest
+
 gui = DummyObject()

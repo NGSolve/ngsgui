@@ -1,6 +1,7 @@
 
 from PySide2 import QtWidgets, QtCore
 from .widgets import ArrangeH, ArrangeV
+from .thread import inmain_decorator
 
 
 class BaseSettings(QtWidgets.QWidget):
@@ -85,3 +86,22 @@ class SettingDialog(QtWidgets.QDialog):
         self._baseSettings._save()
         self._shortcutSettings._save()
         self.close()
+
+class SettingsToolBox(QtWidgets.QToolBox):
+    """Global Toolbox on the left hand side, independent of windows. This ToolBox can be used by plugins to
+to create Settings which are global to all windows.
+"""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.settings = []
+
+    @inmain_decorator(wait_for_return=False)
+    def addSettings(self, sett):
+        self.settings.append(sett)
+        widget = QtWidgets.QWidget()
+        widget.setLayout(ArrangeV(*sett.widgets.groups))
+        widget.layout().setAlignment(QtCore.Qt.AlignTop)
+        self.addItem(widget, sett.name)
+        self.setCurrentIndex(len(self.settings)-1)
+        if self.parent():
+            self.parent().setSizes([20000,80000])

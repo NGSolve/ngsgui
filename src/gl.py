@@ -85,6 +85,14 @@ class Shader(GLObject):
 
     includes = {}
 
+    @staticmethod
+    def preloadShaderIncludes():
+        import glob, os
+        from . import shader
+        for shaderpath in shader.locations:
+            for incfile in glob.glob(os.path.join(shaderpath, '*.inc')):
+                Shader.includes[os.path.basename(incfile)] = open(incfile,'r').read()
+
     def __init__(self, code=None, filename=None, shader_type=None, **replacements):
 
         if code == None:
