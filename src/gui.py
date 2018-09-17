@@ -116,6 +116,9 @@ state and being able to reload it without a graphical interface."""
         """Get the list of the scenes of the currently active GLWindow"""
         return self.window_tabber.activeGLWindow.glWidget.scenes
 
+    def getCurrentGLWindow(self):
+        return self.window_tabber.activeGLWindow
+
     def _createLayout(self):
         """Creates the main layout of the gui"""
         from .globalSettings import SettingsToolBox
@@ -146,7 +149,7 @@ state and being able to reload it without a graphical interface."""
         if self.pipeOutput:
             self.outputBuffer = OutputBuffer()
             self.output_tabber.addTab(self.outputBuffer, "Output")
-            self.output_tabber.setCurrentIndex(1)
+            self.output_tabber.setCurrentWidget(self.outputBuffer)
         settings = QtCore.QSettings()
         if settings.value("sysmon/active", "false") == "true":
             from .systemmonitor import SystemMonitor
@@ -162,7 +165,6 @@ state and being able to reload it without a graphical interface."""
             if self.pipeOutput or self._have_console:
                 window_splitter.addWidget(self.output_tabber)
         menu_splitter.setSizes([100, 10000])
-        toolbox_splitter.setSizes([0, 85000])
         window_splitter.setSizes([70000, 30000])
         self.mainWidget.setLayout(ArrangeV(menu_splitter))
         self._addShortcuts()

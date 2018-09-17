@@ -59,6 +59,22 @@ class SceneToolBox(QtWidgets.QToolBox):
             self.setItemIcon(self.scenes.index(scene), icon)
         scene.activeChanged.connect(setIcon)
 
+    @inmain_decorator(True)
+    def removeSceneAt(self, index):
+        """Remove scene by index"""
+        #hack because removing all items and then readding some leads to segfault in qt...
+        widgets = [(self.itemText(i), self.itemIcon(i), self.widget(i)) for i in range(index+1, self.count())]
+        if index == 0 and self.count() > 1:
+            print("Cannot remove first item of toolbox while other items are still inside... This is due to bug https://bugreports.qt.io/browse/QTBUG-50406 in Qt... Let's wait till this is fixed. You can hide the first scene by right clicking on it.")
+            return
+        # circumvent bug in qt that deletes 2 items when deleting an inner one...
+        for i in reversed(range(index, self.count())):
+            self.removeItem(index)
+        del self.scenes[index]
+        for text, icon, widget in widgets:
+            self.addItem(widget, icon, text)
+        self.window().glWidget.updateGL()
+
     def mousePressEvent(self, event):
         if event.buttons() == QtCore.Qt.RightButton:
             event.accept()
@@ -85,14 +101,7 @@ class SceneToolBox(QtWidgets.QToolBox):
                     index = i//2
                 i += 1
             if index is not None:
-                # circumvent bug in qt that deletes 2 items when deleting an inner one...
-                widgets = [(self.itemText(i), self.itemIcon(i), self.widget(i)) for i in range(index+1, self.count())]
-                for i in range(index, self.count()):
-                    self.removeItem(index)
-                del self.scenes[index]
-                for text, icon, widget in widgets:
-                    self.addItem(widget, icon, text)
-                self.window().glWidget.updateGL()
+                self.removeSceneAt(index)
             return
         super().mousePressEvent(event)
 
@@ -359,6 +368,13 @@ class WindowTab(QtWidgets.QWidget):
         self.glWidget.addScene(scene)
         self.toolbox.addScene(scene)
 
+    @inmain_decorator(True)
+    def remove(self, scene):
+        """Remove scene from window"""
+        print("call remove")
+        self.glWidget.makeCurrent()
+        # scene.window = None
+        self.toolbox.removeSceneAt(self.glWidget.scenes.index(scene))
 
 class GLWidget(QtOpenGL.QGLWidget):
     redraw_signal = QtCore.Signal()
