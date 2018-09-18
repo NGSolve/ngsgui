@@ -368,10 +368,12 @@ class MeshScene(BaseMeshScene):
 
 
     def _render1DElements(self, settings, elements):
-        if elements.curved:
-            prog = getProgram('mesh.vert', 'mesh.tese', 'mesh.frag', elements=elements, params=settings)
+        use_deformation = self.getDeformation()
+        use_tessellation = elements.curved or use_deformation
+        if use_tessellation:
+            prog = getProgram('mesh.vert', 'mesh.tese', 'mesh.frag', elements=elements, params=settings, DEFORMATION=use_deformation)
         else:
-            prog = getProgram('mesh.vert', 'mesh.frag', elements=elements, params=settings)
+            prog = getProgram('mesh.vert', 'mesh.frag', elements=elements, params=settings, DEFORMATION=False)
         uniforms = prog.uniforms
 
         glActiveTexture(GL_TEXTURE3)
@@ -383,7 +385,6 @@ class MeshScene(BaseMeshScene):
         uniforms.set('mesh.dim', 1);
         uniforms.set('light_ambient', 1.0)
         uniforms.set('light_diffuse', 0.0)
-        uniforms.set('TessLevel', self.getGeomSubdivision())
         uniforms.set('wireframe', True)
         tess_level = 10
         if settings.fastmode and len(elements.data)//elements.size>10**5:
@@ -824,7 +825,7 @@ class SolutionScene(BaseMeshScene):
             settings.colormap_max = self.values[vb]['max'][comp]
 
         use_tessellation = use_deformation or elements.curved
-        options = dict(ORDER=self.getOrder(), DEFORMATION=use_deformation)
+        options = dict(ORDER=self.getOrder(), DEFORMATION=use_deformation, NOLIGHT=True)
 
         shader = ['mesh.vert', 'solution.frag']
         if use_tessellation:
@@ -875,8 +876,8 @@ class SolutionScene(BaseMeshScene):
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         if use_tessellation:
             glPatchParameteri(GL_PATCH_VERTICES, nverts)
-            glPatchParameterfv(GL_PATCH_DEFAULT_OUTER_LEVEL, [tess_level]*4)
-            glPatchParameterfv(GL_PATCH_DEFAULT_INNER_LEVEL, [tess_level]*2)
+            glPatchParameterfv(GL_PATCH_DEFAULT_OUTER_LEVEL, [1,tess_level,1,1])
+            glPatchParameterfv(GL_PATCH_DEFAULT_INNER_LEVEL, [1,1])
             glDrawArrays(GL_PATCHES, 0, nverts*nelements)
         else:
             glDrawArrays(GL_LINES, 0, nverts*nelements)

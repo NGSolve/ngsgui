@@ -10,7 +10,7 @@ float EvaluateElementInternal(samplerBuffer coefficients, vec3 lam, int first, i
   for (int i=0; i<=1; i++) {
     f[i] = getValue(coefficients, first+i)[component];
   }
-  return f[1] + x*(f[0] - f[1]);
+  return f[0] + x*(-f[0] + f[1]);
 }
 #endif
 #endif
@@ -26,7 +26,7 @@ vec3 EvaluateElementInternalVec(samplerBuffer coefficients, vec3 lam, int first,
   for (int i=0; i<=1; i++) {
     f[i] = getValue(coefficients, first+i).xyz;
   }
-  return f[1] + x*(f[0] - f[1]);
+  return f[0] + x*(-f[0] + f[1]);
 }
 #endif
 #endif
@@ -42,7 +42,7 @@ float EvaluateElementInternal(samplerBuffer coefficients, vec3 lam, int first, i
   for (int i=0; i<=2; i++) {
     f[i] = getValue(coefficients, first+i)[component];
   }
-  return f[2] + x*(-f[0] + 4*f[1] - 3*f[2] + x*(2*f[0] - 4*f[1] + 2*f[2]));
+  return f[0] + x*(-3*f[0] + 4*f[1] - f[2] + x*(2*f[0] - 4*f[1] + 2*f[2]));
 }
 #endif
 #endif
@@ -58,7 +58,7 @@ vec3 EvaluateElementInternalVec(samplerBuffer coefficients, vec3 lam, int first,
   for (int i=0; i<=2; i++) {
     f[i] = getValue(coefficients, first+i).xyz;
   }
-  return f[2] + x*(-f[0] + 4*f[1] - 3*f[2] + x*(2*f[0] - 4*f[1] + 2*f[2]));
+  return f[0] + x*(-3*f[0] + 4*f[1] - f[2] + x*(2*f[0] - 4*f[1] + 2*f[2]));
 }
 #endif
 #endif
@@ -74,7 +74,7 @@ float EvaluateElementInternal(samplerBuffer coefficients, vec3 lam, int first, i
   for (int i=0; i<=3; i++) {
     f[i] = getValue(coefficients, first+i)[component];
   }
-  return f[3] + x*(f[0] - 9.0/2.0*f[1] + 9*f[2] - 11.0/2.0*f[3] + x*(-9.0/2.0*f[0] + 18*f[1] - 45.0/2.0*f[2] + 9*f[3] + x*((9.0/2.0)*f[0] - 27.0/2.0*f[1] + (27.0/2.0)*f[2] - 9.0/2.0*f[3])));
+  return f[0] + x*(-11.0/2.0*f[0] + 9*f[1] - 9.0/2.0*f[2] + f[3] + x*(9*f[0] - 45.0/2.0*f[1] + 18*f[2] - 9.0/2.0*f[3] + x*(-9.0/2.0*f[0] + (27.0/2.0)*f[1] - 27.0/2.0*f[2] + (9.0/2.0)*f[3])));
 }
 #endif
 #endif
@@ -90,7 +90,7 @@ vec3 EvaluateElementInternalVec(samplerBuffer coefficients, vec3 lam, int first,
   for (int i=0; i<=3; i++) {
     f[i] = getValue(coefficients, first+i).xyz;
   }
-  return f[3] + x*(f[0] - 9.0/2.0*f[1] + 9*f[2] - 11.0/2.0*f[3] + x*(-9.0/2.0*f[0] + 18*f[1] - 45.0/2.0*f[2] + 9*f[3] + x*((9.0/2.0)*f[0] - 27.0/2.0*f[1] + (27.0/2.0)*f[2] - 9.0/2.0*f[3])));
+  return f[0] + x*(-11.0/2.0*f[0] + 9*f[1] - 9.0/2.0*f[2] + f[3] + x*(9*f[0] - 45.0/2.0*f[1] + 18*f[2] - 9.0/2.0*f[3] + x*(-9.0/2.0*f[0] + (27.0/2.0)*f[1] - 27.0/2.0*f[2] + (9.0/2.0)*f[3])));
 }
 #endif
 #endif

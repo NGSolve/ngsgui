@@ -16,7 +16,7 @@ def getReferenceRules(order, sd):
   res = {}
   n2 = n*(n+1)//2
   n3 = n*(n+1)*(n+2)//6
-  res[ngs.ET.SEGM] = [ (S(1)-i*h,S(0),S(0)) for i in range(n) ]
+  res[ngs.ET.SEGM] = [ (    i*h,S(0),S(0)) for i in range(n) ]
   res[ngs.ET.TRIG] = [ (    i*h,j*h,S(0)) for j in range(n) for i in range(n-j) ]
   res[ngs.ET.QUAD] = [ (    i*h,j*h,S(0)) for j in range(n) for i in range(n) ]
   res[ngs.ET.TET]  = [ (    i*h,j*h,k*h) for k in range(n) for j in range(n-k) for i in range(n-k-j) ]
