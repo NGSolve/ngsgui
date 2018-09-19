@@ -86,6 +86,13 @@ the gui is closed"""
         newWindowAction.triggered.connect(lambda :self.window_tabber.make_window())
         settings = self.menuBar["&Settings"].addAction("&Settings")
         settings.triggered.connect(lambda : setattr(self, "settings", SettingDialog()) or self.settings.show())
+        if self._have_console:
+            mem_profiler = self.menuBar["&Tools"].addAction("&Show Memory Profile")
+            def showMemProfile():
+                from .systemmonitor import MemoryUsageProfiler
+                self._memUsage = MemoryUsageProfiler(self.console)
+                self.window_tabber.addTab(self._memUsage, "Memory Profiler")
+            mem_profiler.triggered.connect(showMemProfile)
         if os.getenv("NGSGUI_TEST_CREATION"):
             self._addTestMenu()
 
