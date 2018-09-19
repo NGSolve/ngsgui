@@ -15,8 +15,6 @@ class BaseEditor:
         self.msgbox = QtWidgets.QMessageBox(text = type(e).__name__ + ": " + str(e))
         self.msgbox.setWindowTitle("Exception caught!")
         self.msgbox.show()
-        if self.gui._dontCatchExceptions:
-            raise e
 
     def run(self, code=None, reset_locals=True, *args, **kwargs):
         if code is None:
@@ -25,9 +23,11 @@ class BaseEditor:
         if reset_locals:
             self._exec_locals = { "__name__" : "__main__" }
         def _run():
+            e = None
             try:
                 exec(code,self._exec_locals)
-            except Exception as e:
+            except Exception as ex:
+                e = ex
                 import sys
                 count_frames = 0
                 tbc = sys.exc_info()[2]
@@ -38,6 +38,8 @@ class BaseEditor:
             self._active_thread = None
             if self.gui._have_console:
                 self.gui.console.pushVariables(self._exec_locals)
+            if self.gui._dontCatchExceptions and e:
+                raise e
         if self._active_thread:
             self.msgbox = QtWidgets.QMessageBox(text="Already running, please stop the other computation before starting a new one!")
             self.msgbox.setWindowTitle("Multiple computations error")
