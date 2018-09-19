@@ -47,6 +47,7 @@ void main()
       if(is_complex) {
           float value_imag;
           value = EvaluateElement(inData.element, coefficients, ORDER, subdivision, lam, component);
+          value_imag = EvaluateElement(inData.element, coefficients_imag, ORDER, subdivision, lam, component);
           float r = value*complex_factor.x - value_imag*complex_factor.y;
           value_imag = value*complex_factor.y + value_imag*complex_factor.x;
           value = r;
