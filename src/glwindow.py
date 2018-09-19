@@ -840,10 +840,10 @@ class WindowTabber(QtWidgets.QTabWidget):
             if self.activeGLWindow == self.widget(index):
                 self.activeGLWindow = None
                 for i in range(self.count()):
-                    if isinstance(self.widget(self.count()-i-1), WindowTab):
+                    if instance(self.widget(self.count()-i-1), WindowTab):
                         self.activeGLWindow = self.widget(self.count()-i-1)
                         break
-            self.removeTab(index)
+        self.removeTab(index)
 
     def draw(self, *args, tab=None, **kwargs):
         if tab is not None:
