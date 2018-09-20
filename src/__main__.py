@@ -1,15 +1,10 @@
 #!/usr/bin/python3
-
 # -*- coding: utf-8 -*-
-import ngsgui.gui as G
-import ngsolve as ngs
-import netgen.meshing
-from time import time
-
 
 def Draw(obj, *args, tab=None, **kwargs):
     """Draw a Mesh or a CoefficientFunction, this function is overridden by
     the new gui and returns the drawn scene."""
+    import ngsgui.gui as G
     for t in type(obj).__mro__:
         if t in G.GUI.sceneCreators:
             scene = G.GUI.sceneCreators[t](obj,*args,**kwargs)
@@ -22,6 +17,8 @@ def Draw(obj, *args, tab=None, **kwargs):
 
 _last_time = 0
 def Redraw(blocking=False,**kwargs):
+    from time import time
+    import ngsgui.gui as G
     global _last_time
     if blocking:
         G.gui.redraw_blocking()
@@ -33,14 +30,13 @@ def Redraw(blocking=False,**kwargs):
             G.gui.redraw()
             _last_time = t
 
-
-
-
 def main():
     import sys
+    import ngsolve as ngs
+    import ngsgui.gui as G
     ngs.Draw = Draw
     ngs.Redraw = Redraw
-    G.gui = G.GUI(sys.argv[1:])
+    G.gui = G.GUI()
     G.gui._run()
 
 if __name__ == "__main__":

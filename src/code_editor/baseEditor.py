@@ -36,9 +36,9 @@ class BaseEditor:
                     tbc = tb.tb_next
                 self.show_exception(e,tb.tb_frame.f_lineno)
             self._active_thread = None
-            if self.gui._have_console:
+            if not self.gui._flags.noConsole:
                 self.gui.console.pushVariables(self._exec_locals)
-            if self.gui._dontCatchExceptions and e:
+            if self.gui._flags.dontCatchExceptions and e:
                 raise e
         if self._active_thread:
             self.msgbox = QtWidgets.QMessageBox(text="Already running, please stop the other computation before starting a new one!")

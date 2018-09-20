@@ -27,29 +27,15 @@ class GUI():
 the ngsgui.gui.gui object is set to it. You can import it and manipulate it on the fly with:
 from ngsgui.gui import gui
 """
-    # functions to modify the gui with flags. If the flag is not set, the function is called with False as argument
-    flags = { "-noexec" : (lambda gui, val: setattr(gui, "executeFileOnStartup", not val),
-                           "Do not execute loaded Python file on startup"),
-              "-fastmode" : (lambda gui, val: setattr(gui, "_fastmode", val),
-                             "Use fastmode for drawing large scenes faster"),
-              "-noConsole" : (lambda gui, val: setattr(gui, "_have_console", not val),
-                              "No console"),
-              "-noOutputpipe" : (lambda gui, val: setattr(gui, "pipeOutput", not val),
-                                 "Do not pipe the std output to the output window in the gui"),
-              "-help" : (_showHelp, "Show this help function"),
-              "-dontCatchExceptions" : (lambda gui, val: setattr(gui, "_dontCatchExceptions", val),
-                                        "Do not catch exceptions up to user input, but show internal gui traceback"),
-              "-noEditor" : (lambda gui, val: setattr(gui,"_noEditor", not val),
-                             "Do not open a code editor")}
     sceneCreators = {}
     file_loaders = {}
-    def __init__(self, flags):
+    def __init__(self):
+        self._parseFlags()
         self.app = QtWidgets.QApplication([])
         ngsolve.solve._SetLocale()
         self._commonContext = glwindow.GLWidget()
         self.app.setOrganizationName("NGSolve")
         self.app.setApplicationName("NGSolve")
-        self._parseFlags(flags)
         self._createMenu()
         self._createLayout()
         self.mainWidget.setWindowTitle("NGSolve")
@@ -86,7 +72,7 @@ the gui is closed"""
         newWindowAction.triggered.connect(lambda :self.window_tabber.make_window())
         settings = self.menuBar["&Settings"].addAction("&Settings")
         settings.triggered.connect(lambda : setattr(self, "settings", SettingDialog()) or self.settings.show())
-        if self._have_console:
+        if not self._flags.noConsole:
             mem_profiler = self.menuBar["&Tools"].addAction("&Show Memory Profile")
             def showMemProfile():
                 from .systemmonitor import MemoryUsageProfiler
@@ -142,18 +128,18 @@ state and being able to reload it without a graphical interface."""
         window_splitter.setOrientation(QtCore.Qt.Vertical)
         self.window_tabber = glwindow.WindowTabber(commonContext = self._commonContext,
                                                    parent=window_splitter)
-        self.window_tabber._fastmode = self._fastmode
+        self.window_tabber._fastmode = self._flags.fastmode
         window_splitter.addWidget(self.window_tabber)
-        if self._have_console or self.pipeOutput:
+        if not (self._flags.noConsole and self._flags.noOutputpipe):
             self.output_tabber = glwindow.WindowTabber(commonContext=self._commonContext,
                                                    parent=window_splitter)
-        if self._have_console:
+        if not self._flags.noConsole:
             from .console import MultiQtKernelManager, NGSJupyterWidget
             self.multikernel_manager = MultiQtKernelManager()
             self.console = NGSJupyterWidget(gui=self,multikernel_manager = self.multikernel_manager)
             self.console.exit_requested.connect(self.app.quit)
             self.output_tabber.addTab(self.console,"Console")
-        if self.pipeOutput:
+        if not self._flags.noOutputpipe:
             self.outputBuffer = OutputBuffer()
             self.output_tabber.addTab(self.outputBuffer, "Output")
             self.output_tabber.setCurrentWidget(self.outputBuffer)
@@ -193,24 +179,25 @@ exist a load function for the file extension type registered in GUI.file_loaders
                 return
             GUI.file_loaders[ext](self, filename)
 
-    def _parseFlags(self, flags):
+    def _parseFlags(self):
         """Parses command line arguments and calls functions registered in GUI.flags"""
-        self._loadFiles = []
-        for val in flags:
-            if os.path.isfile(val):
-                self._loadFiles.append(val)
-                flags.remove(val)
-        flag = {val.split("=")[0] : (val.split("=")[1] if len(val.split("="))>1 else True) for val in flags}
-        for key, tup in self.flags.items():
-            if key in flag:
-                tup[0](self,flag[key])
-            else:
-                tup[0](self, False)
-        for flag in flags:
-            flg = flag.split("=")[0]
-            if flg not in self.flags:
-                print("Don't know flag: ", flg)
-                _showHelp(self,True)
+        import argparse
+        parser = argparse.ArgumentParser()
+        parser.add_argument("file",type=str,nargs="?",
+                            help="load file, readable file types: py,ngs,stl,step,geo,in2d,vol.gz,vol")
+        parser.add_argument("-nex","--noexec", action="store_true",
+                            help="don't execute file on startup only load it into editor")
+        parser.add_argument("-fm","--fastmode", action="store_false",
+                            help="Activate fastmode, some large scenes are drawn less accurate but faster")
+        parser.add_argument("-nc","--noConsole", action="store_true",
+                            help="Start without jupyter console")
+        parser.add_argument("-no", "--noOutputpipe", action="store_true",
+                            help="Don't pipe output to buffer in gui")
+        parser.add_argument("-dc","--dontCatchExceptions", action="store_true",
+                            help="Don't catch exceptions up to user input, but show internal gui traceback")
+        parser.add_argument("-ne", "--noEditor", action="store_false",
+                            help="Don't open the code editor")
+        self._flags = parser.parse_args()
 
     def showMessageBox(self, title, text):
         self._msgbox = QtWidgets.QMessageBox(text=text)
@@ -319,7 +306,7 @@ another Redraw after a time loop may be needed to see the final solutions."""
         """Load a Python file and execute it if gui.executeFileOnStartup is True"""
         settings = QtCore.QSettings()
         editorType = settings.value("editor/type", "default")
-        if editorType ==  "none" or not self._noEditor:
+        if editorType ==  "none" or not self._flags.noEditor:
             from .code_editor.baseEditor import BaseEditor
             editTab = BaseEditor(filename=filename, gui=self)
         elif editorType == "emacs":
@@ -330,7 +317,7 @@ another Redraw after a time loop may be needed to see the final solutions."""
             from .code_editor.texteditor import CodeEditor
             editTab = CodeEditor(filename=filename,gui=self,parent=self.window_tabber)
             self.window_tabber.addTab(editTab, filename)
-        if self.executeFileOnStartup:
+        if not self._flags.noexec:
             editTab.computation_started_at = 0
             editTab.run()
 
@@ -338,18 +325,18 @@ another Redraw after a time loop may be needed to see the final solutions."""
         import sys, inspect
         self.mainWidget.show()
         globs = inspect.stack()[1][0].f_globals
-        if self._have_console:
+        if not self._flags.noConsole:
             self.console.pushVariables(globs)
         settings = QtCore.QSettings()
-        if self.pipeOutput:
+        if not self._flags.noOutputpipe:
             self.outputBuffer.start()
         if settings.value("sysmon/active", "false") == "true":
             self._SysMonitor.start()
         do_after_run()
-        for f in self._loadFiles:
-            self._tryLoadFile(f)
+        if self._flags.file:
+            self._tryLoadFile(self._flags.file)
         def onQuit():
-            if self.pipeOutput:
+            if not self._flags.noOutputpipe:
                 self.outputBuffer.onQuit()
         self.app.aboutToQuit.connect(onQuit)
         if run_event_loop:
@@ -368,7 +355,7 @@ another Redraw after a time loop may be needed to see the final solutions."""
                     self.window_tabber.setCurrentIndex(i)
                     self.window_tabber.widget(i).setFocus()
                     return
-        if self._have_console:
+        if not self._flags.noConsole:
             def activateConsole():
                 self.output_tabber.setCurrentWidget(self.console)
                 self.console._control.setFocus()
