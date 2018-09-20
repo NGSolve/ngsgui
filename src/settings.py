@@ -414,8 +414,8 @@ class BaseSettings(QtCore.QObject):
     _have_qt = True
     def __init__(self):
         super().__init__()
-        self._createParameters()
         if BaseSettings._have_qt:
+            self._createParameters()
             self._createQtWidget()
 
     def __getstate__(self):
