@@ -942,6 +942,8 @@ class SolutionScene(BaseMeshScene):
                 tess_level=1
 
             glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
+            glPolygonOffset (1, 1)
+            glEnable(GL_POLYGON_OFFSET_FILL)
             if use_tessellation:
                 glPatchParameteri(GL_PATCH_VERTICES, elements.nverts)
                 glPatchParameterfv(GL_PATCH_DEFAULT_OUTER_LEVEL, [tess_level]*4)
@@ -949,6 +951,7 @@ class SolutionScene(BaseMeshScene):
                 glDrawArrays(GL_PATCHES, 0, elements.nverts*len(elements.data)//elements.size)
             else:
                 glDrawArrays(GL_TRIANGLES, 0, 3*len(elements.data)//elements.size)
+            glDisable(GL_POLYGON_OFFSET_FILL)
 
     def _renderIsoSurface(self, settings, elements):
         self._filterElements(settings, elements, 1)
