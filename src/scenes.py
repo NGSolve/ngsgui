@@ -436,11 +436,11 @@ class MeshScene(BaseMeshScene):
             polygon_mode = GL_LINE
             uniforms.set('light_ambient', 0.0)
             uniforms.set('light_diffuse', 0.0)
-            offset = -2
+            offset = 0
         else:
             offset_mode = GL_POLYGON_OFFSET_FILL
             polygon_mode = GL_FILL
-            offset = 2
+            offset = 1
 
         tess_level = 10
         if settings.fastmode and len(elements.data)//elements.size>10**5:
