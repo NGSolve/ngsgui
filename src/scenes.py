@@ -53,6 +53,7 @@ name : str = type(self).__name__ + scene_counter
         self._active_action = None
         self.name = state[1]
         super().__setstate__(state[0])
+        self.activeChanged.connect(lambda val: self._updateGL())
         self.active = state[2]
         # TODO: can we pickle actions somehow?
 
