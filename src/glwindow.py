@@ -797,7 +797,6 @@ class WindowTabber(QtWidgets.QTabWidget):
         #  Determine if the drag has entered a tab position from another tab position
         def dragEnterEvent(self, event):
             if event.mimeData().hasFormat("scene"):
-                scene = self.parent().draw(pickle.loads(event.mimeData().data("scene").data()))
                 event.accept()
                 return
             mimeData = event.mimeData()

@@ -9,6 +9,14 @@ class BaseEditor:
         self._exec_locals = { "__name__" : "__main__" }
         self._active_thread = None
 
+    def __getstate__(self):
+        return (self.filename,)
+
+    def __setstate__(self, state):
+        self._exec_locals = { "__name__" : "__main__" }
+        self._active_thread = None
+        self.filename = state[0]
+
     @inmain_decorator(True)
     def show_exception(self, e, lineno):
         self.gui.window_tabber.setCurrentWidget(self)

@@ -49,17 +49,30 @@ class EmacsEditor(QtWidgets.QWidget, BaseEditor):
     def __init__(self, filename=None, gui=None, *args, **kwargs):
         QtWidgets.QWidget.__init__(self, *args, **kwargs)
         BaseEditor.__init__(self, filename, gui)
+        self._create()
+
+    def _create(self):
         self.setWindowTitle("emacs")
         self.buttonArea = PythonFileButtonArea(code_editor=self, parent=self, search_button=False)
         self.buttonArea.setFixedHeight(35)
         self._server = MyEPCServer(self)
-        gui.app.aboutToQuit.connect(self._server.shutdown)
+        self.gui.app.aboutToQuit.connect(self._server.shutdown)
         self._emacs_window = QtGui.QWindow()
         self._emacs_widget = QtWidgets.QWidget.createWindowContainer(self._emacs_window)
         self.proc = EmacsProcess(self._emacs_window)
-        self.proc.start(self._emacs_window.winId(), filename, self._server.server_address[1])
-        gui._procs.append(self.proc)
+        self.proc.start(self._emacs_window.winId(), self.filename, self._server.server_address[1])
+        self.gui._procs.append(self.proc)
         self.setLayout(ArrangeV(self.buttonArea, self._emacs_widget))
+
+    def __getstate__(self):
+        return (BaseEditor.__getstate__(self),)
+
+    def __setstate__(self,state):
+        QtWidgets.QWidget.__init__(self)
+        BaseEditor.__setstate__(self,state[0])
+        from ngsgui.gui import gui
+        self.gui = gui
+        self._create()
 
     def _resize_emacs(self):
         while not self._server.clients:

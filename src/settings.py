@@ -414,19 +414,21 @@ class BaseSettings(QtCore.QObject):
     _have_qt = True
     def __init__(self):
         super().__init__()
+        self._createParameters()
         if BaseSettings._have_qt:
-            self._createParameters()
             self._createQtWidget()
 
     def __getstate__(self):
         return (self._parameters,)
 
     def __setstate__(self, state):
+        super().__init__()
         self._parameters = {}
         self._par_name_dict = {}
-        for group in state[0]:
-            self.addParameters(group,*state[0][group])
-        self._createQtWidget()
+        for group, items in state[0].items():
+            self.addParameters(group,*items)
+        if self._have_qt:
+            self._createQtWidget()
 
     def _createParameters(self):
         self._parameters = {}
@@ -463,23 +465,3 @@ class BaseSettings(QtCore.QObject):
         for par in parameters:
             self._parameters[group].append(par)
             self._attachParameter(par)
-
-    def addButton(self, group, name, function, update_on_change=False, label = None,*args,**kwargs):
-        if not group in self._widgets:
-            self._widgets[group] = {}
-        if not label:
-            label = name
-        def doAction(self, redraw=True):
-            function(*args, **kwargs)
-            if update_on_change:
-                self.update()
-            if redraw:
-                self.widgets.updateGLSignal.emit()
-
-        cls = type(self)
-
-        if not hasattr(cls, name):
-            setattr(cls, name, doAction)
-
-        w = wid.Button(label, getattr(self, name))
-        self._widgets[group][name] = w

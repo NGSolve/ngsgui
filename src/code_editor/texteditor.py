@@ -54,11 +54,12 @@ class CodeEditor(QtWidgets.QPlainTextEdit, BaseEditor):
         TextFinder(self).show()
 
     def __getstate__(self):
-        return (self.text,)
+        return (super().__getstate__(),self.text)
 
     def __setstate__(self,state):
         self.__init__()
-        self.text = state[0]
+        super().__setstate__(state[0])
+        self.text = state[1]
 
     @property
     @inmain_decorator(wait_for_return=True)

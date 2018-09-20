@@ -52,8 +52,8 @@ name : str = type(self).__name__ + scene_counter
         self._actions = {}
         self._active_action = None
         self.name = state[1]
-        self.active = state[2]
         super().__setstate__(state[0])
+        self.active = state[2]
         # TODO: can we pickle actions somehow?
 
     def initGL(self):

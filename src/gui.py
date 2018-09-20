@@ -12,16 +12,6 @@ import ngsolve
 
 from PySide2 import QtWidgets, QtCore, QtGui
 
-def _showHelp(gui, val):
-    import textwrap
-    if val:
-        print("Available flags:")
-        for flag, tup in gui.flags.items():
-            print(textwrap.indent(flag,"  "))
-            print(textwrap.indent(tup[1],"    "))
-        print("Loadable file extensions: (" + ",".join(gui.file_loaders.keys()) + ")")
-        quit()
-
 class GUI():
     """Graphical user interface for NGSolve. This object is created when ngsolve is started and
 the ngsgui.gui.gui object is set to it. You can import it and manipulate it on the fly with:
@@ -86,24 +76,16 @@ the gui is closed"""
         """Load a .test file, these files are created using the save test menu item, that is available if the
 environment variable NGSGUI_TEST_CREATION is set. It uses some monkeypatching to pickle the gui
 state and being able to reload it without a graphical interface."""
+        import ngsolve
         import pickle
-        from .settings import BaseSettings
         from .glwindow import WindowTab
-        save_setstate = BaseSettings.__setstate__
-        def newSetstate(scene, state):
-            BaseSettings.__init__(scene)
-            for key, value in state[0].items():
-                scene.__getattribute__("set" + key)(value)
-        BaseSettings.__setstate__ = newSetstate
         with open(filename, "rb") as f:
             tabs = pickle.load(f)
-        for (scenes, parameters), name in tabs:
+        for scenes, parameters, name in tabs:
             tab = WindowTab(rendering_parameters=parameters)
             tab._startup_scenes = scenes
             tab.create(self._commonContext)
             self.window_tabber.addTab(tab, name)
-        BaseSettings.__setstate__ = save_setstate
-
 
     def getScenesFromCurrentWindow(self):
         """Get the list of the scenes of the currently active GLWindow"""
@@ -372,29 +354,29 @@ another Redraw after a time loop may be needed to see the final solutions."""
     def _addTestMenu(self):
         """Adds menu options to create tests"""
         from .settings import BaseSettings
-        save_test =  filemenu["&Save"].addAction("&Test")
+        save_test =  self.menuBar["&File"]["&Save"].addAction("&Test")
         def saveTest():
             import pickle
             filename, filt = QtWidgets.QFileDialog.getSaveFileName(caption="Save Test",
                                                                    filter = "Test files (*.test)")
             if not filename.endswith(".test"):
                 filename += ".test"
-            save_getstate = BaseSettings.__getstate__
-            BaseSettings.__getstate__ = lambda self: ({key : par.getValue() for key, par in self._par_name_dict.items() if hasattr(par, "getValue")},)
+            # save_getstate = BaseSettings.__getstate__
+            # BaseSettings.__getstate__ = lambda self: ({key : par.getValue() for key, par in self._par_name_dict.items() if hasattr(par, "getValue")},)
             tabs = []
             for i in range(self.window_tabber.count()):
                 if self.window_tabber.widget(i).isGLWindow():
-                    tabs.append(((self.window_tabber.widget(i).glWidget.scenes,
-                                  self.window_tabber.widget(i)._rendering_parameters),
+                    tabs.append((self.window_tabber.widget(i).glWidget.scenes,
+                                 self.window_tabber.widget(i).glWidget._rendering_parameters,
                                  self.window_tabber.tabBar().tabText(i)))
             with open(filename, "wb") as f:
                 pickle.dump(tabs,f)
-            BaseSettings.__getstate__ = save_getstate
+            # BaseSettings.__getstate__ = save_getstate
         save_test.triggered.connect(saveTest)
-        load_test = filemenu["&Load"].addAction("&Test")
+        load_test = self.menuBar["&File"]["&Load"].addAction("&Test")
         def loadTest():
-            filename, filt = getOpenFileName(caption="Load Test",
-                                             filter = "Test files (*.test)")
+            filename, filt = QtWidgets.QFileDialog.getOpenFileName(caption="Load Test",
+                                                                   filter = "Test files (*.test)")
             if filename:
                 self._loadTest(filename)
         load_test.triggered.connect(loadTest)
