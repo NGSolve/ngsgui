@@ -147,15 +147,16 @@ state and being able to reload it without a graphical interface."""
         if settings.value("sysmon/active", "false") == "true":
             from .systemmonitor import SystemMonitor
             self._SysMonitor = SystemMonitor()
+            self._SysMonitor.setFixedHeight(30)
             sysmon_splitter = QtWidgets.QSplitter(parent=window_splitter)
             sysmon_splitter.setOrientation(QtCore.Qt.Vertical)
-            if self.pipeOutput or self._have_console:
+            if not (self._flags.noOutputpipe and self._flags.noConsole):
                 sysmon_splitter.addWidget(self.output_tabber)
             sysmon_splitter.addWidget(self._SysMonitor)
             sysmon_splitter.setSizes([10000,2000])
             window_splitter.addWidget(sysmon_splitter)
         else:
-            if self.pipeOutput or self._have_console:
+            if not (self._flags.noOutputpipe and self._flags.noConsole):
                 window_splitter.addWidget(self.output_tabber)
         menu_splitter.setSizes([100, 10000])
         window_splitter.setSizes([70000, 30000])
