@@ -11,21 +11,24 @@ import ngsolve as ngs
 
 class Parameter(QtCore.QObject):
     changed = QtCore.Signal(object)
+    _have_qt = True
     def __init__(self, name=None, label=None, label_above=False, **kwargs):
         super().__init__()
         self.name = name
         self.label = label
         self._label_above = label_above
         self.__options = kwargs if kwargs else {}
-        self._createWithLabel()
+        if self._have_qt:
+            self._createWithLabel()
 
     def _attachTo(self, obj):
         if self.name:
             obj._par_name_dict[self.name] = self
 
     def setVisible(self, val):
-        self._widget._visible = val
-        self._widget.setVisible(val)
+        if self._have_qt:
+            self._widget._visible = val
+            self._widget.setVisible(val)
 
     def _createWithLabel(self):
         if self.label:
@@ -414,8 +417,8 @@ class BaseSettings(QtCore.QObject):
     _have_qt = True
     def __init__(self):
         super().__init__()
+        self._createParameters()
         if BaseSettings._have_qt:
-            self._createParameters()
             self._createQtWidget()
 
     def __getstate__(self):

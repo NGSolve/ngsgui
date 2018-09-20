@@ -5,8 +5,9 @@ import numpy as np
 import OpenGL.GL as GL
 import OpenGL.EGL as EGL
 
-from ngsgui.settings import BaseSettings
+from ngsgui.settings import Parameter, BaseSettings
 BaseSettings._have_qt = False
+Parameter._have_qt = False
 import ngsgui, glob
 import ngsgui.gl as gl
 for shaderpath in ngsgui.shader.locations:
@@ -60,6 +61,9 @@ class HeadlessGUI:
     def check_image(self, name):
         import PIL.Image as im
         data = GL.glReadPixels(0, 0, self.width, self.height, GL.GL_RGB, GL.GL_UNSIGNED_BYTE, outputType=None)
+        path = os.path.split('images/{}_out.png'.format(name))[0]
+        if not os.path.exists(path):
+            os.makedirs(path)
         out_name = 'images/{}_out.png'.format(name)
         ref_name = 'images/{}_ref.png'.format(name)
         diff_name = 'images/{}_diff.png'.format(name)

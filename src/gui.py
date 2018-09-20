@@ -79,6 +79,15 @@ state and being able to reload it without a graphical interface."""
         import ngsolve
         import pickle
         from .glwindow import WindowTab
+        from .settings import BaseSettings
+        print("LOAD TEST")
+        save_setstate = BaseSettings.__setstate__
+        def newSetstate(scene, state):
+            print("new setstate called")
+            BaseSettings.__init__(scene)
+            for key, value in state[0].items():
+                scene.__getattribute__("set" + key)(value)
+        BaseSettings.__setstate__ = newSetstate
         with open(filename, "rb") as f:
             tabs = pickle.load(f)
         for scenes, parameters, name in tabs:
@@ -86,6 +95,7 @@ state and being able to reload it without a graphical interface."""
             tab._startup_scenes = scenes
             tab.create(self._commonContext)
             self.window_tabber.addTab(tab, name)
+        BaseSettings.__setstate__ = save_setstate
 
     def getScenesFromCurrentWindow(self):
         """Get the list of the scenes of the currently active GLWindow"""
@@ -361,8 +371,8 @@ another Redraw after a time loop may be needed to see the final solutions."""
                                                                    filter = "Test files (*.test)")
             if not filename.endswith(".test"):
                 filename += ".test"
-            # save_getstate = BaseSettings.__getstate__
-            # BaseSettings.__getstate__ = lambda self: ({key : par.getValue() for key, par in self._par_name_dict.items() if hasattr(par, "getValue")},)
+            save_getstate = BaseSettings.__getstate__
+            BaseSettings.__getstate__ = lambda self: ({key : par.getValue() for key, par in self._par_name_dict.items() if hasattr(par, "getValue")},)
             tabs = []
             for i in range(self.window_tabber.count()):
                 if self.window_tabber.widget(i).isGLWindow():

@@ -26,7 +26,7 @@ cb.stateChanged.connect(ObjectHolder(btn,btn.clicked.emit))
         self.call_func = call_func
 
     def __call__(self, *args, **kwargs):
-        self.call_func(self,*args, **kwargs)
+        return self.call_func(self,*args, **kwargs)
 
 def Arrange(layout_type, *args):
     layout = layout_type()

@@ -1,11 +1,12 @@
 
 from headless import HeadlessGUI as Gui
 from ngsgui.settings import BaseSettings
+from ngsgui.widgets import ObjectHolder
 from ngsolve import *
 ngsglobals.msg_level = 0
 import OpenGL.GL as GL
 import glob
-
+from PySide2 import QtCore
 import pickle, os
 
 def runSceneTest(gui, name, scene, settings):
@@ -20,18 +21,18 @@ def runSceneTest(gui, name, scene, settings):
 def runFileTest(gui, filename):
     parameters = {}
     def newSetstate(self, state):
+        QtCore.QObject.__init__(self)
         parameters[self] = state[0]
-    def newgetattr(self, name):
-        funcname = name.replace("get","")
-        if funcname in parameters[self]:
-            return lambda: parameters[self][funcname]
-        raise AttributeError
     BaseSettings.__setstate__ = newSetstate
-    BaseSettings.__getattr__ = newgetattr
-    with open("automatic_tests/" + filename, "rb") as f:
+    with open(filename, "rb") as f:
         tabs = pickle.load(f)
-    for (scenes, settings), name in tabs:
+    def call_func(self):
+        return self.obj
+    for scenes, settings, name in tabs:
         for scene in scenes:
+            for par,val in parameters[scene].items():
+                holder = ObjectHolder(val, call_func)
+                setattr(scene,"get" + par, holder)
             runSceneTest(gui, filename.replace(".test",""), scene, settings)
 
 
