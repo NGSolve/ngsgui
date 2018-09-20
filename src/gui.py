@@ -83,7 +83,6 @@ state and being able to reload it without a graphical interface."""
         print("LOAD TEST")
         save_setstate = BaseSettings.__setstate__
         def newSetstate(scene, state):
-            print("new setstate called")
             BaseSettings.__init__(scene)
             for key, value in state[0].items():
                 scene.__getattribute__("set" + key)(value)

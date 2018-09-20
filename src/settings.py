@@ -149,12 +149,15 @@ class ColorParameter(Parameter):
 
     def _createWidget(self):
         self._colorWidget = wid.ColorPickerWidget(self._values, initial_color = self._default_value)
-        self._colorWidget.colors_changed.connect(lambda : self.changed.emit(None))
+        self._colorWidget.colors_changed.connect(lambda : self.changed.emit(self.getValue()))
         return self._colorWidget
 
     @inmain_decorator(True)
     def getValue(self):
         return [f() for c in self._colorWidget.getColors() for f in [c.red, c.green, c.blue, c.alpha] ]
+
+    def setValue(self, vals):
+        self._colorWidget.setColors(vals)
 
     def __getstate__(self):
         superstate = super().__getstate__()
@@ -164,9 +167,7 @@ class ColorParameter(Parameter):
         self._values = state[1]
         self._default_value = (0,0,255,255)
         super().__setstate__(state[0])
-        for i, (btn, cb) in enumerate(zip(self._colorWidget._colorbtns.values(), self._colorWidget._checkboxes)):
-            btn.setColor(QtGui.QColor(*(state[2][i*4:(i+1)*4])))
-            cb.setChecked(state[2][i*4+3])
+        self._colorWidget.setColors(state[2])
 
 class CheckboxParameter(Parameter):
     def __init__(self, *args, name, default_value=False, label=None, **kwargs):

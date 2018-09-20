@@ -323,13 +323,14 @@ class MeshScene(BaseMeshScene):
     @inmain_decorator(True)
     def _attachParameter(self, parameter):
         if parameter.name == "SurfaceColors":
-            parameter.changed.connect(lambda : self.tex_surf_colors.store(self.getSurfaceColors(),
+            # only update them after they are created
+            parameter.changed.connect(lambda : self.tex_surf_colors and self.tex_surf_colors.store(self.getSurfaceColors(),
                                                                           data_format=GL_UNSIGNED_BYTE))
         if parameter.name == "MaterialColors":
-            parameter.changed.connect(lambda : self.tex_vol_colors.store(self.getMaterialColors(),
+            parameter.changed.connect(lambda : self.tex_vol_colors and self.tex_vol_colors.store(self.getMaterialColors(),
                                                                          data_format=GL_UNSIGNED_BYTE))
         if parameter.name == "EdgeColors":
-            parameter.changed.connect(lambda : self.tex_edge_colors.store(self.getEdgeColors(),
+            parameter.changed.connect(lambda : self.tex_edge_colors and self.tex_edge_colors.store(self.getEdgeColors(),
                                                                           data_format=GL_UNSIGNED_BYTE))
         if parameter.name == "SaveMesh":
             def saveMesh(val):

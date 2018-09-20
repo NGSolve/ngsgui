@@ -361,6 +361,14 @@ class ColorPickerWidget(QtWidgets.QWidget):
         self.colors_changed.emit()
         
 
+    def setColors(self, colors):
+        old_state = self.blockSignals(True)
+        for i, (btn,cb) in enumerate(zip(self._colorbtns.values(), self._checkboxes)):
+            btn.setColor(QtGui.QColor(*colors[i*4:(i+1)*4]))
+            cb.setChecked(colors[i*4+3])
+        self.blockSignals(old_state)
+        self.colors_changed.emit()
+
     def getColors(self):
         return [QtGui.QColor(self._colorbtns[name]._color) for name in self.names]
 
