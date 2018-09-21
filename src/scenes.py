@@ -1021,7 +1021,6 @@ class SolutionScene(BaseMeshScene):
         glBeginTransformFeedback(GL_POINTS)
 
         el = self.getFieldLinesStartElement()
-        print(el)
         if el==-1:
             glDrawArrays(GL_POINTS, 0, self.mesh.ne)
         else:
@@ -1052,7 +1051,7 @@ class SolutionScene(BaseMeshScene):
             raise RuntimeError("invalid mode: "+str(mode))
 
         glEnable(GL_RASTERIZER_DISCARD)
-        prog = getProgram('pass_through.vert', 'fieldlines_filter.geom', feedback=['pos','val'], ORDER=self.getOrder(), params=settings, elements=elements, USE_GL_VERTEX_ID=True, FILTER_MODE=mode)
+        prog = getProgram('pass_through.vert', 'vectors_filter.geom', feedback=['pos','val'], ORDER=self.getOrder(), params=settings, elements=elements, USE_GL_VERTEX_ID=True, FILTER_MODE=mode)
         uniforms = prog.uniforms
 
         uniforms.set('grid_size', grid_size)
@@ -1073,7 +1072,7 @@ class SolutionScene(BaseMeshScene):
         glDisable(GL_RASTERIZER_DISCARD)
 
         # render actual vectors
-        prog = getProgram('vectors.vert', 'fieldlines_draw.geom', 'vectors.frag', elements=elements, ORDER=self.getOrder(), params=settings)
+        prog = getProgram('vectors.vert', 'vectors_draw.geom', 'vectors.frag', elements=elements, ORDER=self.getOrder(), params=settings)
         uniforms = prog.uniforms
         uniforms.set('grid_size', grid_size)
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
