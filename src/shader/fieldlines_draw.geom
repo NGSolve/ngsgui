@@ -48,27 +48,34 @@ void DrawQuad( float radius, vec3 start, vec3 end, vec3 v1, vec3 v2, vec3 v3, ve
 
 }
 
-void CalcNormals( vec3 vin, out vec3 n1, out vec3 n2 ) {
-    vec3 v = vin;
-    float maxval = max(max(v.x, v.y), v.z);
+void CalcNormals( vec3 v, vec3 v2, out vec3 n1, out vec3 n2, out vec3 n3, out vec3 n4) {
+    vec3 vabs = abs(v);
+    float maxval = max(max(vabs.x, vabs.y), vabs.z);
 
-    if(v.x == maxval)
+    if(vabs.x == maxval) {
         n1 = vec3(-v.y/v.x, 1, 0);
-    else if(v.y == maxval)
+        n3 = vec3(-v2.y/v2.x, 1, 0);
+    }
+    else if(vabs.y == maxval) {
         n1 = vec3(0,-v.z/v.y, 1);
-    else
+        n3 = vec3(0,-v2.z/v2.y, 1);
+    }
+    else {
         n1 = vec3(1,0,-v.x/v.z);
+        n3 = vec3(1,0,-v2.x/v2.z);
+    }
 
     n1 = normalize(n1);
+    n3 = normalize(n3);
     n2 = normalize(cross(v, n1));
+    n4 = normalize(cross(v2, n3));
 }
 
 void DrawPipe( float radius ) {
     int n = 8;
 
     vec3 v0,v1,v2,v3;
-    CalcNormals(inData[0].val2, v0, v1);
-    CalcNormals(inData[0].val, v2, v3);
+    CalcNormals(inData[0].val2, inData[0].val, v0, v1, v2, v3);
 
     vec3 v01 = normalize(v0+v1);
     vec3 v10 = normalize(v0-v1);
