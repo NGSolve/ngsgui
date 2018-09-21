@@ -1004,7 +1004,7 @@ class SolutionScene(BaseMeshScene):
         # use transform feedback to get position (and direction) of vectors on regular grid
 
         glEnable(GL_RASTERIZER_DISCARD)
-        prog = getProgram('pass_through.vert', 'fieldlines_filter.geom', feedback=['pos','val'], ORDER=self.getOrder(), params=settings, elements=elements, USE_GL_VERTEX_ID=True, FILTER_MODE='FIELDLINES')
+        prog = getProgram('pass_through.vert', 'fieldlines_filter.geom', feedback=['pos','val', 'val2'], ORDER=self.getOrder(), params=settings, elements=elements, USE_GL_VERTEX_ID=True, FILTER_MODE='FIELDLINES')
         uniforms = prog.uniforms
 
         uniforms.set('grid_size', self.getFieldLinesThickness())
@@ -1030,13 +1030,14 @@ class SolutionScene(BaseMeshScene):
         glDisable(GL_RASTERIZER_DISCARD)
 
         # render actual vectors
-        prog = getProgram('vectors.vert', 'fieldlines_draw.geom', 'vectors.frag', elements=elements, ORDER=self.getOrder(), params=settings)
+        prog = getProgram('fieldlines.vert', 'fieldlines_draw.geom', 'vectors.frag', elements=elements, ORDER=self.getOrder(), params=settings)
         uniforms = prog.uniforms
         uniforms.set('grid_size', self.getFieldLinesThickness())
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
 
-        prog.attributes.bind('pos', self.filter_buffer, stride=24, offset=0)
-        prog.attributes.bind('val', self.filter_buffer, stride=24, offset=12)
+        prog.attributes.bind('pos', self.filter_buffer, stride=36, offset=0)
+        prog.attributes.bind('val', self.filter_buffer, stride=36, offset=12)
+        prog.attributes.bind('val2', self.filter_buffer, stride=36, offset=24)
         glDrawTransformFeedback(GL_POINTS, filter_feedback)
 
 

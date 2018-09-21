@@ -85,6 +85,8 @@ void main() {
             lam.w = 1.0-lam.x-lam.y-lam.z;
         }
         vec3 v = h*normalize(EvaluateElementVec(element, coefficients, ORDER, subdivision, lam.xyz, component));
+        if(i==0) val = v;
+        val2 = val;
         val = v;
         EmitVertex();
         EndPrimitive();
