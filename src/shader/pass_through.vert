@@ -1,6 +1,5 @@
 #version 150
 
-uniform bool use_glvertex_id;
 #ifndef USE_GL_VERTEX_ID
 in int element;
 #endif

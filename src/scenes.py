@@ -586,6 +586,7 @@ class SolutionScene(BaseMeshScene):
                         "ShowIsoSurface" : False,
                         "ShowVolumeVectors" : False,
                         "ShowClippingPlaneVectors" : False,
+                        "ShowFieldLines" : False,
                         "ShowSurface" : True}
     @inmain_decorator(wait_for_return=True)
     def __init__(self, cf, mesh, name=None, min=0.0,max=1.0, autoscale=True, linear=False, clippingPlane=True,
@@ -661,6 +662,9 @@ class SolutionScene(BaseMeshScene):
         if self.cf.dim > 1:
             vol_grid_size = settings.ValueParameter(name="VolumeGridSize", label="grid size", default_value=0.5, min_value=1e-2, step=0.1)
             cp_grid_size = settings.ValueParameter(name="ClippingPlaneGridSize", label="grid size", default_value=0.5, min_value=1e-2, step=0.1)
+            fl_thickness = settings.ValueParameter(name="FieldLinesThickness", label="thickness", default_value=0.1, min_value=0.0, step=0.01)
+            fl_steps = settings.ValueParameter(name="FieldLinesSteps", label="steps", default_value=1, min_value=0, max_values=40)
+            fl_start_element = settings.ValueParameter(name="FieldLinesStartElement", label="start element", default_value=-1, min_value=-1, max_values=self.mesh.ne)
             self.addParameters("Show",
                                settings.ValueParameter(name="Component", label="Component",
                                                        default_value=0,
@@ -673,7 +677,11 @@ class SolutionScene(BaseMeshScene):
                                settings.CheckboxParameterCluster(name="ShowClippingPlaneVectors",
                                                           label="Vectors in &clipping plane",
                                                           default_value = self.__initial_values["ShowClippingPlaneVectors"],
-                                                             sub_parameters = [cp_grid_size], updateWidgets=True)
+                                                             sub_parameters = [cp_grid_size], updateWidgets=True),
+                               settings.CheckboxParameterCluster(name="ShowFieldLines",
+                                                          label="&Field lines",
+                                                          default_value = self.__initial_values["ShowFieldLines"],
+                                                             sub_parameters = [fl_thickness, fl_steps, fl_start_element], updateWidgets=True)
                                )
 
         if self.cf.is_complex:
@@ -992,6 +1000,47 @@ class SolutionScene(BaseMeshScene):
             uniforms.set('instance', inst)
             glDrawTransformFeedback(GL_POINTS, self.filter_feedback)
 
+    def renderFieldLines(self, settings, elements):
+        # use transform feedback to get position (and direction) of vectors on regular grid
+
+        glEnable(GL_RASTERIZER_DISCARD)
+        prog = getProgram('pass_through.vert', 'fieldlines_filter.geom', feedback=['pos','val'], ORDER=self.getOrder(), params=settings, elements=elements, USE_GL_VERTEX_ID=True, FILTER_MODE='FIELDLINES')
+        uniforms = prog.uniforms
+
+        uniforms.set('grid_size', self.getFieldLinesThickness())
+        uniforms.set('n_steps', self.getFieldLinesSteps())
+
+        glActiveTexture(GL_TEXTURE2)
+        self.values[ngsolve.VOL]['real'][elements.type, elements.curved].bind()
+        uniforms.set('coefficients', 2)
+        uniforms.set('subdivision', 2**self.getSubdivision()-1)
+
+        filter_feedback = glGenTransformFeedbacks(1)
+        glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, filter_feedback)
+        glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, self.filter_buffer.id)
+        glBeginTransformFeedback(GL_POINTS)
+
+        el = self.getFieldLinesStartElement()
+        print(el)
+        if el==-1:
+            glDrawArrays(GL_POINTS, 0, self.mesh.ne)
+        else:
+            glDrawArrays(GL_POINTS, el, 1)
+
+        glEndTransformFeedback()
+        glDisable(GL_RASTERIZER_DISCARD)
+
+        # render actual vectors
+        prog = getProgram('vectors.vert', 'fieldlines_draw.geom', 'vectors.frag', elements=elements, ORDER=self.getOrder(), params=settings)
+        uniforms = prog.uniforms
+        uniforms.set('grid_size', self.getFieldLinesThickness())
+        glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
+
+        prog.attributes.bind('pos', self.filter_buffer, stride=24, offset=0)
+        prog.attributes.bind('val', self.filter_buffer, stride=24, offset=12)
+        glDrawTransformFeedback(GL_POINTS, filter_feedback)
+
+
     # TODO: implement (surface or clipping plane) vector rendering
     def renderVectors(self, settings, elements, mode):
         # use transform feedback to get position (and direction) of vectors on regular grid
@@ -1003,7 +1052,7 @@ class SolutionScene(BaseMeshScene):
             raise RuntimeError("invalid mode: "+str(mode))
 
         glEnable(GL_RASTERIZER_DISCARD)
-        prog = getProgram('pass_through.vert', 'vectors_filter.geom', feedback=['pos','val'], ORDER=self.getOrder(), params=settings, elements=elements, USE_GL_VERTEX_ID=True, FILTER_MODE=mode)
+        prog = getProgram('pass_through.vert', 'fieldlines_filter.geom', feedback=['pos','val'], ORDER=self.getOrder(), params=settings, elements=elements, USE_GL_VERTEX_ID=True, FILTER_MODE=mode)
         uniforms = prog.uniforms
 
         uniforms.set('grid_size', grid_size)
@@ -1024,7 +1073,7 @@ class SolutionScene(BaseMeshScene):
         glDisable(GL_RASTERIZER_DISCARD)
 
         # render actual vectors
-        prog = getProgram('vectors.vert', 'vectors_draw.geom', 'vectors.frag', elements=elements, ORDER=self.getOrder(), params=settings)
+        prog = getProgram('vectors.vert', 'fieldlines_draw.geom', 'vectors.frag', elements=elements, ORDER=self.getOrder(), params=settings)
         uniforms = prog.uniforms
         uniforms.set('grid_size', grid_size)
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
@@ -1114,6 +1163,9 @@ class SolutionScene(BaseMeshScene):
                 if self.getShowClippingPlaneVectors():
                     for els in self.mesh_data.elements[ngsolve.VOL]:
                         self.renderVectors(settings, els, mode="CLIPPING_PLANE_GRID")
+                if self.getShowFieldLines():
+                    for els in self.mesh_data.elements[ngsolve.VOL]:
+                        self.renderFieldLines(settings, els)
 
 class FacetSolutionScene(BaseMeshScene):
     def __init__(self, cf, *args, **kwargs):

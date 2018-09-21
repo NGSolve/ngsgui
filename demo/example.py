@@ -3,7 +3,7 @@ from netgen.geom2d import unit_square
 from netgen.csg import *
 
 ngsglobals.msg_level = 7
-nrefinements = 2
+nrefinements = 0
 
 def MakeGeometry():
     geometry = CSGeometry()
@@ -33,15 +33,19 @@ for i in range(nrefinements):
 
 # mesh.Curve(2)
 print(mesh.ne,'elements')
-# Draw(mesh)
+#Draw(mesh)
 
 n = 5
 cf = cos(n*x)*cos(n*y)*cos(n*z)
 cf = x+1j*y
 # cf = (x-0.5)**2+(y-0.5)**2+(z-0.5)**2
 
-s = Draw(x, mesh, 'lk', iso_surface=y*y+x*x-0.5, sd=0, order=1)
+# s = Draw(x, mesh, 'lk', iso_surface=y*y+x*x-0.5, sd=0, order=1)
+s = Draw(CoefficientFunction((y-0.5,-x+0.5,0.01)), mesh, 'lk')
+
+# s = Draw(CoefficientFunction((y-0.5,x-0.5,0)), mesh, 'lk', iso_surface=y*y+x*x-0.5, sd=0, order=1)
 # s.setIsoValue(0.1)
 # s.setShowIsoSurface(True)
-# s.setShowSurface(False)
-# s.setShowClippingPlane(False)
+s.setShowSurface(False)
+s.setShowClippingPlane(False)
+s.setShowFieldLines(True)

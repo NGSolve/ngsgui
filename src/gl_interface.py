@@ -172,6 +172,10 @@ class MeshData(DataContainer):
                 self.size += 1
             if self.type == ngs.ET.POINT:
                 self.size = 1
+            if self.type == ngs.ET.TET:
+                self.size += 4
+
+            print('got {} elements of type {}, total size {}'.format(self.nelements, self.type, len(self.data)))
             assert len(self.data) == self.nelements*self.size
             self.tex_vertices = vertices
             self.tex = Texture(GL.GL_TEXTURE_BUFFER, GL.GL_R32I)
