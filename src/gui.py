@@ -19,8 +19,8 @@ from ngsgui.gui import gui
 """
     sceneCreators = {}
     file_loaders = {}
-    def __init__(self):
-        self._parseFlags()
+    def __init__(self,flags=None):
+        self._parseFlags(flags)
         self.app = QtWidgets.QApplication([])
         ngsolve.solve._SetLocale()
         self._commonContext = glwindow.GLWidget()
@@ -171,8 +171,9 @@ exist a load function for the file extension type registered in GUI.file_loaders
                 return
             GUI.file_loaders[ext](self, filename)
 
-    def _parseFlags(self):
-        """Parses command line arguments and calls functions registered in GUI.flags"""
+    def _parseFlags(self, flags):
+        """Parses command line arguments and calls functions registered in GUI.flags. If argument is
+not none, argument is parsed instead of command line args"""
         import argparse
         parser = argparse.ArgumentParser()
         parser.add_argument("file",type=str,nargs="?",
@@ -189,7 +190,10 @@ exist a load function for the file extension type registered in GUI.file_loaders
                             help="Don't catch exceptions up to user input, but show internal gui traceback")
         parser.add_argument("-ne", "--noEditor", action="store_false",
                             help="Don't open the code editor")
-        self._flags = parser.parse_args()
+        if flags:
+            self._flags = parser.parse_args(flags)
+        else:
+            self._flags = parser.parse_args()
 
     def showMessageBox(self, title, text):
         self._msgbox = QtWidgets.QMessageBox(text=text)
