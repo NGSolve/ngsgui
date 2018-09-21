@@ -23,8 +23,8 @@ in VertexData
 } inData[];
 
 out vec3 pos;
+out vec3 pos2;
 out vec3 val;
-out vec3 val2;
 
 void getM( ELEMENT_TYPE tet, out mat3 m, out mat3 minv ) {
     for (int i=0; i<ELEMENT_N_VERTICES-1; i++)
@@ -84,13 +84,12 @@ void main() {
             lam.xyz = minv*(pos-tet.pos[3]);
             lam.w = 1.0-lam.x-lam.y-lam.z;
         }
-        vec3 v = h*normalize(EvaluateElementVec(element, coefficients, ORDER, subdivision, lam.xyz, component));
-        if(i==0) val = v;
-        val2 = val;
-        val = v;
+        val = EvaluateElementVec(element, coefficients, ORDER, subdivision, lam.xyz, component);
+        if(i==0) pos2 = pos+h*normalize(val);
         EmitVertex();
         EndPrimitive();
-        pos += v;
+        pos = pos2;
+        pos2 = pos+h*normalize(val);
         lam_last = lam;
         lam.xyz = minv*(pos-tet.pos[3]);
         lam.w = 1.0-lam.x-lam.y-lam.z;

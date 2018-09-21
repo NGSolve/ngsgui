@@ -773,7 +773,7 @@ class SolutionScene(BaseMeshScene):
 
         self.filter_buffer = ArrayBuffer()
         self.filter_buffer.bind()
-        glBufferData(GL_ARRAY_BUFFER, 1000000, ctypes.c_void_p(), GL_STATIC_DRAW)
+        glBufferData(GL_ARRAY_BUFFER, 10000000, ctypes.c_void_p(), GL_STATIC_DRAW)
 
 
     @inmain_decorator(True)
@@ -1004,7 +1004,7 @@ class SolutionScene(BaseMeshScene):
         # use transform feedback to get position (and direction) of vectors on regular grid
 
         glEnable(GL_RASTERIZER_DISCARD)
-        prog = getProgram('pass_through.vert', 'fieldlines_filter.geom', feedback=['pos','val', 'val2'], ORDER=self.getOrder(), params=settings, elements=elements, USE_GL_VERTEX_ID=True, FILTER_MODE='FIELDLINES')
+        prog = getProgram('pass_through.vert', 'fieldlines_filter.geom', feedback=['pos','pos2', 'val'], ORDER=self.getOrder(), params=settings, elements=elements, USE_GL_VERTEX_ID=True, FILTER_MODE='FIELDLINES')
         uniforms = prog.uniforms
 
         uniforms.set('grid_size', self.getFieldLinesThickness())
@@ -1036,8 +1036,8 @@ class SolutionScene(BaseMeshScene):
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
 
         prog.attributes.bind('pos', self.filter_buffer, stride=36, offset=0)
-        prog.attributes.bind('val', self.filter_buffer, stride=36, offset=12)
-        prog.attributes.bind('val2', self.filter_buffer, stride=36, offset=24)
+        prog.attributes.bind('pos2', self.filter_buffer, stride=36, offset=12)
+        prog.attributes.bind('val', self.filter_buffer, stride=36, offset=24)
         glDrawTransformFeedback(GL_POINTS, filter_feedback)
 
 

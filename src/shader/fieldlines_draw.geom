@@ -11,6 +11,7 @@ uniform mat4 P;
 uniform float grid_size;
 uniform float colormap_min, colormap_max;
 uniform bool colormap_linear;
+uniform vec4 clipping_plane;
 
 void DrawVertex( vec3 pos ) {
     gl_Position = P * MV *vec4(pos,1);
@@ -20,8 +21,8 @@ void DrawVertex( vec3 pos ) {
 in VertexData
 {
   vec3 pos;
+  vec3 pos2;
   vec3 val;
-  vec3 val2;
 } inData[];
 
 out VertexData
@@ -72,17 +73,18 @@ void CalcNormals( vec3 v, vec3 v2, out vec3 n1, out vec3 n2, out vec3 n3, out ve
 }
 
 void DrawPipe( float radius ) {
-    int n = 8;
+    vec3 pos = inData[0].pos;
+    vec3 end = inData[0].pos2;
+
+    if(dot(clipping_plane, vec4(pos,1))<0) return;
 
     vec3 v0,v1,v2,v3;
-    CalcNormals(inData[0].val2, inData[0].val, v0, v1, v2, v3);
+    CalcNormals(end-pos, inData[0].val, v0, v1, v2, v3);
 
     vec3 v01 = normalize(v0+v1);
     vec3 v10 = normalize(v0-v1);
     vec3 v23 = normalize(v2+v3);
     vec3 v32 = normalize(v2-v3);
-    vec3 pos = inData[0].pos;
-    vec3 end = inData[0].pos+inData[0].val;
 
     DrawQuad(radius, pos, end,  v0,  v01,  v2,  v23);
     DrawQuad(radius, pos, end,  v01,  v1,  v23,  v3);
