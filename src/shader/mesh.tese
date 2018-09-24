@@ -1,5 +1,9 @@
 #version 410 core
 
+#ifndef DEFORMATION
+#define DEFORMATION 0
+#endif
+
 #if defined(ET_SEGM)
 layout(isolines) in;
 #elif defined(ET_TRIG)
@@ -8,7 +12,7 @@ layout(triangles) in;
 layout(quads) in;
 #endif
 
-{include utils.inc}
+{include utilsnew.inc}
 #line 12
 
 uniform mat4 P;
@@ -53,13 +57,27 @@ out VertexData
 
 void main()
 {
-    outData.element = inData[0].element;
+    outData.element = gl_PrimitiveID;
 
     float x = gl_TessCoord.x;
     float y = gl_TessCoord.y;
     float z = 1.0-x-y;
 
-    int offset = texelFetch(mesh.elements, ELEMENT_SIZE*inData[0].element + ELEMENT_SIZE-1).r;
+    int offset = texelFetch(mesh.elements, ELEMENT_SIZE*gl_PrimitiveID + ELEMENT_SIZE-1).r;
+
+#ifdef MACOS
+    struct PatchedInData { vec3 pos; vec3 normal; } inData[3];
+    // some bug in the intel drivers for mac (or invalid opengl code?) leads to invalid data in inData[], thus reload everything
+    ELEMENT_TYPE el = getElement(mesh, gl_PrimitiveID);
+    inData[0].normal = el.normal;
+    for (int i=0; i<ELEMENT_N_VERTICES; i++)
+    {
+	inData[i].pos = el.pos[i];
+	#if defined(CURVED)
+	inData[i].normal  = texelFetch(mesh.vertices, el.curved_vertices+i).xyz;
+	#endif // CURVED
+    }
+#endif // MACOS
 
 #if defined(CURVED)
 #if defined(ET_SEGM)
@@ -118,8 +136,8 @@ void main()
 #if DEFORMATION
       if(is_complex) {
         float value, value_imag;
-        value = EvaluateElement(inData[0].element, coefficients, ORDER, subdivision, outData.lam, component);
-        value_imag = EvaluateElement(inData[0].element, coefficients_imag, ORDER, subdivision, outData.lam, component);
+        value = EvaluateElement(gl_PrimitiveID, coefficients, ORDER, subdivision, outData.lam, component);
+        value_imag = EvaluateElement(gl_PrimitiveID, coefficients_imag, ORDER, subdivision, outData.lam, component);
         float r = value*complex_factor.x - value_imag*complex_factor.y;
         value_imag = value*complex_factor.y + value_imag*complex_factor.x;
         value = r;
@@ -140,7 +158,7 @@ void main()
       }
       else {
         vec3 value = vec3(deformation_scale,deformation_scale,deformation_scale);
-        value *= EvaluateElementVec(inData[0].element, deformation_coefficients, ORDER, deformation_subdivision, outData.lam, 0);
+        value *= EvaluateElementVec(gl_PrimitiveID, deformation_coefficients, ORDER, deformation_subdivision, outData.lam, 0);
         outData.pos += value;
       }
 #endif // DEFORMATION

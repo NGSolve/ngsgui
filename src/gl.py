@@ -379,6 +379,9 @@ def getProgram(*shader_files, feedback=[], elements=None, params=None, **define_
         )
         if elements.curved:
             defines += "#define CURVED\n"
+    import sys
+    if 'darwin' in sys.platform:
+        define_flags['MACOS'] = 1
     for d in define_flags:
         flag = define_flags[d]
         if flag != None:
