@@ -123,6 +123,16 @@ class MeshData(DataContainer):
                 ngs.ET.PYRAMID: 5,
                 ngs.ET.HEX: 8
                 }
+        nfaces = {
+                ngs.ET.POINT: 0,
+                ngs.ET.SEGM: 0,
+                ngs.ET.TRIG: 0,
+                ngs.ET.QUAD: 0,
+                ngs.ET.TET: 4,
+                ngs.ET.PRISM: 5,
+                ngs.ET.PYRAMID: 5,
+                ngs.ET.HEX: 6
+                }
         dims = { 
                 ngs.ET.POINT: 0,
                 ngs.ET.SEGM: 1,
@@ -164,16 +174,15 @@ class MeshData(DataContainer):
             self.data = ei['data']
             self.curved = ei['curved']
             self.nverts = MeshData.ElementData.nverts[self.type]
+            self.nfaces = MeshData.ElementData.nfaces[self.type]
             self.n_instances_2d= MeshData.ElementData.n_instances_2d[self.type]
             self.n_instances_3d= MeshData.ElementData.n_instances_3d[self.type]
             self.dim = MeshData.ElementData.dims[self.type]
-            self.size = self.nverts+2
+            self.size = 2+self.nverts+self.nfaces # nr, index, vertices, neighbor elements (only for 3d)
             if self.curved:
-                self.size += 1
+                self.size += 1 # offset to additional data ( edge midpoints, normals )
             if self.type == ngs.ET.POINT:
                 self.size = 1
-            if self.type == ngs.ET.TET:
-                self.size += 4
 
             print('got {} elements of type {}, total size {}'.format(self.nelements, self.type, len(self.data)))
             assert len(self.data) == self.nelements*self.size
