@@ -1122,6 +1122,8 @@ class SolutionScene(BaseMeshScene):
         for i in range(elements.n_instances_3d):
             uniforms.set('subtet', i)
             glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
+            glPolygonOffset (1, 1)
+            glEnable(GL_POLYGON_OFFSET_FILL)
             prog.attributes.bind('element', self.filter_buffer)
             glDrawTransformFeedback(GL_POINTS, self.filter_feedback)
 
