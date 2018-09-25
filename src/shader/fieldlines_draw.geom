@@ -9,9 +9,8 @@ layout(triangle_strip, max_vertices=32) out;
 uniform mat4 MV;
 uniform mat4 P;
 uniform float grid_size;
-uniform float colormap_min, colormap_max;
-uniform bool colormap_linear;
 uniform vec4 clipping_plane;
+uniform Colormap colormap;
 
 void DrawVertex( vec3 pos ) {
     gl_Position = P * MV *vec4(pos,1);
@@ -100,13 +99,7 @@ void main() {
     float s = 0.5*grid_size;
 
     float value = (length(inData[0].val)-colormap_min)/(colormap_max-colormap_min);
-    value = clamp(value, 0.0, 1.0);
-    value = (1.0 - value);
-    if(!colormap_linear)
-        value = floor(8*value)/7.0;
-    outData.color.r = MapColor(value).r;
-    outData.color.g = MapColor(value).g;
-    outData.color.b = MapColor(value).b;
+    outData.color.rgb = MapColor(value);
 
     DrawPipe( s/4);
 }

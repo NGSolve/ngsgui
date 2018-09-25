@@ -385,8 +385,8 @@ class MeshScene(BaseMeshScene):
         uniforms.set('do_clipping', False);
 
         uniforms.set('mesh.dim', 1);
-        uniforms.set('light_ambient', 1.0)
-        uniforms.set('light_diffuse', 0.0)
+        uniforms.set('light.ambient', 1.0)
+        uniforms.set('light.diffuse', 0.0)
         uniforms.set('wireframe', True)
         tess_level = 10
         if settings.fastmode and len(elements.data)//elements.size>10**5:
@@ -436,8 +436,8 @@ class MeshScene(BaseMeshScene):
         if wireframe:
             offset_mode = GL_POLYGON_OFFSET_LINE
             polygon_mode = GL_LINE
-            uniforms.set('light_ambient', 0.0)
-            uniforms.set('light_diffuse', 0.0)
+            uniforms.set('light.ambient', 0.0)
+            uniforms.set('light.diffuse', 0.0)
             offset = 0
         else:
             offset_mode = GL_POLYGON_OFFSET_FILL
@@ -476,8 +476,8 @@ class MeshScene(BaseMeshScene):
         self.tex_vol_colors.bind()
         uniforms.set('colors', 3)
 
-        uniforms.set('light_ambient', 0.3)
-        uniforms.set('light_diffuse', 0.7)
+        uniforms.set('light.ambient', 0.3)
+        uniforms.set('light.diffuse', 0.7)
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
         glDrawArraysInstanced(GL_TRIANGLES, 0, 3*self.mesh.ne, elements.n_instances_2d)
 
@@ -879,8 +879,8 @@ class SolutionScene(BaseMeshScene):
         if settings.fastmode and len(elements.data)//elements.size>10**5:
             tess_level=1
 
-        uniforms.set('light_ambient', 0.3)
-        uniforms.set('light_diffuse', 0.7)
+        uniforms.set('light.ambient', 0.3)
+        uniforms.set('light.diffuse', 0.7)
         nverts = elements.nverts
         nelements = elements.nelements
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
@@ -1380,8 +1380,8 @@ class GeometryScene(BaseScene):
 
             uniforms.set('clipping_plane', settings.clipping_plane)
             uniforms.set('do_clipping', True)
-            uniforms.set('light_ambient', 0.3)
-            uniforms.set('light_diffuse', 0.7)
+            uniforms.set('light.ambient', 0.3)
+            uniforms.set('light.diffuse', 0.7)
             glPolygonMode(GL_FRONT_AND_BACK, GL_FILL )
             glDrawArrays(GL_TRIANGLES, 0, self._geo_data.npoints)
 
@@ -1477,8 +1477,8 @@ class GeometryScene2D(BaseScene):
         prog.attributes.bind('domain', self.domains)
 
         uniforms.set('do_clipping', False)
-        uniforms.set('light_ambient', 1)
-        uniforms.set('light_diffuse',0)
+        uniforms.set('light.ambient', 1)
+        uniforms.set('light.diffuse',0)
 
         # glLineWidth(3) TODO: replace with manually drawing quads (linewidth is not supported for OpenGL3.2
         glDrawArrays(GL_LINES, 0, self._nverts)

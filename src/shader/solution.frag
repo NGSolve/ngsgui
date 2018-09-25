@@ -6,8 +6,6 @@
 
 uniform sampler1D colors;
 uniform samplerBuffer coefficients;
-uniform float colormap_min, colormap_max;
-uniform bool colormap_linear;
 uniform int element_type;
 uniform vec4 clipping_plane;
 uniform bool do_clipping;
@@ -15,6 +13,8 @@ uniform int subdivision;
 uniform int order;
 uniform mat4 MV;
 uniform int component;
+uniform Colormap colormap;
+uniform Light light;
 
 // for complex-valued functions
 uniform bool is_complex;
@@ -66,17 +66,10 @@ void main()
           }
       }
 
-      value = (value-colormap_min)/(colormap_max-colormap_min);
-      value = clamp(value, 0.0, 1.0);
-      value = (1.0 - value);
-      if(!colormap_linear)
-        value = floor(8*value)/7.0;
-      FragColor.r = MapColor(value).r;
-      FragColor.g = MapColor(value).g;
-      FragColor.b = MapColor(value).b;
+      FragColor.rgb = MapColor(colormap, value);
       FragColor.a = 1.0;
 #ifndef NOLIGHT
-      FragColor.rgb = light(FragColor.rgb, MV, inData.pos, inData.normal);
+      FragColor.rgb = CalcLight(light, FragColor.rgb, MV, inData.pos, inData.normal);
 #endif
   }
   else

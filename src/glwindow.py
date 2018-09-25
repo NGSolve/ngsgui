@@ -1,7 +1,7 @@
 
 from . import glmath, scenes
 from . import widgets as wid
-from .gl import TextRenderer, ArrayBuffer, VertexArray, getProgram
+from .gl import TextRenderer, ArrayBuffer, VertexArray, getProgram, Texture
 from .widgets import ArrangeV, ArrangeH, addShortcut
 from .thread import inmain_decorator
 from ngsgui import _debug
@@ -192,7 +192,7 @@ class GLWindowButtonArea(wid.ButtonArea):
             if self._showVersion:
                 self._text_renderer.draw(self.renderingParameters, "NGSolve " + ngsolve.__version__, [0.99,-0.99,0], alignment=QtCore.Qt.AlignRight|QtCore.Qt.AlignBottom)
             if self._showColorBar:
-                prog = getProgram('colorbar.vert','colorbar.frag')
+                prog = getProgram('colorbar.vert','colorbar.frag', params=self.renderingParameters)
                 uniforms = prog.uniforms
                 x0,y0 = -0.6, 0.82
                 dx,dy = 1.2, 0.03
@@ -234,6 +234,21 @@ class RenderingParameters:
         self.colormap_linear = False
 
         self.fastmode = False
+        self.colormap_n = 0
+
+
+    def setColorMap(self, name, N):
+        import matplotlib.cm as cm
+        import matplotlib.pyplot as plt
+        cmap = cm.get_cmap(name, N)
+        colors = []
+        self.colormap_n = N
+        for i in range(N):
+            colors+=cmap(i, bytes=True)[:3]
+        self.colormap_tex = Texture(GL.GL_TEXTURE_1D, GL.GL_RGB)
+        GL.glTexImage1D(GL.GL_TEXTURE_1D, 0, GL.GL_RGB, N, 0, GL.GL_RGB, GL.GL_UNSIGNED_BYTE, colors)
+        GL.glTexParameteri( GL.GL_TEXTURE_1D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR )
+        GL.glTexParameteri( GL.GL_TEXTURE_1D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR )
 
     def __getstate__(self):
         return (np.array(self.rotmat), self.zoom, self.ratio, self.dx, self.dy, np.array(self.min),

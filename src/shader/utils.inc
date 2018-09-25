@@ -1,3 +1,20 @@
+#line 1
+struct Colormap {
+  float min;
+  float max;
+  sampler1D colors;
+  int n;
+  bool linear;
+};
+
+struct Light {
+  vec3 dir;
+  float ambient;
+  float diffuse;
+  float spec;
+  float shininess;
+};
+
 struct Mesh {
     int dim;
     isamplerBuffer elements;
@@ -419,37 +436,36 @@ vec3 TransformVec(mat4 MV, vec3 x) {
     return normalize(transpose(mat3(MV))*x);
 }
 
-vec3 light(vec3 color, mat4 MV, vec3 position, vec3 norm)
+vec3 CalcLight(Light light, vec3 color, mat4 MV, vec3 position, vec3 norm)
 {
         mat3 mvt = transpose(inverse(mat3(MV)));
-        // vec3 lightVector = TransformVec(MV, vec3(1,3,3));
-        vec3 lightVector = vec3(1,3,3);
 	vec3 n = normalize( mvt*norm );
-	vec3 s = normalize( lightVector);
+	vec3 s = normalize( light.dir);
         vec4 p = MV*vec4(position,1);
 	vec3 v = normalize( -p.xyz/p.w );
 	vec3 r = reflect( -s, n );
 
-	float ambient = 0.3;
+	float ambient = light.ambient;
 
 	// float sDotN = max( dot( s, n ), 0.0 );
 	float sDotN = abs( dot( s, n ));
-	float diffuse = 0.7 * sDotN;
+	float diffuse = light.diffuse * sDotN;
 
 	// spec = Light[lightIndex].Ls * Material.Ks * pow( max( dot(r,v) , 0.0 ), Material.Shininess );
-	float spec = pow( max( dot(r,v) , 0.0 ), 50 );
+	float spec = pow( max( dot(r,v) , 0.0 ), light.shininess );
         if(diffuse==0.0) spec = 0.0;
-        return color*(ambient+diffuse) + spec*0.1*vec3(1,1,1);
+        return color*(ambient+diffuse) + spec*light.spec*vec3(1,1,1);
 }
 
-vec3 MapColor(float value)
+vec3 MapColor(Colormap cm, float value)
 {
-    value = clamp(value, 0.0, 1.0);
-    vec3 res;
-    res.r = clamp(2.0-4.0*value, 0.0, 1.0);
-    res.g = clamp(2.0-4.0*abs(0.5-value), 0.0, 1.0);
-    res.b = clamp(4.0*value - 2.0, 0.0, 1.0);
-    return res;
+  value = (value-cm.min)/(cm.max-cm.min);
+  value = clamp(value, 0.0, 1.0-1e-7);
+  if(cm.linear)
+      return texture(cm.colors, value).rgb;
+
+  int n = int(cm.n*value);
+  return texelFetch(cm.colors, n, 0).rgb;
 }
 
 int getIndex(int N, int x, int y) {

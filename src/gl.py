@@ -435,14 +435,24 @@ def getProgram(*shader_files, feedback=[], elements=None, params=None, **define_
             u.set('light_ambient', 0.3)
         if 'light_diffuse' in u:
             u.set('light_diffuse', 0.7)
+        if 'light.diffuse' in u:
+            u.set('light.ambient', 0.3)
+            u.set('light.diffuse', 0.7)
+            u.set('light.dir', [1.,3.,3.])
+            u.set('light.spec', 1.2)
+            u.set('light.shininess', 50.0)
         if 'clipping_plane' in u:
             u.set('clipping_plane', params.clipping_plane)
-        if 'colormap_min' in u:
-            u.set('colormap_min', params.colormap_min)
-        if 'colormap_max' in u:
-            u.set('colormap_max', params.colormap_max)
-        if 'colormap_linear' in u:
-            u.set('colormap_linear', params.colormap_linear)
+        if 'colormap.colors' in u:
+            if params.colormap_n==0:
+                params.setColorMap('jet', 32)
+            u.set('colormap.n', params.colormap_n)
+            u.set('colormap.min', params.colormap_min)
+            u.set('colormap.max', params.colormap_max)
+            u.set('colormap.linear', params.colormap_linear)
+            glActiveTexture(GL_TEXTURE6)
+            params.colormap_tex.bind()
+            u.set('colormap.colors', 6)
 
     if elements != None:
         u.set('element_type', int(elements.type))

@@ -8,9 +8,8 @@ uniform Mesh mesh;
 uniform vec4 clipping_plane;
 uniform bool do_clipping;
 uniform bool wireframe;
-uniform float light_ambient;
-uniform float light_diffuse;
 uniform sampler1D colors;
+uniform Light light;
 
 in VertexData
 {
@@ -29,5 +28,5 @@ void main()
   FragColor = vec4(inData.color, 1);
 
   vec3 lightVector = TransformVec(vec3(1,3,3));
-  FragColor.rgb *= light_ambient+light_diffuse*clamp(dot(normalize(inData.normal), lightVector), 0, 1.0);
+  FragColor.rgb *= light.ambient+light.diffuse*clamp(dot(normalize(inData.normal), lightVector), 0, 1.0);
 }

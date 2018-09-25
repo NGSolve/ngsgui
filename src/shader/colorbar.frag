@@ -3,8 +3,9 @@ out vec4 color;
 in float value;
 
 {include utils.inc}
+uniform Colormap colormap;
 
 void main() {
-    float val = floor(8*value)/7.0;
-    color = vec4(MapColor(1.0-val), 1);
+    float v = mix(colormap.min, colormap.max, value);
+    color = vec4(MapColor(colormap, v), 1.0);
 }
