@@ -1390,7 +1390,7 @@ class GeometryScene(BaseScene):
         if not self.active:
             return
         with self._vao:
-            prog = getProgram('geo.vert', 'geo.frag', settings)
+            prog = getProgram('geo.vert', 'geo.frag', params=settings)
             uniforms = prog.uniforms
 
             glActiveTexture(GL_TEXTURE0)
