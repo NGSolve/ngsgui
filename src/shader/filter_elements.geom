@@ -9,7 +9,7 @@ uniform Mesh mesh;
 uniform vec4 clipping_plane;
 
 uniform samplerBuffer coefficients;
-uniform float colormap_max, iso_value;
+uniform float iso_value;
 uniform int subdivision;
 uniform int component;
 uniform int filter_type; // 0...clipping plane, 1...iso-surface

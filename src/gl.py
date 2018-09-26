@@ -439,13 +439,13 @@ def getProgram(*shader_files, feedback=[], elements=None, params=None, **define_
             u.set('light.ambient', 0.3)
             u.set('light.diffuse', 0.7)
             u.set('light.dir', [1.,3.,3.])
-            u.set('light.spec', 1.2)
+            u.set('light.spec', 0.5)
             u.set('light.shininess', 50.0)
         if 'clipping_plane' in u:
             u.set('clipping_plane', params.clipping_plane)
         if 'colormap.colors' in u:
             if params.colormap_n==0:
-                params.setColorMap('jet', 32)
+                params.setColorMap('jet', 8)
             u.set('colormap.n', params.colormap_n)
             u.set('colormap.min', params.colormap_min)
             u.set('colormap.max', params.colormap_max)

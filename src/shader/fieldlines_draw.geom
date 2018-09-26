@@ -98,8 +98,8 @@ void DrawPipe( float radius ) {
 void main() {
     float s = 0.5*grid_size;
 
-    float value = (length(inData[0].val)-colormap_min)/(colormap_max-colormap_min);
-    outData.color.rgb = MapColor(value);
+    float value = length(inData[0].val);
+    outData.color.rgb = MapColor(colormap, value);
 
     DrawPipe( s/4);
 }

@@ -4,7 +4,6 @@
 
 uniform samplerBuffer coefficients;
 uniform samplerBuffer coefficients_iso;
-uniform float colormap_min, colormap_max, iso_value;
 uniform Mesh mesh;
 uniform bool have_gradient;
 uniform int component;

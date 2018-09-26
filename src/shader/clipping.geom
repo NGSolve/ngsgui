@@ -4,7 +4,6 @@
 
 uniform samplerBuffer coefficients;
 uniform bool clipping_plane_deformation;
-uniform float colormap_min, colormap_max;
 uniform Mesh mesh;
 uniform int subtet;
 

@@ -6,7 +6,6 @@
 
 uniform samplerBuffer coefficients;
 uniform bool clipping_plane_deformation;
-uniform float colormap_min, colormap_max;
 uniform Mesh mesh;
 uniform float grid_size;
 uniform int subdivision;
@@ -43,10 +42,10 @@ void main() {
     mat3 m, minv;
     getM(tet, m, minv);
     pos = m * lam.xyz + tet.pos[3];
-    float h = length(pos-tet.pos[0])*0.1;
+    float h = length(pos-tet.pos[0])*0.2;
     pos2 = pos;
 
-    for (int i=0; i<n_steps;i++) {
+    for (int i=0; i<n_steps+1;i++) {
         val = EvaluateElementVec(element, coefficients, ORDER, subdivision, lam.xyz, component);
         if(i>0) {
             EmitVertex();
