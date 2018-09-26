@@ -148,6 +148,42 @@ name : str = "action" + consecutive number
 
 GUI.sceneCreators[BaseScene] = lambda scene,*args,**kwargs: scene
 
+class RenderingSettings(BaseScene):
+    def __init__(self, rendering_parameters=None, *args, **kwargs):
+        super().__init__()
+        self._rp = rendering_parameters
+
+    def _createParameters(self):
+        super()._createParameters()
+        self.addParameters("Light", 
+                settings.ValueParameter(name="LightAmbient", label="ambient", min_value=0.0, max_value=1.0, default_value=0.3, step=0.1),
+                settings.ValueParameter(name="LightDiffuse", label="diffuse", min_value=0.0, max_value=1.0, default_value=0.7, step=0.1),
+                settings.ValueParameter(name="LightSpecular", label="specular", min_value=0.0, max_value=2.0, default_value=0.5, step=0.1),
+                settings.ValueParameter(name="LightShininess", label="shininess", min_value=0.0, max_value=100.0, default_value=50, step=1.0),
+                )
+        colormaps = ['netgen']
+        try:
+            import matplotlib.pyplot as plt
+            colormaps += plt.colormaps()
+        except:
+            pass
+        self.addParameters("Colormap", 
+                settings.ValueParameter(name="ColormapSteps", label="steps", min_value=1, default_value=8),
+                settings.SingleOptionParameter(name="ColormapName",
+                                                          values = colormaps,
+                                                          label="map",
+                                                          default_value = "netgen"),
+                settings.CheckboxParameter(name="ColormapLinear", label="linear", default_value=False)
+                )
+    def render(self, rp):
+        rp.light_ambient = self.getLightAmbient()
+        rp.light_diffuse = self.getLightDiffuse()
+        rp.light_specular = self.getLightSpecular()
+        rp.light_shininess = self.getLightShininess()
+        if rp.colormap_n != self.getColormapSteps() or rp.colormap_name != self.getColormapName():
+            rp.setColorMap(self.getColormapName(),self.getColormapSteps())
+        rp.colormap_linear = self.getColormapLinear()
+
 class BaseMeshScene(BaseScene):
     """Base class for all scenes that depend on a mesh"""
     __initial_values = {"Deformation" : False}
@@ -879,8 +915,6 @@ class SolutionScene(BaseMeshScene):
         if settings.fastmode and len(elements.data)//elements.size>10**5:
             tess_level=1
 
-        uniforms.set('light.ambient', 0.3)
-        uniforms.set('light.diffuse', 0.7)
         nverts = elements.nverts
         nelements = elements.nelements
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
@@ -1356,11 +1390,8 @@ class GeometryScene(BaseScene):
         if not self.active:
             return
         with self._vao:
-            prog = getProgram('geo.vert', 'geo.frag')
-            model, view, projection = settings.model, settings.view, settings.projection
+            prog = getProgram('geo.vert', 'geo.frag', settings)
             uniforms = prog.uniforms
-            uniforms.set('P', projection)
-            uniforms.set('MV', view*model)
 
             glActiveTexture(GL_TEXTURE0)
             self._geo_data.vertices.bind()
@@ -1380,8 +1411,6 @@ class GeometryScene(BaseScene):
 
             uniforms.set('clipping_plane', settings.clipping_plane)
             uniforms.set('do_clipping', True)
-            uniforms.set('light.ambient', 0.3)
-            uniforms.set('light.diffuse', 0.7)
             glPolygonMode(GL_FRONT_AND_BACK, GL_FILL )
             glDrawArrays(GL_TRIANGLES, 0, self._geo_data.npoints)
 
@@ -1463,11 +1492,8 @@ class GeometryScene2D(BaseScene):
                                                               pnt[1]+eps*normal[1], 0], use_absolute_pos=False)
 
     def __renderGeometry(self, settings):
-        prog = getProgram('geom2d.vert', 'geo.frag')
-        model,view,projection = settings.model, settings.view, settings.projection
+        prog = getProgram('geom2d.vert', 'geo.frag', params=settings, NOLIGHT=True)
         uniforms = prog.uniforms
-        uniforms.set('P',projection)
-        uniforms.set('MV',view*model)
 
         glActiveTexture(GL_TEXTURE0)
         self._tex_bc_colors.bind()
@@ -1479,6 +1505,7 @@ class GeometryScene2D(BaseScene):
         uniforms.set('do_clipping', False)
         uniforms.set('light.ambient', 1)
         uniforms.set('light.diffuse',0)
+        uniforms.set('light.spec',0)
 
         # glLineWidth(3) TODO: replace with manually drawing quads (linewidth is not supported for OpenGL3.2
         glDrawArrays(GL_LINES, 0, self._nverts)

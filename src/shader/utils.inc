@@ -438,6 +438,9 @@ vec3 TransformVec(mat4 MV, vec3 x) {
 
 vec3 CalcLight(Light light, vec3 color, mat4 MV, vec3 position, vec3 norm)
 {
+  #ifdef NOLIGHT
+    return color;
+  #else
         mat3 mvt = transpose(inverse(mat3(MV)));
 	vec3 n = normalize( mvt*norm );
 	vec3 s = normalize( light.dir);
@@ -455,6 +458,7 @@ vec3 CalcLight(Light light, vec3 color, mat4 MV, vec3 position, vec3 norm)
 	float spec = pow( max( dot(r,v) , 0.0 ), light.shininess );
         if(diffuse==0.0) spec = 0.0;
         return color*(ambient+diffuse) + spec*light.spec*vec3(1,1,1);
+  #endif
 }
 
 vec3 MapColor(Colormap cm, float value)

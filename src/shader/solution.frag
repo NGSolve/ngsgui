@@ -68,9 +68,7 @@ void main()
 
       FragColor.rgb = MapColor(colormap, value);
       FragColor.a = 1.0;
-#ifndef NOLIGHT
       FragColor.rgb = CalcLight(light, FragColor.rgb, MV, inData.pos, inData.normal);
-#endif
   }
   else
     discard;

@@ -1,5 +1,7 @@
 #version 150
 
+{include utils.inc}
+
 uniform mat4 MV;
 uniform vec4 clipping_plane;
 uniform bool clip_whole_elements;
@@ -30,7 +32,5 @@ void main()
   if (FragColor.a == 0.0)
     discard;
 
-  // vec3 lightVector = TransformVec(vec3(1,3,3));
-  // FragColor.rgb *= light_ambient+light_diffuse*clamp(dot(normalize(inData.normal), lightVector), 0, 1.0);
   FragColor.rgb = CalcLight(light, FragColor.rgb, MV, inData.pos, inData.normal);
 }

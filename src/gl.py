@@ -431,16 +431,12 @@ def getProgram(*shader_files, feedback=[], elements=None, params=None, **define_
             u.set('P',params.projection)
         if 'MV' in u:
             u.set('MV',params.view*params.model)
-        if 'light_ambient' in u:
-            u.set('light_ambient', 0.3)
-        if 'light_diffuse' in u:
-            u.set('light_diffuse', 0.7)
         if 'light.diffuse' in u:
-            u.set('light.ambient', 0.3)
-            u.set('light.diffuse', 0.7)
+            u.set('light.ambient', params.light_ambient)
+            u.set('light.diffuse', params.light_diffuse)
             u.set('light.dir', [1.,3.,3.])
-            u.set('light.spec', 0.5)
-            u.set('light.shininess', 50.0)
+            u.set('light.spec', params.light_specular)
+            u.set('light.shininess', params.light_shininess)
         if 'clipping_plane' in u:
             u.set('clipping_plane', params.clipping_plane)
         if 'colormap.colors' in u:

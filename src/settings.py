@@ -469,3 +469,4 @@ class BaseSettings(QtCore.QObject):
         for par in parameters:
             self._parameters[group].append(par)
             self._attachParameter(par)
+

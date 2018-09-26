@@ -236,15 +236,29 @@ class RenderingParameters:
         self.fastmode = False
         self.colormap_n = 0
 
+        self.light_ambient = 0.3
+        self.light_diffuse = 0.7
+        self.light_specular = 0.5
+        self.light_shininess = 50
+
 
     def setColorMap(self, name, N):
-        import matplotlib.cm as cm
-        import matplotlib.pyplot as plt
-        cmap = cm.get_cmap(name, N)
-        colors = []
+        self.colormap_name = name
         self.colormap_n = N
-        for i in range(N):
-            colors+=cmap(i, bytes=True)[:3]
+        colors = []
+        if name == 'netgen':
+            for i in range(N):
+                x = 1.0-i/(N-1)
+                clamp = lambda x: int(255*(min(1.0, max(0.0, x))))
+                colors.append(clamp(2.0-4.0*x))
+                colors.append(clamp(2.0-4.0*abs(0.5-x)))
+                colors.append(clamp(4.0*x - 2.0))
+        else:
+            import matplotlib.cm as cm
+            import matplotlib.pyplot as plt
+            cmap = cm.get_cmap(name, N)
+            for i in range(N):
+                colors+=cmap(i, bytes=True)[:3]
         self.colormap_tex = Texture(GL.GL_TEXTURE_1D, GL.GL_RGB)
         GL.glTexImage1D(GL.GL_TEXTURE_1D, 0, GL.GL_RGB, N, 0, GL.GL_RGB, GL.GL_UNSIGNED_BYTE, colors)
         GL.glTexParameteri( GL.GL_TEXTURE_1D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR )
@@ -323,8 +337,8 @@ class RenderingParameters:
 class WindowTab(QtWidgets.QWidget):
     def __init__(self, rendering_parameters = None, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._startup_scenes = []
-        self._rendering_parameters = rendering_parameters if rendering_parameters else RenderingParameters()
+        self._rendering_parameters = rendering_parameters
+        self._startup_scenes = [ scenes.RenderingSettings(self._rendering_parameters, name="Rendering settings") ]
         self._actions = []
         settings = QtCore.QSettings()
         def nextScene():
