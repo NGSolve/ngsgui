@@ -229,6 +229,7 @@ class RenderingParameters:
         self.clipping_point = Vector(3)
         self.clipping_dist = 0.0
 
+        self.colormap_autoscale = False
         self.colormap_min = 0
         self.colormap_max = 1
         self.colormap_linear = False
@@ -500,6 +501,15 @@ class GLWidget(QtOpenGL.QGLWidget):
         screen_height = viewport[3]-viewport[1]
         rp = self._rendering_parameters
         rp.ratio = screen_width/max(screen_height,1)
+
+        if rp.colormap_autoscale:
+            rp.colormap_min = 1e99
+            rp.colormap_max = -1e99
+            for scene in self.scenes:
+                a,b = scene.getAutoScale()
+                rp.colormap_min = min(a, rp.colormap_min)
+                rp.colormap_max = max(b, rp.colormap_max)
+
         for scene in self.scenes:
             scene.render(rp) #model, view, projection)
         self._btn_area.render()

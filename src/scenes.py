@@ -92,6 +92,18 @@ center of this box. Rotation will be around this center."""
         box_max[:] = -1e99
         return box_min,box_max
 
+    def getAutoScale(self):
+        """Returns min/max values of scene object to scale the color map automatically"""
+        min_ =  1e99
+        max_ = -1e99
+        try:
+            for vb in self.values:
+                min_ = min(min_, min(self.values[vb]))
+                max_ = max(max_, max(self.values[vb]))
+        except:
+            pass
+        return min_, max_
+
     def _setActive(self, _active):
         """Toggle visibility of scene"""
         self._active = _active
@@ -168,6 +180,8 @@ class RenderingSettings(BaseScene):
         except:
             pass
         self.addParameters("Colormap", 
+                settings.ValueParameter(name="ColormapMin", label="min", default_value=0.0),
+                settings.ValueParameter(name="ColormapMax", label="max", default_value=1.0),
                 settings.ValueParameter(name="ColormapSteps", label="steps", min_value=1, default_value=8),
                 settings.SingleOptionParameter(name="ColormapName",
                                                           values = colormaps,
@@ -183,6 +197,9 @@ class RenderingSettings(BaseScene):
         if rp.colormap_n != self.getColormapSteps() or rp.colormap_name != self.getColormapName():
             rp.setColorMap(self.getColormapName(),self.getColormapSteps())
         rp.colormap_linear = self.getColormapLinear()
+        if not rp.colormap_autoscale:
+            rp.colormap_min = self.getColormapMin()
+            rp.colormap_max = self.getColormapMax()
 
 class BaseMeshScene(BaseScene):
     """Base class for all scenes that depend on a mesh"""
@@ -613,10 +630,7 @@ class SolutionScene(BaseMeshScene):
                            "abs" : 2,
                            "arg" : 3}
     __initial_values = {"Order" : 2,
-                        "ColorMapMin" : 0.,
-                        "ColorMapMax" : 1.,
                         "Autoscale" : True,
-                        "ColorMapLinear" : False,
                         "ShowClippingPlane" : True,
                         "Subdivision" : 1,
                         "ShowIsoSurface" : False,
@@ -632,10 +646,7 @@ class SolutionScene(BaseMeshScene):
         self.values = {}
         self.iso_values = {}
         self.__initial_values.update({"Order" : order,
-                                      "ColorMapMin" : float(min),
-                                      "ColorMapMax" : float(max),
                                       "Autoscale" : autoscale,
-                                      "ColorMapLinear" : linear,
                                       "ShowClippingPlane" : clippingPlane,
                                       "Subdivision" : kwargs['sd'] if "sd" in kwargs else 1})
 
@@ -732,19 +743,6 @@ class SolutionScene(BaseMeshScene):
                                settings.CheckboxParameter(name="Animate", label="Animate",
                                                           default_value=False))
 
-        self.addParameters("Colormap",
-                           settings.ValueParameter(name = "ColorMapMin",
-                                         label = "Min",
-                                         default_value = self.__initial_values["ColorMapMin"]),
-                           settings.ValueParameter(name= "ColorMapMax",
-                                         label = "Max",
-                                         default_value = self.__initial_values["ColorMapMax"]),
-                           settings.CheckboxParameter(name="Autoscale",
-                                               label="Autoscale",
-                                               default_value = self.__initial_values["Autoscale"]),
-                           settings.CheckboxParameter(name="ColorMapLinear",
-                                                      label="Linear",
-                                                      default_value=self.__initial_values["ColorMapLinear"]))
         if self._gfComponents:
             self.addParameters("Components", settings.ValueParameter(label = "Multidim",
                                                  default_value = 0,
@@ -782,8 +780,6 @@ class SolutionScene(BaseMeshScene):
     def _attachParameter(self, parameter):
         if parameter.name == "Animate":
             parameter.changed.connect(self._animate)
-        if parameter.name == "ColorMapMin" or parameter.name == "ColorMapMax":
-            parameter.changed.connect(lambda val: self.setAutoscale(False))
         if parameter.name == "Multidim":
             parameter.changed.connect(lambda val: setattr(self.cf.vec, "data", self._gfComponents.vecs[val]))
         super()._attachParameter(parameter)
@@ -866,10 +862,6 @@ class SolutionScene(BaseMeshScene):
         else:
             comp = 0
 
-        if self.getAutoscale():
-            settings.colormap_min = self.values[vb]['min'][comp]
-            settings.colormap_max = self.values[vb]['max'][comp]
-
         use_tessellation = use_deformation or elements.curved
         options = dict(ORDER=self.getOrder(), DEFORMATION=use_deformation, NOLIGHT=True)
 
@@ -934,10 +926,6 @@ class SolutionScene(BaseMeshScene):
             comp = self.getComponent()
         else:
             comp = 0
-
-        if self.getAutoscale():
-            settings.colormap_min = self.values[vb]['min'][comp]
-            settings.colormap_max = self.values[vb]['max'][comp]
 
         for elements in self.mesh_data.elements[vb]:
             shader = ['mesh.vert', 'solution.frag']
@@ -1167,15 +1155,6 @@ class SolutionScene(BaseMeshScene):
             return
 
         with self._vao:
-            if self.getAutoscale():
-                comp = 0 if self.cf.dim==1 else self.getComponent()
-                settings.colormap_min = self.values[ngsolve.VOL]['min'][comp]
-                settings.colormap_max = self.values[ngsolve.VOL]['max'][comp]
-            else:
-                settings.colormap_min = self.getColorMapMin()
-                settings.colormap_max = self.getColorMapMax()
-            settings.colormap_linear = self.getColorMapLinear()
-
             if self.mesh.dim==1:
                 for els in self.mesh_data.elements[ngsolve.VOL]:
                     self._render1D(settings, els)
@@ -1275,14 +1254,6 @@ class FacetSolutionScene(BaseMeshScene):
             comp = self.getComponent()
         else:
             comp = 0
-        if self.getAutoscale():
-            comp = 0 if self.cf.dim==1 else self.getComponent()
-            settings.colormap_min = self.values['min'][comp]
-            settings.colormap_max = self.values['max'][comp]
-        else:
-            settings.colormap_min = self.getColorMapMin()
-            settings.colormap_max = self.getColorMapMax()
-        settings.colormap_linear = self.getColorMapLinear()
         with self._vao:
             for facets in self.mesh_data.elements["facets"]:
                 shader = ['mesh.vert', 'solution.frag']
