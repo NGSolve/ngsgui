@@ -405,7 +405,7 @@ class ButtonArea(QtWidgets.QWidget):
         # self.setPalette(pal)
 
     def addButton(self, function, name=None, icon=None, icon_size = (20,20), description=None,
-                  shortcut = None):
+                  shortcut = None, checkable = False):
         """Create a new button in the area.
 
 Parameters
@@ -442,6 +442,8 @@ shortcut: str = None
         btn.clicked.connect(function)
         if shortcut:
             btn.setShortcut(shortcut)
+        if checkable:
+            btn.setCheckable(True)
         self.layout().addWidget(btn)
 
 def addShortcut(widget, name, key, func):

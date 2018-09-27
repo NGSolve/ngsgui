@@ -132,7 +132,7 @@ class GLWindowButtonArea(wid.ButtonArea):
                        "Cross")
         self.addButton(lambda : setattr(self.renderingParameters, "fastmode",
                                         not self.renderingParameters.fastmode) or self.glWidget.updateGL(),
-                       "Fastmode")
+                       "Fastmode",checkable=True)
         self._showColorBar = True
         self.addButton(lambda : setattr(self, "_showColorBar", not self._showColorBar) or self.glWidget.updateGL(),
                        "Colorbar")
