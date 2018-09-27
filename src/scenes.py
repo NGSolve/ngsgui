@@ -442,7 +442,7 @@ class MeshScene(BaseMeshScene):
         uniforms.set('light.diffuse', 0.0)
         uniforms.set('wireframe', True)
         tess_level = 10
-        if settings.fastmode and len(elements.data)//elements.size>10**5:
+        if settings.fastmode and len(elements.data)//elements.size>10**4:
             tess_level=1
         if elements.curved:
             glPatchParameteri(GL_PATCH_VERTICES, 2)
@@ -498,7 +498,7 @@ class MeshScene(BaseMeshScene):
             offset = 1
 
         tess_level = 10
-        if settings.fastmode and len(elements.data)//elements.size>10**5:
+        if settings.fastmode and len(elements.data)//elements.size>10**4:
             tess_level=1
 
         glPolygonMode( GL_FRONT_AND_BACK, polygon_mode );
@@ -904,7 +904,7 @@ class SolutionScene(BaseMeshScene):
             uniforms.set('complex_factor', [w.real, w.imag])
 
         tess_level = 10
-        if settings.fastmode and len(elements.data)//elements.size>10**5:
+        if settings.fastmode and len(elements.data)//elements.size>10**4:
             tess_level=1
 
         nverts = elements.nverts
@@ -969,7 +969,7 @@ class SolutionScene(BaseMeshScene):
                 uniforms.set('complex_factor', [w.real, w.imag])
 
             tess_level = 10
-            if settings.fastmode and len(elements.data)//elements.size>10**5:
+            if settings.fastmode and len(elements.data)//elements.size>10**4:
                 tess_level=1
 
             glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
