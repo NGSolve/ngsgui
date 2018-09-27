@@ -275,7 +275,7 @@ another Redraw after a time loop may be needed to see the final solutions."""
         self.window_tabber.activeGLWindow.glWidget.paintGL()
         im = fbo.toImage()
         im2 = QtGui.QImage(im)
-        im2.fill(QtCore.Qt.white)
+        im2.fill(QtCore.Qt.transparent)
         p = QtGui.QPainter(im2)
         p.drawImage(0,0,im)
         p.end()
