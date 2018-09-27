@@ -242,6 +242,10 @@ class RenderingParameters:
         self.light_specular = 0.5
         self.light_shininess = 50
 
+        self.near_plane = 0.1
+        self.far_plane = 20.
+        self.field_of_view = 0.8
+
 
     def setColorMap(self, name, N):
         self.colormap_name = name
@@ -310,7 +314,7 @@ class RenderingParameters:
 
     @property
     def projection(self):
-        return glmath.Perspective(0.8, self.ratio, .1, 20.)
+        return glmath.Perspective(self.field_of_view, self.ratio, self.near_plane, self.far_plane)
 
     @property
     def clipping_plane(self):
@@ -340,7 +344,7 @@ class WindowTab(QtWidgets.QWidget):
     def __init__(self, rendering_parameters = None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._rendering_parameters = rendering_parameters
-        self._startup_scenes = [ scenes.RenderingSettings(self._rendering_parameters, name="Rendering settings") ]
+        self._startup_scenes = []
         self._actions = []
         settings = QtCore.QSettings()
         def nextScene():
@@ -440,6 +444,8 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.lastPos = QtCore.QPoint()
         self.lastFastmode = self._rendering_parameters.fastmode
 
+        self._settings = scenes.RenderingSettings(self._rendering_parameters, name="Rendering settings") 
+
     @inmain_decorator(True)
     def updateGL(self,*args,**kwargs):
         super().updateGL(*args,**kwargs)
@@ -506,12 +512,12 @@ class GLWidget(QtOpenGL.QGLWidget):
             rp.colormap_min = 1e99
             rp.colormap_max = -1e99
             for scene in self.scenes:
-                a,b = scene.getAutoScale()
+                a,b = scene.getAutoscaleRange(rp)
                 rp.colormap_min = min(a, rp.colormap_min)
                 rp.colormap_max = max(b, rp.colormap_max)
 
         for scene in self.scenes:
-            scene.render(rp) #model, view, projection)
+            scene.render(rp)
         self._btn_area.render()
 
     def addScene(self, scene):

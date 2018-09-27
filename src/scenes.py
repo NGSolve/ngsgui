@@ -92,10 +92,10 @@ center of this box. Rotation will be around this center."""
         box_max[:] = -1e99
         return box_min,box_max
 
-    def getAutoScale(self):
+    def getAutoscaleRange(self,rp):
         """Returns min/max values of scene object to scale the color map automatically"""
-        min_ =  1e99
-        max_ = -1e99
+        min_ = rp.colormap_min
+        max_ = rp.colormap_max
         try:
             if hasattr(self, 'values'):
                 for vb in self.values:
