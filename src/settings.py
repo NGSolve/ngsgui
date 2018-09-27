@@ -416,6 +416,8 @@ class FileParameter(Parameter):
 
 class BaseSettings(QtCore.QObject):
     _have_qt = True
+    _individual_rendering_parameters = True
+
     def __init__(self):
         super().__init__()
         self._createParameters()
@@ -470,3 +472,98 @@ class BaseSettings(QtCore.QObject):
             self._parameters[group].append(par)
             self._attachParameter(par)
 
+class LightSettings(BaseSettings):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def _createParameters(self):
+        super()._createParameters()
+        sub_parameters = [
+            ValueParameter(name="LightAmbient", label="ambient", min_value=0.0, max_value=1.0, default_value=0.3, step=0.1),
+            ValueParameter(name="LightDiffuse", label="diffuse", min_value=0.0, max_value=1.0, default_value=0.7, step=0.1),
+            ValueParameter(name="LightSpecular", label="specular", min_value=0.0, max_value=2.0, default_value=0.5, step=0.1),
+            ValueParameter(name="LightShininess", label="shininess", min_value=0.0, max_value=100.0, default_value=50, step=1.0)]
+        if self._individual_rendering_parameters:
+            self.addParameters("Settings", 
+                CheckboxParameterCluster(name="IndividualLight", label="individual light settings", default_value = False, sub_parameters = sub_parameters ))
+
+            # patch getter functions to return either global defaults or individual settings
+            def patchFunction(self, name):
+                setattr(self, '_'+name, getattr(self, name))
+                setattr(self, name, lambda: getattr(self, '_'+name)() if self.getIndividualLight() else getattr(self._global_rendering_parameters, name)())
+            for name in ['Ambient', 'Diffuse', 'Specular', 'Shininess']:
+                patchFunction(self, 'getLight'+name)
+        else:
+            self.addParameters("Light", *sub_parameters)
+
+class ColormapSettings(BaseSettings):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._colormap_tex = None
+
+    def _createParameters(self):
+        super()._createParameters()
+        colormaps = ['netgen']
+        try:
+            import matplotlib.pyplot as plt
+            colormaps += plt.colormaps()
+        except:
+            pass
+        sub_parameters = [
+            CheckboxParameter(name="ColormapAutoscale", label="autoscale", default_value=True),
+            ValueParameter(name="ColormapMin", label="min", default_value=0.0),
+            ValueParameter(name="ColormapMax", label="max", default_value=1.0),
+            CheckboxParameter(name="ColormapLinear", label="linear", default_value=False),
+            ValueParameter(name="ColormapSteps", label="steps", min_value=1, default_value=8),
+            SingleOptionParameter(name="ColormapName",
+                                                      values = colormaps,
+                                                      label="map",
+                                                      default_value = "netgen"),
+            ]
+        sub_parameters[-2].changed.connect(self._updateColormap)
+
+        if self._individual_rendering_parameters:
+            self.addParameters("Settings", 
+                CheckboxParameterCluster(name="IndividualColormap", label="individual colormap settings", default_value = False, sub_parameters = sub_parameters ))
+            # patch getter functions to return either global defaults or individual settings
+            def patchFunction(self, name):
+                setattr(self, '_'+name, getattr(self, name))
+                setattr(self, name, lambda: getattr(self, '_'+name)() if self.getIndividualColormap() else getattr(self._global_rendering_parameters, name)())
+            for name in ['Min', 'Max', 'Name', 'Steps']:
+                patchFunction(self, 'getColormap'+name)
+        else:
+            self.addParameters("Colormap", *sub_parameters)
+
+    def _updateColormap(self):
+        name = self.getColormapName()
+        N = self.getColormapSteps()
+        colors = []
+        if name == 'netgen':
+            for i in range(N):
+                x = 1.0-i/(N-1)
+                clamp = lambda x: int(255*(min(1.0, max(0.0, x))))
+                colors.append(clamp(2.0-4.0*x))
+                colors.append(clamp(2.0-4.0*abs(0.5-x)))
+                colors.append(clamp(4.0*x - 2.0))
+        else:
+            import matplotlib.cm as cm
+            import matplotlib.pyplot as plt
+            cmap = cm.get_cmap(name, N)
+            for i in range(N):
+                colors+=cmap(i, bytes=True)[:3]
+
+        import OpenGL.GL as GL
+        if self._colormap_tex == None:
+            from .gl import Texture
+            self._colormap_tex = Texture(GL.GL_TEXTURE_1D, GL.GL_RGB)
+            GL.glTexParameteri( GL.GL_TEXTURE_1D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR )
+            GL.glTexParameteri( GL.GL_TEXTURE_1D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR )
+            GL.glTexParameteri( GL.GL_TEXTURE_1D, GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP_TO_EDGE)
+
+        self._colormap_tex.bind()
+        GL.glTexImage1D(GL.GL_TEXTURE_1D, 0, GL.GL_RGB, N, 0, GL.GL_RGB, GL.GL_UNSIGNED_BYTE, colors)
+
+    def getColormapTex(self):
+        if self._colormap_tex == None:
+            self._updateColormap()
+        return self._colormap_tex

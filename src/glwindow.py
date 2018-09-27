@@ -27,7 +27,7 @@ class ToolBoxItem(QtWidgets.QWidget):
         scene.widgets.setParent(self)
         scene.widgets.update()
         self.scene = weakref.ref(scene)
-        scene.addShortcuts(self)
+#         scene.addShortcuts(self)
 
     def changeActive(self):
         self.scene().active = not self.scene().active
@@ -367,6 +367,8 @@ class WindowTab(QtWidgets.QWidget):
         buttons.addWidget(btnZoomReset)
 
         self.toolbox = SceneToolBox(self)
+        self.glWidget._settings.window = weakref.ref(self)
+        self.toolbox.addScene(self.glWidget._settings)
 
         splitter = QtWidgets.QSplitter()
         inner_splitter = QtWidgets.QSplitter()
@@ -400,6 +402,7 @@ class WindowTab(QtWidgets.QWidget):
         self.glWidget.makeCurrent()
         scene.window = weakref.ref(self)
         scene.update()
+        scene._global_rendering_parameters = self.glWidget._settings
         self.glWidget.addScene(scene)
         self.toolbox.addScene(scene)
 
@@ -444,7 +447,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.lastPos = QtCore.QPoint()
         self.lastFastmode = self._rendering_parameters.fastmode
 
-        self._settings = scenes.RenderingSettings(self._rendering_parameters, name="Rendering settings") 
+        self._settings = scenes.RenderingSettings(self._rendering_parameters, name="Global settings") 
 
     @inmain_decorator(True)
     def updateGL(self,*args,**kwargs):
