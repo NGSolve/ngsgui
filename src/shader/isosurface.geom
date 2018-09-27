@@ -8,6 +8,7 @@ uniform Mesh mesh;
 uniform bool have_gradient;
 uniform int component;
 uniform int instance;
+uniform float iso_value;
 
 layout(points) in;
 layout(triangle_strip, max_vertices=24) out;

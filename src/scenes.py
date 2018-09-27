@@ -97,11 +97,12 @@ center of this box. Rotation will be around this center."""
         min_ =  1e99
         max_ = -1e99
         try:
-            for vb in self.values:
-                min_ = min(min_, min(self.values[vb]))
-                max_ = max(max_, max(self.values[vb]))
-        except:
-            pass
+            if hasattr(self, 'values'):
+                for vb in self.values:
+                    min_ = min(min_, min(self.values[vb]['min']))
+                    max_ = max(max_, max(self.values[vb]['max']))
+        except RuntimeError as e:
+            print(e)
         return min_, max_
 
     def _setActive(self, _active):
@@ -180,6 +181,7 @@ class RenderingSettings(BaseScene):
         except:
             pass
         self.addParameters("Colormap", 
+                settings.CheckboxParameter(name="ColormapAutoscale", label="autoscale", default_value=True),
                 settings.ValueParameter(name="ColormapMin", label="min", default_value=0.0),
                 settings.ValueParameter(name="ColormapMax", label="max", default_value=1.0),
                 settings.ValueParameter(name="ColormapSteps", label="steps", min_value=1, default_value=8),
@@ -197,6 +199,7 @@ class RenderingSettings(BaseScene):
         if rp.colormap_n != self.getColormapSteps() or rp.colormap_name != self.getColormapName():
             rp.setColorMap(self.getColormapName(),self.getColormapSteps())
         rp.colormap_linear = self.getColormapLinear()
+        rp.colormap_autoscale = self.getColormapAutoscale()
         if not rp.colormap_autoscale:
             rp.colormap_min = self.getColormapMin()
             rp.colormap_max = self.getColormapMax()
@@ -928,6 +931,8 @@ class SolutionScene(BaseMeshScene):
             comp = 0
 
         for elements in self.mesh_data.elements[vb]:
+            if not (elements.type, elements.curved) in self.values[vb]['real']:
+                return
             shader = ['mesh.vert', 'solution.frag']
             use_tessellation = use_deformation or elements.curved
             options = dict(ORDER=self.getOrder(), DEFORMATION=use_deformation)
@@ -1024,6 +1029,10 @@ class SolutionScene(BaseMeshScene):
 
     def renderFieldLines(self, settings, elements):
         # use transform feedback to get position (and direction) of vectors on regular grid
+        if elements.curved:
+            return
+        if elements.type != ngsolve.ET.TET:
+            return
 
         glEnable(GL_RASTERIZER_DISCARD)
         prog = getProgram('pass_through.vert', 'fieldlines_filter.geom', feedback=['pos','pos2', 'val'], ORDER=self.getOrder(), params=settings, elements=elements, USE_GL_VERTEX_ID=True, FILTER_MODE='FIELDLINES')
@@ -1217,19 +1226,6 @@ class FacetSolutionScene(BaseMeshScene):
                                                    min_value=1,
                                                    max_value=4,
                                                    updateScene=True))
-        self.addParameters("Colormap",
-                           settings.ValueParameter(name = "ColorMapMin",
-                                                   label = "Min",
-                                                   default_value = 0.),
-                           settings.ValueParameter(name= "ColorMapMax",
-                                                   label = "Max",
-                                                   default_value = 1.),
-                           settings.CheckboxParameter(name="Autoscale",
-                                                      label="Autoscale",
-                                                      default_value = False),
-                           settings.CheckboxParameter(name="ColorMapLinear",
-                                                      label="Linear",
-                                                      default_value=False))
         if self.cf.dim > 1:
             self.addParameters("Show",settings.ValueParameter(name="Component", label="Component",
                                                        default_value=0,
