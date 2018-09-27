@@ -242,6 +242,9 @@ class RenderingParameters:
         self.light_specular = 0.5
         self.light_shininess = 50
 
+        self.near_plane = 0.1
+        self.far_plane = 20.
+        self.field_of_view = 0.8
 
     def setColorMap(self, name, N):
         self.colormap_name = name
@@ -310,7 +313,7 @@ class RenderingParameters:
 
     @property
     def projection(self):
-        return glmath.Perspective(0.8, self.ratio, .1, 20.)
+        return glmath.Perspective(self.field_of_view, self.ratio, self.near_plane, self.far_plane)
 
     @property
     def clipping_plane(self):
