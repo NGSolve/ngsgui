@@ -401,8 +401,8 @@ class WindowTab(QtWidgets.QWidget):
     def draw(self, scene):
         self.glWidget.makeCurrent()
         scene.window = weakref.ref(self)
-        scene.update()
         scene._global_rendering_parameters = self.glWidget._settings
+        scene.update()
         self.glWidget.addScene(scene)
         self.toolbox.addScene(scene)
 

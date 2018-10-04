@@ -484,8 +484,8 @@ class LightSettings(BaseSettings):
             ValueParameter(name="LightSpecular", label="specular", min_value=0.0, max_value=2.0, default_value=0.5, step=0.1),
             ValueParameter(name="LightShininess", label="shininess", min_value=0.0, max_value=100.0, default_value=50, step=1.0)]
         if self._individual_rendering_parameters:
-            self.addParameters("Settings", 
-                CheckboxParameterCluster(name="IndividualLight", label="individual light settings", default_value = False, sub_parameters = sub_parameters ))
+            self.addParameters("Individual Settings",
+                CheckboxParameterCluster(name="IndividualLight", label="Light", default_value = False, sub_parameters = sub_parameters ))
 
             # patch getter functions to return either global defaults or individual settings
             def patchFunction(self, name):
@@ -523,8 +523,8 @@ class ColormapSettings(BaseSettings):
         sub_parameters[-2].changed.connect(self._updateColormap)
 
         if self._individual_rendering_parameters:
-            self.addParameters("Settings", 
-                CheckboxParameterCluster(name="IndividualColormap", label="individual colormap settings", default_value = False, sub_parameters = sub_parameters ))
+            self.addParameters("Individual Settings",
+                CheckboxParameterCluster(name="IndividualColormap", label="Colormap", default_value = False, sub_parameters = sub_parameters ))
             # patch getter functions to return either global defaults or individual settings
             def patchFunction(self, name):
                 setattr(self, '_'+name, getattr(self, name))
