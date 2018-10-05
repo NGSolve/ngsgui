@@ -357,7 +357,7 @@ class Program(GLObject):
         self.uniforms = Program.Uniforms(self.id)
         self.attributes = Program.Attributes(self.id)
 
-def getProgram(*shader_files, feedback=[], elements=None, params=None, **define_flags):
+def getProgram(*shader_files, feedback=[], elements=None, params=None, scene=None, **define_flags):
     import base64, zlib
     check_debug_output()
     cache = getProgram._cache
@@ -382,6 +382,8 @@ def getProgram(*shader_files, feedback=[], elements=None, params=None, **define_
     import sys
     if 'darwin' in sys.platform:
         define_flags['MACOS'] = 1
+    if scene and scene.getLightDisable():
+        define_flags['NOLIGHT'] = 1
     for d in define_flags:
         flag = define_flags[d]
         if flag != None:
@@ -426,28 +428,28 @@ def getProgram(*shader_files, feedback=[], elements=None, params=None, **define_
 
     glUseProgram(prog.id)
     u = prog.uniforms
-    if params != None:
+    if scene != None:
         if 'P' in u:
-            u.set('P',params.projection)
+            u.set('P',scene.projection)
         if 'MV' in u:
-            u.set('MV',params.view*params.model)
+            u.set('MV',scene.view*scene.model)
         if 'light.diffuse' in u:
-            u.set('light.ambient', params.light_ambient)
-            u.set('light.diffuse', params.light_diffuse)
+            u.set('light.ambient', scene.getLightAmbient())
+            u.set('light.diffuse', scene.getLightDiffuse())
             u.set('light.dir', [1.,3.,3.])
-            u.set('light.spec', params.light_specular)
-            u.set('light.shininess', params.light_shininess)
+            u.set('light.spec', scene.getLightSpecular())
+            u.set('light.shininess', scene.getLightShininess())
         if 'clipping_plane' in u:
-            u.set('clipping_plane', params.clipping_plane)
-        if 'colormap.colors' in u:
-            if params.colormap_n==0:
-                params.setColorMap('jet', 8)
-            u.set('colormap.n', params.colormap_n)
-            u.set('colormap.min', params.colormap_min)
-            u.set('colormap.max', params.colormap_max)
-            u.set('colormap.linear', params.colormap_linear)
+            u.set('clipping_plane', scene.getClippingPlane())
+        if 'do_clipping' in u:
+            u.set('do_clipping', scene.getClippingEnable())
+        if 'colormap.colors' in u and scene:
+            u.set('colormap.n', scene.getColormapSteps())
+            u.set('colormap.min', scene.getColormapMin())
+            u.set('colormap.max', scene.getColormapMax())
+            u.set('colormap.linear', scene.getColormapLinear())
             glActiveTexture(GL_TEXTURE6)
-            params.colormap_tex.bind()
+            scene.getColormapTex().bind()
             u.set('colormap.colors', 6)
 
     if elements != None:

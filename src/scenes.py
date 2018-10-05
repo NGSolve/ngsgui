@@ -15,7 +15,7 @@ from . import settings
 from PySide2 import QtWidgets, QtCore, QtGui
 from OpenGL.GL import *
 
-class BaseScene(settings.BaseSettings):
+class BaseScene(settings.CameraSettings, settings.LightSettings, settings.ClippingSettings):
     """Base class for drawing opengl objects.
 
 Parameters
@@ -28,7 +28,7 @@ name : str = type(self).__name__ + scene_counter
     scene_counter = 1
     activeChanged = QtCore.Signal(bool)
     @inmain_decorator(wait_for_return=True)
-    def __init__(self,active=True, name = None, **kwargs):
+    def __init__(self, active=True, name = None, **kwargs):
         self.window = None
         self._gl_initialized = False
         self._actions = {}
@@ -39,7 +39,7 @@ name : str = type(self).__name__ + scene_counter
             BaseScene.scene_counter += 1
         else:
             self.name = name
-        super().__init__()
+        super().__init__(**kwargs)
         self.activeChanged.connect(lambda val: self._updateGL())
 
     def __getstate__(self):
@@ -92,16 +92,17 @@ center of this box. Rotation will be around this center."""
         box_max[:] = -1e99
         return box_min,box_max
 
-    def getAutoScale(self):
+    def getAutoscaleRange(self,rp):
         """Returns min/max values of scene object to scale the color map automatically"""
-        min_ =  1e99
-        max_ = -1e99
+        min_ = rp.getColormapMin()
+        max_ = rp.getColormapMax()
         try:
-            for vb in self.values:
-                min_ = min(min_, min(self.values[vb]))
-                max_ = max(max_, max(self.values[vb]))
-        except:
-            pass
+            if hasattr(self, 'values'):
+                for vb in self.values:
+                    min_ = min(min_, min(self.values[vb]['min']))
+                    max_ = max(max_, max(self.values[vb]['max']))
+        except RuntimeError as e:
+            print(e)
         return min_, max_
 
     def _setActive(self, _active):
@@ -160,46 +161,13 @@ name : str = "action" + consecutive number
 
 GUI.sceneCreators[BaseScene] = lambda scene,*args,**kwargs: scene
 
-class RenderingSettings(BaseScene):
-    def __init__(self, rendering_parameters=None, *args, **kwargs):
-        super().__init__()
-        self._rp = rendering_parameters
+class RenderingSettings(BaseScene, settings.CameraSettings, settings.LightSettings, settings.ColormapSettings, settings.ClippingSettings):
+    def __init__(self, *args, **kwargs):
+        self._individual_rendering_parameters = False
+        super().__init__(*args, **kwargs)
 
-    def _createParameters(self):
-        super()._createParameters()
-        self.addParameters("Light", 
-                settings.ValueParameter(name="LightAmbient", label="ambient", min_value=0.0, max_value=1.0, default_value=0.3, step=0.1),
-                settings.ValueParameter(name="LightDiffuse", label="diffuse", min_value=0.0, max_value=1.0, default_value=0.7, step=0.1),
-                settings.ValueParameter(name="LightSpecular", label="specular", min_value=0.0, max_value=2.0, default_value=0.5, step=0.1),
-                settings.ValueParameter(name="LightShininess", label="shininess", min_value=0.0, max_value=100.0, default_value=50, step=1.0),
-                )
-        colormaps = ['netgen']
-        try:
-            import matplotlib.pyplot as plt
-            colormaps += plt.colormaps()
-        except:
-            pass
-        self.addParameters("Colormap", 
-                settings.ValueParameter(name="ColormapMin", label="min", default_value=0.0),
-                settings.ValueParameter(name="ColormapMax", label="max", default_value=1.0),
-                settings.ValueParameter(name="ColormapSteps", label="steps", min_value=1, default_value=8),
-                settings.SingleOptionParameter(name="ColormapName",
-                                                          values = colormaps,
-                                                          label="map",
-                                                          default_value = "netgen"),
-                settings.CheckboxParameter(name="ColormapLinear", label="linear", default_value=False)
-                )
     def render(self, rp):
-        rp.light_ambient = self.getLightAmbient()
-        rp.light_diffuse = self.getLightDiffuse()
-        rp.light_specular = self.getLightSpecular()
-        rp.light_shininess = self.getLightShininess()
-        if rp.colormap_n != self.getColormapSteps() or rp.colormap_name != self.getColormapName():
-            rp.setColorMap(self.getColormapName(),self.getColormapSteps())
-        rp.colormap_linear = self.getColormapLinear()
-        if not rp.colormap_autoscale:
-            rp.colormap_min = self.getColormapMin()
-            rp.colormap_max = self.getColormapMax()
+        pass
 
 class BaseMeshScene(BaseScene):
     """Base class for all scenes that depend on a mesh"""
@@ -222,7 +190,7 @@ class BaseMeshScene(BaseScene):
             sd_par = settings.ValueParameter(name="DeformationSubdivision", label="Subdivision",
                     default_value=1, min_value = 0, max_value = 5, updateScene=True)
             order_par = settings.ValueParameter(name="DeformationOrder", label="Order",
-                    default_value=2, min_value = 1, max_value = 4, updateScene=True)
+                    default_value=2, min_value = 1, max_value = 3, updateScene=True)
             self.addParameters("Deformation",
                     settings.CheckboxParameterCluster(name="Deformation", label="Deformation",
                         default_value = self.__initial_values["Deformation"],
@@ -426,16 +394,14 @@ class MeshScene(BaseMeshScene):
         use_deformation = self.getDeformation()
         use_tessellation = elements.curved or use_deformation
         if use_tessellation:
-            prog = getProgram('mesh.vert', 'mesh.tese', 'mesh.frag', elements=elements, params=settings, DEFORMATION=use_deformation)
+            prog = getProgram('mesh.vert', 'mesh.tese', 'mesh.frag', elements=elements, params=settings, DEFORMATION=use_deformation, scene=self)
         else:
-            prog = getProgram('mesh.vert', 'mesh.frag', elements=elements, params=settings, DEFORMATION=False)
+            prog = getProgram('mesh.vert', 'mesh.frag', elements=elements, params=settings, DEFORMATION=False, scene=self)
         uniforms = prog.uniforms
 
         glActiveTexture(GL_TEXTURE3)
         self.tex_edge_colors.bind()
         uniforms.set('colors', 3)
-
-        uniforms.set('do_clipping', False);
 
         uniforms.set('mesh.dim', 1);
         uniforms.set('light.ambient', 1.0)
@@ -465,7 +431,7 @@ class MeshScene(BaseMeshScene):
             shader.append('mesh.tese')
         if use_deformation:
             options["DEFORMATION_ORDER"] = self.getDeformationOrder()
-        prog = getProgram(*shader, elements=elements, params=settings, DEFORMATION=use_deformation, **options)
+        prog = getProgram(*shader, elements=elements, params=settings, DEFORMATION=use_deformation, scene=self, **options)
         uniforms = prog.uniforms
 
         if use_deformation:
@@ -480,8 +446,6 @@ class MeshScene(BaseMeshScene):
         glActiveTexture(GL_TEXTURE3)
         self.tex_surf_colors.bind()
         uniforms.set('colors', 3)
-
-        uniforms.set('do_clipping', True);
 
         uniforms.set('mesh.dim', 2);
         uniforms.set('wireframe', wireframe)
@@ -517,11 +481,10 @@ class MeshScene(BaseMeshScene):
     def _render3DElements(self, settings, elements):
         use_deformation = self.getDeformation()
         shader = ['mesh.vert', 'mesh.frag']
-        prog = getProgram(*shader, elements=elements, params=settings, DEFORMATION=0)
+        prog = getProgram(*shader, elements=elements, params=settings, DEFORMATION=0, scene=self)
 
         uniforms = prog.uniforms
 
-        uniforms.set('do_clipping', True);
         uniforms.set('shrink_elements', self.getShrink())
         uniforms.set('clip_whole_elements', True)
 
@@ -535,7 +498,7 @@ class MeshScene(BaseMeshScene):
         glDrawArraysInstanced(GL_TRIANGLES, 0, 3*self.mesh.ne, elements.n_instances_2d)
 
     def _renderNumbers(self, settings, elements):
-        prog = getProgram('pass_through.vert', 'numbers.geom', 'font.frag', params=settings, elements=elements, USE_GL_VERTEX_ID=True)
+        prog = getProgram('pass_through.vert', 'numbers.geom', 'font.frag', params=settings, elements=elements, scene=self, USE_GL_VERTEX_ID=True)
         uniforms = prog.uniforms
 
         viewport = glGetIntegerv( GL_VIEWPORT )
@@ -624,14 +587,13 @@ class MeshScene(BaseMeshScene):
 
 GUI.sceneCreators[ngsolve.Mesh] = MeshScene
 
-class SolutionScene(BaseMeshScene):
+class SolutionScene(BaseMeshScene, settings.ColormapSettings):
     _complex_eval_funcs = {"real" : 0,
                            "imag" : 1,
                            "abs" : 2,
                            "arg" : 3}
     __initial_values = {"Order" : 2,
-                        "Autoscale" : True,
-                        "ShowClippingPlane" : True,
+                        "ShowClippingPlane" : False,
                         "Subdivision" : 1,
                         "ShowIsoSurface" : False,
                         "ShowVolumeVectors" : False,
@@ -639,14 +601,13 @@ class SolutionScene(BaseMeshScene):
                         "ShowFieldLines" : False,
                         "ShowSurface" : True}
     @inmain_decorator(wait_for_return=True)
-    def __init__(self, cf, mesh, name=None, min=0.0,max=1.0, autoscale=True, linear=False, clippingPlane=True,
+    def __init__(self, cf, mesh, name=None, clippingPlane=False,
                  order=2, gradient=None, iso_surface=None, *args, **kwargs):
         self.cf = cf
         self.iso_surface = iso_surface or cf
         self.values = {}
         self.iso_values = {}
         self.__initial_values.update({"Order" : order,
-                                      "Autoscale" : autoscale,
                                       "ShowClippingPlane" : clippingPlane,
                                       "Subdivision" : kwargs['sd'] if "sd" in kwargs else 1})
 
@@ -825,7 +786,7 @@ class SolutionScene(BaseMeshScene):
 
     def _filterElements(self, settings, elements, filter_type):
         glEnable(GL_RASTERIZER_DISCARD)
-        prog = getProgram('pass_through.vert', 'filter_elements.geom', feedback=['element'], ORDER=self.getOrder(), params=settings, elements=elements, USE_GL_VERTEX_ID=True)
+        prog = getProgram('pass_through.vert', 'filter_elements.geom', feedback=['element'], ORDER=self.getOrder(), params=settings, elements=elements, USE_GL_VERTEX_ID=True, scene=self)
         uniforms = prog.uniforms
 
         glActiveTexture(GL_TEXTURE2)
@@ -871,11 +832,10 @@ class SolutionScene(BaseMeshScene):
         if use_deformation:
             options["DEFORMATION_ORDER"] = self.getDeformationOrder()
 
-        prog = getProgram(*shader, elements=elements, params=settings, **options)
+        prog = getProgram(*shader, elements=elements, params=settings, scene=self, **options)
         uniforms = prog.uniforms
 
         uniforms.set('wireframe', False)
-        uniforms.set('do_clipping', False)
         uniforms.set('subdivision', 2**self.getSubdivision()-1)
 
         glActiveTexture(GL_TEXTURE2)
@@ -928,6 +888,8 @@ class SolutionScene(BaseMeshScene):
             comp = 0
 
         for elements in self.mesh_data.elements[vb]:
+            if not (elements.type, elements.curved) in self.values[vb]['real']:
+                return
             shader = ['mesh.vert', 'solution.frag']
             use_tessellation = use_deformation or elements.curved
             options = dict(ORDER=self.getOrder(), DEFORMATION=use_deformation)
@@ -936,7 +898,7 @@ class SolutionScene(BaseMeshScene):
             if use_deformation:
                 options["DEFORMATION_ORDER"] = self.getDeformationOrder()
 
-            prog = getProgram(*shader, elements=elements, params=settings, **options)
+            prog = getProgram(*shader, elements=elements, params=settings, scene=self, **options)
             uniforms = prog.uniforms
 
             if use_deformation:
@@ -949,7 +911,6 @@ class SolutionScene(BaseMeshScene):
 
 
             uniforms.set('wireframe', False)
-            uniforms.set('do_clipping', self.mesh.dim==3 or use_deformation)
             uniforms.set('subdivision', 2**self.getSubdivision()-1)
 
             glActiveTexture(GL_TEXTURE2)
@@ -987,14 +948,13 @@ class SolutionScene(BaseMeshScene):
     def _renderIsoSurface(self, settings, elements):
         self._filterElements(settings, elements, 1)
         model, view, projection = settings.model, settings.view, settings.projection
-        prog = getProgram('pass_through.vert', 'isosurface.geom', 'solution.frag', elements=elements, ORDER=self.getOrder(), params=settings)
+        prog = getProgram('pass_through.vert', 'isosurface.geom', 'solution.frag', elements=elements, ORDER=self.getOrder(), params=settings, scene=self)
 
         uniforms = prog.uniforms
         uniforms.set('P',projection)
         uniforms.set('MV',view*model)
         uniforms.set('iso_value', self.getIsoValue())
         uniforms.set('have_gradient', self.have_gradient)
-        uniforms.set('do_clipping', True);
         uniforms.set('subdivision', 2**self.getSubdivision()-1)
         uniforms.set('order', self.getOrder())
         if self.cf.dim > 1:
@@ -1024,9 +984,13 @@ class SolutionScene(BaseMeshScene):
 
     def renderFieldLines(self, settings, elements):
         # use transform feedback to get position (and direction) of vectors on regular grid
+        if elements.curved:
+            return
+        if elements.type != ngsolve.ET.TET:
+            return
 
         glEnable(GL_RASTERIZER_DISCARD)
-        prog = getProgram('pass_through.vert', 'fieldlines_filter.geom', feedback=['pos','pos2', 'val'], ORDER=self.getOrder(), params=settings, elements=elements, USE_GL_VERTEX_ID=True, FILTER_MODE='FIELDLINES')
+        prog = getProgram('pass_through.vert', 'fieldlines_filter.geom', feedback=['pos','pos2', 'val'], ORDER=self.getOrder(), params=settings, scene=self,elements=elements, USE_GL_VERTEX_ID=True, FILTER_MODE='FIELDLINES')
         uniforms = prog.uniforms
 
         uniforms.set('grid_size', self.getFieldLinesThickness())
@@ -1052,7 +1016,7 @@ class SolutionScene(BaseMeshScene):
         glDisable(GL_RASTERIZER_DISCARD)
 
         # render actual vectors
-        prog = getProgram('fieldlines.vert', 'fieldlines_draw.geom', 'vectors.frag', elements=elements, ORDER=self.getOrder(), params=settings)
+        prog = getProgram('fieldlines.vert', 'fieldlines_draw.geom', 'vectors.frag', elements=elements, ORDER=self.getOrder(), params=settings, scene=self)
         uniforms = prog.uniforms
         uniforms.set('grid_size', self.getFieldLinesThickness())
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
@@ -1074,7 +1038,7 @@ class SolutionScene(BaseMeshScene):
             raise RuntimeError("invalid mode: "+str(mode))
 
         glEnable(GL_RASTERIZER_DISCARD)
-        prog = getProgram('pass_through.vert', 'vectors_filter.geom', feedback=['pos','val'], ORDER=self.getOrder(), params=settings, elements=elements, USE_GL_VERTEX_ID=True, FILTER_MODE=mode)
+        prog = getProgram('pass_through.vert', 'vectors_filter.geom', feedback=['pos','val'], ORDER=self.getOrder(), params=settings, scene=self, elements=elements, USE_GL_VERTEX_ID=True, FILTER_MODE=mode)
         uniforms = prog.uniforms
 
         uniforms.set('grid_size', grid_size)
@@ -1095,7 +1059,7 @@ class SolutionScene(BaseMeshScene):
         glDisable(GL_RASTERIZER_DISCARD)
 
         # render actual vectors
-        prog = getProgram('vectors.vert', 'vectors_draw.geom', 'vectors.frag', elements=elements, ORDER=self.getOrder(), params=settings)
+        prog = getProgram('vectors.vert', 'vectors_draw.geom', 'vectors.frag', elements=elements, ORDER=self.getOrder(), params=settings, scene=self)
         uniforms = prog.uniforms
         uniforms.set('grid_size', grid_size)
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
@@ -1107,12 +1071,9 @@ class SolutionScene(BaseMeshScene):
 
     def _renderClippingPlane(self, settings, elements):
         self._filterElements(settings, elements, 0)
-        model, view, projection = settings.model, settings.view, settings.projection
-        prog = getProgram('pass_through.vert', 'clipping.geom', 'solution.frag', elements=elements, ORDER=self.getOrder(), params=settings)
+        prog = getProgram('pass_through.vert', 'clipping.geom', 'solution.frag', elements=elements, ORDER=self.getOrder(), params=settings, scene=self)
 
         uniforms = prog.uniforms
-        uniforms.set('P',projection)
-        uniforms.set('MV',view*model)
         uniforms.set('clipping_plane_deformation', False)
         uniforms.set('do_clipping', False);
         uniforms.set('subdivision', 2**self.getSubdivision()-1)
@@ -1217,19 +1178,6 @@ class FacetSolutionScene(BaseMeshScene):
                                                    min_value=1,
                                                    max_value=4,
                                                    updateScene=True))
-        self.addParameters("Colormap",
-                           settings.ValueParameter(name = "ColorMapMin",
-                                                   label = "Min",
-                                                   default_value = 0.),
-                           settings.ValueParameter(name= "ColorMapMax",
-                                                   label = "Max",
-                                                   default_value = 1.),
-                           settings.CheckboxParameter(name="Autoscale",
-                                                      label="Autoscale",
-                                                      default_value = False),
-                           settings.CheckboxParameter(name="ColorMapLinear",
-                                                      label="Linear",
-                                                      default_value=False))
         if self.cf.dim > 1:
             self.addParameters("Show",settings.ValueParameter(name="Component", label="Component",
                                                        default_value=0,
@@ -1260,9 +1208,8 @@ class FacetSolutionScene(BaseMeshScene):
                 options = dict(ORDER=self.getOrder())
                 if self.mesh.dim == 2:
                     options["NOLIGHT"] = True
-                prog = getProgram(*shader, elements=facets, params=settings, **options)
+                prog = getProgram(*shader, elements=facets, params=settings, scene=self, **options)
                 uniforms = prog.uniforms
-                uniforms.set('do_clipping', True)
                 glActiveTexture(GL_TEXTURE2)
                 self.values['real'][(facets.type, facets.curved)].bind()
                 uniforms.set('coefficients', 2)
@@ -1285,10 +1232,9 @@ class FacetSolutionScene(BaseMeshScene):
                     glDrawArrays(GL_TRIANGLES, 0, 3*len(facets.data)//facets.size)
 
 def _createCFScene(cf, mesh, *args, **kwargs):
-    autoscale = kwargs["autoscale"] if "autoscale" in kwargs else not ("min" in kwargs or "max" in kwargs)
     if "facet" in kwargs and kwargs["facet"]:
-        return FacetSolutionScene(cf, mesh, *args, autoscale = autoscale, **kwargs)
-    return SolutionScene(cf, mesh, *args, autoscale = autoscale, **kwargs)
+        return FacetSolutionScene(cf, mesh, *args, **kwargs)
+    return SolutionScene(cf, mesh, *args, **kwargs)
 
 def _createGFScene(gf, mesh=None, name=None, *args, **kwargs):
     if not mesh:
@@ -1361,7 +1307,7 @@ class GeometryScene(BaseScene):
         if not self.active:
             return
         with self._vao:
-            prog = getProgram('geo.vert', 'geo.frag', params=settings)
+            prog = getProgram('geo.vert', 'geo.frag', params=settings, scene=self)
             uniforms = prog.uniforms
 
             glActiveTexture(GL_TEXTURE0)
@@ -1381,7 +1327,6 @@ class GeometryScene(BaseScene):
             uniforms.set('colors',3)
 
             uniforms.set('clipping_plane', settings.clipping_plane)
-            uniforms.set('do_clipping', True)
             glPolygonMode(GL_FRONT_AND_BACK, GL_FILL )
             glDrawArrays(GL_TRIANGLES, 0, self._geo_data.npoints)
 
@@ -1463,7 +1408,7 @@ class GeometryScene2D(BaseScene):
                                                               pnt[1]+eps*normal[1], 0], use_absolute_pos=False)
 
     def __renderGeometry(self, settings):
-        prog = getProgram('geom2d.vert', 'geo.frag', params=settings, NOLIGHT=True)
+        prog = getProgram('geom2d.vert', 'geo.frag', params=settings, scene=self, NOLIGHT=True)
         uniforms = prog.uniforms
 
         glActiveTexture(GL_TEXTURE0)
@@ -1473,7 +1418,6 @@ class GeometryScene2D(BaseScene):
         prog.attributes.bind('pos', self.vertices)
         prog.attributes.bind('domain', self.domains)
 
-        uniforms.set('do_clipping', False)
         uniforms.set('light.ambient', 1)
         uniforms.set('light.diffuse',0)
         uniforms.set('light.spec',0)

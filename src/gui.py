@@ -380,7 +380,6 @@ another Redraw after a time loop may be needed to see the final solutions."""
             for i in range(self.window_tabber.count()):
                 if self.window_tabber.widget(i).isGLWindow():
                     tabs.append((self.window_tabber.widget(i).glWidget.scenes,
-                                 self.window_tabber.widget(i).glWidget._rendering_parameters,
                                  self.window_tabber.tabBar().tabText(i)))
             with open(filename, "wb") as f:
                 pickle.dump(tabs,f)
