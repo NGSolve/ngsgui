@@ -121,8 +121,32 @@ class GLWindowButtonArea(wid.ButtonArea):
             self.glWidget._settings.setClippingNormal([0,0,1])
             self.glWidget.updateGL()
         def flip():
-            self.glWidget._settings.setClippingNormal(-1. * self.glWidget._settings.getClippingNormal())
+            self.glWidget._settings.setClippingNormal(-1. * glmath.Vector(self.glWidget._settings.getClippingNormal()))
             self.glWidget.updateGL()
+        def storeRenderingSettings():
+            s = self.glWidget._settings
+            import io, base64, pickle
+            with io.BytesIO() as f:
+                pickler = pickle.Pickler(f)
+                pickler.dump(s.__getstate__())
+                enc = base64.b64encode(f.getvalue()).decode('ascii')
+            sets = QtCore.QSettings('ngsolve','gui')
+            sets.setValue('viewsettings', enc)
+
+        def loadRenderingSettings():
+            import io, base64, pickle
+            sets = QtCore.QSettings('ngsolve','gui')
+            enc = sets.value('viewsettings')
+            data = base64.b64decode(enc)
+            pickle.load
+            with io.BytesIO(data) as f:
+                unpickler = pickle.Unpickler(f)
+                state = unpickler.load()
+
+            s = self.glWidget._settings
+            s.__setstate__(state)
+            ngsolve.Redraw()
+
         self.addButton(clipX, "clip &x")
         self.addButton(clipY, "clip &y")
         self.addButton(clipZ, "clip &z")
@@ -139,6 +163,10 @@ class GLWindowButtonArea(wid.ButtonArea):
         self._showVersion = True
         self.addButton(lambda : setattr(self, "_showVersion", not self._showVersion) or self.glWidget.updateGL(),
                        "Version")
+
+        self.addButton(storeRenderingSettings, "save view")
+        self.addButton(loadRenderingSettings, "load view")
+
         addShortcut(self, "GLWindow-clipx", "x", clipX)
         addShortcut(self, "GLWindow-clipy", "y", clipY)
         addShortcut(self, "GLWindow-clipz", "z", clipZ)
@@ -211,133 +239,6 @@ class GLWindowButtonArea(wid.ButtonArea):
                     self._text_renderer.draw(self.renderingParameters, '{:.2g}'.format(val).replace("e+", "e"), [x,y0-0.03,0], alignment=QtCore.Qt.AlignCenter|QtCore.Qt.AlignTop)
             GL.glEnable(GL.GL_DEPTH_TEST)
 
-class RenderingParameters:
-    def __init__(self):
-        self.rotmat = glmath.Identity()
-        self.zoom = 0.0
-        self.ratio = 1.0
-        self.dx = 0.0
-        self.dy = 0.0
-        self.min = Vector(3)
-        self.min[:] = 0.0
-        self.max = Vector(3)
-        self.max[:] = 0.0
-
-        self.clipping_rotmat = glmath.Identity()
-        self.clipping_normal = Vector(4)
-        self.clipping_normal[0] = 1.0
-        self.clipping_point = Vector(3)
-        self.clipping_dist = 0.0
-
-        self.colormap_autoscale = False
-        self.colormap_min = 0
-        self.colormap_max = 1
-        self.colormap_linear = False
-
-        self.fastmode = False
-        self.colormap_n = 0
-
-        self.light_ambient = 0.3
-        self.light_diffuse = 0.7
-        self.light_specular = 0.5
-        self.light_shininess = 50
-
-        self.near_plane = 0.1
-        self.far_plane = 20.
-        self.field_of_view = 0.8
-
-    def setColorMap(self, name, N):
-        self.colormap_name = name
-        self.colormap_n = N
-        colors = []
-        if name == 'netgen':
-            for i in range(N):
-                x = 1.0-i/(N-1)
-                clamp = lambda x: int(255*(min(1.0, max(0.0, x))))
-                colors.append(clamp(2.0-4.0*x))
-                colors.append(clamp(2.0-4.0*abs(0.5-x)))
-                colors.append(clamp(4.0*x - 2.0))
-        else:
-            import matplotlib.cm as cm
-            import matplotlib.pyplot as plt
-            cmap = cm.get_cmap(name, N)
-            for i in range(N):
-                colors+=cmap(i, bytes=True)[:3]
-        self.colormap_tex = Texture(GL.GL_TEXTURE_1D, GL.GL_RGB)
-        GL.glTexImage1D(GL.GL_TEXTURE_1D, 0, GL.GL_RGB, N, 0, GL.GL_RGB, GL.GL_UNSIGNED_BYTE, colors)
-        GL.glTexParameteri( GL.GL_TEXTURE_1D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR )
-        GL.glTexParameteri( GL.GL_TEXTURE_1D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR )
-        GL.glTexParameteri(GL.GL_TEXTURE_1D, GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP_TO_EDGE)
-
-    def __getstate__(self):
-        return (np.array(self.rotmat), self.zoom, self.ratio, self.dx, self.dy, np.array(self.min),
-                np.array(self.max), np.array(self.clipping_rotmat), np.array(self.clipping_normal),
-                np.array(self.clipping_point), self.clipping_dist, self.colormap_min, self.colormap_max,
-                self.colormap_linear, self.fastmode)
-
-    def __setstate__(self,state):
-        self.__init__()
-        rotmat, self.zoom, self.ratio, self.dx, self.dy, _min, _max, cl_rotmat, cl_normal, cl_point, self.clipping_dist, self.colormap_min, self.colormap_max, self.colormap_linear, self.fastmode = state
-        for i in range(4):
-            for j in range(4):
-                self.rotmat[i,j] = rotmat[i,j]
-                self.clipping_rotmat[i,j] = cl_rotmat[i,j]
-            self.clipping_normal[i] = cl_normal[i]
-        for i in range(3):
-            self.min[i] = _min[i]
-            self.max[i] = _max[i]
-            self.clipping_point[i] = cl_point[i]
-
-    @property
-    def center(self):
-        return 0.5*(self.min+self.max)
-
-    @property
-    def _modelSize(self):
-        return sqrt(sum((self.max[i]-self.min[i])**2 for i in range(3)))
-
-    @property
-    def model(self):
-        mat = glmath.Identity();
-        mat = self.rotmat*mat;
-        mat = glmath.Scale(2./self._modelSize) * mat if self._modelSize else mat
-        mat = glmath.Translate(self.dx, -self.dy, -0 )*mat;
-        mat = glmath.Scale(exp(-self.zoom/100))*mat;
-        mat = glmath.Translate(0, -0, -5 )*mat;
-        mat = mat*glmath.Translate(-self.center[0], -self.center[1], -self.center[2]) #move to center
-        return mat
-
-    @property
-    def view(self):
-        return glmath.LookAt()
-
-    @property
-    def projection(self):
-        return glmath.Perspective(self.field_of_view, self.ratio, self.near_plane, self.far_plane)
-
-    @property
-    def clipping_plane(self):
-        x = self.clipping_rotmat * self.clipping_normal
-        d = glmath.Dot(self.clipping_point,x[0:3])
-        x[3] = -d
-        x[3] = x[3]-self.clipping_dist
-        return x
-
-    def getClippingPlaneNormal(self):
-        x = self.clipping_rotmat * self.clipping_normal
-        return x[0:3]
-
-    def getClippingPlanePoint(self):
-        return self.clipping_point
-
-    def setClippingPlaneNormal(self, normal):
-        for i in range(3):
-            self.clipping_normal[i] = normal[i]
-        self.clipping_rotmat = glmath.Identity()
-
-    def setClippingPlanePoint(self, point):
-        for i in range(3):
-            self.clipping_point[i] = point[i]
 
 class WindowTab(QtWidgets.QWidget):
     def __init__(self, *args, **kwargs):

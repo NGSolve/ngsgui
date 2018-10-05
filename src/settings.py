@@ -302,7 +302,7 @@ class VectorParameter(Parameter):
         return ArrangeH(*self._spinboxes)
 
     def getValue(self):
-        return glmath.Vector([sb.value() for sb in self._spinboxes])
+        return [sb.value() for sb in self._spinboxes]
 
     def setValue(self, val):
         for sb,v in zip(self._spinboxes, val):
@@ -311,16 +311,16 @@ class VectorParameter(Parameter):
             sb.blockSignals(False)
         self.changed.emit(self.getValue())
 
-#     def __getstate__(self):
-#         return (super().__getstate__(),
-#                 self.getValue(),
-#                 self._min_value,
-#                 self._max_value,
-#                 self._step)
-# 
-#     def __setstate__(self, state):
-#         self._initial_value, self._min_value, self._max_value, self._step = state[1:]
-#         super().__setstate__(state[0])
+    def __getstate__(self):
+        return (super().__getstate__(),
+                self.getValue(),
+                self._min_value,
+                self._max_value,
+                self._step)
+
+    def __setstate__(self, state):
+        self._initial_value, self._min_value, self._max_value, self._step = state[1:]
+        super().__setstate__(state[0])
 
 class SingleChoiceParameter(Parameter):
     def __init__(self, *args, options, default_value, sub_parameters=None, **kwargs):
@@ -475,7 +475,6 @@ class BaseSettings(QtCore.QObject):
         return (self._parameters,)
 
     def __setstate__(self, state):
-        super().__init__()
         self._parameters = {}
         self._par_name_dict = {}
         for group, items in state[0].items():
@@ -586,25 +585,51 @@ class CameraSettings(BaseSettings):
             return self._global_rendering_parameters.projection
         return glmath.Perspective(self.field_of_view, self.ratio, self.near_plane, self.far_plane)
 
+    def __getstate__(self):
+        rotmat = [[self.rotmat[i,j] for j in range(3)] for i in range(3)]
+        return (super().__getstate__(),
+            rotmat,
+            self.zoom,
+            self.ratio,
+            self.dx,
+            self.dy,
+            self.fastmode,
+            list(self.min),
+            list(self.max),
+            self.near_plane,
+            self.far_plane,
+            self.field_of_view)
+
+    def __setstate__(self, state):
+        super().__setstate__(state[0])
+        rotmat, self.zoom, self.ratio, self.dx, self.dy, self.fastmode, min_, max_, self.near_plane, self.far_plane, self.field_of_view = state[1:]
+        self.min = glmath.Vector(min_)
+        self.max = glmath.Vector(max_)
+        self.rotmat = glmath.Identity()
+        for i in range(3):
+            for j in range(3):
+                self.rotmat[i,j] = rotmat[i][j]
+        
+
 class ClippingSettings(BaseSettings):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
     def rotateClippingNormal(self, dx, dy, rotmat):
         """rotmat ... current camera rotation matrix"""
-        n = self.getClippingNormal()
+        n = glmath.Vector(self.getClippingNormal())
         n = rotmat.T*glmath.RotateY(-dx/50.0)*rotmat*n
         n = rotmat.T*glmath.RotateX(-dy/50.0)*rotmat*n
         self.setClippingNormal(n)
 
     def moveClippingPoint(self, d):
-        n = self.getClippingNormal()
-        p = self.getClippingPoint()
+        n = glmath.Vector(self.getClippingNormal())
+        p = glmath.Vector(self.getClippingPoint())
         self.setClippingPoint(p+d*n)
 
     def getClippingPlane(self):
-        n = self.getClippingNormal()
-        p = self.getClippingPoint()
+        n = glmath.Vector(self.getClippingNormal())
+        p = glmath.Vector(self.getClippingPoint())
         return glmath.Vector( [n[0], n[1], n[2], -glmath.Dot(n,p)])
 
     def _createParameters(self):
