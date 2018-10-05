@@ -1,6 +1,7 @@
 
 from . import widgets as wid
 from . import scenes
+from . import glmath
 from .thread import inthread, inmain_decorator
 
 from .widgets import ArrangeH, ArrangeV
@@ -8,6 +9,7 @@ from .widgets import ArrangeH, ArrangeV
 from PySide2 import QtWidgets, QtGui, QtCore
 
 import ngsolve as ngs
+import math
 
 class Parameter(QtCore.QObject):
     changed = QtCore.Signal(object)
@@ -275,6 +277,51 @@ class ValueParameter(Parameter):
         self._initial_value, self._min_value, self._max_value, self._step = state[1:]
         super().__setstate__(state[0])
 
+class VectorParameter(Parameter):
+    def __init__(self, default_value, min_value=None, max_value=None, step=None, **kwargs):
+        self._initial_value = default_value
+        self._step = step
+        self._min_value = min_value
+        self._max_value = max_value
+        super().__init__(**kwargs)
+
+    def _createWidget(self):
+        self._spinboxes = []
+        for i in range(len(self._initial_value)):
+            sb = wid.ScienceSpinBox()
+
+            if self._step:
+                sb.lastWheelStep=self._step
+            if self._min_value != None:
+                sb.setMinimum(self._min_value)
+            if self._max_value != None:
+                sb.setMaximum(self._max_value)
+            sb.setValue(self._initial_value[i])
+            sb.valueChanged.connect(self.changed.emit)
+            self._spinboxes.append(sb)
+        return ArrangeH(*self._spinboxes)
+
+    def getValue(self):
+        return glmath.Vector([sb.value() for sb in self._spinboxes])
+
+    def setValue(self, val):
+        for sb,v in zip(self._spinboxes, val):
+            sb.blockSignals(True)
+            sb.setValue(v)
+            sb.blockSignals(False)
+        self.changed.emit(self.getValue())
+
+#     def __getstate__(self):
+#         return (super().__getstate__(),
+#                 self.getValue(),
+#                 self._min_value,
+#                 self._max_value,
+#                 self._step)
+# 
+#     def __setstate__(self, state):
+#         self._initial_value, self._min_value, self._max_value, self._step = state[1:]
+#         super().__setstate__(state[0])
+
 class SingleChoiceParameter(Parameter):
     def __init__(self, *args, options, default_value, sub_parameters=None, **kwargs):
         # list of single choice options
@@ -472,6 +519,114 @@ class BaseSettings(QtCore.QObject):
             self._parameters[group].append(par)
             self._attachParameter(par)
 
+class CameraSettings(BaseSettings):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.rotmat = glmath.Identity()
+        self.zoom = 0.0
+        self.ratio = 1.0
+        self.dx = 0.0
+        self.dy = 0.0
+
+        self.fastmode = False
+
+        self.min = glmath.Vector(3)
+        self.min[:] = 0.0
+        self.max = glmath.Vector(3)
+        self.max[:] = 0.0
+
+        self.near_plane = 0.1
+        self.far_plane = 20.
+        self.field_of_view = 0.8
+
+    def rotateCamera(self, dx, dy):
+        self.rotmat = glmath.RotateY(-dx/50.0)*self.rotmat
+        self.rotmat = glmath.RotateX(-dy/50.0)*self.rotmat
+
+    def moveCamera(self, dx, dy):
+        s = 200.0*math.exp(-self.zoom/100)
+        self.dx += dx/s
+        self.dy += dy/s
+
+    @property
+    def center(self):
+        if self._individual_rendering_parameters:
+            return self._global_rendering_parameters.center
+        return 0.5*(self.min+self.max)
+
+    @property
+    def _modelSize(self):
+        if self._individual_rendering_parameters:
+            return self._global_rendering_parameters._modelSize
+        return math.sqrt(sum((self.max[i]-self.min[i])**2 for i in range(3)))
+
+    @property
+    def model(self):
+        if self._individual_rendering_parameters:
+            return self._global_rendering_parameters.model
+        mat = glmath.Identity();
+        mat = self.rotmat*mat;
+        mat = glmath.Scale(2./self._modelSize) * mat if self._modelSize else mat
+        mat = glmath.Translate(self.dx, -self.dy, -0 )*mat;
+        mat = glmath.Scale(math.exp(-self.zoom/100))*mat;
+        mat = glmath.Translate(0, -0, -5 )*mat;
+        mat = mat*glmath.Translate(-self.center[0], -self.center[1], -self.center[2]) #move to center
+        return mat
+
+    @property
+    def view(self):
+        if self._individual_rendering_parameters:
+            return self._global_rendering_parameters.view
+        return glmath.LookAt()
+
+    @property
+    def projection(self):
+        if self._individual_rendering_parameters:
+            return self._global_rendering_parameters.projection
+        return glmath.Perspective(self.field_of_view, self.ratio, self.near_plane, self.far_plane)
+
+class ClippingSettings(BaseSettings):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def rotateClippingNormal(self, dx, dy, rotmat):
+        """rotmat ... current camera rotation matrix"""
+        n = self.getClippingNormal()
+        n = rotmat.T*glmath.RotateY(-dx/50.0)*rotmat*n
+        n = rotmat.T*glmath.RotateX(-dy/50.0)*rotmat*n
+        self.setClippingNormal(n)
+
+    def moveClippingPoint(self, d):
+        n = self.getClippingNormal()
+        p = self.getClippingPoint()
+        self.setClippingPoint(p+d*n)
+
+    def getClippingPlane(self):
+        n = self.getClippingNormal()
+        p = self.getClippingPoint()
+        return glmath.Vector( [n[0], n[1], n[2], -glmath.Dot(n,p)])
+
+    def _createParameters(self):
+        super()._createParameters()
+        sub_parameters = [
+            CheckboxParameter(name="ClippingEnable", label="Enable", default_value=False),
+            VectorParameter(name="ClippingPoint", label="Point", default_value=(0.0,0.0,0.0), step=0.1),
+            VectorParameter(name="ClippingNormal", label="Normal", min_value=-1.0, max_value=1.0, default_value=(1.0,0.0,0.0), step=0.1)
+            ]
+        if self._individual_rendering_parameters:
+            self.addParameters("Individual Settings",
+                CheckboxParameterCluster(name="IndividualClipping", label="Clipping", default_value = False, sub_parameters = sub_parameters ))
+
+            # patch getter functions to return either global defaults or individual settings
+            def patchFunction(self, name):
+                setattr(self, '_'+name, getattr(self, name))
+                setattr(self, name, lambda: getattr(self, '_'+name)() if self.getIndividualClipping() else getattr(self._global_rendering_parameters, name)())
+            for name in ['Point', 'Normal', 'Enable']:
+                patchFunction(self, 'getClipping'+name)
+        else:
+            self.addParameters("Clipping", *sub_parameters)
+
 class LightSettings(BaseSettings):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -479,6 +634,7 @@ class LightSettings(BaseSettings):
     def _createParameters(self):
         super()._createParameters()
         sub_parameters = [
+            CheckboxParameter(name="LightDisable", label="disable", default_value=False),
             ValueParameter(name="LightAmbient", label="ambient", min_value=0.0, max_value=1.0, default_value=0.3, step=0.1),
             ValueParameter(name="LightDiffuse", label="diffuse", min_value=0.0, max_value=1.0, default_value=0.7, step=0.1),
             ValueParameter(name="LightSpecular", label="specular", min_value=0.0, max_value=2.0, default_value=0.5, step=0.1),
@@ -491,7 +647,7 @@ class LightSettings(BaseSettings):
             def patchFunction(self, name):
                 setattr(self, '_'+name, getattr(self, name))
                 setattr(self, name, lambda: getattr(self, '_'+name)() if self.getIndividualLight() else getattr(self._global_rendering_parameters, name)())
-            for name in ['Ambient', 'Diffuse', 'Specular', 'Shininess']:
+            for name in ['Disable', 'Ambient', 'Diffuse', 'Specular', 'Shininess']:
                 patchFunction(self, 'getLight'+name)
         else:
             self.addParameters("Light", *sub_parameters)
@@ -521,6 +677,7 @@ class ColormapSettings(BaseSettings):
                                                       default_value = "netgen"),
             ]
         sub_parameters[-2].changed.connect(self._updateColormap)
+        sub_parameters[-1].changed.connect(self._updateColormap)
 
         if self._individual_rendering_parameters:
             self.addParameters("Individual Settings",
@@ -529,7 +686,7 @@ class ColormapSettings(BaseSettings):
             def patchFunction(self, name):
                 setattr(self, '_'+name, getattr(self, name))
                 setattr(self, name, lambda: getattr(self, '_'+name)() if self.getIndividualColormap() else getattr(self._global_rendering_parameters, name)())
-            for name in ['Min', 'Max', 'Name', 'Steps']:
+            for name in ['Min', 'Max', 'Name', 'Steps', 'Linear', 'Autoscale']:
                 patchFunction(self, 'getColormap'+name)
         else:
             self.addParameters("Colormap", *sub_parameters)
@@ -564,6 +721,9 @@ class ColormapSettings(BaseSettings):
         GL.glTexImage1D(GL.GL_TEXTURE_1D, 0, GL.GL_RGB, N, 0, GL.GL_RGB, GL.GL_UNSIGNED_BYTE, colors)
 
     def getColormapTex(self):
+        if self._individual_rendering_parameters and not self.getIndividualColormap():
+            return self._global_rendering_parameters.getColormapTex()
         if self._colormap_tex == None:
             self._updateColormap()
         return self._colormap_tex
+

@@ -15,7 +15,7 @@ from . import settings
 from PySide2 import QtWidgets, QtCore, QtGui
 from OpenGL.GL import *
 
-class BaseScene(settings.LightSettings):
+class BaseScene(settings.CameraSettings, settings.LightSettings, settings.ClippingSettings):
     """Base class for drawing opengl objects.
 
 Parameters
@@ -94,8 +94,8 @@ center of this box. Rotation will be around this center."""
 
     def getAutoscaleRange(self,rp):
         """Returns min/max values of scene object to scale the color map automatically"""
-        min_ = rp.colormap_min
-        max_ = rp.colormap_max
+        min_ = rp.getColormapMin()
+        max_ = rp.getColormapMax()
         try:
             if hasattr(self, 'values'):
                 for vb in self.values:
@@ -161,9 +161,8 @@ name : str = "action" + consecutive number
 
 GUI.sceneCreators[BaseScene] = lambda scene,*args,**kwargs: scene
 
-class RenderingSettings(BaseScene, settings.LightSettings, settings.ColormapSettings):
-    def __init__(self, rendering_parameters=None, *args, **kwargs):
-        self._rp = rendering_parameters
+class RenderingSettings(BaseScene, settings.CameraSettings, settings.LightSettings, settings.ColormapSettings, settings.ClippingSettings):
+    def __init__(self, *args, **kwargs):
         self._individual_rendering_parameters = False
         super().__init__(*args, **kwargs)
 
@@ -191,7 +190,7 @@ class BaseMeshScene(BaseScene):
             sd_par = settings.ValueParameter(name="DeformationSubdivision", label="Subdivision",
                     default_value=1, min_value = 0, max_value = 5, updateScene=True)
             order_par = settings.ValueParameter(name="DeformationOrder", label="Order",
-                    default_value=2, min_value = 1, max_value = 4, updateScene=True)
+                    default_value=2, min_value = 1, max_value = 3, updateScene=True)
             self.addParameters("Deformation",
                     settings.CheckboxParameterCluster(name="Deformation", label="Deformation",
                         default_value = self.__initial_values["Deformation"],
@@ -404,8 +403,6 @@ class MeshScene(BaseMeshScene):
         self.tex_edge_colors.bind()
         uniforms.set('colors', 3)
 
-        uniforms.set('do_clipping', False);
-
         uniforms.set('mesh.dim', 1);
         uniforms.set('light.ambient', 1.0)
         uniforms.set('light.diffuse', 0.0)
@@ -450,8 +447,6 @@ class MeshScene(BaseMeshScene):
         self.tex_surf_colors.bind()
         uniforms.set('colors', 3)
 
-        uniforms.set('do_clipping', True);
-
         uniforms.set('mesh.dim', 2);
         uniforms.set('wireframe', wireframe)
 
@@ -490,7 +485,6 @@ class MeshScene(BaseMeshScene):
 
         uniforms = prog.uniforms
 
-        uniforms.set('do_clipping', True);
         uniforms.set('shrink_elements', self.getShrink())
         uniforms.set('clip_whole_elements', True)
 
@@ -599,8 +593,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
                            "abs" : 2,
                            "arg" : 3}
     __initial_values = {"Order" : 2,
-                        "Autoscale" : True,
-                        "ShowClippingPlane" : True,
+                        "ShowClippingPlane" : False,
                         "Subdivision" : 1,
                         "ShowIsoSurface" : False,
                         "ShowVolumeVectors" : False,
@@ -608,14 +601,13 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
                         "ShowFieldLines" : False,
                         "ShowSurface" : True}
     @inmain_decorator(wait_for_return=True)
-    def __init__(self, cf, mesh, name=None, min=0.0,max=1.0, autoscale=True, linear=False, clippingPlane=True,
+    def __init__(self, cf, mesh, name=None, clippingPlane=False,
                  order=2, gradient=None, iso_surface=None, *args, **kwargs):
         self.cf = cf
         self.iso_surface = iso_surface or cf
         self.values = {}
         self.iso_values = {}
         self.__initial_values.update({"Order" : order,
-                                      "Autoscale" : autoscale,
                                       "ShowClippingPlane" : clippingPlane,
                                       "Subdivision" : kwargs['sd'] if "sd" in kwargs else 1})
 
@@ -844,7 +836,6 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
         uniforms = prog.uniforms
 
         uniforms.set('wireframe', False)
-        uniforms.set('do_clipping', False)
         uniforms.set('subdivision', 2**self.getSubdivision()-1)
 
         glActiveTexture(GL_TEXTURE2)
@@ -920,7 +911,6 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
 
 
             uniforms.set('wireframe', False)
-            uniforms.set('do_clipping', self.mesh.dim==3 or use_deformation)
             uniforms.set('subdivision', 2**self.getSubdivision()-1)
 
             glActiveTexture(GL_TEXTURE2)
@@ -965,7 +955,6 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
         uniforms.set('MV',view*model)
         uniforms.set('iso_value', self.getIsoValue())
         uniforms.set('have_gradient', self.have_gradient)
-        uniforms.set('do_clipping', True);
         uniforms.set('subdivision', 2**self.getSubdivision()-1)
         uniforms.set('order', self.getOrder())
         if self.cf.dim > 1:
@@ -1082,12 +1071,9 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
 
     def _renderClippingPlane(self, settings, elements):
         self._filterElements(settings, elements, 0)
-        model, view, projection = settings.model, settings.view, settings.projection
         prog = getProgram('pass_through.vert', 'clipping.geom', 'solution.frag', elements=elements, ORDER=self.getOrder(), params=settings, scene=self)
 
         uniforms = prog.uniforms
-        uniforms.set('P',projection)
-        uniforms.set('MV',view*model)
         uniforms.set('clipping_plane_deformation', False)
         uniforms.set('do_clipping', False);
         uniforms.set('subdivision', 2**self.getSubdivision()-1)
@@ -1224,7 +1210,6 @@ class FacetSolutionScene(BaseMeshScene):
                     options["NOLIGHT"] = True
                 prog = getProgram(*shader, elements=facets, params=settings, scene=self, **options)
                 uniforms = prog.uniforms
-                uniforms.set('do_clipping', True)
                 glActiveTexture(GL_TEXTURE2)
                 self.values['real'][(facets.type, facets.curved)].bind()
                 uniforms.set('coefficients', 2)
@@ -1247,10 +1232,9 @@ class FacetSolutionScene(BaseMeshScene):
                     glDrawArrays(GL_TRIANGLES, 0, 3*len(facets.data)//facets.size)
 
 def _createCFScene(cf, mesh, *args, **kwargs):
-    autoscale = kwargs["autoscale"] if "autoscale" in kwargs else not ("min" in kwargs or "max" in kwargs)
     if "facet" in kwargs and kwargs["facet"]:
-        return FacetSolutionScene(cf, mesh, *args, autoscale = autoscale, **kwargs)
-    return SolutionScene(cf, mesh, *args, autoscale = autoscale, **kwargs)
+        return FacetSolutionScene(cf, mesh, *args, **kwargs)
+    return SolutionScene(cf, mesh, *args, **kwargs)
 
 def _createGFScene(gf, mesh=None, name=None, *args, **kwargs):
     if not mesh:
@@ -1343,7 +1327,6 @@ class GeometryScene(BaseScene):
             uniforms.set('colors',3)
 
             uniforms.set('clipping_plane', settings.clipping_plane)
-            uniforms.set('do_clipping', True)
             glPolygonMode(GL_FRONT_AND_BACK, GL_FILL )
             glDrawArrays(GL_TRIANGLES, 0, self._geo_data.npoints)
 
@@ -1435,7 +1418,6 @@ class GeometryScene2D(BaseScene):
         prog.attributes.bind('pos', self.vertices)
         prog.attributes.bind('domain', self.domains)
 
-        uniforms.set('do_clipping', False)
         uniforms.set('light.ambient', 1)
         uniforms.set('light.diffuse',0)
         uniforms.set('light.spec',0)

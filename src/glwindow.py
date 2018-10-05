@@ -110,18 +110,18 @@ class GLWindowButtonArea(wid.ButtonArea):
         super().__init__()
         self.glWidget = glWidget
         glWidget._btn_area = self
-        self._renderingParameters = glWidget._rendering_parameters
+
         def clipX():
-            self.renderingParameters.setClippingPlaneNormal([1,0,0])
+            self.glWidget._settings.setClippingNormal([1,0,0])
             self.glWidget.updateGL()
         def clipY():
-            self.renderingParameters.setClippingPlaneNormal([0,1,0])
+            self.glWidget._settings.setClippingNormal([0,1,0])
             self.glWidget.updateGL()
         def clipZ():
-            self.renderingParameters.setClippingPlaneNormal([0,0,1])
+            self.glWidget._settings.setClippingNormal([0,0,1])
             self.glWidget.updateGL()
         def flip():
-            self.renderingParameters.setClippingPlaneNormal(-1. * self.renderingParameters.getClippingPlaneNormal())
+            self.glWidget._settings.setClippingNormal(-1. * self.glWidget._settings.getClippingNormal())
             self.glWidget.updateGL()
         self.addButton(clipX, "clip &x")
         self.addButton(clipY, "clip &y")
@@ -159,9 +159,9 @@ class GLWindowButtonArea(wid.ButtonArea):
             self._cross_points.store(np.array(points, dtype=np.float32))
 
     def _setRenderingParameters(self, pars):
-        self._renderingParameters.__dict__.update(pars)
+        self.glWidget._settings.__dict__.update(pars)
     def _getRenderingParameters(self):
-        return self._renderingParameters
+        return self.glWidget._settings
     renderingParameters = property(_getRenderingParameters, _setRenderingParameters)
 
     def render(self):
@@ -192,7 +192,7 @@ class GLWindowButtonArea(wid.ButtonArea):
             if self._showVersion:
                 self._text_renderer.draw(self.renderingParameters, "NGSolve " + ngsolve.__version__, [0.99,-0.99,0], alignment=QtCore.Qt.AlignRight|QtCore.Qt.AlignBottom)
             if self._showColorBar:
-                prog = getProgram('colorbar.vert','colorbar.frag', params=self.renderingParameters)
+                prog = getProgram('colorbar.vert','colorbar.frag', params=self.renderingParameters, scene=self.glWidget._settings)
                 uniforms = prog.uniforms
                 x0,y0 = -0.6, 0.82
                 dx,dy = 1.2, 0.03
@@ -203,147 +203,17 @@ class GLWindowButtonArea(wid.ButtonArea):
 
                 GL.glPolygonMode( GL.GL_FRONT_AND_BACK, GL.GL_FILL );
                 GL.glDrawArrays(GL.GL_TRIANGLES, 0, 6)
-                cmin = self.renderingParameters.colormap_min
-                cmax = self.renderingParameters.colormap_max
+                cmin = self.renderingParameters.getColormapMin()
+                cmax = self.renderingParameters.getColormapMax()
                 for i in range(5):
                     x = x0+i*dx/4
                     val = cmin + i*(cmax-cmin)/4
                     self._text_renderer.draw(self.renderingParameters, '{:.2g}'.format(val).replace("e+", "e"), [x,y0-0.03,0], alignment=QtCore.Qt.AlignCenter|QtCore.Qt.AlignTop)
             GL.glEnable(GL.GL_DEPTH_TEST)
 
-class RenderingParameters:
-    def __init__(self):
-        self.rotmat = glmath.Identity()
-        self.zoom = 0.0
-        self.ratio = 1.0
-        self.dx = 0.0
-        self.dy = 0.0
-        self.min = Vector(3)
-        self.min[:] = 0.0
-        self.max = Vector(3)
-        self.max[:] = 0.0
-
-        self.clipping_rotmat = glmath.Identity()
-        self.clipping_normal = Vector(4)
-        self.clipping_normal[0] = 1.0
-        self.clipping_point = Vector(3)
-        self.clipping_dist = 0.0
-
-        self.colormap_autoscale = False
-        self.colormap_min = 0
-        self.colormap_max = 1
-        self.colormap_linear = False
-
-        self.fastmode = False
-        self.colormap_n = 0
-
-        self.light_ambient = 0.3
-        self.light_diffuse = 0.7
-        self.light_specular = 0.5
-        self.light_shininess = 50
-
-        self.near_plane = 0.1
-        self.far_plane = 20.
-        self.field_of_view = 0.8
-
-
-    def setColorMap(self, name, N):
-        self.colormap_name = name
-        self.colormap_n = N
-        colors = []
-        if name == 'netgen':
-            for i in range(N):
-                x = 1.0-i/(N-1)
-                clamp = lambda x: int(255*(min(1.0, max(0.0, x))))
-                colors.append(clamp(2.0-4.0*x))
-                colors.append(clamp(2.0-4.0*abs(0.5-x)))
-                colors.append(clamp(4.0*x - 2.0))
-        else:
-            import matplotlib.cm as cm
-            import matplotlib.pyplot as plt
-            cmap = cm.get_cmap(name, N)
-            for i in range(N):
-                colors+=cmap(i, bytes=True)[:3]
-        self.colormap_tex = Texture(GL.GL_TEXTURE_1D, GL.GL_RGB)
-        GL.glTexImage1D(GL.GL_TEXTURE_1D, 0, GL.GL_RGB, N, 0, GL.GL_RGB, GL.GL_UNSIGNED_BYTE, colors)
-        GL.glTexParameteri( GL.GL_TEXTURE_1D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR )
-        GL.glTexParameteri( GL.GL_TEXTURE_1D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR )
-        GL.glTexParameteri(GL.GL_TEXTURE_1D, GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP_TO_EDGE)
-
-    def __getstate__(self):
-        return (np.array(self.rotmat), self.zoom, self.ratio, self.dx, self.dy, np.array(self.min),
-                np.array(self.max), np.array(self.clipping_rotmat), np.array(self.clipping_normal),
-                np.array(self.clipping_point), self.clipping_dist, self.colormap_min, self.colormap_max,
-                self.colormap_linear, self.fastmode)
-
-    def __setstate__(self,state):
-        self.__init__()
-        rotmat, self.zoom, self.ratio, self.dx, self.dy, _min, _max, cl_rotmat, cl_normal, cl_point, self.clipping_dist, self.colormap_min, self.colormap_max, self.colormap_linear, self.fastmode = state
-        for i in range(4):
-            for j in range(4):
-                self.rotmat[i,j] = rotmat[i,j]
-                self.clipping_rotmat[i,j] = cl_rotmat[i,j]
-            self.clipping_normal[i] = cl_normal[i]
-        for i in range(3):
-            self.min[i] = _min[i]
-            self.max[i] = _max[i]
-            self.clipping_point[i] = cl_point[i]
-
-    @property
-    def center(self):
-        return 0.5*(self.min+self.max)
-
-    @property
-    def _modelSize(self):
-        return sqrt(sum((self.max[i]-self.min[i])**2 for i in range(3)))
-
-    @property
-    def model(self):
-        mat = glmath.Identity();
-        mat = self.rotmat*mat;
-        mat = glmath.Scale(2./self._modelSize) * mat if self._modelSize else mat
-        mat = glmath.Translate(self.dx, -self.dy, -0 )*mat;
-        mat = glmath.Scale(exp(-self.zoom/100))*mat;
-        mat = glmath.Translate(0, -0, -5 )*mat;
-        mat = mat*glmath.Translate(-self.center[0], -self.center[1], -self.center[2]) #move to center
-        return mat
-
-    @property
-    def view(self):
-        return glmath.LookAt()
-
-    @property
-    def projection(self):
-        return glmath.Perspective(self.field_of_view, self.ratio, self.near_plane, self.far_plane)
-
-    @property
-    def clipping_plane(self):
-        x = self.clipping_rotmat * self.clipping_normal
-        d = glmath.Dot(self.clipping_point,x[0:3])
-        x[3] = -d
-        x[3] = x[3]-self.clipping_dist
-        return x
-
-    def getClippingPlaneNormal(self):
-        x = self.clipping_rotmat * self.clipping_normal
-        return x[0:3]
-
-    def getClippingPlanePoint(self):
-        return self.clipping_point
-
-    def setClippingPlaneNormal(self, normal):
-        for i in range(3):
-            self.clipping_normal[i] = normal[i]
-        self.clipping_rotmat = glmath.Identity()
-
-    def setClippingPlanePoint(self, point):
-        for i in range(3):
-            self.clipping_point[i] = point[i]
-
 class WindowTab(QtWidgets.QWidget):
-    def __init__(self, rendering_parameters = None, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._rendering_parameters = rendering_parameters
         self._startup_scenes = []
         self._actions = []
         settings = QtCore.QSettings()
@@ -355,7 +225,7 @@ class WindowTab(QtWidgets.QWidget):
         addShortcut(self, "GLWindow-LastScene", "s", lastScene)
 
     def create(self,sharedContext):
-        self.glWidget = GLWidget(shared=sharedContext, rendering_parameters = self._rendering_parameters)
+        self.glWidget = GLWidget(shared=sharedContext)
         self.glWidget.makeCurrent()
 
         buttons = QtWidgets.QVBoxLayout()
@@ -387,11 +257,10 @@ class WindowTab(QtWidgets.QWidget):
             self.draw(scene)
 
     def __getstate__(self):
-        return (self.glWidget.scenes, self.glWidget._rendering_parameters)
+        return (self.glWidget.scenes)
 
     def __setstate__(self,state):
         self.__init__()
-        self._rendering_parameters = state[1]
         self._startup_scenes = state[0]
 
     def isGLWindow(self):
@@ -437,27 +306,27 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.do_move_clippingplane = False
         self.do_rotate_clippingplane = False
         self.old_time = time.time()
-        self._rendering_parameters = rendering_parameters if rendering_parameters else RenderingParameters()
 
         self.redraw_update_done = QtCore.QWaitCondition()
         self.redraw_mutex = QtCore.QMutex()
 
+        self._settings = scenes.RenderingSettings(name="Global settings") 
+
         self.redraw_signal.connect(self.updateScenes)
 
         self.lastPos = QtCore.QPoint()
-        self.lastFastmode = self._rendering_parameters.fastmode
+        self.lastFastmode = self._settings.fastmode
 
-        self._settings = scenes.RenderingSettings(self._rendering_parameters, name="Global settings") 
 
     @inmain_decorator(True)
     def updateGL(self,*args,**kwargs):
         super().updateGL(*args,**kwargs)
 
     def ZoomReset(self):
-        self._rendering_parameters.rotmat = glmath.Identity()
-        self._rendering_parameters.zoom = 0.0
-        self._rendering_parameters.dx = 0.0
-        self._rendering_parameters.dy = 0.0
+        self._settings.rotmat = glmath.Identity()
+        self._settings.zoom = 0.0
+        self._settings.dx = 0.0
+        self._settings.dy = 0.0
         box_min = Vector(3)
         box_max = Vector(3)
         box_min[:] = 1e99
@@ -469,8 +338,8 @@ class GLWidget(QtOpenGL.QGLWidget):
             for i in range(3):
                 box_min[i] = min(s_min[i], box_min[i])
                 box_max[i] = max(s_max[i], box_max[i])
-        self._rendering_parameters.min = box_min
-        self._rendering_parameters.max = box_max
+        self._settings.min = box_min
+        self._settings.max = box_max
         self.updateGL()
 
     def minimumSizeHint(self):
@@ -508,17 +377,18 @@ class GLWidget(QtOpenGL.QGLWidget):
         viewport = GL.glGetIntegerv( GL.GL_VIEWPORT )
         screen_width = viewport[2]-viewport[0]
         screen_height = viewport[3]-viewport[1]
-        rp = self._rendering_parameters
+        rp = self._settings
         rp.ratio = screen_width/max(screen_height,1)
 
-        if rp.colormap_autoscale:
-            rp.colormap_min = 1e99
-            rp.colormap_max = -1e99
+        if rp.getColormapAutoscale():
+            colormap_min = 1e99
+            colormap_max = -1e99
             for scene in self.scenes:
                 a,b = scene.getAutoscaleRange(rp)
-                rp.colormap_min = min(a, rp.colormap_min)
-                rp.colormap_max = max(b, rp.colormap_max)
-
+                colormap_min = min(a, colormap_min)
+                colormap_max = max(b, colormap_max)
+            rp.setColormapMin(colormap_min)
+            rp.setColormapMax(colormap_max)
         for scene in self.scenes:
             scene.render(rp)
         self._btn_area.render()
@@ -537,8 +407,8 @@ class GLWidget(QtOpenGL.QGLWidget):
             for i in range(3):
                 box_min[i] = min(s_min[i], box_min[i])
                 box_max[i] = max(s_max[i], box_max[i])
-        self._rendering_parameters.min = box_min
-        self._rendering_parameters.max = box_max
+        self._settings.min = box_min
+        self._settings.max = box_max
         self.updateGL()
 
     def mouseDoubleClickEvent(self, event):
@@ -548,7 +418,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         y = viewport[3]-event.pos().y()
         GL.glReadBuffer(GL.GL_FRONT);
         z = GL.glReadPixels(x, y, 1, 1, GL.GL_DEPTH_COMPONENT, GL.GL_FLOAT)
-        params = self._rendering_parameters
+        params = self._settings
         p = OpenGL.GLU.gluUnProject(
                 x,y,z,
                 (params.view*params.model).T.NumPy(),
@@ -584,12 +454,12 @@ class GLWidget(QtOpenGL.QGLWidget):
 
     def resizeGL(self, width, height):
         GL.glViewport(0, 0, width, height)
-        self._rendering_parameters.ratio = width/max(1,height)
+        self._settings.ratio = width/max(1,height)
 
     def mousePressEvent(self, event):
         self.lastPos = QtCore.QPoint(event.pos())
-        self.lastFastmode = self._rendering_parameters.fastmode
-        self._rendering_parameters.fastmode = True
+        self.lastFastmode = self._settings.fastmode
+        self._settings.fastmode = True
         if event.modifiers() == QtCore.Qt.ControlModifier:
             if event.button() == QtCore.Qt.MouseButton.RightButton:
                 self.do_move_clippingplane = True
@@ -605,43 +475,35 @@ class GLWidget(QtOpenGL.QGLWidget):
                 self.do_zoom = True
 
     def mouseReleaseEvent(self, event):
+        param = self._settings
+        self.do_rotate_clippingplane = False
+        self.do_move_clippingplane = False
         self.do_rotate = False
         self.do_translate = False
         self.do_zoom = False
-        self.do_move_clippingplane = False
-        self.do_rotate_clippingplane = False
-        if self._rendering_parameters.fastmode and not self.lastFastmode:
-            self._rendering_parameters.fastmode = False
+        if param.fastmode and not self.lastFastmode:
+            param.fastmode = False
             self.updateGL()
 
     def mouseMoveEvent(self, event):
         dx = event.x() - self.lastPos.x()
         dy = event.y() - self.lastPos.y()
-        param = self._rendering_parameters
         if self.do_rotate:
-            param.rotmat = glmath.RotateY(-dx/50.0)*param.rotmat
-            param.rotmat = glmath.RotateX(-dy/50.0)*param.rotmat
+            self._settings.rotateCamera(dx, dy)
         if self.do_translate:
-            s = 200.0*exp(-param.zoom/100)
-            param.dx += dx/s
-            param.dy += dy/s
+            self._settings.moveCamera(dx, dy)
         if self.do_zoom:
-            param.zoom += dy
+            self._settings.zoom += dy
         if self.do_move_clippingplane:
-            s = 200.0*exp(-param.zoom/100)
-            shift = -dy/s*param.getClippingPlaneNormal()
-            p = param.getClippingPlanePoint()
-            param.setClippingPlanePoint(p+shift)
+            s = 200.0*exp(-self._settings.zoom/100)
+            self._settings.moveClippingPoint(-dy/s)
         if self.do_rotate_clippingplane:
-            # rotation of clipping plane is view-dependent
-            r = param.rotmat
-            param.clipping_rotmat = r.T*glmath.RotateY(-dx/50.0)*r*param.clipping_rotmat
-            param.clipping_rotmat = r.T*glmath.RotateX(-dy/50.0)*r*param.clipping_rotmat
+            self._settings.rotateClippingNormal(dx, dy, self._settings.rotmat)
         self.lastPos = QtCore.QPoint(event.pos())
         self.updateGL()
 
     def wheelEvent(self, event):
-        self._rendering_parameters.zoom -= event.angleDelta().y()/10
+        self._settings.zoom -= event.angleDelta().y()/10
         self.updateGL()
 
     def freeResources(self):
@@ -924,7 +786,7 @@ class WindowTabber(QtWidgets.QTabWidget):
         window = WindowTab()
         window.create(sharedContext=self._commonContext)
         if self._fastmode:
-            window.glWidget._rendering_parameters.fastmode = True
+            window.glWidget._settings.fastmode = True
         name = name or "window" + str(self.count() + 1)
         self.addTab(window, name)
         self.activeGLWindow = window

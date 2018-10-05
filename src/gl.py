@@ -382,6 +382,8 @@ def getProgram(*shader_files, feedback=[], elements=None, params=None, scene=Non
     import sys
     if 'darwin' in sys.platform:
         define_flags['MACOS'] = 1
+    if scene and scene.getLightDisable():
+        define_flags['NOLIGHT'] = 1
     for d in define_flags:
         flag = define_flags[d]
         if flag != None:
@@ -426,11 +428,11 @@ def getProgram(*shader_files, feedback=[], elements=None, params=None, scene=Non
 
     glUseProgram(prog.id)
     u = prog.uniforms
-    if params != None:
+    if scene != None:
         if 'P' in u:
-            u.set('P',params.projection)
+            u.set('P',scene.projection)
         if 'MV' in u:
-            u.set('MV',params.view*params.model)
+            u.set('MV',scene.view*scene.model)
         if 'light.diffuse' in u:
             u.set('light.ambient', scene.getLightAmbient())
             u.set('light.diffuse', scene.getLightDiffuse())
@@ -438,7 +440,9 @@ def getProgram(*shader_files, feedback=[], elements=None, params=None, scene=Non
             u.set('light.spec', scene.getLightSpecular())
             u.set('light.shininess', scene.getLightShininess())
         if 'clipping_plane' in u:
-            u.set('clipping_plane', params.clipping_plane)
+            u.set('clipping_plane', scene.getClippingPlane())
+        if 'do_clipping' in u:
+            u.set('do_clipping', scene.getClippingEnable())
         if 'colormap.colors' in u and scene:
             u.set('colormap.n', scene.getColormapSteps())
             u.set('colormap.min', scene.getColormapMin())
