@@ -194,7 +194,7 @@ class GLWindowButtonArea(wid.ButtonArea):
             if self._showColorBar:
                 prog = getProgram('colorbar.vert','colorbar.frag', params=self.renderingParameters, scene=self.glWidget._settings)
                 uniforms = prog.uniforms
-                x0,y0 = -0.6, 0.82
+                x0,y0 = -0.6, 0.95
                 dx,dy = 1.2, 0.03
                 uniforms.set('x0', x0)
                 uniforms.set('dx', dx)
