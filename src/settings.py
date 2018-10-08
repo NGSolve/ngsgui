@@ -471,6 +471,19 @@ class BaseSettings(QtCore.QObject):
         if BaseSettings._have_qt:
             self._createQtWidget()
 
+    def getSettings(self):
+        res = {}
+        for group in self._parameters:
+            for p in self._parameters[group]:
+                res[p.name] = p.getValue()
+        return res
+
+    def setSettings(self, settings):
+        for group in self._parameters:
+            for p in self._parameters[group]:
+                if p.name in settings:
+                    p.setValue(settings[p.name])
+
     def __getstate__(self):
         return (self._parameters,)
 
@@ -539,6 +552,8 @@ class CameraSettings(BaseSettings):
         self.far_plane = 20.
         self.field_of_view = 0.8
 
+        self.__members = ['zoom', 'ratio', 'dx', 'dy', 'fastmode', 'near_plane', 'far_plane', 'field_of_view']
+
     def rotateCamera(self, dx, dy):
         self.rotmat = glmath.RotateY(-dx/50.0)*self.rotmat
         self.rotmat = glmath.RotateX(-dy/50.0)*self.rotmat
@@ -585,30 +600,37 @@ class CameraSettings(BaseSettings):
             return self._global_rendering_parameters.projection
         return glmath.Perspective(self.field_of_view, self.ratio, self.near_plane, self.far_plane)
 
+    def getSettings(self, recursive=True):
+        res = super().getSettings() if recursive else {}
+        for m in self.__members:
+            res['Camera_' + m] = getattr(self, m)
+        res['Camera_min'] = list(self.min)
+        res['Camera_max'] = list(self.max)
+        rotmat = [[self.rotmat[i,j] for j in range(3)] for i in range(3)]
+        res['Camera_rotmat'] = rotmat
+        return res
+
+    def setSettings(self, settings):
+        for m in self.__members:
+            name = 'Camera_' + m
+            setattr(self, m, settings.pop(name))
+        self.min = glmath.Vector(settings.pop('Camera_min'))
+        self.max = glmath.Vector(settings.pop('Camera_max'))
+        self.rotmat = glmath.Identity()
+        rm = settings.pop('Camera_rotmat')
+        for i in range(3):
+            for j in range(3):
+                self.rotmat[i,j] = rm[i][j]
+        if settings!= {}:
+            super().setSettings(settings)
+
     def __getstate__(self):
         rotmat = [[self.rotmat[i,j] for j in range(3)] for i in range(3)]
-        return (super().__getstate__(),
-            rotmat,
-            self.zoom,
-            self.ratio,
-            self.dx,
-            self.dy,
-            self.fastmode,
-            list(self.min),
-            list(self.max),
-            self.near_plane,
-            self.far_plane,
-            self.field_of_view)
+        return (super().__getstate__(), self.getSettings(False))
 
     def __setstate__(self, state):
         super().__setstate__(state[0])
-        rotmat, self.zoom, self.ratio, self.dx, self.dy, self.fastmode, min_, max_, self.near_plane, self.far_plane, self.field_of_view = state[1:]
-        self.min = glmath.Vector(min_)
-        self.max = glmath.Vector(max_)
-        self.rotmat = glmath.Identity()
-        for i in range(3):
-            for j in range(3):
-                self.rotmat[i,j] = rotmat[i][j]
+        self.setSettings(state[1])
         
 def _patchGetterFunctionsWithGlobalSettings(obj, name_prefix, names, individual):
     def patchFunction(self, name):

@@ -128,7 +128,7 @@ class GLWindowButtonArea(wid.ButtonArea):
             import io, base64, pickle
             with io.BytesIO() as f:
                 pickler = pickle.Pickler(f)
-                pickler.dump(s.__getstate__())
+                pickler.dump(s.getSettings())
                 enc = base64.b64encode(f.getvalue()).decode('ascii')
             sets = QtCore.QSettings('ngsolve','gui')
             sets.setValue('viewsettings', enc)
@@ -144,7 +144,7 @@ class GLWindowButtonArea(wid.ButtonArea):
                 state = unpickler.load()
 
             s = self.glWidget._settings
-            s.__setstate__(state)
+            s.setSettings(state)
             ngsolve.Redraw()
 
         self.addButton(clipX, "clip &x")
