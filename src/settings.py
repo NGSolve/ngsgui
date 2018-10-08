@@ -610,6 +610,12 @@ class CameraSettings(BaseSettings):
             for j in range(3):
                 self.rotmat[i,j] = rotmat[i][j]
         
+def _patchGetterFunctionsWithGlobalSettings(obj, name_prefix, names, individual):
+    def patchFunction(self, name):
+        setattr(self, '_'+name, getattr(self, name))
+        setattr(self, name, lambda: getattr(self, '_'+name)() if individual() else getattr(self._global_rendering_parameters, name)())
+    for name in names:
+        patchFunction(obj, name_prefix+name)
 
 class ClippingSettings(BaseSettings):
     def __init__(self, *args, **kwargs):
@@ -642,13 +648,7 @@ class ClippingSettings(BaseSettings):
         if self._individual_rendering_parameters:
             self.addParameters("Individual Settings",
                 CheckboxParameterCluster(name="IndividualClipping", label="Clipping", default_value = False, sub_parameters = sub_parameters ))
-
-            # patch getter functions to return either global defaults or individual settings
-            def patchFunction(self, name):
-                setattr(self, '_'+name, getattr(self, name))
-                setattr(self, name, lambda: getattr(self, '_'+name)() if self.getIndividualClipping() else getattr(self._global_rendering_parameters, name)())
-            for name in ['Point', 'Normal', 'Enable']:
-                patchFunction(self, 'getClipping'+name)
+            _patchGetterFunctionsWithGlobalSettings(self, 'getClipping', ['Point', 'Normal', 'Enable'], self.getIndividualClipping)
         else:
             self.addParameters("Clipping", *sub_parameters)
 
@@ -667,13 +667,7 @@ class LightSettings(BaseSettings):
         if self._individual_rendering_parameters:
             self.addParameters("Individual Settings",
                 CheckboxParameterCluster(name="IndividualLight", label="Light", default_value = False, sub_parameters = sub_parameters ))
-
-            # patch getter functions to return either global defaults or individual settings
-            def patchFunction(self, name):
-                setattr(self, '_'+name, getattr(self, name))
-                setattr(self, name, lambda: getattr(self, '_'+name)() if self.getIndividualLight() else getattr(self._global_rendering_parameters, name)())
-            for name in ['Disable', 'Ambient', 'Diffuse', 'Specular', 'Shininess']:
-                patchFunction(self, 'getLight'+name)
+            _patchGetterFunctionsWithGlobalSettings(self, 'getLight', ['Disable', 'Ambient', 'Diffuse', 'Specular', 'Shininess'], self.getIndividualLight)
         else:
             self.addParameters("Light", *sub_parameters)
 
@@ -707,12 +701,7 @@ class ColormapSettings(BaseSettings):
         if self._individual_rendering_parameters:
             self.addParameters("Individual Settings",
                 CheckboxParameterCluster(name="IndividualColormap", label="Colormap", default_value = False, sub_parameters = sub_parameters ))
-            # patch getter functions to return either global defaults or individual settings
-            def patchFunction(self, name):
-                setattr(self, '_'+name, getattr(self, name))
-                setattr(self, name, lambda: getattr(self, '_'+name)() if self.getIndividualColormap() else getattr(self._global_rendering_parameters, name)())
-            for name in ['Min', 'Max', 'Name', 'Steps', 'Linear', 'Autoscale']:
-                patchFunction(self, 'getColormap'+name)
+            _patchGetterFunctionsWithGlobalSettings(self, 'getColormap', ['Min', 'Max', 'Name', 'Steps', 'Linear', 'Autoscale'], self.getIndividualColormap)
         else:
             self.addParameters("Colormap", *sub_parameters)
 
