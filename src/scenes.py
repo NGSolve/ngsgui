@@ -786,7 +786,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
 
     def _filterElements(self, settings, elements, filter_type):
         glEnable(GL_RASTERIZER_DISCARD)
-        prog = getProgram('pass_through.vert', 'filter_elements.geom', feedback=['element'], ORDER=self.getOrder(), params=settings, elements=elements, USE_GL_VERTEX_ID=True, scene=self)
+        prog = getProgram('pass_through.vert', 'filter_elements.geom', feedback=['element'], ORDER=self.getOrder(), params=settings, elements=elements, USE_GL_VERTEX_ID=True, scene=self, CLIPPING=1)
         uniforms = prog.uniforms
 
         glActiveTexture(GL_TEXTURE2)
@@ -1071,7 +1071,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
 
     def _renderClippingPlane(self, settings, elements):
         self._filterElements(settings, elements, 0)
-        prog = getProgram('pass_through.vert', 'clipping.geom', 'solution.frag', elements=elements, ORDER=self.getOrder(), params=settings, scene=self)
+        prog = getProgram('pass_through.vert', 'clipping.geom', 'solution.frag', elements=elements, ORDER=self.getOrder(), params=settings, scene=self, CLIPPING=1, SKIP_FRAGMENT_CLIPPING=1)
 
         uniforms = prog.uniforms
         uniforms.set('clipping_plane_deformation', False)

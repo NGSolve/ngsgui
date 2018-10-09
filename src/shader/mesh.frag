@@ -5,8 +5,7 @@
 
 uniform mat4 MV;
 uniform Mesh mesh;
-uniform vec4 clipping_plane;
-uniform bool do_clipping;
+uniform ClippingPlanes clipping_planes;
 uniform bool wireframe;
 uniform sampler1D colors;
 uniform Light light;
@@ -42,7 +41,7 @@ void main()
   else
     FragColor = vec4(texelFetch(colors, index, 0));
 
-  if(do_clipping && dot(vec4(inData.pos,1.0),clipping_plane)<0)
+  if(!CalcClipping(clipping_planes, inData.pos))
     discard;
 
   if (FragColor.a == 0.0)

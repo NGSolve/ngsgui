@@ -15,6 +15,25 @@ struct Light {
   float shininess;
 };
 
+#if !defined(NO_CLIPPING) && defined(CLIPPING)
+struct ClippingPlanes
+{
+  vec4 p[N_CLIPPING_PLANES];
+};
+
+bool CalcClipping(ClippingPlanes cp, vec3 pos)
+{
+  bool p[N_CLIPPING_PLANES];
+  vec4 pos4 = vec4(pos, 1.0);
+  for (int i=0; i<N_CLIPPING_PLANES; i++)
+      p[i] = dot(cp.p[i], pos4) < 0;
+  return CLIPPING_EXPRESSION;
+}
+#else // clipping disabled
+struct ClippingPlanes {bool dummy_var;};
+bool CalcClipping(ClippingPlanes cp, vec3 pos) { return true; }
+#endif
+
 struct Mesh {
     int dim;
     isamplerBuffer elements;

@@ -233,6 +233,31 @@ class CheckboxParameterCluster(CheckboxParameter):
         self._sub_parameters = state[1]
         super().__setstate__(state[0])
 
+class TextParameter(Parameter):
+    def __init__(self, default_value, **kwargs):
+        self._initial_value = default_value
+        super().__init__(**kwargs)
+
+    def _createWidget(self):
+        self._edit = QtWidgets.QLineEdit()
+        self._edit.setText(self._initial_value)
+        self._edit.returnPressed.connect(lambda: self.changed.emit(self._edit.text()))
+        return self._edit
+
+    def getValue(self):
+        return self._edit.text()
+
+    def setValue(self, val):
+        self._edit.setText(val)
+
+    def __getstate__(self):
+        return (super().__getstate__(),
+                self.text())
+
+    def __setstate__(self, state):
+        self._initial_value = state[1]
+        super().__setstate__(state[0])
+
 class ValueParameter(Parameter):
     def __init__(self, default_value, min_value=None, max_value=None, step=None, **kwargs):
         self._initial_value = default_value
@@ -642,6 +667,7 @@ def _patchGetterFunctionsWithGlobalSettings(obj, name_prefix, names, individual)
 class ClippingSettings(BaseSettings):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self._sub_parameters = []
 
     def rotateClippingNormal(self, dx, dy, rotmat):
         """rotmat ... current camera rotation matrix"""
@@ -660,19 +686,52 @@ class ClippingSettings(BaseSettings):
         p = glmath.Vector(self.getClippingPoint())
         return glmath.Vector( [n[0], n[1], n[2], -glmath.Dot(n,p)])
 
+    def getClippingPlanes(self):
+        n = self.getClippingNPlanes()
+        res = []
+        for i in range(n):
+            p = self._clipping_points[i].getValue()
+            n = self._clipping_normals[i].getValue()
+            res += n
+            res.append( -sum([p[j]*n[j] for j in range(3)]) )
+        return res
+
     def _createParameters(self):
         super()._createParameters()
-        sub_parameters = [
+        sub_params = [
             CheckboxParameter(name="ClippingEnable", label="Enable", default_value=False),
-            VectorParameter(name="ClippingPoint", label="Point", default_value=(0.0,0.0,0.0), step=0.1),
-            VectorParameter(name="ClippingNormal", label="Normal", min_value=-1.0, max_value=1.0, default_value=(1.0,0.0,0.0), step=0.1)
+            ValueParameter(name="ClippingNPlanes", label="Number", default_value=1, max_value=3, min_value=0),
+            TextParameter(name="ClippingExpression", label="Expression", default_value='p[0]')
+        ]
+        self._clipping_points = [
+            VectorParameter(name="ClippingPoint", label="Point", default_value=(0.5,0.5,0.5), step=0.1),
+            VectorParameter(name="ClippingPoint1", label="Point", default_value=(0.5,0.5,0.5), step=0.1),
+            VectorParameter(name="ClippingPoint2", label="Point", default_value=(0.5,0.5,0.5), step=0.1),
             ]
+        self._clipping_normals = [
+            VectorParameter(name="ClippingNormal", label="Normal", min_value=-1.0, max_value=1.0, default_value=(1.0,0.0,0.0), step=0.1),
+            VectorParameter(name="ClippingNormal1", label="Normal", min_value=-1.0, max_value=1.0, default_value=(0.0,1.0,0.0), step=0.1),
+            VectorParameter(name="ClippingNormal2", label="Normal", min_value=-1.0, max_value=1.0, default_value=(0.0,0.0,1.0), step=0.1),
+            ]
+        def _updateVisibility(nplanes):
+            if nplanes<2:
+                sub_params[2].setValue('p[0]')
+                sub_params[2].setVisible(False)
+            else:
+                sub_params[2].setVisible(True)
+
+            for i in range(3):
+                self._clipping_points[i].setVisible(i<nplanes)
+                self._clipping_normals[i].setVisible(i<nplanes)
+        _updateVisibility(1)
+        sub_params[1]._spinbox.valueChanged[int].connect(_updateVisibility)
+        params = sub_params + [p for pair in zip(self._clipping_points,self._clipping_normals) for p in pair]
         if self._individual_rendering_parameters:
             self.addParameters("Individual Settings",
-                CheckboxParameterCluster(name="IndividualClipping", label="Clipping", default_value = False, sub_parameters = sub_parameters ))
-            _patchGetterFunctionsWithGlobalSettings(self, 'getClipping', ['Point', 'Normal', 'Enable'], self.getIndividualClipping)
+                CheckboxParameterCluster(name="IndividualClipping", label="Clipping", default_value = False, sub_parameters = params))
+            _patchGetterFunctionsWithGlobalSettings(self, 'getClipping', ['Point', 'Normal', 'Enable', 'NPlanes', 'Expression', 'Point1', 'Point2', 'Normal1', 'Normal2', 'Planes'], self.getIndividualClipping)
         else:
-            self.addParameters("Clipping", *sub_parameters)
+            self.addParameters("Clipping", *params)
 
 class LightSettings(BaseSettings):
     def __init__(self, *args, **kwargs):

@@ -384,6 +384,10 @@ def getProgram(*shader_files, feedback=[], elements=None, params=None, scene=Non
         define_flags['MACOS'] = 1
     if scene and scene.getLightDisable():
         define_flags['NOLIGHT'] = 1
+    if (hasattr(scene, 'getClippingEnable') and scene.getClippingEnable()) or 'CLIPPING' in define_flags :
+        define_flags['CLIPPING'] = 1
+        define_flags['N_CLIPPING_PLANES'] = scene.getClippingNPlanes()
+        define_flags['CLIPPING_EXPRESSION'] = scene.getClippingExpression()
     for d in define_flags:
         flag = define_flags[d]
         if flag != None:
@@ -439,10 +443,12 @@ def getProgram(*shader_files, feedback=[], elements=None, params=None, scene=Non
             u.set('light.dir', [1.,3.,3.])
             u.set('light.spec', scene.getLightSpecular())
             u.set('light.shininess', scene.getLightShininess())
-        if 'clipping_plane' in u:
-            u.set('clipping_plane', scene.getClippingPlane())
-        if 'do_clipping' in u:
-            u.set('do_clipping', scene.getClippingEnable())
+        if 'clipping_planes.p[0]' in u:
+            n = scene.getClippingNPlanes()
+            planes = scene.getClippingPlanes()
+            planes = (ctypes.c_float*(4*n))(*planes)
+            glUniform4fv(u['clipping_planes.p[0]'], n, planes)
+
         if 'colormap.colors' in u and scene:
             u.set('colormap.n', scene.getColormapSteps())
             u.set('colormap.min', scene.getColormapMin())

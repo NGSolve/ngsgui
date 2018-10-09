@@ -7,8 +7,7 @@
 uniform sampler1D colors;
 uniform samplerBuffer coefficients;
 uniform int element_type;
-uniform vec4 clipping_plane;
-uniform bool do_clipping;
+uniform ClippingPlanes clipping_planes;
 uniform int subdivision;
 uniform int order;
 uniform mat4 MV;
@@ -35,7 +34,11 @@ out vec4 FragColor;
 void main()
 {
   FragColor = vec4(0,1,0,1);
-  if(!do_clipping || dot(vec4(inData.pos,1.0),clipping_plane)>0)
+#ifdef SKIP_FRAGMENT_CLIPPING
+  if(true)
+#else
+  if(CalcClipping(clipping_planes, inData.pos))
+#endif
   {
       float value;
       vec3 lam = inData.lam;
