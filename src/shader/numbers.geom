@@ -13,7 +13,7 @@ uniform float font_height_in_texture;
 uniform float font_width_on_screen;
 uniform float font_height_on_screen;
 
-uniform vec4 clipping_plane;
+uniform ClippingPlanes clipping_planes;
 
 layout(points) in;
 layout(triangle_strip, max_vertices=40) out;
@@ -60,7 +60,7 @@ void main() {
     }
 
     vec3 p = getPosition();
-    if( dot(clipping_plane, vec4(p,1))<0 ) return;
+    if (!CalcClipping(clipping_planes, p)) return;
     vec4 pos = P*MV*vec4(p,1);
     pos = pos/pos.w;
 

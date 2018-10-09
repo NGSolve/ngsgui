@@ -28,7 +28,6 @@ out VertexData
 
 uniform mat4 MV;
 uniform mat4 P;
-uniform vec4 clipping_plane;
 uniform int subdivision;
 
 void CutSubTet(float values[8], vec3 normals[8], vec3 pos[8], vec3 lams[8], int nodes[4]) {

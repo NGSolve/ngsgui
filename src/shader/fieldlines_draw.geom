@@ -9,7 +9,7 @@ layout(triangle_strip, max_vertices=32) out;
 uniform mat4 MV;
 uniform mat4 P;
 uniform float grid_size;
-uniform vec4 clipping_plane;
+uniform ClippingPlanes clipping_planes;
 uniform Colormap colormap;
 
 void DrawVertex( vec3 pos ) {
@@ -75,7 +75,7 @@ void DrawPipe( float radius ) {
     vec3 pos = inData[0].pos;
     vec3 end = inData[0].pos2;
 
-    if(dot(clipping_plane, vec4(pos,1))<0) return;
+    if(!CalcClipping(clipping_planes, pos)) return;
 
     vec3 v0,v1,v2,v3;
     CalcNormals(end-pos, inData[0].val, v0, v1, v2, v3);

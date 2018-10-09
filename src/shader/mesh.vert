@@ -8,7 +8,7 @@ uniform mat4 MV;
 uniform Mesh mesh;
 uniform float shrink_elements;
 uniform bool clip_whole_elements;
-uniform vec4 clipping_plane;
+uniform ClippingPlanes clipping_planes;
 uniform samplerBuffer coefficients;
 uniform int subdivision;
 uniform int component;
@@ -38,10 +38,10 @@ void main()
   outData.pos = element.pos[vid];
 
   if(clip_whole_elements) {
-      float min_dist = 1.0;
+      bool is_visible = true;
       for (int i=0; i<ELEMENT_N_VERTICES; i++)
-          min_dist = min(min_dist, dot(vec4(element.pos[i],1.0),clipping_plane));
-      if(min_dist<0) {
+          is_visible = is_visible && CalcClipping(clipping_planes, element.pos[i]);
+      if(!is_visible) {
           // discard
           gl_Position = vec4(0,0,0,0);
           return;

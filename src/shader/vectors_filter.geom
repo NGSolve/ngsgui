@@ -31,7 +31,7 @@ out vec3 val;
 
 uniform mat4 MV;
 uniform mat4 P;
-uniform vec4 clipping_plane;
+uniform ClippingPlanes clipping_planes;
 
 void getMinMax(ELEMENT_TYPE el, out vec3 pmin, out vec3 pmax)
 {
@@ -86,7 +86,7 @@ void main() {
             p.z = pmin.z;
             while(p.z<pmax.z) {
                 vec4 lam = bary_mat * p;
-                if(dot(clipping_plane, p)>0 && 
+                if(dot(clipping_planes.p[0], p)>0 && 
                    lam.x>=0 && lam.y>=0 && lam.z >=0 && lam.w >=0 &&
                    lam.x<1 && lam.y<1 && lam.z <1 && lam.w <1 )
                 {
@@ -107,18 +107,18 @@ void main() {
 #elif FILTER_MODE==CLIPPING_PLANE_GRID
 void main() {
     ELEMENT_TYPE tet = getElement(mesh, inData[0].element);
-    float dmin = dot(vec4(tet.pos[0],1), clipping_plane);
-    float dmax = dot(vec4(tet.pos[0],1), clipping_plane);
+    float dmin = dot(vec4(tet.pos[0],1), clipping_planes.p[0]);
+    float dmax = dot(vec4(tet.pos[0],1), clipping_planes.p[0]);
     for (int i=1; i<4; i++) {
-        dmin = min(dmin, dot(vec4(tet.pos[i],1), clipping_plane));
-        dmax = max(dmax, dot(vec4(tet.pos[i],1), clipping_plane));
+        dmin = min(dmin, dot(vec4(tet.pos[i],1), clipping_planes.p[0]));
+        dmax = max(dmax, dot(vec4(tet.pos[i],1), clipping_planes.p[0]));
     }
 
     if(dmin>0 || dmax <0) return;
 
     mat3 base; // Orthogonal system with first two base vectors inside clipping plane, third vector clipping plane normal vector
-    base[2] = normalize(clipping_plane.xyz);
-    vec3 n = abs(clipping_plane.xyz);
+    base[2] = normalize(clipping_planes.p[0].xyz);
+    vec3 n = abs(clipping_planes.p[0].xyz);
 
     if(n.z <= min(n.x, n.y))
         base[0] = normalize(vec3(-base[2].y, base[2].x, 0));
@@ -139,14 +139,14 @@ void main() {
     vec3 pmin,pmax;
     getMinMax(tet, pmin, pmax);
     pmin = pmin - fract( pmin/grid_size ) * grid_size;
-    pmin.z = -clipping_plane.w;
+    pmin.z = -clipping_planes.p[0].w;
 
     vec3 p = pmin;
     int counter = 0;
     while(p.x<pmax.x) {
         p.y = pmin.y;
         while(p.y<pmax.y) {
-            p.z = -clipping_plane.w;
+            p.z = -clipping_planes.p[0].w;
             vec4 lam = bary_mat * vec4(base*p,1);
             if(lam.x>=0 && lam.y>=0 && lam.z >=0 && lam.w >=0 &&
                lam.x<1 && lam.y<1 && lam.z <1 && lam.w <1 )
