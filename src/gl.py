@@ -384,7 +384,9 @@ def getProgram(*shader_files, feedback=[], elements=None, params=None, scene=Non
         define_flags['MACOS'] = 1
     if scene and scene.getLightDisable():
         define_flags['NOLIGHT'] = 1
-    if (hasattr(scene, 'getClippingEnable') and scene.getClippingEnable()) or 'CLIPPING' in define_flags :
+    do_clipping = (hasattr(scene, 'getClippingEnable') and scene.getClippingEnable()) or 'CLIPPING' in define_flags
+    do_clipping = do_clipping and scene.getClippingNPlanes()>0
+    if do_clipping:
         define_flags['CLIPPING'] = 1
         define_flags['N_CLIPPING_PLANES'] = scene.getClippingNPlanes()
         define_flags['CLIPPING_EXPRESSION'] = scene.getClippingExpression()
@@ -443,7 +445,7 @@ def getProgram(*shader_files, feedback=[], elements=None, params=None, scene=Non
             u.set('light.dir', [1.,3.,3.])
             u.set('light.spec', scene.getLightSpecular())
             u.set('light.shininess', scene.getLightShininess())
-        if 'clipping_planes.p[0]' in u:
+        if do_clipping and 'clipping_planes.p[0]' in u:
             n = scene.getClippingNPlanes()
             planes = scene.getClippingPlanes()
             planes = (ctypes.c_float*(4*n))(*planes)

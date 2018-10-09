@@ -5,8 +5,6 @@
 
 uniform mat4 MV;
 uniform Mesh mesh;
-uniform vec4 clipping_plane;
-uniform bool do_clipping;
 uniform bool wireframe;
 uniform sampler1D colors;
 uniform Light light;

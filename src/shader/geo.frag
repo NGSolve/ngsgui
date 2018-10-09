@@ -3,9 +3,8 @@
 {include utils.inc}
 
 uniform mat4 MV;
-uniform vec4 clipping_plane;
+uniform ClippingPlanes clipping_planes;
 uniform bool clip_whole_elements;
-uniform bool do_clipping;
 uniform Light light;
 
 in VertexData
@@ -26,7 +25,7 @@ void main()
 {
   FragColor = inData.color;
 
-  if(!clip_whole_elements && do_clipping && dot(vec4(inData.pos,1.0),clipping_plane)<0)
+  if(!clip_whole_elements && !CalcClipping(clipping_planes, inData.pos))
     discard;
 
   if (FragColor.a == 0.0)
