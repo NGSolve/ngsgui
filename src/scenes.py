@@ -1332,7 +1332,6 @@ class GeometryScene(BaseScene):
             self._tex_colors.bind()
             uniforms.set('colors',3)
 
-            uniforms.set('clipping_plane', settings.clipping_plane)
             glPolygonMode(GL_FRONT_AND_BACK, GL_FILL )
             glDrawArrays(GL_TRIANGLES, 0, self._geo_data.npoints)
 
