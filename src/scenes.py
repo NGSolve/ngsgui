@@ -1027,7 +1027,6 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
         glDrawTransformFeedback(GL_POINTS, filter_feedback)
 
 
-    # TODO: implement (surface or clipping plane) vector rendering
     def renderVectors(self, settings, elements, mode):
         # use transform feedback to get position (and direction) of vectors on regular grid
         if mode == 'VOLUME_GRID':
@@ -1038,7 +1037,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
             raise RuntimeError("invalid mode: "+str(mode))
 
         glEnable(GL_RASTERIZER_DISCARD)
-        prog = getProgram('pass_through.vert', 'vectors_filter.geom', feedback=['pos','val'], ORDER=self.getOrder(), params=settings, scene=self, elements=elements, USE_GL_VERTEX_ID=True, FILTER_MODE=mode)
+        prog = getProgram('pass_through.vert', 'vectors_filter.geom', feedback=['pos','val'], ORDER=self.getOrder(), params=settings, scene=self, elements=elements, USE_GL_VERTEX_ID=True, FILTER_MODE=mode, CLIPPING=1)
         uniforms = prog.uniforms
 
         uniforms.set('grid_size', grid_size)
@@ -1053,7 +1052,14 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
         glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, self.filter_buffer.id)
         glBeginTransformFeedback(GL_POINTS)
 
-        glDrawArrays(GL_POINTS, 0, self.mesh.ne)
+        filter_first = 0
+        for i in range(20): # maxmimal 20*40=800 vectors per element
+            uniforms.set('filter_first', filter_first)
+            with Query(GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN) as q:
+                glDrawArrays(GL_POINTS, 0, self.mesh.ne)
+            filter_first+=40
+            if q.value==0:
+                break;
 
         glEndTransformFeedback()
         glDisable(GL_RASTERIZER_DISCARD)

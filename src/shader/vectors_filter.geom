@@ -18,6 +18,8 @@ uniform int subdivision;
 uniform int order;
 uniform int component;
 
+uniform int filter_first;
+
 layout(points) in;
 layout(points, max_vertices=40) out;
 
@@ -91,11 +93,13 @@ void main() {
                    lam.x<1 && lam.y<1 && lam.z <1 && lam.w <1 )
                 {
                     counter++;
-                    if(counter==40) return;
-                    pos = p.xyz;
-                    val = EvaluateElementVec(inData[0].element, coefficients, ORDER, subdivision, lam.xyz, component);
-                    EmitVertex();
-                    EndPrimitive();
+                    if(counter==filter_first+40) return;
+                    if(counter>=filter_first) {
+                      pos = p.xyz;
+                      val = EvaluateElementVec(inData[0].element, coefficients, ORDER, subdivision, lam.xyz, component);
+                      EmitVertex();
+                      EndPrimitive();
+                    }
                 }
                 p.z += grid_size;
             }
@@ -152,11 +156,13 @@ void main() {
                lam.x<1 && lam.y<1 && lam.z <1 && lam.w <1 )
             {
                 counter++;
-                if(counter==40) return;
-                pos = base*p.xyz;
-                val = EvaluateElementVec(inData[0].element, coefficients, ORDER, subdivision, lam.xyz, component);
-                EmitVertex();
-                EndPrimitive();
+                if(counter==filter_first+40) return;
+                if(counter>=filter_first) {
+                  pos = base*p.xyz;
+                  val = EvaluateElementVec(inData[0].element, coefficients, ORDER, subdivision, lam.xyz, component);
+                  EmitVertex();
+                  EndPrimitive();
+                }
             }
             p.y += grid_size;
         }
