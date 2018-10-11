@@ -267,6 +267,7 @@ class WindowTab(QtWidgets.QWidget):
 
         self.toolbox = SceneToolBox(self)
         self.glWidget._settings.window = weakref.ref(self)
+        self.glWidget.addScene(self.glWidget._settings)
         self.toolbox.addScene(self.glWidget._settings)
 
         splitter = QtWidgets.QSplitter()
