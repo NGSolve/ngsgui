@@ -1,13 +1,12 @@
 import os
 os.environ['PYOPENGL_PLATFORM']='egl'
+os.environ['NGSGUI_HEADLESS']='1'
 
 import numpy as np
 import OpenGL.GL as GL
 import OpenGL.EGL as EGL
 
 from ngsgui.settings import Parameter, BaseSettings
-BaseSettings._have_qt = False
-Parameter._have_qt = False
 import ngsgui, glob
 import ngsgui.gl as gl
 for shaderpath in ngsgui.shader.locations:
@@ -32,7 +31,7 @@ class HeadlessGUI:
           EGL.EGL_BLUE_SIZE, 8,
           EGL.EGL_GREEN_SIZE, 8,
           EGL.EGL_RED_SIZE, 8,
-          EGL.EGL_DEPTH_SIZE, 8,
+          EGL.EGL_DEPTH_SIZE, 24,
           EGL.EGL_RENDERABLE_TYPE,
           EGL.EGL_OPENGL_BIT,
           EGL.EGL_NONE,
@@ -52,6 +51,7 @@ class HeadlessGUI:
         self.context = EGL.eglCreateContext(self.display, self.config, EGL.EGL_NO_CONTEXT, None)
 
         EGL.eglMakeCurrent(self.display, self.surface, self.surface, self.context)
+        GL.glEnable(GL.GL_DEPTH_TEST)
         self.clear()
 
     def clear(self):
@@ -77,6 +77,8 @@ class HeadlessGUI:
         diff = np.zeros(ref.shape, dtype=np.int16)
         diff [:] = ref
         diff -= out
-        diff_image = im.fromarray(np.array(255-diff, dtype=np.uint8))
-        diff_image.save(diff_name)
-        assert diff.any() == False
+        error = diff.any()
+        if error:
+            diff_image = im.fromarray(np.array(255-abs(diff), dtype=np.uint8))
+            diff_image.save(diff_name)
+        assert error == False

@@ -11,16 +11,19 @@ from PySide2 import QtWidgets, QtGui, QtCore
 import ngsolve as ngs
 import math
 
+import os
+_have_qt = not 'NGSGUI_HEADLESS' in os.environ
+del os
+
 class Parameter(QtCore.QObject):
     changed = QtCore.Signal(object)
-    _have_qt = True
     def __init__(self, name=None, label=None, label_above=False, **kwargs):
         super().__init__()
         self.name = name
         self.label = label
         self._label_above = label_above
         self.__options = kwargs if kwargs else {}
-        if self._have_qt:
+        if _have_qt:
             self._createWithLabel()
 
     def _attachTo(self, obj):
@@ -28,7 +31,7 @@ class Parameter(QtCore.QObject):
             obj._par_name_dict[self.name] = self
 
     def setVisible(self, val):
-        if self._have_qt:
+        if _have_qt:
             self._widget._visible = val
             self._widget.setVisible(val)
 
@@ -169,7 +172,7 @@ class ColorParameter(Parameter):
         self._values = state[1]
         self._default_value = (0,0,255,255)
         super().__setstate__(state[0])
-        self._colorWidget.setColors(state[2])
+        self.setValue(state[2])
 
 class CheckboxParameter(Parameter):
     def __init__(self, *args, name, default_value=False, label=None, **kwargs):
@@ -486,14 +489,38 @@ class FileParameter(Parameter):
         self.txt = state[3]
         self.createWidget()
 
+if not _have_qt:
+    # patch access functions to work without GUI
+    def getNoGUI(self):
+        return self._initial_value
+
+    def setNoGUI(self, value):
+        self._initial_value = value
+        self.changed.emit(value)
+
+    ColorParameter.getValue = getNoGUI
+    ColorParameter.setValue = setNoGUI
+    ValueParameter.getValue = getNoGUI
+    ValueParameter.setValue = setNoGUI
+    VectorParameter.getValue = getNoGUI
+    VectorParameter.setValue = setNoGUI
+    TextParameter.getValue = getNoGUI
+    TextParameter.setValue = setNoGUI
+    SingleOptionParameter.getValue = getNoGUI
+    SingleOptionParameter.setValue = setNoGUI
+    CheckboxParameter.getValue = getNoGUI
+    CheckboxParameter.setValue = setNoGUI
+    CheckboxParameterCluster.getValue = getNoGUI
+    CheckboxParameterCluster.setValue = setNoGUI
+
+
 class BaseSettings(QtCore.QObject):
-    _have_qt = True
     _individual_rendering_parameters = True
 
     def __init__(self):
         super().__init__()
         self._createParameters()
-        if BaseSettings._have_qt:
+        if _have_qt:
             self._createQtWidget()
 
     def getSettings(self):
@@ -517,7 +544,7 @@ class BaseSettings(QtCore.QObject):
         self._par_name_dict = {}
         for group, items in state[0].items():
             self.addParameters(group,*items)
-        if self._have_qt:
+        if _have_qt:
             self._createQtWidget()
 
     def _createParameters(self):
@@ -660,7 +687,7 @@ class CameraSettings(BaseSettings):
 def _patchGetterFunctionsWithGlobalSettings(obj, name_prefix, names, individual):
     def patchFunction(self, name):
         setattr(self, '_'+name, getattr(self, name))
-        setattr(self, name, lambda: getattr(self, '_'+name)() if individual() else getattr(self._global_rendering_parameters, name)())
+        setattr(self, name, lambda: getattr(self, '_'+name)() if getattr(self, individual)() else getattr(self._global_rendering_parameters, name)())
     for name in names:
         patchFunction(obj, name_prefix+name)
 
@@ -723,13 +750,14 @@ class ClippingSettings(BaseSettings):
             for i in range(3):
                 self._clipping_points[i].setVisible(i<nplanes)
                 self._clipping_normals[i].setVisible(i<nplanes)
-        _updateVisibility(1)
-        sub_params[1]._spinbox.valueChanged[int].connect(_updateVisibility)
+        if _have_qt:
+            _updateVisibility(1)
+            sub_params[1]._spinbox.valueChanged[int].connect(_updateVisibility)
         params = sub_params + [p for pair in zip(self._clipping_points,self._clipping_normals) for p in pair]
         if self._individual_rendering_parameters:
             self.addParameters("Individual Settings",
                 CheckboxParameterCluster(name="IndividualClipping", label="Clipping", default_value = False, sub_parameters = params))
-            _patchGetterFunctionsWithGlobalSettings(self, 'getClipping', ['Point', 'Normal', 'Enable', 'NPlanes', 'Expression', 'Point1', 'Point2', 'Normal1', 'Normal2', 'Planes'], self.getIndividualClipping)
+            _patchGetterFunctionsWithGlobalSettings(self, 'getClipping', ['Point', 'Normal', 'Enable', 'NPlanes', 'Expression', 'Point1', 'Point2', 'Normal1', 'Normal2', 'Planes'], 'getIndividualClipping')
         else:
             self.addParameters("Clipping", *params)
 
@@ -748,7 +776,7 @@ class LightSettings(BaseSettings):
         if self._individual_rendering_parameters:
             self.addParameters("Individual Settings",
                 CheckboxParameterCluster(name="IndividualLight", label="Light", default_value = False, sub_parameters = sub_parameters ))
-            _patchGetterFunctionsWithGlobalSettings(self, 'getLight', ['Disable', 'Ambient', 'Diffuse', 'Specular', 'Shininess'], self.getIndividualLight)
+            _patchGetterFunctionsWithGlobalSettings(self, 'getLight', ['Disable', 'Ambient', 'Diffuse', 'Specular', 'Shininess'], 'getIndividualLight')
         else:
             self.addParameters("Light", *sub_parameters)
 
@@ -782,7 +810,7 @@ class ColormapSettings(BaseSettings):
         if self._individual_rendering_parameters:
             self.addParameters("Individual Settings",
                 CheckboxParameterCluster(name="IndividualColormap", label="Colormap", default_value = False, sub_parameters = sub_parameters ))
-            _patchGetterFunctionsWithGlobalSettings(self, 'getColormap', ['Min', 'Max', 'Name', 'Steps', 'Linear', 'Autoscale'], self.getIndividualColormap)
+            _patchGetterFunctionsWithGlobalSettings(self, 'getColormap', ['Min', 'Max', 'Name', 'Steps', 'Linear', 'Autoscale'], 'getIndividualColormap')
         else:
             self.addParameters("Colormap", *sub_parameters)
 
