@@ -223,12 +223,12 @@ functions[ET.PRISM] = """\
     int first, dx, dy, dz;
     dz = N*(N+1)/2;
     if(lam.x+lam.y<1.0) {{ // lower left trig of quad
-        first = element*values_per_element+getIndex(N,X,Y);
+        first = element*values_per_element+getIndex(N,X,Y)+Z*dz;
         dx = getIndex(N,X+1, Y)-getIndex(N,X,Y);
         dy = getIndex(N,X, Y+1)-getIndex(N,X,Y);
     }}
     else {{ // upper right trig of quad
-        first = element*values_per_element+getIndex(N,X+ORDER,Y+ORDER);
+        first = element*values_per_element+getIndex(N,X+ORDER,Y+ORDER)+Z*dz;
         dx = getIndex(N,X, Y)-getIndex(N,X+1,Y);
         dy = getIndex(N,X, Y+ORDER-1)-getIndex(N,X,Y+ORDER);
         lam.x = 1-lam.x;
