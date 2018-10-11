@@ -3,38 +3,80 @@ from ngsolve import *
 ngsglobals.msg_level = 0
 import meshes
 import ngsgui.gl as gl
-from ngsgui.glwindow import RenderingParameters
-from ngsgui.scenes import MeshScene
+# from ngsgui.glwindow import RenderingParameters
+from ngsgui.scenes import MeshScene, RenderingSettings, SolutionScene
 import OpenGL.GL as GL
+import pytest
 
 gui = Gui()
 
-def mesh_test(mesh, name):
-    gui.clear()
+def getParameters():
+    settings = RenderingSettings()
+    settings.setColormapMin(-0.3)
+    settings.setColormapMax(1.0)
+    settings.min = Vector([0,0,0])
+    settings.max = Vector([1,1,1])
+    settings.rotateCamera(-30, 30)
+    settings.zoom=-50
+    settings.dx = -0.2
+    settings.dy = 0.1
+    settings.setLightAmbient(0.5)
+    settings.setLightDiffuse(0.5)
+    return settings
 
-    settings = RenderingParameters()
+@pytest.mark.parametrize("name,mesh", meshes.meshes_3d)
+def test_cf(name, mesh):
+
+    settings = getParameters()
+    settings.setClippingEnable(True)
+    settings.setClippingNormal([0,0,1])
+    settings.zoom=-100
+    s = SolutionScene(z+x*x-0.3*y*y, mesh, iso_surface=x+2*y+z*z)
+    s.setOrder(3)
+    s.setSubdivision(3)
+    s._global_rendering_parameters = settings
+    s.setShowSurface(True)
+    s.setShowClippingPlane(True)
+    s.initGL()
+    s.update()
+
+    gui.clear()
+    s.render(settings);
+    GL.glFinish()
+    gui.check_image('cf_'+name)
+
+    if name == 'tet':
+        s.setShowSurface(False)
+        s.setShowClippingPlane(False)
+        s.setShowIsoSurface(True)
+        s.setIsoValue(0.7)
+        gui.clear()
+        s.render(settings);
+        GL.glFinish()
+        gui.check_image('iso_'+name)
+
+@pytest.mark.parametrize("name,mesh", meshes.meshes_3d)
+def test_mesh(name, mesh):
+    gui.clear()
+    settings = getParameters()
     s = MeshScene(mesh)
+    s._global_rendering_parameters = settings
     colors = [0,255,0,255]*100
-    s.getMaterialColors = lambda : colors
-    s.getSurfaceColors = lambda : colors
-    s.getEdgeColors = lambda : colors
+    s.setMaterialColors(colors)
+    s.setSurfaceColors(colors)
+    s.setEdgeColors(colors)
+    s.setShowSurface(True)
     s.initGL()
     s.update()
 
     for els in s.mesh_data.elements[BND]:
         with gl.Query(GL.GL_PRIMITIVES_GENERATED) as q:
             s._render2DElements(settings, els, True);
-#         assert q.value == els.nelements*els.n_instances_2d (currently failing for pyramid due to 'curved' quad
 
     GL.glFinish()
     gui.check_image(name)
 
-def test_tet():
-    mesh_test(meshes.Tet(), 'tet')
-
-def test_pyramid():
-    mesh_test(meshes.Pyramid(), 'pyramid')
-
 if __name__ == '__main__':
-    test_tet()
-    test_pyramid()
+    for name,mesh in meshes.meshes_3d:
+        test_mesh(name, mesh)
+        test_cf(name, mesh)
