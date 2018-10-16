@@ -234,7 +234,10 @@ class BaseMeshScene(BaseScene):
             vals[vb] = {'real':{}, 'imag':{}}
         try:
             irs = getReferenceRules(order, 2**sd-1)
-            values = ngsolve.solve._GetValues(cf, self.mesh, vb, irs)
+            if isinstance(vb, str) and vb == "facet":
+                values = ngsolve.solve._GetFacetValues(cf, self.mesh, irs)
+            else:
+                values = ngsolve.solve._GetValues(cf, self.mesh, vb, irs)
             vals = vals[vb]
             vals['min'] = values['min']
             vals['max'] = values['max']
@@ -1149,26 +1152,31 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
                     for els in self.mesh_data.elements[ngsolve.VOL]:
                         self.renderFieldLines(settings, els)
 
-class FacetSolutionScene(BaseMeshScene):
-    def __init__(self, cf, *args, **kwargs):
+class FacetSolutionScene(BaseMeshScene, settings.ColormapSettings):
+    def __init__(self, cf, mesh, *args, **kwargs):
         self.cf = cf
-        self.values = { 'real' : {}, 'imag' : {}}
-        super().__init__(*args,**kwargs)
+        self.values = {}
+        self._deform_with_same = False
+        if not 'deformation' in kwargs:
+            if mesh.dim==2 and cf.dim==1:
+                self._deform_with_same = True
+                kwargs['deformation'] = ngsolve.CoefficientFunction((0,0,cf))
+        super().__init__(mesh, *args,**kwargs)
 
     def update(self):
+        # we have to update the deformation differently
+        deform = self.deformation
+        if deform:
+            self.deformation = None
         super().update()
-        formats = [None, GL_R32F, GL_RG32F, GL_RGB32F, GL_RGBA32F];
-        irs = getReferenceRules(self.getOrder(), 2**self.getSubdivision()-1)
-        values = ngsolve.solve._GetFacetValues(self.cf, self.mesh, irs)
-        comps = ['real']
-        self.values['min'] = values['min']
-        self.values['max'] = values['max']
-        if self.cf.is_complex: comps.append('imag')
-        for comp in comps:
-            for et in values[comp]:
-                if not et in self.values[comp]:
-                    self.values[comp][et] = Texture(GL_TEXTURE_BUFFER, formats[self.cf.dim])
-                self.values[comp][et].store(values[comp][et])
+        if deform:
+            self._deformation_values = {}
+            self.deformation = deform
+            self._getValues(self.deformation, "facet", self.getDeformationSubdivision(),
+                            self.getDeformationOrder(), self._deformation_values)
+            print("values = ", self._deformation_values)
+        self._getValues(self.cf, "facet", self.getSubdivision(), self.getOrder(),
+                        self.values)
 
     def _createParameters(self):
         super()._createParameters()
@@ -1209,22 +1217,32 @@ class FacetSolutionScene(BaseMeshScene):
         else:
             comp = 0
         with self._vao:
+            use_deformation = self.getDeformation()
             for facets in self.mesh_data.elements["facets"]:
                 shader = ['mesh.vert', 'solution.frag']
-                options = dict(ORDER=self.getOrder())
+                options = dict(ORDER=self.getOrder(), DEFORMATION=use_deformation)
                 if self.mesh.dim == 2:
                     options["NOLIGHT"] = True
+                if use_deformation:
+                    options["DEFORMATION_ORDER"] = self.getDeformationOrder()
                 prog = getProgram(*shader, elements=facets, params=settings, scene=self, **options)
                 uniforms = prog.uniforms
+                if use_deformation:
+                    glActiveTexture(GL_TEXTURE4)
+                    self._deformation_values["facet"]['real'][(facets.type, facets.curved)].bind()
+                    uniforms.set('deformation_coefficients', 4)
+                    uniforms.set('deformation_subdivision', 2**self.getDeformationSubdivision()-1)
+                    uniforms.set('deformation_order', self.getDeformationOrder())
+                    uniforms.set('deformation_scale', self.getDeformationScale())
                 glActiveTexture(GL_TEXTURE2)
-                self.values['real'][(facets.type, facets.curved)].bind()
+                self.values["facet"]['real'][(facets.type, facets.curved)].bind()
                 uniforms.set('coefficients', 2)
                 uniforms.set('subdivision', 2**self.getSubdivision()-1)
                 uniforms.set('component',comp)
                 uniforms.set('is_complex', self.cf.is_complex)
                 if self.cf.is_complex:
                     glActiveTexture(GL_TEXTURE3)
-                    self.values['imag'][facets.type, facets.curved].bind()
+                    self.values["facet"]['imag'][facets.type, facets.curved].bind()
                     uniforms.set('coefficients_imag', 3)
 
                     uniforms.set('complex_vis_function', SolutionScene._complex_eval_funcs[self.getComplexEvalFunc()])
@@ -1239,15 +1257,12 @@ class FacetSolutionScene(BaseMeshScene):
 
 def _createCFScene(cf, mesh, *args, **kwargs):
     if "facet" in kwargs and kwargs["facet"]:
+        del kwargs["facet"]
         return FacetSolutionScene(cf, mesh, *args, **kwargs)
     return SolutionScene(cf, mesh, *args, **kwargs)
 
 def _createGFScene(gf, mesh=None, name=None, *args, **kwargs):
-    if not mesh:
-        mesh = gf.space.mesh
-    if not name:
-        name = gf.name
-    return _createCFScene(gf,mesh,*args, name=name, **kwargs)
+    return _createCFScene(gf, mesh if mesh else gf.space.mesh, *args, name=name if name else gf.name, **kwargs)
 
 GUI.sceneCreators[ngsolve.GridFunction] =  _createGFScene
 GUI.sceneCreators[ngsolve.CoefficientFunction] =  _createCFScene
