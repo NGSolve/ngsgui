@@ -82,14 +82,22 @@ tooltip: str
         self.body.setVisible(not self.body.isVisible())
 
 class SceneToolBoxItem(ToolBoxItem):
-    def __init__(self, scene, visibilityButton=True, colorButton=True, *args, **kwargs):
+    def __init__(self, scene, visibilityButton=True, colorButton=True, clippingPlaneButton=True,
+                 lightButton=True, *args, **kwargs):
         super().__init__(scene.name, *args, **kwargs)
         if visibilityButton:
             self.header.addIcon([icon_path + "/visible.png", icon_path + "/hidden.png"], scene.activeChanged,
                                 "Show/Hide scene")
         if colorButton:
-            self.header.addIcon([icon_path + "/nocolor.png", icon_path + "/color.png"], scene.individualColormapChanged,
+            self.header.addIcon([icon_path + "/nocolor.png", icon_path + "/color.png"],
+                                scene.individualColormapChanged,
                                 "Use individual colormap")
+        if clippingPlaneButton:
+            self.header.addIcon([icon_path + "/noscissors.png", icon_path + "/scissors.png"],
+                                scene.individualClippingPlaneChanged, "Use clipping plane")
+        if lightButton:
+            self.header.addIcon([icon_path + "/nolight.png", icon_path + "/light.png"],
+                                scene.individualLightChanged, "Use light")
         self.header.updateLayout()
         self.body.setLayout(ArrangeV(*scene.widgets.groups))
         scene.widgets.setParent(self.body)
@@ -99,7 +107,7 @@ class SceneToolBoxItem(ToolBoxItem):
         self._scene = weakref.ref(scene)
 
 class ToolBox(QtWidgets.QDockWidget):
-    """Our own toolbox class, because the PySide one doesn't support the stuff we want"""
+    """Our own toolbox class, because the Qt one doesn't support the stuff we want"""
     def __init__(self, title="", **kwargs):
         super().__init__(title,**kwargs)
         self._widget = QtWidgets.QWidget()

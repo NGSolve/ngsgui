@@ -15,6 +15,30 @@ from . import settings
 from PySide2 import QtWidgets, QtCore, QtGui
 from OpenGL.GL import *
 
+def signalProperty(name, possible_values=[True,False], updateGL=True):
+    def patch(cls):
+        old_init = cls.__init__
+        def patched_init(self, *args, **kwargs):
+            setattr(self, "_" + name, possible_values[0])
+            old_init(self, *args, **kwargs)
+            signal = getattr(self, name + "Changed")
+            signal.connect(lambda : setattr(self,"_" + name, possible_values[(possible_values.index(getattr(self,"_" + name))+1)%len(possible_values)]))
+            if updateGL:
+                signal.connect(self._updateGL)
+        cls.__init__ = patched_init
+        def getter(self):
+            return getattr(self, "_" + name)
+        def setter(self,value):
+            while not (getattr(self,"_" + name) == value):
+                getattr(self, name + "Changed").emit()
+        prop = property(getter, setter)
+        setattr(cls, name, prop)
+        return cls
+    return patch
+
+@signalProperty("individualColormap",[False,True])
+@signalProperty("individualClippingPlane", [False, True])
+@signalProperty("individualLight", [False, True])
 class BaseScene(settings.CameraSettings, settings.LightSettings, settings.ClippingSettings):
     """Base class for drawing opengl objects.
 
@@ -28,6 +52,8 @@ name : str = type(self).__name__ + scene_counter
     scene_counter = 1
     activeChanged = QtCore.Signal()
     individualColormapChanged = QtCore.Signal()
+    individualClippingPlaneChanged = QtCore.Signal()
+    individualLightChanged = QtCore.Signal()
     @inmain_decorator(wait_for_return=True)
     def __init__(self, active=True, name = None, **kwargs):
         self.window = None
@@ -35,19 +61,24 @@ name : str = type(self).__name__ + scene_counter
         self._actions = {}
         self._active_action = None
         self._active = active
-        self._individualColormap = False
         if name is None:
             self.name = type(self).__name__.split('.')[-1] + str(BaseScene.scene_counter)
             BaseScene.scene_counter += 1
         else:
             self.name = name
         super().__init__(**kwargs)
-        for par in self._colormap_sub_parameters:
+        for par in self._individualColormapSubparameters:
             par.setVisible(False)
-        self.individualColormapChanged.connect(lambda: setattr(self, "_individualColormap", not self._individualColormap))
-        self.individualColormapChanged.connect(self._updateGL)
-        self.individualColormapChanged.connect(lambda : [parameter.setVisible(not parameter.isVisible()) for parameter in self._colormap_sub_parameters])
+        self.individualColormapChanged.connect(lambda : [parameter.setVisible(not parameter.isVisible()) for parameter in self._individualColormapSubparameters])
         self.individualColormapChanged.connect(self.widgets.update)
+        for par in self._individualClippingPlaneSubparameters:
+            par.setVisible(False)
+        self.individualClippingPlaneChanged.connect(lambda : [parameter.setVisible(not parameter.isVisible()) for parameter in self._individualClippingPlaneSubparameters])
+        self.individualClippingPlaneChanged.connect(self.widgets.update)
+        for par in self._individualLightSubparameters:
+            par.setVisible(False)
+        self.individualLightChanged.connect(lambda : [parameter.setVisible(not parameter.isVisible()) for parameter in self._individualLightSubparameters])
+        self.individualLightChanged.connect(self.widgets.update)
         self.activeChanged.connect(lambda: setattr(self,"_active", not self._active))
         self.activeChanged.connect(self._updateGL)
 
@@ -174,6 +205,10 @@ class RenderingSettings(BaseScene, settings.CameraSettings, settings.LightSettin
     def __init__(self, *args, **kwargs):
         self._individual_rendering_parameters = False
         super().__init__(*args, **kwargs)
+
+    def initGL(self):
+        super().initGL()
+        self.individualLight = True
 
     def render(self, rp):
         pass
