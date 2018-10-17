@@ -4,6 +4,7 @@ from . import widgets as wid
 from .gl import TextRenderer, ArrayBuffer, VertexArray, getProgram, Texture
 from .widgets import ArrangeV, ArrangeH, addShortcut
 from .thread import inmain_decorator
+from .toolbox import SceneToolBox
 from ngsgui import _debug
 import numpy as np
 
@@ -14,96 +15,6 @@ from math import exp, sqrt
 from PySide2 import QtWidgets, QtOpenGL, QtCore, QtGui
 from OpenGL import GL
 import pickle
-
-
-class ToolBoxItem(QtWidgets.QWidget):
-    def __init__(self, scene, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        layout = QtWidgets.QVBoxLayout()
-        for item in scene.widgets.groups:
-            layout.addWidget(item)
-        self.setLayout(layout)
-        self.layout().setAlignment(QtCore.Qt.AlignTop)
-        scene.widgets.setParent(self)
-        scene.widgets.update()
-        self.scene = weakref.ref(scene)
-#         scene.addShortcuts(self)
-
-    def changeActive(self):
-        self.scene().active = not self.scene().active
-
-    def mousePressEvent(self, event):
-        drag = QtGui.QDrag(self)
-        mime_data = QtCore.QMimeData()
-        dump = pickle.dumps(self.scene())
-        mime_data.setData("scene", dump)
-        drag.setMimeData(mime_data)
-        drag.start()
-
-class SceneToolBox(QtWidgets.QToolBox):
-    """Toolbox containing the settings for the drawn scene. This toolbox is connected to the GLWindow it is used with."""
-    from ngsgui.icons import location as icon_path
-    ic_visible = icon_path + "/visible.png"
-    ic_hidden = icon_path + "/hidden.png"
-    def __init__(self, window):
-        super().__init__()
-        self.window = weakref.ref(window)
-        self.scenes = window.glWidget.scenes
-
-    def addScene(self, scene):
-        icon = QtGui.QIcon(SceneToolBox.ic_visible if scene.active else SceneToolBox.ic_hidden)
-        widget = ToolBoxItem(scene)
-        self.setCurrentIndex(self.addItem(widget,icon, scene.name))
-        def setIcon(val):
-            icon = QtGui.QIcon(SceneToolBox.ic_visible if val else SceneToolBox.ic_hidden)
-            self.setItemIcon(self.scenes.index(scene), icon)
-        scene.activeChanged.connect(setIcon)
-
-    @inmain_decorator(True)
-    def removeSceneAt(self, index):
-        """Remove scene by index"""
-        #hack because removing all items and then readding some leads to segfault in qt...
-        widgets = [(self.itemText(i), self.itemIcon(i), self.widget(i)) for i in range(index+1, self.count())]
-        if index == 0 and self.count() > 1:
-            print("Cannot remove first item of toolbox while other items are still inside... This is due to bug https://bugreports.qt.io/browse/QTBUG-50406 in Qt... Let's wait till this is fixed. You can hide the first scene by right clicking on it.")
-            return
-        # circumvent bug in qt that deletes 2 items when deleting an inner one...
-        for i in reversed(range(index, self.count())):
-            self.removeItem(index)
-        del self.scenes[index]
-        for text, icon, widget in widgets:
-            self.addItem(widget, icon, text)
-        self.window().glWidget.updateGL()
-
-    def mousePressEvent(self, event):
-        if event.buttons() == QtCore.Qt.RightButton:
-            event.accept()
-            clicked = self.childAt(event.pos())
-            i = 0
-            index = None
-            while self.layout().itemAt(i) is not None:
-                if self.layout().itemAt(i).widget() == clicked:
-                    index = i//2
-                i += 1
-            if index is not None:
-                widget = self.widget(index)
-                widget.changeActive()
-                if widget.scene().active:
-                    self.setCurrentIndex(index)
-            return
-        if event.buttons() == QtCore.Qt.MidButton:
-            event.accept()
-            clicked = self.childAt(event.pos())
-            i = 0
-            index = None
-            while self.layout().itemAt(i) is not None:
-                if self.layout().itemAt(i).widget() == clicked:
-                    index = i//2
-                i += 1
-            if index is not None:
-                self.removeSceneAt(index)
-            return
-        super().mousePressEvent(event)
 
 class GLWindowButtonArea(wid.ButtonArea):
     def __init__(self, glWidget):
@@ -147,10 +58,6 @@ class GLWindowButtonArea(wid.ButtonArea):
             s.setSettings(state)
             ngsolve.Redraw()
 
-        self.addButton(clipX, "clip &x")
-        self.addButton(clipY, "clip &y")
-        self.addButton(clipZ, "clip &z")
-        self.addButton(flip, "&flip")
         self._showCross = True
         self.addButton(lambda : setattr(self, "_showCross", not self._showCross) or self.glWidget.updateGL(),
                        "Cross")
@@ -246,29 +153,15 @@ class WindowTab(QtWidgets.QWidget):
         self._startup_scenes = []
         self._actions = []
         settings = QtCore.QSettings()
-        def nextScene():
-            self.toolbox.setCurrentIndex((self.toolbox.currentIndex()+1)%self.toolbox.count())
-        def lastScene():
-            self.toolbox.setCurrentIndex((self.toolbox.currentIndex()-1)%self.toolbox.count())
-        addShortcut(self, "GLWindow-NextScene", "d", nextScene)
-        addShortcut(self, "GLWindow-LastScene", "s", lastScene)
 
     def create(self,sharedContext):
         self.glWidget = GLWidget(shared=sharedContext)
         self.glWidget.makeCurrent()
 
-        buttons = QtWidgets.QVBoxLayout()
-
-        btnZoomReset = QtWidgets.QPushButton("ZoomReset", self)
-        btnZoomReset.clicked.connect(self.glWidget.ZoomReset)
-        btnZoomReset.setMinimumWidth(1);
-
-        buttons.addWidget(btnZoomReset)
-
-        self.toolbox = SceneToolBox(self)
+        self.toolbox = SceneToolBox(self.glWidget)
         self.glWidget._settings.window = weakref.ref(self)
         self.glWidget.addScene(self.glWidget._settings)
-        self.toolbox.addScene(self.glWidget._settings)
+        self.toolbox.addScene(self.glWidget._settings, visibilityButton=False, colorButton=False)
 
         splitter = QtWidgets.QSplitter()
         inner_splitter = QtWidgets.QSplitter()
@@ -277,9 +170,7 @@ class WindowTab(QtWidgets.QWidget):
         inner_splitter.addWidget(btn_area)
         inner_splitter.addWidget(self.glWidget)
         splitter.addWidget(inner_splitter)
-        tbwidget = QtWidgets.QWidget()
-        tbwidget.setLayout(ArrangeV(self.toolbox, buttons))
-        splitter.addWidget(tbwidget)
+        splitter.addWidget(self.toolbox)
         splitter.setOrientation(QtCore.Qt.Horizontal)
         splitter.setSizes([75000, 25000])
         self.setLayout(ArrangeH(splitter))
@@ -311,7 +202,7 @@ class WindowTab(QtWidgets.QWidget):
         print("call remove")
         self.glWidget.makeCurrent()
         # scene.window = None
-        self.toolbox.removeSceneAt(self.glWidget.scenes.index(scene))
+        # self.toolbox.removeSceneAt(self.glWidget.scenes.index(scene))
 
 class GLWidget(QtOpenGL.QGLWidget):
     redraw_signal = QtCore.Signal()

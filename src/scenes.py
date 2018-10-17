@@ -26,7 +26,8 @@ name : str = type(self).__name__ + scene_counter
   Name of scene in right hand side menu.
 """
     scene_counter = 1
-    activeChanged = QtCore.Signal(bool)
+    activeChanged = QtCore.Signal()
+    individualColormapChanged = QtCore.Signal()
     @inmain_decorator(wait_for_return=True)
     def __init__(self, active=True, name = None, **kwargs):
         self.window = None
@@ -34,13 +35,21 @@ name : str = type(self).__name__ + scene_counter
         self._actions = {}
         self._active_action = None
         self._active = active
+        self._individualColormap = False
         if name is None:
             self.name = type(self).__name__.split('.')[-1] + str(BaseScene.scene_counter)
             BaseScene.scene_counter += 1
         else:
             self.name = name
         super().__init__(**kwargs)
-        self.activeChanged.connect(lambda val: self._updateGL())
+        for par in self._colormap_sub_parameters:
+            par.setVisible(False)
+        self.individualColormapChanged.connect(lambda: setattr(self, "_individualColormap", not self._individualColormap))
+        self.individualColormapChanged.connect(self._updateGL)
+        self.individualColormapChanged.connect(lambda : [parameter.setVisible(not parameter.isVisible()) for parameter in self._colormap_sub_parameters])
+        self.individualColormapChanged.connect(self.widgets.update)
+        self.activeChanged.connect(lambda: setattr(self,"_active", not self._active))
+        self.activeChanged.connect(self._updateGL)
 
     def __getstate__(self):
         super_state = super().__getstate__()
@@ -53,7 +62,7 @@ name : str = type(self).__name__ + scene_counter
         self._active_action = None
         self.name = state[1]
         super().__setstate__(state[0])
-        self.activeChanged.connect(lambda val: self._updateGL())
+        self.activeChanged.connect(lambda: self._updateGL())
         self.active = state[2]
         # TODO: can we pickle actions somehow?
 
@@ -107,8 +116,8 @@ center of this box. Rotation will be around this center."""
 
     def _setActive(self, _active):
         """Toggle visibility of scene"""
-        self._active = _active
-        self.activeChanged.emit(_active)
+        if _active != self.active:
+            self.activeChanged.emit()
     def _getActive(self):
         return self._active
     active = property(_getActive,_setActive)

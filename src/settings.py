@@ -35,6 +35,9 @@ class Parameter(QtCore.QObject):
             self._widget._visible = val
             self._widget.setVisible(val)
 
+    def isVisible(self):
+        return self._widget._visible if hasattr(self._widget,"_visible") else True
+
     def _createWithLabel(self):
         if self.label:
             self._widget = QtWidgets.QWidget()
@@ -687,7 +690,7 @@ class CameraSettings(BaseSettings):
 def _patchGetterFunctionsWithGlobalSettings(obj, name_prefix, names, individual):
     def patchFunction(self, name):
         setattr(self, '_'+name, getattr(self, name))
-        setattr(self, name, lambda: getattr(self, '_'+name)() if getattr(self, individual)() else getattr(self._global_rendering_parameters, name)())
+        setattr(self, name, lambda: getattr(self, '_'+name)() if getattr(self, individual) else getattr(self._global_rendering_parameters, name)())
     for name in names:
         patchFunction(obj, name_prefix+name)
 
@@ -793,7 +796,7 @@ class ColormapSettings(BaseSettings):
             colormaps += plt.colormaps()
         except:
             pass
-        sub_parameters = [
+        self._colormap_sub_parameters = [
             CheckboxParameter(name="ColormapAutoscale", label="autoscale", default_value=True),
             ValueParameter(name="ColormapMin", label="min", default_value=0.0),
             ValueParameter(name="ColormapMax", label="max", default_value=1.0),
@@ -804,15 +807,12 @@ class ColormapSettings(BaseSettings):
                                                       label="map",
                                                       default_value = "netgen"),
             ]
-        sub_parameters[-2].changed.connect(self._updateColormap)
-        sub_parameters[-1].changed.connect(self._updateColormap)
+        self._colormap_sub_parameters[-2].changed.connect(self._updateColormap)
+        self._colormap_sub_parameters[-1].changed.connect(self._updateColormap)
 
+        self.addParameters("Colormap", *self._colormap_sub_parameters)
         if self._individual_rendering_parameters:
-            self.addParameters("Individual Settings",
-                CheckboxParameterCluster(name="IndividualColormap", label="Colormap", default_value = False, sub_parameters = sub_parameters ))
-            _patchGetterFunctionsWithGlobalSettings(self, 'getColormap', ['Min', 'Max', 'Name', 'Steps', 'Linear', 'Autoscale'], 'getIndividualColormap')
-        else:
-            self.addParameters("Colormap", *sub_parameters)
+            _patchGetterFunctionsWithGlobalSettings(self, 'getColormap', ['Min', 'Max', 'Name', 'Steps', 'Linear', 'Autoscale'], '_individualColormap')
 
     def _updateColormap(self):
         name = self.getColormapName()
@@ -844,7 +844,7 @@ class ColormapSettings(BaseSettings):
         GL.glTexImage1D(GL.GL_TEXTURE_1D, 0, GL.GL_RGB, N, 0, GL.GL_RGB, GL.GL_UNSIGNED_BYTE, colors)
 
     def getColormapTex(self):
-        if self._individual_rendering_parameters and not self.getIndividualColormap():
+        if self._individual_rendering_parameters and not self._individualColormap:
             return self._global_rendering_parameters.getColormapTex()
         if self._colormap_tex == None:
             self._updateColormap()
