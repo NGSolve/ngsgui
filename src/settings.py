@@ -793,7 +793,7 @@ class LightSettings(BaseSettings):
                                                             options[(options.index(self._individualLight)+1)%len(options)]))
         self.individualLightChanged.connect(self._updateGL)
         for par in self._individualLightSubparameters:
-            par.setVisible(False)
+            par.setVisible(options[0] == True)
         if _have_qt:
             self.individualLightChanged.connect(lambda : [par.setVisible(self._individualLight == True) for par in self._individualLightSubparameters])
             self.individualLightChanged.connect(self.widgets.update)
