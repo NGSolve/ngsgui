@@ -168,13 +168,98 @@ class RenderingSettings(BaseScene, settings.CameraSettings, settings.LightSettin
         self._individual_rendering_parameters = False
         super().__init__(*args, **kwargs)
 
+    def _createParameters(self):
+        super()._createParameters()
+        self.addParameters("Visualization",
+                           settings.CheckboxParameter(name="ShowCross",label= "Show Cross", default_value=True),
+                           settings.CheckboxParameter(name="ShowColorbar",label= "Show Colorbar",
+                                                      default_value=True),
+                           settings.CheckboxParameter(name="ShowVersion",label= "Show Version", default_value=True))
+
+        def storeRenderingSettings():
+            import io, base64, pickle
+            with io.BytesIO() as f:
+                pickler = pickle.Pickler(f)
+                pickler.dump(self.getSettings())
+                enc = base64.b64encode(f.getvalue()).decode('ascii')
+            sets = QtCore.QSettings('ngsolve','gui')
+            sets.setValue('viewsettings', enc)
+
+        def loadRenderingSettings():
+            import io, base64, pickle
+            sets = QtCore.QSettings('ngsolve','gui')
+            enc = sets.value('viewsettings')
+            data = base64.b64decode(enc)
+            pickle.load
+            with io.BytesIO(data) as f:
+                unpickler = pickle.Unpickler(f)
+                state = unpickler.load()
+            self.setSettings(state)
+            ngsolve.Redraw()
+        savePar = settings.Button(name="SaveView", label="Save view")
+        loadPar = settings.Button(name="LoadView", label="Load view")
+        savePar.changed.connect(storeRenderingSettings)
+        loadPar.changed.connect(loadRenderingSettings)
+        self.addParameters("Saving", savePar, loadPar)
+                           
     def initGL(self):
         super().initGL()
         self.individualLight = True
         self.individualColormap = True
+        self._vao = VertexArray()
+        with self._vao:
+            self._gl_initialized = True
+            self._text_renderer = TextRenderer()
+            self._cross_points = ArrayBuffer()
+            self._cross_scale = 0.3
+            self._cross_shift = -0.10
+            points = [self._cross_shift + (self._cross_scale if i%7==3 else 0) for i in range(24)]
+            self._cross_points.store(numpy.array(points, dtype=numpy.float32))
 
     def render(self, rp):
-        pass
+        with self._vao:
+            glDisable(GL_DEPTH_TEST)
+            if self.getShowCross():
+                prog = getProgram("cross.vert", "cross.frag")
+                model, view, projection = self.model, self.view, self.projection
+                mvp = glmath.Translate(-1+0.15/self.ratio,-0.85,0)*projection*view*glmath.Translate(0,0,-5)*self.rotmat
+                prog.uniforms.set("MVP", mvp)
+                prog.attributes.bind("pos", self._cross_points)
+                coords = glmath.Identity()
+                for i in range(3):
+                    for j in range(3):
+                        coords[i,j] = self._cross_shift+int(i==j)*self._cross_scale*1.2
+                coords[3,:] = 1.0
+                coords = mvp*coords
+                for i in range(4):
+                    for j in range(4):
+                        coords[i,j] = coords[i,j]/coords[3,j]
+
+                glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
+                glDrawArrays(GL_LINES, 0,6)
+                for i in range(3):
+                    self._text_renderer.draw(self, "xyz"[i], coords[0:3,i], alignment=QtCore.Qt.AlignCenter|QtCore.Qt.AlignVCenter)
+            if self.getShowVersion():
+                self._text_renderer.draw(self, "NGSolve " + ngsolve.__version__, [0.99,-0.99,0], alignment=QtCore.Qt.AlignRight|QtCore.Qt.AlignBottom)
+            if self.getShowColorbar():
+                prog = getProgram('colorbar.vert','colorbar.frag', params=self, scene=self)
+                uniforms = prog.uniforms
+                x0,y0 = -0.6, 0.95
+                dx,dy = 1.2, 0.03
+                uniforms.set('x0', x0)
+                uniforms.set('dx', dx)
+                uniforms.set('y0', y0)
+                uniforms.set('dy', dy)
+
+                glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
+                glDrawArrays(GL_TRIANGLES, 0, 6)
+                cmin = self.getColormapMin()
+                cmax = self.getColormapMax()
+                for i in range(5):
+                    x = x0+i*dx/4
+                    val = cmin + i*(cmax-cmin)/4
+                    self._text_renderer.draw(self, '{:.2g}'.format(val).replace("e+", "e"), [x,y0-0.03,0], alignment=QtCore.Qt.AlignCenter|QtCore.Qt.AlignTop)
+            glEnable(GL_DEPTH_TEST)
 
 class BaseMeshScene(BaseScene):
     """Base class for all scenes that depend on a mesh"""

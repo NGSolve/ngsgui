@@ -16,137 +16,6 @@ from PySide2 import QtWidgets, QtOpenGL, QtCore, QtGui
 from OpenGL import GL
 import pickle
 
-class GLWindowButtonArea(wid.ButtonArea):
-    def __init__(self, glWidget):
-        super().__init__()
-        self.glWidget = glWidget
-        glWidget._btn_area = self
-
-        def clipX():
-            self.glWidget._settings.setClippingNormal([1,0,0])
-            self.glWidget.updateGL()
-        def clipY():
-            self.glWidget._settings.setClippingNormal([0,1,0])
-            self.glWidget.updateGL()
-        def clipZ():
-            self.glWidget._settings.setClippingNormal([0,0,1])
-            self.glWidget.updateGL()
-        def flip():
-            self.glWidget._settings.setClippingNormal(-1. * glmath.Vector(self.glWidget._settings.getClippingNormal()))
-            self.glWidget.updateGL()
-        def storeRenderingSettings():
-            s = self.glWidget._settings
-            import io, base64, pickle
-            with io.BytesIO() as f:
-                pickler = pickle.Pickler(f)
-                pickler.dump(s.getSettings())
-                enc = base64.b64encode(f.getvalue()).decode('ascii')
-            sets = QtCore.QSettings('ngsolve','gui')
-            sets.setValue('viewsettings', enc)
-
-        def loadRenderingSettings():
-            import io, base64, pickle
-            sets = QtCore.QSettings('ngsolve','gui')
-            enc = sets.value('viewsettings')
-            data = base64.b64decode(enc)
-            pickle.load
-            with io.BytesIO(data) as f:
-                unpickler = pickle.Unpickler(f)
-                state = unpickler.load()
-
-            s = self.glWidget._settings
-            s.setSettings(state)
-            ngsolve.Redraw()
-
-        self._showCross = True
-        self.addButton(lambda : setattr(self, "_showCross", not self._showCross) or self.glWidget.updateGL(),
-                       "Cross")
-        self.addButton(lambda : setattr(self.renderingParameters, "fastmode",
-                                        not self.renderingParameters.fastmode) or self.glWidget.updateGL(),
-                       "Fastmode",checkable=True)
-        self._showColorBar = True
-        self.addButton(lambda : setattr(self, "_showColorBar", not self._showColorBar) or self.glWidget.updateGL(),
-                       "Colorbar")
-        self._showVersion = True
-        self.addButton(lambda : setattr(self, "_showVersion", not self._showVersion) or self.glWidget.updateGL(),
-                       "Version")
-
-        self.addButton(storeRenderingSettings, "save view")
-        self.addButton(loadRenderingSettings, "load view")
-
-        addShortcut(self, "GLWindow-clipx", "x", clipX)
-        addShortcut(self, "GLWindow-clipy", "y", clipY)
-        addShortcut(self, "GLWindow-clipz", "z", clipZ)
-        addShortcut(self, "GLWindow-flip", "f", flip)
-        self._gl_initialized = False
-
-    def initGL(self):
-        if self._gl_initialized:
-            return
-        self._vao = VertexArray()
-        with self._vao:
-            self._gl_initialized = True
-            self._text_renderer = TextRenderer()
-            self._cross_points = ArrayBuffer()
-            self._cross_scale = 0.3
-            self._cross_shift = -0.10
-            points = [self._cross_shift + (self._cross_scale if i%7==3 else 0) for i in range(24)]
-            self._cross_points.store(np.array(points, dtype=np.float32))
-
-    def _setRenderingParameters(self, pars):
-        self.glWidget._settings.__dict__.update(pars)
-    def _getRenderingParameters(self):
-        return self.glWidget._settings
-    renderingParameters = property(_getRenderingParameters, _setRenderingParameters)
-
-    def render(self):
-        if not self._gl_initialized:
-            self.initGL()
-        with self._vao:
-            GL.glDisable(GL.GL_DEPTH_TEST)
-            if self._showCross:
-                prog = getProgram("cross.vert", "cross.frag")
-                model, view, projection = self.renderingParameters.model, self.renderingParameters.view, self.renderingParameters.projection
-                mvp = glmath.Translate(-1+0.15/self.renderingParameters.ratio,-0.85,0)*projection*view*glmath.Translate(0,0,-5)*self.renderingParameters.rotmat
-                prog.uniforms.set("MVP", mvp)
-                prog.attributes.bind("pos", self._cross_points)
-                coords = glmath.Identity()
-                for i in range(3):
-                    for j in range(3):
-                        coords[i,j] = self._cross_shift+int(i==j)*self._cross_scale*1.2
-                coords[3,:] = 1.0
-                coords = mvp*coords
-                for i in range(4):
-                    for j in range(4):
-                        coords[i,j] = coords[i,j]/coords[3,j]
-
-                GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL)
-                GL.glDrawArrays(GL.GL_LINES, 0,6)
-                for i in range(3):
-                    self._text_renderer.draw(self.renderingParameters, "xyz"[i], coords[0:3,i], alignment=QtCore.Qt.AlignCenter|QtCore.Qt.AlignVCenter)
-            if self._showVersion:
-                self._text_renderer.draw(self.renderingParameters, "NGSolve " + ngsolve.__version__, [0.99,-0.99,0], alignment=QtCore.Qt.AlignRight|QtCore.Qt.AlignBottom)
-            if self._showColorBar:
-                prog = getProgram('colorbar.vert','colorbar.frag', params=self.renderingParameters, scene=self.glWidget._settings)
-                uniforms = prog.uniforms
-                x0,y0 = -0.6, 0.95
-                dx,dy = 1.2, 0.03
-                uniforms.set('x0', x0)
-                uniforms.set('dx', dx)
-                uniforms.set('y0', y0)
-                uniforms.set('dy', dy)
-
-                GL.glPolygonMode( GL.GL_FRONT_AND_BACK, GL.GL_FILL );
-                GL.glDrawArrays(GL.GL_TRIANGLES, 0, 6)
-                cmin = self.renderingParameters.getColormapMin()
-                cmax = self.renderingParameters.getColormapMax()
-                for i in range(5):
-                    x = x0+i*dx/4
-                    val = cmin + i*(cmax-cmin)/4
-                    self._text_renderer.draw(self.renderingParameters, '{:.2g}'.format(val).replace("e+", "e"), [x,y0-0.03,0], alignment=QtCore.Qt.AlignCenter|QtCore.Qt.AlignTop)
-            GL.glEnable(GL.GL_DEPTH_TEST)
-
-
 class WindowTab(QtWidgets.QWidget):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -164,12 +33,7 @@ class WindowTab(QtWidgets.QWidget):
         self.toolbox.addScene(self.glWidget._settings, visibilityButton=False, colorButton=False, killButton=False)
 
         splitter = QtWidgets.QSplitter()
-        inner_splitter = QtWidgets.QSplitter()
-        inner_splitter.setOrientation(QtCore.Qt.Vertical)
-        btn_area = GLWindowButtonArea(self.glWidget)
-        inner_splitter.addWidget(btn_area)
-        inner_splitter.addWidget(self.glWidget)
-        splitter.addWidget(inner_splitter)
+        splitter.addWidget(self.glWidget)
         splitter.addWidget(self.toolbox)
         splitter.setOrientation(QtCore.Qt.Horizontal)
         splitter.setSizes([75000, 25000])
@@ -313,7 +177,6 @@ class GLWidget(QtOpenGL.QGLWidget):
             rp.setColormapMax(colormap_max)
         for scene in self.scenes:
             scene.render(rp)
-        self._btn_area.render()
 
     def addScene(self, scene):
         self.scenes.append(scene)

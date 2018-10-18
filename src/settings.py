@@ -87,6 +87,12 @@ class Button(Parameter):
         btn.clicked.connect(lambda : self.changed.emit(None))
         return btn
 
+    def getValue(self):
+        return None
+
+    def setValue(self, val):
+        assert val is None
+
     def __getstate__(self):
         return (super().__getstate__(), self._label, self._icon, self._tooltip)
 
