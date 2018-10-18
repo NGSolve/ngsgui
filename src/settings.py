@@ -15,28 +15,6 @@ import os
 _have_qt = not 'NGSGUI_HEADLESS' in os.environ
 del os
 
-
-def signalProperty(name, possible_values=[True,False], updateGL=True):
-    def patch(cls):
-        old_init = cls.__init__
-        def patched_init(self, *args, **kwargs):
-            setattr(self, "_" + name, possible_values[0])
-            old_init(self, *args, **kwargs)
-            signal = getattr(self, name + "Changed")
-            signal.connect(lambda : setattr(self,"_" + name, possible_values[(possible_values.index(getattr(self,"_" + name))+1)%len(possible_values)]))
-            if updateGL:
-                signal.connect(self._updateGL)
-        cls.__init__ = patched_init
-        def getter(self):
-            return getattr(self, "_" + name)
-        def setter(self,value):
-            while not (getattr(self,"_" + name) == value):
-                getattr(self, name + "Changed").emit()
-        prop = property(getter, setter)
-        setattr(cls, name, prop)
-        return cls
-    return patch
-
 class Parameter(QtCore.QObject):
     changed = QtCore.Signal(object)
     def __init__(self, name=None, label=None, label_above=False, **kwargs):
@@ -709,15 +687,29 @@ def _patchGetterFunctionsWithGlobalSettings(obj, name_prefix, names, individual)
     for name in names:
         patchFunction(obj, name_prefix+name)
 
-@signalProperty("individualClippingPlane", [False, True])
 class ClippingSettings(BaseSettings):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        if self._individual_rendering_parameters:
+            options = [None, True, False]
+        else:
+            options = [False, True]
+        self._individualClippingPlane = options[0]
+        self.individualClippingPlaneChanged.connect(lambda: setattr(self,
+                                                            "_individualClippingPlane",
+                                                            options[(options.index(self._individualClippingPlane)+1)%len(options)]))
+        self.individualClippingPlaneChanged.connect(self._updateGL)
         for par in self._individualClippingPlaneSubparameters:
             par.setVisible(False)
         if _have_qt:
-            self.individualClippingPlaneChanged.connect(lambda : [parameter.setVisible(not parameter.isVisible()) for parameter in self._individualClippingPlaneSubparameters])
+            self.individualClippingPlaneChanged.connect(lambda : [par.setVisible(self._individualClippingPlane == True) for par in self._individualClippingPlaneSubparameters])
+            self.individualClippingPlaneChanged.connect(self._updateVisibility)
             self.individualClippingPlaneChanged.connect(self.widgets.update)
+
+    def _setter(self, value):
+        while not self._individualClippingPlane == value:
+            self.individualClippingPlaneChanged.emit()
+    individualClippingPlane = property(lambda self: self._individualClippingPlane, _setter)
 
     def rotateClippingNormal(self, dx, dy, rotmat):
         """rotmat ... current camera rotation matrix"""
@@ -746,11 +738,24 @@ class ClippingSettings(BaseSettings):
             res.append( -sum([p[j]*n[j] for j in range(3)]) )
         return res
 
+    def _updateVisibility(self, nplanes=None):
+        if nplanes is None:
+            nplanes = self.getClippingNPlanes()
+        if self.individualClippingPlane:
+            if nplanes<2:
+                self._individualClippingPlaneSubparameters[1].setValue('p[0]')
+                self._individualClippingPlaneSubparameters[1].setVisible(False)
+            else:
+                self._individualClippingPlaneSubparameters[1].setVisible(True)
+
+            for i in range(3):
+                self._clipping_points[i].setVisible(i<nplanes)
+                self._clipping_normals[i].setVisible(i<nplanes)
+
     def _createParameters(self):
         super()._createParameters()
         self._individualClippingPlaneSubparameters = [
-            CheckboxParameter(name="ClippingEnable", label="Enable", default_value=False),
-            ValueParameter(name="ClippingNPlanes", label="Number", default_value=1, max_value=3, min_value=0),
+            ValueParameter(name="ClippingNPlanes", label="Number", default_value=1, max_value=3, min_value=1),
             TextParameter(name="ClippingExpression", label="Expression", default_value='p[0]')
         ]
         self._clipping_points = [
@@ -763,62 +768,76 @@ class ClippingSettings(BaseSettings):
             VectorParameter(name="ClippingNormal1", label="Normal", min_value=-1.0, max_value=1.0, default_value=(0.0,1.0,0.0), step=0.1),
             VectorParameter(name="ClippingNormal2", label="Normal", min_value=-1.0, max_value=1.0, default_value=(0.0,0.0,1.0), step=0.1),
             ]
-        def _updateVisibility(nplanes):
-            if nplanes<2:
-                self._individualClippingPlaneSubparameters[2].setValue('p[0]')
-                self._individualClippingPlaneSubparameters[2].setVisible(False)
-            else:
-                self._individualClippingPlaneSubparameters[2].setVisible(True)
-
-            for i in range(3):
-                self._clipping_points[i].setVisible(i<nplanes)
-                self._clipping_normals[i].setVisible(i<nplanes)
         if _have_qt:
-            _updateVisibility(1)
-            self._individualClippingPlaneSubparameters[1]._spinbox.valueChanged[int].connect(_updateVisibility)
+            self._individualClippingPlaneSubparameters[0]._spinbox.valueChanged[int].connect(self._updateVisibility)
+            self.individualClippingPlaneChanged.connect(self._updateVisibility)
         self._individualClippingPlaneSubparameters += [p for pair in zip(self._clipping_points,self._clipping_normals) for p in pair]
         if not self._individual_rendering_parameters:
-            self._individualClippingPlaneSubparameters = self._individualClippingPlaneSubparameters[1:]
             self.getClippingEnable = lambda : self.individualClippingPlane
+        else:
+            self.getClippingEnable = lambda : self.individualClippingPlane == True or (self.individualClippingPlane == None and self._global_rendering_parameters.individualClippingPlane == True)
         self.addParameters("Clipping", *self._individualClippingPlaneSubparameters)
         if self._individual_rendering_parameters:
-            _patchGetterFunctionsWithGlobalSettings(self, 'getClipping', ['Point', 'Normal', 'Enable', 'NPlanes', 'Expression', 'Point1', 'Point2', 'Normal1', 'Normal2', 'Planes'], 'individualClippingPlane')
+            _patchGetterFunctionsWithGlobalSettings(self, 'getClipping', ['Point', 'Normal', 'NPlanes', 'Expression', 'Point1', 'Point2', 'Normal1', 'Normal2', 'Planes'], 'individualClippingPlane')
 
-@signalProperty("individualLight", [False, True])
 class LightSettings(BaseSettings):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        if self._individual_rendering_parameters:
+            options = [None, True, False]
+        else:
+            options = [True, False]
+        self._individualLight = options[0]
+        self.individualLightChanged.connect(lambda: setattr(self,
+                                                            "_individualLight",
+                                                            options[(options.index(self._individualLight)+1)%len(options)]))
+        self.individualLightChanged.connect(self._updateGL)
         for par in self._individualLightSubparameters:
             par.setVisible(False)
         if _have_qt:
-            self.individualLightChanged.connect(lambda : [parameter.setVisible(not parameter.isVisible()) for parameter in self._individualLightSubparameters])
+            self.individualLightChanged.connect(lambda : [par.setVisible(self._individualLight == True) for par in self._individualLightSubparameters])
             self.individualLightChanged.connect(self.widgets.update)
 
+    def _setter(self, value):
+        while not self._individualLight == value:
+            self.individualLightChanged.emit()
+    individualLight = property(lambda self: self._individualLight, _setter)
     def _createParameters(self):
         super()._createParameters()
         self._individualLightSubparameters = [
-            CheckboxParameter(name="LightDisable", label="disable", default_value=False),
             ValueParameter(name="LightAmbient", label="ambient", min_value=0.0, max_value=1.0, default_value=0.3, step=0.1),
             ValueParameter(name="LightDiffuse", label="diffuse", min_value=0.0, max_value=1.0, default_value=0.7, step=0.1),
             ValueParameter(name="LightSpecular", label="specular", min_value=0.0, max_value=2.0, default_value=0.5, step=0.1),
             ValueParameter(name="LightShininess", label="shininess", min_value=0.0, max_value=100.0, default_value=50, step=1.0)]
         if not self._individual_rendering_parameters:
-            self._individualLightSubparameters = self._individualLightSubparameters[1:]
             self.getLightDisable = lambda : not self.individualLight
+        else:
+            self.getLightDisable = lambda : self.individualLight == False or (self.individualLight == None and self._global_rendering_parameters.individualLight == False)
         self.addParameters("Light", *self._individualLightSubparameters)
         if self._individual_rendering_parameters:
-            _patchGetterFunctionsWithGlobalSettings(self, 'getLight', ['Disable', 'Ambient', 'Diffuse', 'Specular', 'Shininess'], 'individualLight')
+            _patchGetterFunctionsWithGlobalSettings(self, 'getLight', ['Ambient', 'Diffuse', 'Specular', 'Shininess'], 'individualLight')
 
-@signalProperty("individualColormap",[False,True])
 class ColormapSettings(BaseSettings):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._colormap_tex = None
+        options = [False, True]
+        self._individualColormap = False
+        self.individualColormapChanged.connect(lambda: setattr(self,
+                                                               "_individualColormap",
+                                                               options[(options.index(self._individualColormap)+1)%len(options)]))
+        self.individualColormapChanged.connect(self._updateGL)
         for par in self._individualColormapSubparameters:
             par.setVisible(False)
         if _have_qt:
-            self.individualColormapChanged.connect(lambda : [parameter.setVisible(not parameter.isVisible()) for parameter in self._individualColormapSubparameters])
+            self.individualColormapChanged.connect(lambda : [par.setVisible(self._individualColormap == True) for par in self._individualColormapSubparameters])
             self.individualColormapChanged.connect(self.widgets.update)
+
+    def _setter(self, value):
+        while not self._individualColormap == value:
+            self.individualColormapChanged.emit()
+
+    individualColormap = property(lambda self: self._individualColormap, _setter)
 
     def _createParameters(self):
         super()._createParameters()

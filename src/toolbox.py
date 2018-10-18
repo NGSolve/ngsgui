@@ -101,15 +101,21 @@ class SceneToolBoxItem(ToolBoxItem):
             self.header.addIcon([icon_path + "/visible.png", icon_path + "/hidden.png"], scene.activeChanged,
                                 "Show/Hide scene")
         if colorButton:
-            self.header.addIcon([icon_path + "/nocolor.png", icon_path + "/color.png"],
+            self.header.addIcon([icon_path + "/globalColor.png", icon_path + "/color.png"],
                                 scene.individualColormapChanged,
                                 "Use individual colormap")
         if clippingPlaneButton:
-            self.header.addIcon([icon_path + "/noscissors.png", icon_path + "/scissors.png"],
-                                scene.individualClippingPlaneChanged, "Use clipping plane")
+            icons = [icon_path + "/noscissors.png", icon_path + "/scissors.png"]
+            if scene._individual_rendering_parameters:
+                icons = [icon_path + "/globalScissors.png"] + list(reversed(icons))
+            description = "Use global/local/no clipping plane(s)" if scene._individual_rendering_parameters else "Ebnable/disable global clipping plane"
+            self.header.addIcon(icons, scene.individualClippingPlaneChanged, description)
         if lightButton:
-            self.header.addIcon([icon_path + "/nolight.png", icon_path + "/light.png"],
-                                scene.individualLightChanged, "Use light")
+            icons = [icon_path + "/light.png", icon_path + "/nolight.png"]
+            if scene._individual_rendering_parameters:
+                icons = [icon_path + "/globalLight.png"] + icons
+            description = "Use global/local/no light settings" if scene._individual_rendering_parameters else "Use light"
+            self.header.addIcon(icons, scene.individualLightChanged, description)
         self.header.updateLayout()
         self.body.setLayout(ArrangeV(*scene.widgets.groups))
         scene.widgets.setParent(self.body)
