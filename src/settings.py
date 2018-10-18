@@ -15,6 +15,28 @@ import os
 _have_qt = not 'NGSGUI_HEADLESS' in os.environ
 del os
 
+
+def signalProperty(name, possible_values=[True,False], updateGL=True):
+    def patch(cls):
+        old_init = cls.__init__
+        def patched_init(self, *args, **kwargs):
+            setattr(self, "_" + name, possible_values[0])
+            old_init(self, *args, **kwargs)
+            signal = getattr(self, name + "Changed")
+            signal.connect(lambda : setattr(self,"_" + name, possible_values[(possible_values.index(getattr(self,"_" + name))+1)%len(possible_values)]))
+            # if updateGL:
+            #     signal.connect(self._updateGL)
+        cls.__init__ = patched_init
+        def getter(self):
+            return getattr(self, "_" + name)
+        def setter(self,value):
+            while not (getattr(self,"_" + name) == value):
+                getattr(self, name + "Changed").emit()
+        prop = property(getter, setter)
+        setattr(cls, name, prop)
+        return cls
+    return patch
+
 class Parameter(QtCore.QObject):
     changed = QtCore.Signal(object)
     def __init__(self, name=None, label=None, label_above=False, **kwargs):
@@ -501,25 +523,18 @@ if not _have_qt:
         self._initial_value = value
         self.changed.emit(value)
 
-    ColorParameter.getValue = getNoGUI
-    ColorParameter.setValue = setNoGUI
-    ValueParameter.getValue = getNoGUI
-    ValueParameter.setValue = setNoGUI
-    VectorParameter.getValue = getNoGUI
-    VectorParameter.setValue = setNoGUI
-    TextParameter.getValue = getNoGUI
-    TextParameter.setValue = setNoGUI
-    SingleOptionParameter.getValue = getNoGUI
-    SingleOptionParameter.setValue = setNoGUI
-    CheckboxParameter.getValue = getNoGUI
-    CheckboxParameter.setValue = setNoGUI
-    CheckboxParameterCluster.getValue = getNoGUI
-    CheckboxParameterCluster.setValue = setNoGUI
-
+    for par in (ColorParameter, ValueParameter, VectorParameter, TextParameter, SingleOptionParameter,
+                CheckboxParameter, CheckboxParameterCluster):
+        par.getValue = getNoGUI
+        par.setValue = setNoGUI
 
 class BaseSettings(QtCore.QObject):
     _individual_rendering_parameters = True
-
+    # signals defined here because qt has a problem with multiple inheritance and I can't get it running if
+    # they are defined in the matching classes...
+    individualColormapChanged = QtCore.Signal()
+    individualClippingPlaneChanged = QtCore.Signal()
+    individualLightChanged = QtCore.Signal()
     def __init__(self):
         super().__init__()
         self._createParameters()
@@ -694,10 +709,14 @@ def _patchGetterFunctionsWithGlobalSettings(obj, name_prefix, names, individual)
     for name in names:
         patchFunction(obj, name_prefix+name)
 
+@signalProperty("individualClippingPlane", [False, True])
 class ClippingSettings(BaseSettings):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._sub_parameters = []
+        for par in self._individualClippingPlaneSubparameters:
+            par.setVisible(False)
+        self.individualClippingPlaneChanged.connect(lambda : [parameter.setVisible(not parameter.isVisible()) for parameter in self._individualClippingPlaneSubparameters])
+        self.individualClippingPlaneChanged.connect(self.widgets.update)
 
     def rotateClippingNormal(self, dx, dy, rotmat):
         """rotmat ... current camera rotation matrix"""
@@ -764,9 +783,14 @@ class ClippingSettings(BaseSettings):
         if self._individual_rendering_parameters:
             _patchGetterFunctionsWithGlobalSettings(self, 'getClipping', ['Point', 'Normal', 'Enable', 'NPlanes', 'Expression', 'Point1', 'Point2', 'Normal1', 'Normal2', 'Planes'], 'individualClippingPlane')
 
+@signalProperty("individualLight", [False, True])
 class LightSettings(BaseSettings):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        for par in self._individualLightSubparameters:
+            par.setVisible(False)
+        self.individualLightChanged.connect(lambda : [parameter.setVisible(not parameter.isVisible()) for parameter in self._individualLightSubparameters])
+        self.individualLightChanged.connect(self.widgets.update)
 
     def _createParameters(self):
         super()._createParameters()
@@ -783,10 +807,15 @@ class LightSettings(BaseSettings):
         if self._individual_rendering_parameters:
             _patchGetterFunctionsWithGlobalSettings(self, 'getLight', ['Disable', 'Ambient', 'Diffuse', 'Specular', 'Shininess'], 'individualLight')
 
+@signalProperty("individualColormap",[False,True])
 class ColormapSettings(BaseSettings):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._colormap_tex = None
+        for par in self._individualColormapSubparameters:
+            par.setVisible(False)
+        # self.individualColormapChanged.connect(lambda : [parameter.setVisible(not parameter.isVisible()) for parameter in self._individualColormapSubparameters])
+        # self.individualColormapChanged.connect(self.widgets.update)
 
     def _createParameters(self):
         super()._createParameters()

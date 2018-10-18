@@ -6,6 +6,7 @@ import weakref
 
 class ToolBoxItem(QtWidgets.QWidget):
     changeExpand = QtCore.Signal()
+    removeSignal = QtCore.Signal()
     class Header(QtWidgets.QWidget):
         class Icon(QtWidgets.QToolButton):
             """List of icons to be changed by toggling signal"""
@@ -33,15 +34,16 @@ class ToolBoxItem(QtWidgets.QWidget):
 
         def __init__(self, text, *args, **kwargs):
             super().__init__(*args,**kwargs)
-            self._icons = []
+            self._leftIcons = []
+            self._rightIcons = []
             self._text = QtWidgets.QLabel(text)
 
         def updateLayout(self):
             """Not very clean - this function must be called only once after all icons are added..."""
-            self.setLayout(ArrangeH(*self._icons, self._text))
+            self.setLayout(ArrangeH(*self._leftIcons, self._text, *reversed(self._rightIcons)))
             self.layout().setContentsMargins(0,0,0,0)
 
-        def addIcon(self, images, action=None, tooltip=None):
+        def addIcon(self, images, action=None, tooltip=None, left=False):
             """Adds icon to header, if icon is list of icons then each time action is clicked, the icon
 changes to the next one in the list. For that, action must be a QtCore.Signal
 
@@ -58,18 +60,24 @@ tooltip: str
   Tooltip for mouse hover"""
             if action:
                 assert isinstance(action, QtCore.Signal)
-            self._icons.append(ToolBoxItem.Header.Icon(images, signal=action, tooltip=tooltip))
+            if left:
+                self._leftIcons.append(ToolBoxItem.Header.Icon(images, signal=action, tooltip=tooltip))
+            else:
+                self._rightIcons.append(ToolBoxItem.Header.Icon(images, signal=action, tooltip=tooltip))
 
     class Body(QtWidgets.QWidget):
         def __init__(self, *args,**kwargs):
             super().__init__(*args,**kwargs)
 
-    def __init__(self, name, *args, **kwargs):
-        super().__init__(*args,**kwargs)
+    def __init__(self, name, killButton=True, **kwargs):
+        super().__init__(**kwargs)
         self.header = ToolBoxItem.Header(name)
         self.header.addIcon([icon_path + "/next.png", icon_path + "/down-arrow.png"], self.changeExpand,
-                            "Expand menu")
+                            "Expand menu", left=True)
         self.changeExpand.connect(self._changeExpand)
+        if killButton:
+            self.header.addIcon([icon_path + "/kill.png"], self.removeSignal, "Remove Scene")
+            self.removeSignal.connect(self._removeItem)
         self.body = ToolBoxItem.Body()
         self.body.setVisible(False)
         line = QtWidgets.QFrame()
@@ -81,10 +89,14 @@ tooltip: str
     def _changeExpand(self):
         self.body.setVisible(not self.body.isVisible())
 
+    def _removeItem(self):
+        self.parent().parent().parent().parent().parent().removeWidget(self)
+
+
 class SceneToolBoxItem(ToolBoxItem):
     def __init__(self, scene, visibilityButton=True, colorButton=True, clippingPlaneButton=True,
-                 lightButton=True, *args, **kwargs):
-        super().__init__(scene.name, *args, **kwargs)
+                 lightButton=True, **kwargs):
+        super().__init__(scene.name, **kwargs)
         if visibilityButton:
             self.header.addIcon([icon_path + "/visible.png", icon_path + "/hidden.png"], scene.activeChanged,
                                 "Show/Hide scene")
@@ -106,6 +118,9 @@ class SceneToolBoxItem(ToolBoxItem):
         scene.widgets.update()
         self._scene = weakref.ref(scene)
 
+    def _removeItem(self):
+        self._scene().window().remove(self._scene())
+
 class ToolBox(QtWidgets.QDockWidget):
     """Our own toolbox class, because the Qt one doesn't support the stuff we want"""
     def __init__(self, title="", **kwargs):
@@ -118,14 +133,13 @@ class ToolBox(QtWidgets.QDockWidget):
 
     def addWidget(self, widget):
         self._widget.layout().addWidget(widget)
-        self._widget.layout().setContentsMargins(0,0,0,0)
 
 class SceneToolBox(ToolBox):
     def __init__(self, glWidget, **kwargs):
         super().__init__(title="Scene Toolbox")
         scrollarea = QtWidgets.QScrollArea()
         scrollarea.setWidgetResizable(True)
-        sceneWidget = QtWidgets.QWidget()
+        self.sceneWidget = sceneWidget = QtWidgets.QWidget()
         sceneWidget.setLayout(ArrangeV())
         sceneWidget.layout().setAlignment(QtCore.Qt.AlignTop)
         sceneWidget.layout().setContentsMargins(0,0,0,0)
@@ -140,3 +154,19 @@ class SceneToolBox(ToolBox):
         widget = self.widget().layout().itemAt(0).widget().takeWidget()
         widget.layout().addWidget(SceneToolBoxItem(scene,**kwargs))
         self.widget().layout().itemAt(0).widget().setWidget(widget)
+
+    def removeScene(self, scene):
+        widgets = self.widget().layout().itemAt(0).widget().widget()
+        for i in range(widgets.layout().count()):
+            item = widgets.layout().itemAt(i)
+            widget = item.widget()
+            if hasattr(widget, "_scene") and (widget._scene() == scene):
+                new_layout = ArrangeV(*[widgets.layout().itemAt(j).widget() for j in range(widgets.layout().count()) if i!=j])
+                tmpwidget = QtWidgets.QWidget()
+                tmpwidget.setLayout(widgets.layout())
+                widgets.setLayout(new_layout)
+                widgets.layout().setContentsMargins(0,0,0,0)
+                widgets.layout().setAlignment(QtCore.Qt.AlignTop)
+                break
+        else:
+            print("widget not found")

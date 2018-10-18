@@ -161,7 +161,7 @@ class WindowTab(QtWidgets.QWidget):
         self.toolbox = SceneToolBox(self.glWidget)
         self.glWidget._settings.window = weakref.ref(self)
         self.glWidget.addScene(self.glWidget._settings)
-        self.toolbox.addScene(self.glWidget._settings, visibilityButton=False, colorButton=False)
+        self.toolbox.addScene(self.glWidget._settings, visibilityButton=False, colorButton=False, killButton=False)
 
         splitter = QtWidgets.QSplitter()
         inner_splitter = QtWidgets.QSplitter()
@@ -199,10 +199,11 @@ class WindowTab(QtWidgets.QWidget):
     @inmain_decorator(True)
     def remove(self, scene):
         """Remove scene from window"""
-        print("call remove")
         self.glWidget.makeCurrent()
-        # scene.window = None
-        # self.toolbox.removeSceneAt(self.glWidget.scenes.index(scene))
+        scene.window = None
+        self.glWidget.scenes.remove(scene)
+        self.toolbox.removeScene(scene)
+        self.glWidget.updateGL()
 
 class GLWidget(QtOpenGL.QGLWidget):
     redraw_signal = QtCore.Signal()
