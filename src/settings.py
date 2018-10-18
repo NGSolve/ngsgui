@@ -24,8 +24,8 @@ def signalProperty(name, possible_values=[True,False], updateGL=True):
             old_init(self, *args, **kwargs)
             signal = getattr(self, name + "Changed")
             signal.connect(lambda : setattr(self,"_" + name, possible_values[(possible_values.index(getattr(self,"_" + name))+1)%len(possible_values)]))
-            # if updateGL:
-            #     signal.connect(self._updateGL)
+            if updateGL:
+                signal.connect(self._updateGL)
         cls.__init__ = patched_init
         def getter(self):
             return getattr(self, "_" + name)
