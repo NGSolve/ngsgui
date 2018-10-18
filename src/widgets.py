@@ -104,6 +104,8 @@ class RangeGroup(QtWidgets.QWidget):
         self.scroll.setValue(int_value)
         self.valueChanged.emit(float_value)
 
+from .toolbox import ToolBoxItem
+
 class OptionWidgets(QtCore.QObject):
     updateGLSignal = QtCore.Signal()
 
@@ -114,12 +116,13 @@ class OptionWidgets(QtCore.QObject):
             self.updateGLSignal.connect(updateGL)
 
     def addGroup(self, name, *widgets, importance = 0):
-        group = QtWidgets.QGroupBox(name)
+        group = ToolBoxItem(name, killButton=False, endLine=False)
         minwidth = min([w.minimumWidth() for w in widgets])
         layout = QtWidgets.QHBoxLayout if minwidth>0 and minwidth<50 else QtWidgets.QVBoxLayout
-        group.setLayout(Arrange(layout, *widgets))
+        group.body.setLayout(Arrange(layout, *widgets))
         group.setMinimumWidth(1);
-        group.layout().setAlignment(Qt.AlignTop)
+        group.body.layout().setContentsMargins(20,5,5,5)
+        group.body.layout().setAlignment(Qt.AlignTop)
         group._importance = importance
         group._widgets = widgets
         if len(self.groups) and importance > self.groups[-1]._importance:

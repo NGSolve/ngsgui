@@ -39,7 +39,8 @@ class ToolBoxItem(QtWidgets.QWidget):
             self._text = QtWidgets.QLabel(text)
 
         def updateLayout(self):
-            """Not very clean - this function must be called only once after all icons are added..."""
+            wid = QtWidgets.QWidget()
+            wid.setLayout(self.layout())
             self.setLayout(ArrangeH(*self._leftIcons, self._text, *reversed(self._rightIcons)))
             self.layout().setContentsMargins(0,0,0,0)
 
@@ -69,7 +70,7 @@ tooltip: str
         def __init__(self, *args,**kwargs):
             super().__init__(*args,**kwargs)
 
-    def __init__(self, name, killButton=True, **kwargs):
+    def __init__(self, name, killButton=True, endLine = True, **kwargs):
         super().__init__(**kwargs)
         self.header = ToolBoxItem.Header(name)
         self.header.addIcon([icon_path + "/next.png", icon_path + "/down-arrow.png"], self.changeExpand,
@@ -80,18 +81,18 @@ tooltip: str
             self.removeSignal.connect(self._removeItem)
         self.body = ToolBoxItem.Body()
         self.body.setVisible(False)
-        line = QtWidgets.QFrame()
-        line.setFrameShape(line.HLine)
-        self.setLayout(ArrangeV(self.header, self.body, line))
+        widgets = [self.header, self.body]
+        if endLine:
+            line = QtWidgets.QFrame()
+            line.setFrameShape(line.HLine)
+            widgets.append(line)
+        self.setLayout(ArrangeV(*widgets))
         self.layout().setContentsMargins(0,0,0,0)
         self.layout().setAlignment(QtCore.Qt.AlignTop)
+        self.header.updateLayout()
 
     def _changeExpand(self):
         self.body.setVisible(not self.body.isVisible())
-
-    def _removeItem(self):
-        self.parent().parent().parent().parent().parent().removeWidget(self)
-
 
 class SceneToolBoxItem(ToolBoxItem):
     def __init__(self, scene, visibilityButton=True, colorButton=True, clippingPlaneButton=True,
