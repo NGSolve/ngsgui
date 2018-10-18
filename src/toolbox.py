@@ -36,7 +36,9 @@ class ToolBoxItem(QtWidgets.QWidget):
             super().__init__(*args,**kwargs)
             self._leftIcons = []
             self._rightIcons = []
-            self._text = QtWidgets.QLabel(text)
+            self._text = QtWidgets.QPushButton(text)
+            self._text.setStyleSheet("QPushButton:flat { border:none; Text-align:left; }")
+            self._text.setFlat(True)
 
         def updateLayout(self):
             wid = QtWidgets.QWidget()
@@ -73,6 +75,7 @@ tooltip: str
     def __init__(self, name, killButton=True, endLine = True, **kwargs):
         super().__init__(**kwargs)
         self.header = ToolBoxItem.Header(name)
+        self.header._text.clicked.connect(self.changeExpand.emit)
         self.header.addIcon([icon_path + "/next.png", icon_path + "/down-arrow.png"], self.changeExpand,
                             "Expand menu", left=True)
         self.changeExpand.connect(self._changeExpand)
