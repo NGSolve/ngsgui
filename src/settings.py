@@ -35,6 +35,9 @@ class Parameter(QtCore.QObject):
             self._widget._visible = val
             self._widget.setVisible(val)
 
+    def isVisible(self):
+        return self._widget._visible if hasattr(self._widget,"_visible") else True
+
     def _createWithLabel(self):
         if self.label:
             self._widget = QtWidgets.QWidget()
@@ -498,25 +501,18 @@ if not _have_qt:
         self._initial_value = value
         self.changed.emit(value)
 
-    ColorParameter.getValue = getNoGUI
-    ColorParameter.setValue = setNoGUI
-    ValueParameter.getValue = getNoGUI
-    ValueParameter.setValue = setNoGUI
-    VectorParameter.getValue = getNoGUI
-    VectorParameter.setValue = setNoGUI
-    TextParameter.getValue = getNoGUI
-    TextParameter.setValue = setNoGUI
-    SingleOptionParameter.getValue = getNoGUI
-    SingleOptionParameter.setValue = setNoGUI
-    CheckboxParameter.getValue = getNoGUI
-    CheckboxParameter.setValue = setNoGUI
-    CheckboxParameterCluster.getValue = getNoGUI
-    CheckboxParameterCluster.setValue = setNoGUI
-
+    for par in (ColorParameter, ValueParameter, VectorParameter, TextParameter, SingleOptionParameter,
+                CheckboxParameter, CheckboxParameterCluster):
+        par.getValue = getNoGUI
+        par.setValue = setNoGUI
 
 class BaseSettings(QtCore.QObject):
     _individual_rendering_parameters = True
-
+    # signals defined here because qt has a problem with multiple inheritance and I can't get it running if
+    # they are defined in the matching classes...
+    individualColormapChanged = QtCore.Signal()
+    individualClippingPlaneChanged = QtCore.Signal()
+    individualLightChanged = QtCore.Signal()
     def __init__(self):
         super().__init__()
         self._createParameters()
@@ -687,14 +683,33 @@ class CameraSettings(BaseSettings):
 def _patchGetterFunctionsWithGlobalSettings(obj, name_prefix, names, individual):
     def patchFunction(self, name):
         setattr(self, '_'+name, getattr(self, name))
-        setattr(self, name, lambda: getattr(self, '_'+name)() if getattr(self, individual)() else getattr(self._global_rendering_parameters, name)())
+        setattr(self, name, lambda: getattr(self, '_'+name)() if getattr(self, individual) else getattr(self._global_rendering_parameters, name)())
     for name in names:
         patchFunction(obj, name_prefix+name)
 
 class ClippingSettings(BaseSettings):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._sub_parameters = []
+        if self._individual_rendering_parameters:
+            options = [None, True, False]
+        else:
+            options = [False, True]
+        self._individualClippingPlane = options[0]
+        self.individualClippingPlaneChanged.connect(lambda: setattr(self,
+                                                            "_individualClippingPlane",
+                                                            options[(options.index(self._individualClippingPlane)+1)%len(options)]))
+        self.individualClippingPlaneChanged.connect(self._updateGL)
+        for par in self._individualClippingPlaneSubparameters:
+            par.setVisible(False)
+        if _have_qt:
+            self.individualClippingPlaneChanged.connect(lambda : [par.setVisible(self._individualClippingPlane == True) for par in self._individualClippingPlaneSubparameters])
+            self.individualClippingPlaneChanged.connect(self._updateVisibility)
+            self.individualClippingPlaneChanged.connect(self.widgets.update)
+
+    def _setter(self, value):
+        while not self._individualClippingPlane == value:
+            self.individualClippingPlaneChanged.emit()
+    individualClippingPlane = property(lambda self: self._individualClippingPlane, _setter)
 
     def rotateClippingNormal(self, dx, dy, rotmat):
         """rotmat ... current camera rotation matrix"""
@@ -723,11 +738,24 @@ class ClippingSettings(BaseSettings):
             res.append( -sum([p[j]*n[j] for j in range(3)]) )
         return res
 
+    def _updateVisibility(self, nplanes=None):
+        if nplanes is None:
+            nplanes = self.getClippingNPlanes()
+        if self.individualClippingPlane:
+            if nplanes<2:
+                self._individualClippingPlaneSubparameters[1].setValue('p[0]')
+                self._individualClippingPlaneSubparameters[1].setVisible(False)
+            else:
+                self._individualClippingPlaneSubparameters[1].setVisible(True)
+
+            for i in range(3):
+                self._clipping_points[i].setVisible(i<nplanes)
+                self._clipping_normals[i].setVisible(i<nplanes)
+
     def _createParameters(self):
         super()._createParameters()
-        sub_params = [
-            CheckboxParameter(name="ClippingEnable", label="Enable", default_value=False),
-            ValueParameter(name="ClippingNPlanes", label="Number", default_value=1, max_value=3, min_value=0),
+        self._individualClippingPlaneSubparameters = [
+            ValueParameter(name="ClippingNPlanes", label="Number", default_value=1, max_value=3, min_value=1),
             TextParameter(name="ClippingExpression", label="Expression", default_value='p[0]')
         ]
         self._clipping_points = [
@@ -740,50 +768,76 @@ class ClippingSettings(BaseSettings):
             VectorParameter(name="ClippingNormal1", label="Normal", min_value=-1.0, max_value=1.0, default_value=(0.0,1.0,0.0), step=0.1),
             VectorParameter(name="ClippingNormal2", label="Normal", min_value=-1.0, max_value=1.0, default_value=(0.0,0.0,1.0), step=0.1),
             ]
-        def _updateVisibility(nplanes):
-            if nplanes<2:
-                sub_params[2].setValue('p[0]')
-                sub_params[2].setVisible(False)
-            else:
-                sub_params[2].setVisible(True)
-
-            for i in range(3):
-                self._clipping_points[i].setVisible(i<nplanes)
-                self._clipping_normals[i].setVisible(i<nplanes)
         if _have_qt:
-            _updateVisibility(1)
-            sub_params[1]._spinbox.valueChanged[int].connect(_updateVisibility)
-        params = sub_params + [p for pair in zip(self._clipping_points,self._clipping_normals) for p in pair]
-        if self._individual_rendering_parameters:
-            self.addParameters("Individual Settings",
-                CheckboxParameterCluster(name="IndividualClipping", label="Clipping", default_value = False, sub_parameters = params))
-            _patchGetterFunctionsWithGlobalSettings(self, 'getClipping', ['Point', 'Normal', 'Enable', 'NPlanes', 'Expression', 'Point1', 'Point2', 'Normal1', 'Normal2', 'Planes'], 'getIndividualClipping')
+            self._individualClippingPlaneSubparameters[0]._spinbox.valueChanged[int].connect(self._updateVisibility)
+            self.individualClippingPlaneChanged.connect(self._updateVisibility)
+        self._individualClippingPlaneSubparameters += [p for pair in zip(self._clipping_points,self._clipping_normals) for p in pair]
+        if not self._individual_rendering_parameters:
+            self.getClippingEnable = lambda : self.individualClippingPlane
         else:
-            self.addParameters("Clipping", *params)
+            self.getClippingEnable = lambda : self.individualClippingPlane == True or (self.individualClippingPlane == None and self._global_rendering_parameters.individualClippingPlane == True)
+        self.addParameters("Clipping", *self._individualClippingPlaneSubparameters)
+        if self._individual_rendering_parameters:
+            _patchGetterFunctionsWithGlobalSettings(self, 'getClipping', ['Point', 'Normal', 'NPlanes', 'Expression', 'Point1', 'Point2', 'Normal1', 'Normal2', 'Planes'], 'individualClippingPlane')
 
 class LightSettings(BaseSettings):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        if self._individual_rendering_parameters:
+            options = [None, True, False]
+        else:
+            options = [True, False]
+        self._individualLight = options[0]
+        self.individualLightChanged.connect(lambda: setattr(self,
+                                                            "_individualLight",
+                                                            options[(options.index(self._individualLight)+1)%len(options)]))
+        self.individualLightChanged.connect(self._updateGL)
+        for par in self._individualLightSubparameters:
+            par.setVisible(options[0] == True)
+        if _have_qt:
+            self.individualLightChanged.connect(lambda : [par.setVisible(self._individualLight == True) for par in self._individualLightSubparameters])
+            self.individualLightChanged.connect(self.widgets.update)
 
+    def _setter(self, value):
+        while not self._individualLight == value:
+            self.individualLightChanged.emit()
+    individualLight = property(lambda self: self._individualLight, _setter)
     def _createParameters(self):
         super()._createParameters()
-        sub_parameters = [
-            CheckboxParameter(name="LightDisable", label="disable", default_value=False),
+        self._individualLightSubparameters = [
             ValueParameter(name="LightAmbient", label="ambient", min_value=0.0, max_value=1.0, default_value=0.3, step=0.1),
             ValueParameter(name="LightDiffuse", label="diffuse", min_value=0.0, max_value=1.0, default_value=0.7, step=0.1),
             ValueParameter(name="LightSpecular", label="specular", min_value=0.0, max_value=2.0, default_value=0.5, step=0.1),
             ValueParameter(name="LightShininess", label="shininess", min_value=0.0, max_value=100.0, default_value=50, step=1.0)]
-        if self._individual_rendering_parameters:
-            self.addParameters("Individual Settings",
-                CheckboxParameterCluster(name="IndividualLight", label="Light", default_value = False, sub_parameters = sub_parameters ))
-            _patchGetterFunctionsWithGlobalSettings(self, 'getLight', ['Disable', 'Ambient', 'Diffuse', 'Specular', 'Shininess'], 'getIndividualLight')
+        if not self._individual_rendering_parameters:
+            self.getLightDisable = lambda : not self.individualLight
         else:
-            self.addParameters("Light", *sub_parameters)
+            self.getLightDisable = lambda : self.individualLight == False or (self.individualLight == None and self._global_rendering_parameters.individualLight == False)
+        self.addParameters("Light", *self._individualLightSubparameters)
+        if self._individual_rendering_parameters:
+            _patchGetterFunctionsWithGlobalSettings(self, 'getLight', ['Ambient', 'Diffuse', 'Specular', 'Shininess'], 'individualLight')
 
 class ColormapSettings(BaseSettings):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._colormap_tex = None
+        options = [False, True]
+        self._individualColormap = False
+        self.individualColormapChanged.connect(lambda: setattr(self,
+                                                               "_individualColormap",
+                                                               options[(options.index(self._individualColormap)+1)%len(options)]))
+        self.individualColormapChanged.connect(self._updateGL)
+        for par in self._individualColormapSubparameters:
+            par.setVisible(False)
+        if _have_qt:
+            self.individualColormapChanged.connect(lambda : [par.setVisible(self._individualColormap == True) for par in self._individualColormapSubparameters])
+            self.individualColormapChanged.connect(self.widgets.update)
+
+    def _setter(self, value):
+        while not self._individualColormap == value:
+            self.individualColormapChanged.emit()
+
+    individualColormap = property(lambda self: self._individualColormap, _setter)
 
     def _createParameters(self):
         super()._createParameters()
@@ -793,7 +847,7 @@ class ColormapSettings(BaseSettings):
             colormaps += plt.colormaps()
         except:
             pass
-        sub_parameters = [
+        self._individualColormapSubparameters = [
             CheckboxParameter(name="ColormapAutoscale", label="autoscale", default_value=True),
             ValueParameter(name="ColormapMin", label="min", default_value=0.0),
             ValueParameter(name="ColormapMax", label="max", default_value=1.0),
@@ -804,15 +858,12 @@ class ColormapSettings(BaseSettings):
                                                       label="map",
                                                       default_value = "netgen"),
             ]
-        sub_parameters[-2].changed.connect(self._updateColormap)
-        sub_parameters[-1].changed.connect(self._updateColormap)
+        self._individualColormapSubparameters[-2].changed.connect(self._updateColormap)
+        self._individualColormapSubparameters[-1].changed.connect(self._updateColormap)
 
+        self.addParameters("Colormap", *self._individualColormapSubparameters)
         if self._individual_rendering_parameters:
-            self.addParameters("Individual Settings",
-                CheckboxParameterCluster(name="IndividualColormap", label="Colormap", default_value = False, sub_parameters = sub_parameters ))
-            _patchGetterFunctionsWithGlobalSettings(self, 'getColormap', ['Min', 'Max', 'Name', 'Steps', 'Linear', 'Autoscale'], 'getIndividualColormap')
-        else:
-            self.addParameters("Colormap", *sub_parameters)
+            _patchGetterFunctionsWithGlobalSettings(self, 'getColormap', ['Min', 'Max', 'Name', 'Steps', 'Linear', 'Autoscale'], 'individualColormap')
 
     def _updateColormap(self):
         name = self.getColormapName()
@@ -844,7 +895,7 @@ class ColormapSettings(BaseSettings):
         GL.glTexImage1D(GL.GL_TEXTURE_1D, 0, GL.GL_RGB, N, 0, GL.GL_RGB, GL.GL_UNSIGNED_BYTE, colors)
 
     def getColormapTex(self):
-        if self._individual_rendering_parameters and not self.getIndividualColormap():
+        if self._individual_rendering_parameters and not self._individualColormap:
             return self._global_rendering_parameters.getColormapTex()
         if self._colormap_tex == None:
             self._updateColormap()

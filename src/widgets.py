@@ -35,8 +35,8 @@ def Arrange(layout_type, *args):
             layout.addWidget(w)
         else:
             layout.addLayout(w)
-    m = 5
-    layout.setContentsMargins(5,5,5,5)
+    m = 0
+    layout.setContentsMargins(0,0,0,0)
     return layout
 
 def ArrangeV(*args):
@@ -104,6 +104,8 @@ class RangeGroup(QtWidgets.QWidget):
         self.scroll.setValue(int_value)
         self.valueChanged.emit(float_value)
 
+from .toolbox import ToolBoxItem
+
 class OptionWidgets(QtCore.QObject):
     updateGLSignal = QtCore.Signal()
 
@@ -114,12 +116,13 @@ class OptionWidgets(QtCore.QObject):
             self.updateGLSignal.connect(updateGL)
 
     def addGroup(self, name, *widgets, importance = 0):
-        group = QtWidgets.QGroupBox(name)
+        group = ToolBoxItem(name, killButton=False, endLine=False)
         minwidth = min([w.minimumWidth() for w in widgets])
         layout = QtWidgets.QHBoxLayout if minwidth>0 and minwidth<50 else QtWidgets.QVBoxLayout
-        group.setLayout(Arrange(layout, *widgets))
+        group.body.setLayout(Arrange(layout, *widgets))
         group.setMinimumWidth(1);
-        group.layout().setAlignment(Qt.AlignTop)
+        group.body.layout().setContentsMargins(20,5,5,5)
+        group.body.layout().setAlignment(Qt.AlignTop)
         group._importance = importance
         group._widgets = widgets
         if len(self.groups) and importance > self.groups[-1]._importance:
@@ -459,3 +462,23 @@ user can change them."""
     if not hasattr(widget, "_qactions"):
         widget._qactions = []
     widget._qactions.append(action)
+
+class ListWidget(QtWidgets.QWidget):
+    """A dynamically changing widget containing a boxlayout"""
+    def __init__(self, widgets, *args , horizontal = False, **kwargs):
+        super().__init__(*args, **kwargs)
+        direction = ArrangeH if horizontal else ArrangeV
+        self.setLayout(direction(*widgets))
+        self.layout().setContentsMargins(0,0,0,0)
+        self.layout().setAlignment(QtCore.Qt.AlignTop)
+
+    def addItem(self, item):
+        """Add widget or layout to ListWidget"""
+        if isinstance(item, QtWidgets.QWidget):
+            self.layout().addWidget(item)
+        else:
+            self.layout().addLayout(item)
+
+    def removeWidget(self, widget):
+        """Remove a widget from layout"""
+        self.layout().removeWidget(widget)

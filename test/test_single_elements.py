@@ -12,6 +12,7 @@ gui = Gui()
 
 def getParameters():
     settings = RenderingSettings()
+    settings.initGL()
     settings.setColormapMin(-0.3)
     settings.setColormapMax(1.0)
     settings.min = Vector([0,0,0])
@@ -28,7 +29,7 @@ def getParameters():
 def test_cf(name, mesh):
 
     settings = getParameters()
-    settings.setClippingEnable(True)
+    settings.individualClippingPlane = True
     settings.setClippingNormal([0,0,1])
     settings.zoom=-100
     s = SolutionScene(z+x*x-0.3*y*y, mesh, iso_surface=x+2*y+z*z)
