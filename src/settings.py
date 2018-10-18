@@ -715,8 +715,9 @@ class ClippingSettings(BaseSettings):
         super().__init__(*args, **kwargs)
         for par in self._individualClippingPlaneSubparameters:
             par.setVisible(False)
-        self.individualClippingPlaneChanged.connect(lambda : [parameter.setVisible(not parameter.isVisible()) for parameter in self._individualClippingPlaneSubparameters])
-        self.individualClippingPlaneChanged.connect(self.widgets.update)
+        if _have_qt:
+            self.individualClippingPlaneChanged.connect(lambda : [parameter.setVisible(not parameter.isVisible()) for parameter in self._individualClippingPlaneSubparameters])
+            self.individualClippingPlaneChanged.connect(self.widgets.update)
 
     def rotateClippingNormal(self, dx, dy, rotmat):
         """rotmat ... current camera rotation matrix"""
@@ -789,8 +790,9 @@ class LightSettings(BaseSettings):
         super().__init__(*args, **kwargs)
         for par in self._individualLightSubparameters:
             par.setVisible(False)
-        self.individualLightChanged.connect(lambda : [parameter.setVisible(not parameter.isVisible()) for parameter in self._individualLightSubparameters])
-        self.individualLightChanged.connect(self.widgets.update)
+        if _have_qt:
+            self.individualLightChanged.connect(lambda : [parameter.setVisible(not parameter.isVisible()) for parameter in self._individualLightSubparameters])
+            self.individualLightChanged.connect(self.widgets.update)
 
     def _createParameters(self):
         super()._createParameters()
@@ -814,8 +816,9 @@ class ColormapSettings(BaseSettings):
         self._colormap_tex = None
         for par in self._individualColormapSubparameters:
             par.setVisible(False)
-        # self.individualColormapChanged.connect(lambda : [parameter.setVisible(not parameter.isVisible()) for parameter in self._individualColormapSubparameters])
-        # self.individualColormapChanged.connect(self.widgets.update)
+        if _have_qt:
+            self.individualColormapChanged.connect(lambda : [parameter.setVisible(not parameter.isVisible()) for parameter in self._individualColormapSubparameters])
+            self.individualColormapChanged.connect(self.widgets.update)
 
     def _createParameters(self):
         super()._createParameters()

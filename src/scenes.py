@@ -171,6 +171,7 @@ class RenderingSettings(BaseScene, settings.CameraSettings, settings.LightSettin
     def initGL(self):
         super().initGL()
         self.individualLight = True
+        self.individualColormap = True
 
     def render(self, rp):
         pass
