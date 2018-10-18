@@ -35,8 +35,8 @@ def Arrange(layout_type, *args):
             layout.addWidget(w)
         else:
             layout.addLayout(w)
-    m = 5
-    layout.setContentsMargins(5,5,5,5)
+    m = 0
+    layout.setContentsMargins(0,0,0,0)
     return layout
 
 def ArrangeV(*args):
