@@ -463,22 +463,3 @@ user can change them."""
         widget._qactions = []
     widget._qactions.append(action)
 
-class ListWidget(QtWidgets.QWidget):
-    """A dynamically changing widget containing a boxlayout"""
-    def __init__(self, widgets, *args , horizontal = False, **kwargs):
-        super().__init__(*args, **kwargs)
-        direction = ArrangeH if horizontal else ArrangeV
-        self.setLayout(direction(*widgets))
-        self.layout().setContentsMargins(0,0,0,0)
-        self.layout().setAlignment(QtCore.Qt.AlignTop)
-
-    def addItem(self, item):
-        """Add widget or layout to ListWidget"""
-        if isinstance(item, QtWidgets.QWidget):
-            self.layout().addWidget(item)
-        else:
-            self.layout().addLayout(item)
-
-    def removeWidget(self, widget):
-        """Remove a widget from layout"""
-        self.layout().removeWidget(widget)

@@ -6,7 +6,7 @@ from . import widgets as wid
 from .widgets import ArrangeH, ArrangeV
 from . import glmath
 import math, cmath
-from .thread import inmain_decorator
+from .thread import inmain_decorator, inthread
 from .gl_interface import getOpenGLData, getReferenceRules, MeshData
 from .gui import GUI
 import netgen.meshing, netgen.geom2d
@@ -1405,12 +1405,12 @@ class GeometryScene(BaseScene):
             parameter.changed.connect(lambda : self._tex_colors.store(self.getSurfaceColors(),
                                                                       data_format=GL_UNSIGNED_BYTE))
         if parameter.name == "CreateMesh":
-            def genMesh(val):
+            def genMesh():
                 import netgen.meshing as meshing
                 mesh = self.geo.GenerateMesh(maxh=self.getMeshsize(),
                                              perfstepsend = meshing.MeshingStep.MESHSURFACE if self.getMeshtype() == "Surface Mesh" else meshing.MeshingStep.MESHVOLUME)
                 ngsolve.Draw(ngsolve.Mesh(mesh))
-            parameter.changed.connect(genMesh)
+            parameter.changed.connect(lambda val: inthread(genMesh))
         super()._attachParameter(parameter)
 
     def getBoundingBox(self):
