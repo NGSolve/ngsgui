@@ -130,7 +130,8 @@ def _checkImage(self,scene, name):
         diff[:,:,3] = 255
         diff_image = im.fromarray(diff)
         diff_image.save(diff_name)
-    assert errsum<0.001
+    if _headless:
+        assert errsum<0.001
     if error:
         print("warning: small error ({}) discovered in: ".format(errsum)+diff_name)
 
