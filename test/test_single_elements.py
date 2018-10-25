@@ -1,32 +1,42 @@
-from headless import HeadlessGUI as Gui
-from ngsolve import *
-ngsglobals.msg_level = 0
+import ngsolve as ngs
+ngs.ngsglobals.msg_level = 0
+from headless import *
 import meshes
 import ngsgui.gl as gl
 # from ngsgui.glwindow import RenderingParameters
 from ngsgui.scenes import MeshScene, RenderingSettings, SolutionScene
 import OpenGL.GL as GL
 import pytest
+import ngsgui
 
-gui = Gui()
+gui = HeadlessGUI(width=400, height=400)
 
 def getParameters():
-    settings = RenderingSettings()
-    settings.initGL()
+    from headless import _headless
+    if _headless:
+        settings = RenderingSettings()
+        settings.initGL()
+    else:
+        from ngsgui.gui import gui
+        settings = ngsgui.gui.gui.getCurrentGLWindow().glWidget._settings
     settings.setColormapMin(-0.3)
     settings.setColormapMax(1.0)
-    settings.min = Vector([0,0,0])
-    settings.max = Vector([1,1,1])
+    settings.min = ngs.Vector([0,0,0])
+    settings.max = ngs.Vector([1,1,1])
     settings.rotateCamera(-30, 30)
     settings.zoom=-50
     settings.dx = -0.2
     settings.dy = 0.1
     settings.setLightAmbient(0.5)
     settings.setLightDiffuse(0.5)
+    settings.setShowCross(False)
+    settings.setShowVersion(False)
+    settings.setShowColorbar(False)
     return settings
 
 @pytest.mark.parametrize("name,mesh", meshes.meshes_3d)
 def test_cf(name, mesh):
+    from ngsolve import x,y,z
 
     settings = getParameters()
     settings.individualClippingPlane = True
@@ -44,7 +54,7 @@ def test_cf(name, mesh):
     gui.clear()
     s.render(settings);
     GL.glFinish()
-    gui.check_image('cf_'+name)
+    gui.checkImage(s, 'cf_'+name)
 
     if name == 'tet':
         s.setShowSurface(False)
@@ -54,30 +64,35 @@ def test_cf(name, mesh):
         gui.clear()
         s.render(settings);
         GL.glFinish()
-        gui.check_image('iso_'+name)
+        gui.checkImage(s, 'iso_'+name)
+
+
 
 @pytest.mark.parametrize("name,mesh", meshes.meshes_3d)
 def test_mesh(name, mesh):
-    gui.clear()
-    settings = getParameters()
     s = MeshScene(mesh)
-    s._global_rendering_parameters = settings
-    colors = [0,255,0,255]*100
+
+    # need to add color settings for non-gui testing
+    colors = [255,0,0,255, 0,255,0,255, 0,0,255,255, 255,255,0,255, 255,0,255,255, 0,255,255,255]
     s.setMaterialColors(colors)
     s.setSurfaceColors(colors)
     s.setEdgeColors(colors)
+
+    Draw(s, name=name, tab=name)
+    # appy custom rendering settings (also because there are not global settings in headless mode)
+    settings = getParameters()
+    s._global_rendering_parameters = settings
+
+    # set up scene settings
+    s.setShowSurface(False)
+    s.setShowWireframe(True)
+    gui.checkImage(s, name+'_wireframe')
+
     s.setShowSurface(True)
-    s.initGL()
-    s.update()
-
-    for els in s.mesh_data.elements[BND]:
-        with gl.Query(GL.GL_PRIMITIVES_GENERATED) as q:
-            s._render2DElements(settings, els, True);
-
-    GL.glFinish()
-    gui.check_image(name)
+    s.setShowWireframe(False)
+    gui.checkImage(s, name+'_surface')
 
 if __name__ == '__main__':
     for name,mesh in meshes.meshes_3d:
         test_mesh(name, mesh)
-        test_cf(name, mesh)
+#         test_cf(name, mesh)

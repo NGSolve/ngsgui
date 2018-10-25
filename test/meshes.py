@@ -13,10 +13,10 @@ def Tet():
     pnums.append (m.Add (MeshPoint (Pnt(0,0,1))))
 
 
-    m.Add (FaceDescriptor(surfnr=1,domin=1,bc=1))
-    m.Add (FaceDescriptor(surfnr=2,domin=1,bc=1))
-    m.Add (FaceDescriptor(surfnr=3,domin=1,bc=1))
-    m.Add (FaceDescriptor(surfnr=4,domin=1,bc=1))
+    for i in range(1,5):
+        m.Add (FaceDescriptor(surfnr=i,domin=1,bc=i))
+        m.SetBCName(i, str(i))
+
     m.SetMaterial(1, "mat")
 
     m.Add (Element2D (1,[pnums[0],pnums[1], pnums[2]]))
@@ -38,13 +38,15 @@ def Pyramid():
     pnums.append (m.Add (MeshPoint (Pnt(0.5,0.5,1))))
 
 
-    m.Add (FaceDescriptor(surfnr=1,domin=1,bc=1))
+    for i in range(1,6):
+        m.Add (FaceDescriptor(surfnr=i,domin=1,bc=i))
+        m.SetBCName(i, str(i))
     m.SetMaterial(1, "mat")
     m.Add (Element2D (1,[pnums[0],pnums[1], pnums[4]]))
-    m.Add (Element2D (1,[pnums[1],pnums[2], pnums[4]]))
-    m.Add (Element2D (1,[pnums[2],pnums[3], pnums[4]]))
-    m.Add (Element2D (1,[pnums[3],pnums[0], pnums[4]]))
-    m.Add (Element2D (1,[pnums[0],pnums[1], pnums[2], pnums[3]]))
+    m.Add (Element2D (2,[pnums[1],pnums[2], pnums[4]]))
+    m.Add (Element2D (3,[pnums[2],pnums[3], pnums[4]]))
+    m.Add (Element2D (4,[pnums[3],pnums[0], pnums[4]]))
+    m.Add (Element2D (5,[pnums[0],pnums[1], pnums[2], pnums[3]]))
 
     m.Add (Element3D (1,pnums))
     return ngsolve.Mesh(m)
@@ -61,11 +63,9 @@ def Prism():
     pnums.append (m.Add (MeshPoint (Pnt(0,1,1))))
 
 
-    m.Add (FaceDescriptor(surfnr=1,domin=1,bc=1))
-    m.Add (FaceDescriptor(surfnr=2,domin=1,bc=1))
-    m.Add (FaceDescriptor(surfnr=3,domin=1,bc=1))
-    m.Add (FaceDescriptor(surfnr=4,domin=1,bc=1))
-    m.Add (FaceDescriptor(surfnr=5,domin=1,bc=1))
+    for i in range(1,6):
+        m.Add (FaceDescriptor(surfnr=i,domin=1,bc=i))
+        m.SetBCName(i, str(i))
     m.SetMaterial(1, "mat")
 
     m.Add (Element2D (1,[pnums[0],pnums[1], pnums[2]]))
@@ -91,12 +91,9 @@ def Hex():
     pnums.append (m.Add (MeshPoint (Pnt(0,1,1))))
 
 
-    m.Add (FaceDescriptor(surfnr=1,domin=1,bc=1))
-    m.Add (FaceDescriptor(surfnr=2,domin=1,bc=1))
-    m.Add (FaceDescriptor(surfnr=3,domin=1,bc=1))
-    m.Add (FaceDescriptor(surfnr=4,domin=1,bc=1))
-    m.Add (FaceDescriptor(surfnr=5,domin=1,bc=1))
-    m.Add (FaceDescriptor(surfnr=6,domin=1,bc=1))
+    for i in range(1,7):
+        m.Add (FaceDescriptor(surfnr=i,domin=1,bc=i))
+        m.SetBCName(i, str(i))
     m.SetMaterial(1, "mat")
 
     m.Add (Element2D (1,[pnums[0],pnums[1], pnums[2], pnums[3]]))
@@ -115,7 +112,3 @@ meshes_3d = [
         ('prism', Prism()),
         ('hex', Hex())
         ]
-
-for name, mesh in meshes_3d:
-    from ngsolve import x,y,z
-    ngsolve.Draw(3*x+y**2+z, mesh, name=name)

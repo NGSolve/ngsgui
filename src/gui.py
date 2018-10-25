@@ -271,20 +271,17 @@ another Redraw after a time loop may be needed to see the final solutions."""
         fbo = QtOpenGL.QGLFramebufferObject(width, height, format)
         fbo.bind()
 
-        self.redraw_blocking()
         self.window_tabber.activeGLWindow.glWidget.paintGL()
-        im = fbo.toImage()
-        im2 = QtGui.QImage(im)
-        im2.fill(QtCore.Qt.transparent)
-        p = QtGui.QPainter(im2)
-        p.drawImage(0,0,im)
-        p.end()
+        GL.glFinish()
+        data = GL.glReadPixels(0, 0, width, height, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, outputType=None)
+        import PIL.Image as im
+        image = im.fromarray(data[::-1,:,:])
 
         if filename!=None:
-            im2.save(filename)
+            image.save(filename)
         fbo.release()
         GL.glViewport(*viewport)
-        return im
+        return image
 
     def plot(self, *args, **kwargs):
         """ Plot a matplotlib figure into a new Window"""
