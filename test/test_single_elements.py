@@ -42,18 +42,17 @@ def test_cf(name, mesh):
     settings.individualClippingPlane = True
     settings.setClippingNormal([0,0,1])
     settings.zoom=-100
+
     s = SolutionScene(z+x*x-0.3*y*y, mesh, iso_surface=x+2*y+z*z)
+    Draw(s, name=name, tab=name+'_cf')
+    # appy custom rendering settings (also because there are not global settings in headless mode)
+    s._global_rendering_parameters = settings
+
     s.setOrder(3)
     s.setSubdivision(3)
-    s._global_rendering_parameters = settings
     s.setShowSurface(True)
     s.setShowClippingPlane(True)
-    s.initGL()
-    s.update()
 
-    gui.clear()
-    s.render(settings);
-    GL.glFinish()
     gui.checkImage(s, 'cf_'+name)
 
     if name == 'tet':
@@ -61,9 +60,6 @@ def test_cf(name, mesh):
         s.setShowClippingPlane(False)
         s.setShowIsoSurface(True)
         s.setIsoValue(0.7)
-        gui.clear()
-        s.render(settings);
-        GL.glFinish()
         gui.checkImage(s, 'iso_'+name)
 
 
@@ -94,5 +90,5 @@ def test_mesh(name, mesh):
 
 if __name__ == '__main__':
     for name,mesh in meshes.meshes_3d:
-        test_mesh(name, mesh)
-#         test_cf(name, mesh)
+        #test_mesh(name, mesh)
+        test_cf(name, mesh)
