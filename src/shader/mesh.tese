@@ -66,7 +66,7 @@ void main()
     int offset = texelFetch(mesh.elements, ELEMENT_SIZE*gl_PrimitiveID + ELEMENT_SIZE-1).r;
 
 #ifdef MACOS
-    struct PatchedInData { vec3 pos; vec3 normal; } inData[3];
+    struct PatchedInData { vec3 pos; vec3 normal; } inData[ELEMENT_N_VERTICES];
     // some bug in the intel drivers for mac (or invalid opengl code?) leads to invalid data in inData[], thus reload everything
     ELEMENT_TYPE el = getElement(mesh, gl_PrimitiveID);
     inData[0].normal = el.normal;
