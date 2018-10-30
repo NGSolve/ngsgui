@@ -356,7 +356,7 @@ class MeshScene(BaseMeshScene):
                          "ShowEdgeElements" : False,
                          "ShowPeriodicVertices" : False,
                          "ShowPointNumbers" : False,
-                         "ShowEdgeNumbers" : False,
+                         "ShowEdgeElementNumbers" : False,
                          "ShowElementNumbers" : False}
     @inmain_decorator(wait_for_return=True)
     def __init__(self, mesh, wireframe=True, surface=True, elements=False, edgeElements=False, edges=False,
@@ -368,7 +368,7 @@ class MeshScene(BaseMeshScene):
                                        "ShowEdgeElements" : edgeElements,
                                        "ShowPeriodicVertices" : showPeriodic,
                                        "ShowPointNumbers" : pointNumbers,
-                                       "ShowEdgeNumbers" : edgeNumbers,
+                                       "ShowEdgeElementNumbers" : edgeNumbers,
                                        "ShowElementNumbers" : elementNumbers})
         self.tex_vol_colors = self.tex_surf_colors = self.tex_edge_colors = None
         super().__init__(mesh, **kwargs)
@@ -423,8 +423,11 @@ class MeshScene(BaseMeshScene):
                                                       label="Points",
                                                       default_value=self.__initial_values["ShowPointNumbers"]),
                            settings.CheckboxParameter(name="ShowEdgeNumbers",
-                                                      label="Edges",
-                                                      default_value=self.__initial_values["ShowEdgeNumbers"]))
+                                                      label = "Edges",
+                                                      default_value=False),
+                           settings.CheckboxParameter(name="ShowEdgeElementNumbers",
+                                                      label="Edge Elements",
+                                                      default_value=self.__initial_values["ShowEdgeElementNumbers"]))
         if self.mesh.dim > 1:
             self.addParameters("Numbers",
                                settings.CheckboxParameter(name="ShowElementNumbers",
@@ -668,6 +671,9 @@ class MeshScene(BaseMeshScene):
                 self._renderNumbers(settings, elements)
 
             if self.getShowEdgeNumbers():
+                for elements in self.mesh_data.elements["edges"]:
+                    self._renderNumbers(settings, elements)
+            if self.getShowEdgeElementNumbers():
                 vb = vbs[self.mesh.dim-1]
                 for elements in self.mesh_data.elements[vb]:
                     self._renderNumbers(settings, elements)
