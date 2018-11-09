@@ -19,7 +19,7 @@ build:
   <<: *ubuntu
   stage: build
   script:
-    - python3 setup.py install --user --single-version-externally-managed --root=/
+    - pip3 install --user .
 
 test:
   <<: *ubuntu
