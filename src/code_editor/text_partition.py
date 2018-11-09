@@ -1,5 +1,5 @@
 
-from PySide2 import QtGui
+from qtpy import QtGui
 
 class Lines:
     """ List like object giving linewise access to editor """

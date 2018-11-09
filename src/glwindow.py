@@ -12,7 +12,7 @@ import time, ngsolve, weakref
 from ngsolve.bla import Vector
 from math import exp, sqrt
 
-from PySide2 import QtWidgets, QtOpenGL, QtCore, QtGui
+from qtpy import QtWidgets, QtOpenGL, QtCore, QtGui
 from OpenGL import GL
 import pickle
 

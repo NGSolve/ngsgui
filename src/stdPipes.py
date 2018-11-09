@@ -1,5 +1,5 @@
 
-from PySide2 import QtCore, QtWidgets, QtGui
+from qtpy import QtCore, QtWidgets, QtGui
 from .thread import inmain_decorator
 import re, os, time, sys
 from ngsgui.code_editor.text_partition import Lines

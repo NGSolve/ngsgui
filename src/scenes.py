@@ -12,7 +12,7 @@ from .gui import GUI
 import netgen.meshing, netgen.geom2d
 from . import settings
 
-from PySide2 import QtWidgets, QtCore, QtGui
+from qtpy import QtWidgets, QtCore, QtGui
 from OpenGL.GL import *
 
 

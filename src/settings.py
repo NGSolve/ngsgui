@@ -6,7 +6,7 @@ from .thread import inthread, inmain_decorator
 
 from .widgets import ArrangeH, ArrangeV
 
-from PySide2 import QtWidgets, QtGui, QtCore
+from qtpy import QtWidgets, QtGui, QtCore
 
 import ngsolve as ngs
 import math

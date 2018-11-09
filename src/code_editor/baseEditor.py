@@ -1,5 +1,5 @@
 
-from PySide2 import QtWidgets
+from qtpy import QtWidgets
 from ngsgui.thread import inthread, inmain_decorator
 
 class BaseEditor:

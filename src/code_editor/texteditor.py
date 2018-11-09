@@ -6,7 +6,7 @@ from .utils import LineNumberArea, PythonFileButtonArea
 from ngsgui.thread import inmain_decorator, inthread
 from .baseEditor import BaseEditor
 
-from PySide2 import QtWidgets, QtGui, QtCore
+from qtpy import QtWidgets, QtGui, QtCore
 
 
 class CodeEditor(QtWidgets.QPlainTextEdit, BaseEditor):

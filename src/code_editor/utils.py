@@ -1,5 +1,5 @@
 
-from PySide2 import QtWidgets, QtGui, QtCore
+from qtpy import QtWidgets, QtGui, QtCore
 from ngsgui.widgets import ArrangeH, ArrangeV, ButtonArea
 
 

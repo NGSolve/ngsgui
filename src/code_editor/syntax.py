@@ -1,8 +1,8 @@
 import sys
 
-from PySide2 import QtCore
-from PySide2.QtCore import QRegExp, QRegularExpression
-from PySide2.QtGui import QColor, QTextCharFormat, QFont, QSyntaxHighlighter
+from pyqt import QtCore
+from qtpy.QtCore import QRegExp, QRegularExpression
+from qtpy.QtGui import QColor, QTextCharFormat, QFont, QSyntaxHighlighter
 
 def format(color, style=''):
     """Return a QTextCharFormat with the given attributes.

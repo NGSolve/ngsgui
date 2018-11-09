@@ -75,7 +75,7 @@ def inthread(func, *args, **kwargs):
 # any other qt binding library. For documentation have a look at qtutils
 
 from queue import Queue
-from PySide2.QtCore import QEvent, QObject, QCoreApplication, QTimer, QThread
+from qtpy.QtCore import QEvent, QObject, QCoreApplication, QTimer, QThread
 import functools
 
 def _reraise(exc_info):

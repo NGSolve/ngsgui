@@ -1,6 +1,5 @@
 
 import os
-os.environ['QT_API'] = 'pyside2'
 
 from . import glwindow, code_editor
 from . widgets import ArrangeV
@@ -10,7 +9,7 @@ from .stdPipes import OutputBuffer
 
 import ngsolve
 
-from PySide2 import QtWidgets, QtCore, QtGui
+from qtpy import QtWidgets, QtCore, QtGui
 
 class GUI():
     """Graphical user interface for NGSolve. This object is created when ngsolve is started and
@@ -56,8 +55,7 @@ the gui is closed"""
                                                                    filter = "Python files (*.py)")
             if filename:
                 self.loadPythonFile(filename)
-        loadPython = filemenu["&Load"].addAction("&Python File", shortcut = "l+y")
-        loadPython.triggered.connect(selectPythonFile)
+        filemenu["&Load"].addAction("&Python File", selectPythonFile, shortcut = "l+y")
         newWindowAction = self.menuBar["&Create"].addAction("New &Window")
         newWindowAction.triggered.connect(lambda :self.window_tabber.make_window())
         settings = self.menuBar["&Settings"].addAction("&Settings")
@@ -262,7 +260,7 @@ another Redraw after a time loop may be needed to see the final solutions."""
         """Render the current active GLWindow into a file"""
         import copy
         import OpenGL.GL as GL
-        from PySide2 import QtOpenGL
+        from qtpy import QtOpenGL
         viewport = GL.glGetIntegerv( GL.GL_VIEWPORT )
         GL.glViewport(0, 0, width, height)
         format = QtOpenGL.QGLFramebufferObjectFormat()

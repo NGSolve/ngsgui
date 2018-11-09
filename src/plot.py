@@ -1,5 +1,5 @@
 from .thread import inmain_decorator
-from PySide2 import QtCore, QtWidgets
+from qtpy import QtCore, QtWidgets
 
 class PlotTab(QtWidgets.QWidget):
     def __init__(self, *args, **kwargs):

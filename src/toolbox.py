@@ -1,6 +1,6 @@
 
 from .widgets import ArrangeH, ArrangeV
-from PySide2 import QtWidgets, QtCore, QtGui
+from qtpy import QtWidgets, QtCore, QtGui
 from ngsgui.icons import location as icon_path
 import weakref
 
@@ -41,8 +41,9 @@ class ToolBoxItem(QtWidgets.QWidget):
             self._text.setFlat(True)
 
         def updateLayout(self):
-            wid = QtWidgets.QWidget()
-            wid.setLayout(self.layout())
+            if self.layout():
+                wid = QtWidgets.QWidget()
+                wid.setLayout(self.layout())
             self.setLayout(ArrangeH(*self._leftIcons, self._text, *reversed(self._rightIcons)))
             self.layout().setContentsMargins(0,0,0,0)
 
@@ -61,8 +62,6 @@ action: QtCore.Signal=None
 
 tooltip: str
   Tooltip for mouse hover"""
-            if action:
-                assert isinstance(action, QtCore.Signal)
             if left:
                 self._leftIcons.append(ToolBoxItem.Header.Icon(images, signal=action, tooltip=tooltip))
             else:

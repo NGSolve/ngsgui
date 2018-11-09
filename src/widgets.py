@@ -1,7 +1,7 @@
 
 
-from PySide2 import QtCore, QtGui, QtWidgets, QtOpenGL
-from PySide2.QtCore import Qt
+from qtpy import QtCore, QtGui, QtWidgets, QtOpenGL
+from qtpy.QtCore import Qt
 
 from .thread import inmain_decorator
 
@@ -197,10 +197,10 @@ class FloatValidator(QtGui.QValidator):
 
     def validate(self,string,position):
         if self._valid_float_string(string):
-            return self.State.Acceptable
+            return (self.State.Acceptable, string, position)
         if string == "" or string[position-1] in "e.-+":
-            return self.State.Intermediate
-        return self.State.Invalid
+            return (self.State.Intermediate, string, position)
+        return (self.State.Invalid, string, position)
 
     def fixup(self,text):
         match = self._float_re.search(text)

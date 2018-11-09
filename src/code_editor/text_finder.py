@@ -1,5 +1,5 @@
 
-from PySide2 import QtWidgets, QtGui
+from qtpy import QtWidgets, QtGui
 from ngsgui.widgets import ArrangeH, ArrangeV
 from ngsgui.thread import inmain_decorator
 

@@ -7,7 +7,7 @@ from OpenGL.GL.ARB import debug_output
 from OpenGL.extensions import alternate
 import ctypes, ngsolve, numpy
 
-from PySide2 import QtCore, QtGui
+from qtpy import QtCore, QtGui
 
 from ngsgui.shader import locations as shaderpaths
 
@@ -621,7 +621,9 @@ class TextRenderer:
                 text = bytes([i]).decode()
                 painter.drawText((i-32)*w,0, (i+1-32)*w, font.height, QtCore.Qt.AlignTop | QtCore.Qt.AlignLeft, text)
             painter.end()
-            Z = numpy.array(image.bits()).reshape(font.tex_height, font.tex_width)
+            ptr = image.constBits()
+            ptr.setsize(image.byteCount())
+            Z = numpy.array(ptr).reshape(font.tex_height, font.tex_width)
 
             font.tex = Texture(GL_TEXTURE_2D, GL_RED)
             font.tex.store(Z, GL_UNSIGNED_BYTE, Z.shape[1], Z.shape[0] )

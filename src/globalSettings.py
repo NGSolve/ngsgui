@@ -1,5 +1,5 @@
 
-from PySide2 import QtWidgets, QtCore
+from qtpy import QtWidgets, QtCore
 from .widgets import ArrangeH, ArrangeV
 from .thread import inmain_decorator
 

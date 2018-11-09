@@ -1,5 +1,5 @@
 
-from PySide2 import QtGui, QtWidgets, QtCore
+from qtpy import QtGui, QtWidgets, QtCore
 from ngsgui.widgets import ArrangeH, ArrangeV
 from .utils import PythonFileButtonArea
 from ngsgui.thread import inmain_decorator, inthread
