@@ -254,4 +254,6 @@ def getOpenGLData(obj):
         for key in _opengl_data_constructors:
             if isinstance(obj, key):
                 _opengl_data_constructors[key](obj)
+    else:
+        obj._opengl_data.update()
     return obj._opengl_data
