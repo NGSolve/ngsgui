@@ -175,8 +175,9 @@ class GLWidget(QtOpenGL.QGLWidget):
                 colormap_max = max(b, colormap_max)
             rp.setColormapMin(colormap_min)
             rp.setColormapMax(colormap_max)
-        for scene in self.scenes:
+        for scene in self.scenes[1:]:
             scene.render(rp)
+        rp.render(rp)
 
     def addScene(self, scene):
         self.scenes.append(scene)
