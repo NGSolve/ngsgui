@@ -197,10 +197,10 @@ class FloatValidator(QtGui.QValidator):
 
     def validate(self,string,position):
         if self._valid_float_string(string):
-            return (self.State.Acceptable, string, position)
+            return (self.Acceptable, string, position)
         if string == "" or string[position-1] in "e.-+":
-            return (self.State.Intermediate, string, position)
-        return (self.State.Invalid, string, position)
+            return (self.Intermediate, string, position)
+        return (self.Invalid, string, position)
 
     def fixup(self,text):
         match = self._float_re.search(text)

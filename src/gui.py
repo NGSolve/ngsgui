@@ -18,13 +18,15 @@ from ngsgui.gui import gui
 """
     sceneCreators = {}
     file_loaders = {}
-    def __init__(self,flags=None):
+    def __init__(self,flags=None, startApplication=True):
         self._parseFlags(flags)
-        self.app = QtWidgets.QApplication([])
+        self._hasApplication = startApplication
+        if startApplication:
+            self.app = QtWidgets.QApplication([])
+            self.app.setOrganizationName("NGSolve")
+            self.app.setApplicationName("NGSolve")
         ngsolve.solve._SetLocale()
         self._commonContext = glwindow.GLWidget()
-        self.app.setOrganizationName("NGSolve")
-        self.app.setApplicationName("NGSolve")
         self._createMenu()
         self._createLayout()
         self.mainWidget.setWindowTitle("NGSolve")
@@ -32,7 +34,8 @@ from ngsgui.gui import gui
         from .gl import Shader
         Shader.preloadShaderIncludes()
         self._procs = []
-        self.app.aboutToQuit.connect(self._killProcs)
+        if startApplication:
+            self.app.aboutToQuit.connect(self._killProcs)
 
     def _killProcs(self):
         """If external processes are spawned somewhere register them in self._procs to be killed when
@@ -351,7 +354,8 @@ another Redraw after a time loop may be needed to see the final solutions."""
                 self.output_tabber.setCurrentWidget(self.console)
                 self.console._control.setFocus()
             addShortcut(self.mainWidget, "Gui-Activate Console", "Ctrl+j", activateConsole)
-        addShortcut(self.mainWidget, "Gui-Quit", "Ctrl+q", lambda: self.app.quit())
+        if self._hasApplication:
+            addShortcut(self.mainWidget, "Gui-Quit", "Ctrl+q", lambda: self.app.quit())
         addShortcut(self.mainWidget, "Gui-Close Tab", "Ctrl+w",
                     lambda: self.window_tabber._remove_tab(self.window_tabber.currentIndex()))
         addShortcut(self.mainWidget, "Gui-Next Tab", "Ctrl+LeftArrow", lambda: switchTabWindow(-1))

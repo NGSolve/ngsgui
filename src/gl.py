@@ -7,6 +7,7 @@ from OpenGL.GL.ARB import debug_output
 from OpenGL.extensions import alternate
 import ctypes, ngsolve, numpy
 
+import qtpy
 from qtpy import QtCore, QtGui
 
 from ngsgui.shader import locations as shaderpaths
@@ -622,7 +623,8 @@ class TextRenderer:
                 painter.drawText((i-32)*w,0, (i+1-32)*w, font.height, QtCore.Qt.AlignTop | QtCore.Qt.AlignLeft, text)
             painter.end()
             ptr = image.constBits()
-            ptr.setsize(image.byteCount())
+            if qtpy.API == "pyqt5":
+                ptr.setsize(image.byteCount())
             Z = numpy.array(ptr).reshape(font.tex_height, font.tex_width)
 
             font.tex = Texture(GL_TEXTURE_2D, GL_RED)

@@ -175,8 +175,9 @@ class GLWidget(QtOpenGL.QGLWidget):
                 colormap_max = max(b, colormap_max)
             rp.setColormapMin(colormap_min)
             rp.setColormapMax(colormap_max)
-        for scene in self.scenes:
+        for scene in self.scenes[1:]:
             scene.render(rp)
+        rp.render(rp)
 
     def addScene(self, scene):
         self.scenes.append(scene)
@@ -246,17 +247,17 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.lastFastmode = self._settings.fastmode
         self._settings.fastmode = True
         if event.modifiers() == QtCore.Qt.ControlModifier:
-            if event.button() == QtCore.Qt.MouseButton.RightButton:
+            if event.button() == QtCore.Qt.RightButton:
                 self.do_move_clippingplane = True
-            if event.button() == QtCore.Qt.MouseButton.LeftButton:
+            if event.button() == QtCore.Qt.LeftButton:
                 self.do_rotate_clippingplane = True
         else:
-            if event.button() == QtCore.Qt.MouseButton.LeftButton:
+            if event.button() == QtCore.Qt.LeftButton:
                 if self._rotation_enabled:
                     self.do_rotate = True
-            if event.button() == QtCore.Qt.MouseButton.MidButton:
+            if event.button() == QtCore.Qt.MidButton:
                 self.do_translate = True
-            if event.button() == QtCore.Qt.MouseButton.RightButton:
+            if event.button() == QtCore.Qt.RightButton:
                 self.do_zoom = True
 
     def mouseReleaseEvent(self, event):

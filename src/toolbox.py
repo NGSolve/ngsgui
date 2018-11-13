@@ -88,7 +88,6 @@ tooltip: str
             line = QtWidgets.QFrame()
             line.setFrameShape(line.HLine)
             pal = line.palette()
-            pal.setColor(QtGui.QPalette.WindowText, QtCore.Qt.GlobalColor.gray)
             line.setPalette(pal)
             widgets.append(line)
         self.setLayout(ArrangeV(*widgets))
