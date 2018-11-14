@@ -1,5 +1,5 @@
 {include utils.inc}
-#line 2
+#line 20002
 
 struct POINT {
   vec3 pos[1];
@@ -123,7 +123,7 @@ PointData interpolatePoint(Mesh mesh, TRIG el, vec3 lam) {
 }
 
 
-
+#ifdef ELEMENT_TYPE
 ELEMENT_TYPE getElement(Mesh mesh, int elnr ) {
     ELEMENT_TYPE el;
 #ifdef ET_POINT
@@ -144,6 +144,7 @@ ELEMENT_TYPE getElement(Mesh mesh, int elnr ) {
 #endif // ET_POINT
     return el;
 }
+#endif // ELEMENT_TYPE
 
 // Cut tet with plane and store 0-4 points (and barycentric coords), return the number of intersection points
 int CutElement3d( TET tet, float values[4], out vec3 pos[4], inout vec3 lam[4] ) {
