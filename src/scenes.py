@@ -1147,11 +1147,21 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
         self.values[ngsolve.VOL]['real'][elements.type, elements.curved].bind()
         uniforms.set('coefficients', 2)
         uniforms.set('subdivision', 2**self.getSubdivision()-1)
+        uniforms.set('is_complex', self.cf.is_complex)
+        if self.cf.is_complex:
+            glActiveTexture(GL_TEXTURE3)
+            self.values[ngsolve.VOL]['imag'][elements.type, elements.curved].bind()
+            uniforms.set('coefficients_imag', 3)
+
+            uniforms.set('complex_vis_function', self._complex_eval_funcs[self.getComplexEvalFunc()])
+            w = cmath.exp(1j*self.getComplexPhaseShift()/180.0*math.pi)
+            uniforms.set('complex_factor', [w.real, w.imag])
 
         filter_feedback = glGenTransformFeedbacks(1)
         glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, filter_feedback)
         glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, self.filter_buffer.id)
         glBeginTransformFeedback(GL_POINTS)
+
 
         filter_first = 0
         for i in range(20): # maxmimal 20*40=800 vectors per element
