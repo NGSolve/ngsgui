@@ -536,9 +536,9 @@ class MeshScene(BaseMeshScene):
             glActiveTexture(GL_TEXTURE4)
             vb = ngsolve.VOL if self.mesh.dim==2 else ngsolve.BND
             self._deformation_values[vb]['real'][(elements.type, elements.curved)].bind()
-            uniforms.set('deformation_coefficients', 4)
-            uniforms.set('deformation_subdivision', 2**self.getDeformationSubdivision()-1)
-            uniforms.set('deformation_order', self.getDeformationOrder())
+            uniforms.set('deformation.coefficients', 4)
+            uniforms.set('deformation.subdivision', 2**self.getDeformationSubdivision()-1)
+            uniforms.set('deformation.order', self.getDeformationOrder())
             uniforms.set('deformation_scale', self.getDeformationScale())
 
         glActiveTexture(GL_TEXTURE3)
@@ -887,20 +887,12 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
 
     def _filterElements(self, settings, elements, filter_type):
         glEnable(GL_RASTERIZER_DISCARD)
-        prog = getProgram('pass_through.vert', 'filter_elements.geom', feedback=['element'], ORDER=self.getOrder(), params=settings, elements=elements, USE_GL_VERTEX_ID=True, scene=self, CLIPPING=1)
+        prog = getProgram('pass_through.vert', 'filter_elements.geom', feedback=['element'], params=settings, elements=elements, USE_GL_VERTEX_ID=True, scene=self, CLIPPING=1)
         uniforms = prog.uniforms
 
-        glActiveTexture(GL_TEXTURE2)
         if filter_type == 1: # iso surface
+            prog.setFunction(self, elements, values=self.iso_values[ngsolve.VOL])
             uniforms.set('iso_value', self.getIsoValue())
-            self.iso_values[ngsolve.VOL]['real'][elements.type, elements.curved].bind()
-
-        uniforms.set('coefficients', 2)
-        uniforms.set('subdivision', 2**self.getSubdivision()-1)
-        if self.cf.dim > 1:
-            uniforms.set('component', self.getComponent())
-        else:
-            uniforms.set('component', 0)
 
         uniforms.set('filter_type', filter_type)
 
@@ -917,15 +909,9 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
     def _render1D(self, settings, elements):
         # use actual function values for deformation on 1d meshes
         use_deformation = self.getDeformation()
-        vb = ngsolve.VOL
-
-        if self.cf.dim > 1:
-            comp = self.getComponent()
-        else:
-            comp = 0
 
         use_tessellation = use_deformation or elements.curved
-        options = dict(ORDER=self.getOrder(), DEFORMATION=use_deformation, NOLIGHT=True)
+        options = dict(DEFORMATION=use_deformation, NOLIGHT=True)
 
         shader = ['mesh.vert', 'solution.frag']
         if use_tessellation:
@@ -934,35 +920,18 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
             options["DEFORMATION_ORDER"] = self.getDeformationOrder()
 
         prog = getProgram(*shader, elements=elements, params=settings, scene=self, **options)
+        prog.setFunction(self, elements)
         uniforms = prog.uniforms
 
         uniforms.set('wireframe', False)
-        uniforms.set('subdivision', 2**self.getSubdivision()-1)
-
-        glActiveTexture(GL_TEXTURE2)
-        self.values[vb]['real'][(elements.type, elements.curved)].bind()
-        uniforms.set('coefficients', 2)
 
         if use_deformation:
             glActiveTexture(GL_TEXTURE4)
-            self._deformation_values[vb]['real'][(elements.type, elements.curved)].bind()
-            uniforms.set('deformation_coefficients', 4)
-            uniforms.set('deformation_subdivision', 2**self.getDeformationSubdivision()-1)
-            uniforms.set('deformation_order', self.getDeformationOrder())
+            self._deformation_values[ngsolve.VOL]['real'][(elements.type, elements.curved)].bind()
+            uniforms.set('deformation.coefficients', 4)
+            uniforms.set('deformation.subdivision', 2**self.getDeformationSubdivision()-1)
+            uniforms.set('deformation.order', self.getDeformationOrder())
             uniforms.set('deformation_scale', self.getDeformationScale())
-
-
-        uniforms.set('component', comp)
-
-        uniforms.set('is_complex', self.cf.is_complex)
-        if self.cf.is_complex:
-            glActiveTexture(GL_TEXTURE3)
-            self.values[vb]['imag'][elements.type, elements.curved].bind()
-            uniforms.set('coefficients_imag', 3)
-
-            uniforms.set('complex_vis_function', self._complex_eval_funcs[self.getComplexEvalFunc()])
-            w = cmath.exp(1j*self.getComplexPhaseShift()/180.0*math.pi)
-            uniforms.set('complex_factor', [w.real, w.imag])
 
         tess_level = 10
         if settings.fastmode and len(elements.data)//elements.size>10**4:
@@ -983,52 +952,31 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
         vb = ngsolve.VOL if self.mesh.dim==2 else ngsolve.BND
         use_deformation = self.getDeformation()
 
-        if self.cf.dim > 1:
-            comp = self.getComponent()
-        else:
-            comp = 0
-
         for elements in self.mesh_data.elements[vb]:
             if not (elements.type, elements.curved) in self.values[vb]['real']:
                 return
             shader = ['mesh.vert', 'solution.frag']
             use_tessellation = use_deformation or elements.curved
-            options = dict(ORDER=self.getOrder(), DEFORMATION=use_deformation)
+            options = dict(DEFORMATION=use_deformation)
             if use_tessellation:
                 shader.append('mesh.tese')
             if use_deformation:
                 options["DEFORMATION_ORDER"] = self.getDeformationOrder()
 
             prog = getProgram(*shader, elements=elements, params=settings, scene=self, **options)
+            prog.setFunction(self, elements, values=self.values[vb])
             uniforms = prog.uniforms
 
             if use_deformation:
                 glActiveTexture(GL_TEXTURE4)
                 self._deformation_values[vb]['real'][(elements.type, elements.curved)].bind()
-                uniforms.set('deformation_coefficients', 4)
-                uniforms.set('deformation_subdivision', 2**self.getDeformationSubdivision()-1)
-                uniforms.set('deformation_order', self.getDeformationOrder())
+                uniforms.set('deformation.coefficients', 4)
+                uniforms.set('deformation.subdivision', 2**self.getDeformationSubdivision()-1)
+                uniforms.set('deformation.order', self.getDeformationOrder())
                 uniforms.set('deformation_scale', self.getDeformationScale())
 
 
             uniforms.set('wireframe', False)
-            uniforms.set('subdivision', 2**self.getSubdivision()-1)
-
-            glActiveTexture(GL_TEXTURE2)
-            self.values[vb]['real'][(elements.type, elements.curved)].bind()
-            uniforms.set('coefficients', 2)
-
-            uniforms.set('component', comp)
-
-            uniforms.set('is_complex', self.cf.is_complex)
-            if self.cf.is_complex:
-                glActiveTexture(GL_TEXTURE3)
-                self.values[vb]['imag'][elements.type, elements.curved].bind()
-                uniforms.set('coefficients_imag', 3)
-
-                uniforms.set('complex_vis_function', self._complex_eval_funcs[self.getComplexEvalFunc()])
-                w = cmath.exp(1j*self.getComplexPhaseShift()/180.0*math.pi)
-                uniforms.set('complex_factor', [w.real, w.imag])
 
             tess_level = 10
             if settings.fastmode and len(elements.data)//elements.size>10**4:
@@ -1049,32 +997,15 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
     def _renderIsoSurface(self, settings, elements):
         self._filterElements(settings, elements, 1)
         model, view, projection = settings.model, settings.view, settings.projection
-        prog = getProgram('pass_through.vert', 'isosurface.geom', 'solution.frag', elements=elements, ORDER=self.getOrder(), params=settings, scene=self)
+        prog = getProgram('pass_through.vert', 'isosurface.geom', 'solution.frag', elements=elements, params=settings, scene=self)
+        prog.setFunction(self, elements)
+        prog.setFunction(self, elements, cf=self.iso_surface, values=self.iso_values[ngsolve.VOL], name='iso_function')
 
         uniforms = prog.uniforms
         uniforms.set('P',projection)
         uniforms.set('MV',view*model)
         uniforms.set('iso_value', self.getIsoValue())
         uniforms.set('have_gradient', self.have_gradient)
-        uniforms.set('subdivision', 2**self.getSubdivision()-1)
-        uniforms.set('order', self.getOrder())
-        if self.cf.dim > 1:
-            uniforms.set('component', self.getComponent())
-        else:
-            uniforms.set('component', 0)
-
-        if(self.mesh.dim==2):
-            uniforms.set('element_type', 10)
-        if(self.mesh.dim==3):
-            uniforms.set('element_type', 20)
-
-        glActiveTexture(GL_TEXTURE2)
-        self.values[ngsolve.VOL]['real'][(elements.type, elements.curved)].bind()
-        uniforms.set('coefficients', 2)
-
-        glActiveTexture(GL_TEXTURE3)
-        self.iso_values[ngsolve.VOL]['real'][(elements.type, elements.curved)].bind()
-        uniforms.set('coefficients_iso', 3)
 
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         instances = (self.getOrder()*(2**self.getSubdivision()))**3
@@ -1091,7 +1022,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
             return
 
         glEnable(GL_RASTERIZER_DISCARD)
-        prog = getProgram('pass_through.vert', 'fieldlines_filter.geom', feedback=['pos','pos2', 'val'], ORDER=self.getOrder(), params=settings, scene=self,elements=elements, USE_GL_VERTEX_ID=True, FILTER_MODE='FIELDLINES')
+        prog = getProgram('pass_through.vert', 'fieldlines_filter.geom', feedback=['pos','pos2', 'val'], params=settings, scene=self,elements=elements, USE_GL_VERTEX_ID=True, FILTER_MODE='FIELDLINES')
         uniforms = prog.uniforms
 
         uniforms.set('grid_size', self.getFieldLinesThickness())
@@ -1117,7 +1048,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
         glDisable(GL_RASTERIZER_DISCARD)
 
         # render actual vectors
-        prog = getProgram('fieldlines.vert', 'fieldlines_draw.geom', 'vectors.frag', elements=elements, ORDER=self.getOrder(), params=settings, scene=self)
+        prog = getProgram('fieldlines.vert', 'fieldlines_draw.geom', 'vectors.frag', elements=elements, params=settings, scene=self)
         uniforms = prog.uniforms
         uniforms.set('grid_size', self.getFieldLinesThickness())
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
@@ -1138,7 +1069,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
             raise RuntimeError("invalid mode: "+str(mode))
 
         glEnable(GL_RASTERIZER_DISCARD)
-        prog = getProgram('pass_through.vert', 'vectors_filter.geom', feedback=['pos','val'], ORDER=self.getOrder(), params=settings, scene=self, elements=elements, USE_GL_VERTEX_ID=True, FILTER_MODE=mode, CLIPPING=1)
+        prog = getProgram('pass_through.vert', 'vectors_filter.geom', feedback=['pos','val'], params=settings, scene=self, elements=elements, USE_GL_VERTEX_ID=True, FILTER_MODE=mode, CLIPPING=1)
         uniforms = prog.uniforms
 
         uniforms.set('grid_size', grid_size)
@@ -1176,7 +1107,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
         glDisable(GL_RASTERIZER_DISCARD)
 
         # render actual vectors
-        prog = getProgram('vectors.vert', 'vectors_draw.geom', 'vectors.frag', elements=elements, ORDER=self.getOrder(), params=settings, scene=self)
+        prog = getProgram('vectors.vert', 'vectors_draw.geom', 'vectors.frag', elements=elements, params=settings, scene=self)
         uniforms = prog.uniforms
         uniforms.set('grid_size', grid_size)
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
@@ -1188,36 +1119,12 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
 
     def _renderClippingPlane(self, settings, elements):
         self._filterElements(settings, elements, 0)
-        prog = getProgram('pass_through.vert', 'clipping.geom', 'solution.frag', elements=elements, ORDER=self.getOrder(), params=settings, scene=self, CLIPPING=1, SKIP_FRAGMENT_CLIPPING=1)
+        prog = getProgram('pass_through.vert', 'clipping.geom', 'solution.frag', elements=elements, params=settings, scene=self, CLIPPING=1, SKIP_FRAGMENT_CLIPPING=1)
+        prog.setFunction(self, elements)
 
         uniforms = prog.uniforms
         uniforms.set('clipping_plane_deformation', False)
         uniforms.set('do_clipping', False);
-        uniforms.set('subdivision', 2**self.getSubdivision()-1)
-        if self.cf.dim > 1:
-            uniforms.set('component', self.getComponent())
-        else:
-            uniforms.set('component', 0)
-
-        if(self.mesh.dim==2):
-            uniforms.set('element_type', 10)
-        if(self.mesh.dim==3):
-            uniforms.set('element_type', 20)
-
-        glActiveTexture(GL_TEXTURE2)
-        self.values[ngsolve.VOL]['real'][elements.type, elements.curved].bind()
-        uniforms.set('coefficients', 2)
-
-        uniforms.set('is_complex', self.cf.is_complex)
-        if self.cf.is_complex:
-            glActiveTexture(GL_TEXTURE3)
-            self.values[ngsolve.VOL]['imag'][elements.type, elements.curved].bind()
-            uniforms.set('coefficients_imag', 3)
-
-            uniforms.set('complex_vis_function', self._complex_eval_funcs[self.getComplexEvalFunc()])
-            w = cmath.exp(1j*self.getComplexPhaseShift()/180.0*math.pi)
-            uniforms.set('complex_factor', [w.real, w.imag])
-
 
         for i in range(elements.n_instances_3d):
             uniforms.set('subtet', i)
@@ -1328,7 +1235,7 @@ class FacetSolutionScene(BaseMeshScene, settings.ColormapSettings):
             use_deformation = self.getDeformation()
             for facets in self.mesh_data.elements["facets"]:
                 shader = ['mesh.vert', 'solution.frag']
-                options = dict(ORDER=self.getOrder(), DEFORMATION=use_deformation)
+                options = dict(DEFORMATION=use_deformation)
                 if self.mesh.dim == 2:
                     options["NOLIGHT"] = True
                 if use_deformation:
