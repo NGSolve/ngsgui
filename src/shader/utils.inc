@@ -1,4 +1,4 @@
-#line 1
+#line 10001
 struct Colormap {
   float min;
   float max;
