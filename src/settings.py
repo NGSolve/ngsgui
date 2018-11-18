@@ -264,7 +264,7 @@ class TextParameter(Parameter):
 
     def __getstate__(self):
         return (super().__getstate__(),
-                self.text())
+                self.getValue())
 
     def __setstate__(self, state):
         self._initial_value = state[1]
