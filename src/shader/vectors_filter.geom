@@ -6,25 +6,16 @@
 #endif
 
 
-{include utilsnew.inc}
+{include utils.inc}
 {include interpolation.inc}
 #line 5
 
-uniform samplerBuffer coefficients;
-uniform bool clipping_plane_deformation;
 uniform Mesh mesh;
 uniform float grid_size;
-uniform int subdivision;
-uniform int order;
-uniform int component;
 
 uniform int filter_first;
 
-// for complex-valued functions
-uniform bool is_complex;
-uniform samplerBuffer coefficients_imag;
-uniform int complex_vis_function; // 0=real, 1=imag, 2=abs, 3=arg
-uniform vec2 complex_factor; // factor to multiply with values before visualizing
+Function function;
 
 layout(points) in;
 layout(points, max_vertices=40) out;
@@ -102,26 +93,7 @@ void main() {
                     if(counter==filter_first+40) return;
                     if(counter>=filter_first) {
                       pos = p.xyz;
-                      val = EvaluateElementVec(inData[0].element, coefficients, ORDER, subdivision, lam.xyz, component);
-                      if(is_complex){
-                        vec3 val_imag = EvaluateElementVec(inData[0].element, coefficients_imag, ORDER, subdivision, lam.xyz, component).xyz;
-                        vec3 r = val*complex_factor.x - val_imag*complex_factor.y;
-                        val_imag = val*complex_factor.y + val_imag*complex_factor.x;
-                        val = r;
-                        switch(complex_vis_function){
-                        case 0:
-                          break;
-                        case 1:
-                          val = val_imag;
-                          break;
-                        case 2:
-                          val = sqrt(val*val+val_imag*val_imag);
-                          break;
-                        case 3:
-                          val = vec3(0,0,0);
-                          break;
-                        }
-                      }
+                      val = Evaluate(function, inData.element, lam);
                       EmitVertex();
                       EndPrimitive();
                     }
