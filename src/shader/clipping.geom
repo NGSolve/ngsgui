@@ -1,6 +1,6 @@
 #version 150 // 400 for subdivision with multiple invocations
 
-{include utilsnew.inc}
+{include utils.inc}
 #line 4
 
 uniform samplerBuffer coefficients;

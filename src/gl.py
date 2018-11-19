@@ -5,7 +5,7 @@ from ngsgui import _debug
 
 from OpenGL.GL.ARB import debug_output
 from OpenGL.extensions import alternate
-import ctypes, ngsolve, numpy
+import ctypes, ngsolve, numpy, cmath, math
 
 import qtpy
 from qtpy import QtCore, QtGui
@@ -358,6 +358,26 @@ class Program(GLObject):
         self.uniforms = Program.Uniforms(self.id)
         self.attributes = Program.Attributes(self.id)
 
+    def setFunction(self, scene, elements, cf=None, values=None, name='function'):
+        cf = cf or scene.cf
+        values = values or scene.values[ngsolve.VOL]
+        tex_base = 2 if name=='function' else 4
+        u = self.uniforms
+        u.set(name+'.subdivision', 2**scene.getSubdivision()-1)
+        u.set(name+'.is_complex', cf.is_complex)
+        glActiveTexture(GL_TEXTURE0+tex_base)
+        values['real'][elements.type, elements.curved].bind()
+        u.set(name+'.coefficients', tex_base)
+        u.set(name+'.component', scene.getComponent() if cf.dim>1 else 0)
+
+        if cf.is_complex:
+            glActiveTexture(GL_TEXTURE0+tex_base+1)
+            values['imag'][elements.type, elements.curved].bind()
+            u.set(name+'.coefficients_imag', tex_base+1)
+            u.set(name+'.complex_vis_function', scene._complex_eval_funcs[scene.getComplexEvalFunc()])
+            w = cmath.exp(1j*scene.getComplexPhaseShift()/180.0*math.pi)
+            u.set(name+'.complex_factor', [w.real, w.imag])
+
 def getProgram(*shader_files, feedback=[], elements=None, params=None, scene=None, **define_flags):
     import base64, zlib
     check_debug_output()
@@ -391,6 +411,10 @@ def getProgram(*shader_files, feedback=[], elements=None, params=None, scene=Non
         define_flags['CLIPPING'] = 1
         define_flags['N_CLIPPING_PLANES'] = scene.getClippingNPlanes()
         define_flags['CLIPPING_EXPRESSION'] = scene.getClippingExpression()
+
+    if scene and hasattr(scene,'getOrder'):
+        define_flags['ORDER'] = scene.getOrder()
+
     for d in define_flags:
         flag = define_flags[d]
         if flag != None:

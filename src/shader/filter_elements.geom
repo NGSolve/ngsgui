@@ -3,16 +3,20 @@
 layout(points) in;
 layout(points, max_vertices=1) out;
 
-{include utilsnew.inc}
+{include utils.inc}
+{include interpolation.inc}
 
 uniform Mesh mesh;
 uniform ClippingPlanes clipping_planes;
 
-uniform samplerBuffer coefficients;
+uniform Function function;
 uniform float iso_value;
+uniform int filter_type; // 0...clipping plane, 1...iso-surface
+/*
+uniform samplerBuffer coefficients;
 uniform int subdivision;
 uniform int component;
-uniform int filter_type; // 0...clipping plane, 1...iso-surface
+*/
 
 in VertexData
 {
@@ -44,15 +48,15 @@ bool isCuttingIsoSurface() {
     float min_value;
     float max_value;
 
-    int n = subdivision+1;
+    int n = function.subdivision+1;
     int N = ORDER*n+1;
     int values_per_element = N*(N+1)*(N+2)/6;
     int first = inData[0].element*values_per_element;
-    float value = texelFetch(coefficients, first)[component];
+    float value = texelFetch(function.coefficients, first)[function.component];
     min_value = value;
     max_value = value;
     for (int i=1; i<values_per_element; i++) {
-        float value = texelFetch(coefficients, first+i)[component];
+        float value = texelFetch(function.coefficients, first+i)[function.component];
         min_value = min(min_value, value);
         max_value = max(max_value, value);
     }
