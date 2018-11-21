@@ -96,7 +96,6 @@ state and being able to reload it without a graphical interface."""
         import pickle
         from .glwindow import WindowTab
         from .settings import BaseSettings
-        print("LOAD TEST")
         save_setstate = BaseSettings.__setstate__
         def newSetstate(scene, state):
             BaseSettings.__init__(scene)
@@ -430,7 +429,6 @@ GUI.file_loaders[".py"] = GUI.loadPythonFile
 GUI.file_loaders[".ngs"] = GUI._loadSolutionFile
 def _loadSTL(gui, filename):
     import netgen.stl as stl
-    print("create stl geometry")
     geo = stl.LoadSTLGeometry(filename)
     ngsolve.Draw(geo)
 

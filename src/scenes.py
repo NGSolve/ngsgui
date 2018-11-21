@@ -882,18 +882,10 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
 
     @inmain_decorator(True)
     def update(self, cf=None, iso_surface=None, *args):
-        with open("debug.out","a") as f:
-            f.write("update called with = " + str((cf,*args)) + "\n")
-            f.write("cf before = " + repr(self.cf) + "\n")
         if cf:
             self.cf = cf
         if iso_surface:
             self.iso_surface = iso_surface
-        with open("debug.out","a") as f:
-            f.write("cf after = " + repr(self.cf) + "\n")
-            if isinstance(self.cf, ngsolve.GridFunction):
-                f.write("first value = " + str(self.cf.vec[0]))
-        print("cf = ", self.cf)
         super().update(*args)
         self._getValues(self.cf, ngsolve.VOL, self.getSubdivision(), self.getOrder(), self.values)
         if self.mesh.dim==3:
