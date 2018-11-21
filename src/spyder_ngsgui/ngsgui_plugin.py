@@ -3,7 +3,7 @@
 from spyder.config.base import _
 from spyder.utils.qthelpers import (create_action, create_toolbutton,
                                     add_actions, MENU_SEPARATOR)
-# from spyder.utils import icon_manager as ima
+from spyder.utils import icon_manager as ima
 try:
     # Spyder 4
     from spyder.api.plugins import SpyderPluginWidget
@@ -52,7 +52,8 @@ class NGSolvePlugin(SpyderPluginWidget):
     def __init__(self, parent):
         super().__init__(parent)
         self.main = parent
-        self.gui = G.GUI(flags=["--noOutputpipe", "--noConsole", "--noEditor"],startApplication=False)
+        self.gui = G.GUI(flags=["--noOutputpipe", "--noConsole", "--noEditor"],startApplication=False,
+                         createMenu=False)
         G.gui = self.gui
         self.initialize_plugin()
         self.setLayout(ArrangeH(self.gui.mainWidget))

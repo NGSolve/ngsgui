@@ -710,14 +710,14 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
                         "ShowSurface" : True}
     @inmain_decorator(wait_for_return=True)
     def __init__(self, cf, mesh, name=None, clippingPlane=False,
-                 order=2, gradient=None, iso_surface=None, *args, **kwargs):
+                 order=2, gradient=None, iso_surface=None, sd=1, *args, **kwargs):
         self.cf = cf
         self.iso_surface = iso_surface or cf
         self.values = {}
         self.iso_values = {}
         self.__initial_values.update({"Order" : order,
                                       "ShowClippingPlane" : clippingPlane,
-                                      "Subdivision" : kwargs['sd'] if "sd" in kwargs else 1})
+                                      "Subdivision" : sd})
 
         if hasattr(self.cf,"vecs") and len(self.cf.vecs) > 1:
             self._gfComponents = self.cf

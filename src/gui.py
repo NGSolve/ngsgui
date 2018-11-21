@@ -31,16 +31,18 @@ from ngsgui.gui import gui
 """
     sceneCreators = {}
     file_loaders = {}
-    def __init__(self,flags=None, startApplication=True):
+    def __init__(self,flags=None, startApplication=True, createMenu=True):
         self._parseFlags(flags)
         self._hasApplication = startApplication
+        self._hasMenuBar = createMenu
         if startApplication:
             self.app = QtWidgets.QApplication([])
             self.app.setOrganizationName("NGSolve")
             self.app.setApplicationName("NGSolve")
         ngsolve.solve._SetLocale()
         self._commonContext = glwindow.GLWidget()
-        self._createMenu()
+        if createMenu:
+            self._createMenu()
         self._createLayout()
         self.mainWidget.setWindowTitle("NGSolve")
         self._crawlPlugins()
@@ -121,11 +123,13 @@ state and being able to reload it without a graphical interface."""
         """Creates the main layout of the gui"""
         from .globalSettings import SettingsToolBox
         self.mainWidget = QtWidgets.QWidget()
-        menu_splitter = QtWidgets.QSplitter(parent=self.mainWidget)
-        menu_splitter.setOrientation(QtCore.Qt.Vertical)
-        menu_splitter.addWidget(self.menuBar)
-        self.toolbox_splitter = toolbox_splitter = QtWidgets.QSplitter(parent=menu_splitter)
-        menu_splitter.addWidget(toolbox_splitter)
+        if self._hasMenuBar:
+            menu_splitter = QtWidgets.QSplitter()
+            menu_splitter.setOrientation(QtCore.Qt.Vertical)
+            menu_splitter.addWidget(self.menuBar)
+        self.toolbox_splitter = toolbox_splitter = QtWidgets.QSplitter()
+        if self._hasMenuBar:
+            menu_splitter.addWidget(toolbox_splitter)
         toolbox_splitter.setOrientation(QtCore.Qt.Horizontal)
         self.settings_toolbox = SettingsToolBox(parent=toolbox_splitter)
         window_splitter = QtWidgets.QSplitter(parent=toolbox_splitter)
@@ -163,9 +167,10 @@ state and being able to reload it without a graphical interface."""
         else:
             if not (self._flags.noOutputpipe and self._flags.noConsole):
                 window_splitter.addWidget(self.output_tabber)
-        menu_splitter.setSizes([100, 10000])
+        if self._hasMenuBar:
+            menu_splitter.setSizes([100, 10000])
         window_splitter.setSizes([70000, 30000])
-        self.mainWidget.setLayout(ArrangeV(menu_splitter))
+        self.mainWidget.setLayout(ArrangeV(menu_splitter if self._hasMenuBar else toolbox_splitter))
         self._addShortcuts()
 
     def _crawlPlugins(self):
