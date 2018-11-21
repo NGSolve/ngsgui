@@ -2,7 +2,7 @@ import os
 os.environ['NGSGUI_HEADLESS'] = "1"
 del os
 
-import ngsolve, weakref
+import ngsolve, weakref, time
 import ngsgui.gui as G
 
 G._load_plugins()

@@ -18,9 +18,31 @@ from ngsgui.widgets import ArrangeH
 # qt imports
 from qtpy import PYQT4, PYSIDE, QtCore
 
-import ngsolve, cloudpickle
+import ngsolve, cloudpickle, queue, threading
 import ngsgui.thread as thread
 ngsolve.ngsglobals.msg_level = 0
+
+class Drawer:
+    def __init__(self):
+        self.to_draw = queue.Queue()
+        def run():
+            while True:
+                val = self.to_draw.get()
+                if val is None:
+                    break
+                what, values = val
+                if what == "draw":
+                    index, args, kwargs = values
+                    scene = ngsolve.Draw(*args, **kwargs)
+                    scene._redraw_index = index
+                else:
+                    for scene in G.gui.getScenesFromCurrentWindow():
+                        if hasattr(scene, "_redraw_index"):
+                            scene.update(*(values[scene._redraw_index]))
+                    G.gui.window_tabber.activeGLWindow.glWidget.updateGL()
+                self.to_draw.task_done()
+        self.worker = threading.Thread(target=run)
+        self.worker.start()
 
 class NGSolvePlugin(SpyderPluginWidget):
     CONF_SECTION = "ngsolve"
@@ -78,21 +100,20 @@ class NGSolvePlugin(SpyderPluginWidget):
         """Register plugin in Spyder's main window."""
         self.main.add_dockwidget(self)
         self.ipyconsole = self.main.ipyconsole
+        _drawer = self.ipyconsole._ngs_drawer = Drawer()
         # patch NameSpaceBrowser._handle_spyder_msg to get our ngsolve stuff...
         import spyder.plugins.ipythonconsole.widgets.namespacebrowser as nsb
         old_handle_spyder_msg = nsb.NamepaceBrowserWidget._handle_spyder_msg
         def new_handle_spyder_msg(_self, msg):
             spyder_msg_type = msg['content'].get('spyder_msg_type')
             if spyder_msg_type == 'ngsolve_draw':
-                index, args, kwargs = cloudpickle.loads(bytes(msg['buffers'][0]))
-                scene = ngsolve.Draw(*args, **kwargs)
-                scene._redraw_index = index
+                _drawer.to_draw.put(["draw",cloudpickle.loads(bytes(msg['buffers'][0]))])
             elif spyder_msg_type == 'ngsolve_redraw':
-                values = cloudpickle.loads(bytes(msg['buffers'][0]))
-                for scene in self.gui.getScenesFromCurrentWindow():
-                    if hasattr(scene, "_redraw_index"):
-                        scene.update(*(values[scene._redraw_index]))
-                self.gui.window_tabber.activeGLWindow.glWidget.updateGL()
+                try:
+                    _drawer.to_draw.put(["redraw",cloudpickle.loads(bytes(msg['buffers'][0]))])
+                except Exception as e:
+                    # TODO: sometimes this crashes with a bad_weak_ptr exception...
+                    pass
             else:
                 old_handle_spyder_msg(_self, msg)
         nsb.NamepaceBrowserWidget._handle_spyder_msg = new_handle_spyder_msg
