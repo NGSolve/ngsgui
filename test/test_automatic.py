@@ -6,7 +6,7 @@ from ngsolve import *
 ngsglobals.msg_level = 0
 import OpenGL.GL as GL
 import glob
-from PySide2 import QtCore
+from qtpy import QtCore
 import pickle, os
 
 def runSceneTest(gui, name, scene, settings):
