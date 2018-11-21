@@ -31,6 +31,12 @@ class Drawer:
                 if val is None:
                     break
                 what, values = val
+                while what == 'redraw':
+                    try:
+                        val = self.to_draw.get(False)
+                    except:
+                        break
+                    what, values = val
                 if what == "draw":
                     index, args, kwargs = values
                     scene = ngsolve.Draw(*args, **kwargs)
