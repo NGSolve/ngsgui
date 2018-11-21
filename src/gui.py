@@ -9,6 +9,19 @@ from .stdPipes import OutputBuffer
 
 import ngsolve
 
+
+def _load_plugins():
+    import pkg_resources
+    for entry_point in pkg_resources.iter_entry_points(group="ngsgui.plugin",name=None):
+        plugin = entry_point.load()
+        plugin(None)
+
+def _createScene(obj, *args, **kwargs):
+    for t in type(obj).__mro__:
+        if t in GUI.sceneCreators:
+            return GUI.sceneCreators[t](obj, *args, **kwargs)
+    print("Cannot create scene from object of type", type(obj))
+
 from qtpy import QtWidgets, QtCore, QtGui
 
 class GUI():

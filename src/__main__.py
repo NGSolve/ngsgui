@@ -5,13 +5,7 @@ def Draw(obj, *args, tab=None, **kwargs):
     """Draw a Mesh or a CoefficientFunction, this function is overridden by
     the new gui and returns the drawn scene."""
     import ngsgui.gui as G
-    for t in type(obj).__mro__:
-        if t in G.GUI.sceneCreators:
-            scene = G.GUI.sceneCreators[t](obj,*args,**kwargs)
-            break
-    else:
-        print("Cannot draw object of type ",type(obj))
-        return
+    scene = G._createScene(obj, *args, **kwargs)
     G.gui.draw(scene, tab=tab)
     return scene
 

@@ -59,6 +59,10 @@ name : str = type(self).__name__ + scene_counter
         self.active = state[2]
         # TODO: can we pickle actions somehow?
 
+    # implement this function to get correct behaviour of update function in spyder
+    def objectsToUpdate(self):
+        return []
+
     def initGL(self):
         """Called once after the scene is created and initializes all OpenGL objects."""
         self._gl_initialized = True
@@ -272,6 +276,9 @@ class BaseMeshScene(BaseScene):
 
         super().__init__(*args, **kwargs)
 
+    def objectsToUpdate(self):
+        return [self.mesh, self.deformation]
+
     @inmain_decorator(True)
     def _createParameters(self):
         super()._createParameters()
@@ -295,7 +302,11 @@ class BaseMeshScene(BaseScene):
             self._deformation_values = { 'real':{} }
 
     @inmain_decorator(True)
-    def update(self):
+    def update(self, mesh=None, deformation=None):
+        if mesh:
+            self.mesh = mesh
+        if deformation:
+            self.deformation = deformation
         super().update()
         with self._vao:
             self.mesh_data = getOpenGLData(self.mesh)
@@ -621,10 +632,6 @@ class MeshScene(BaseMeshScene):
         glPolygonOffset (0,0)
         glDrawArrays(GL_POINTS, 0, elements.nelements)
 
-    @inmain_decorator(True)
-    def update(self):
-        super().update()
-
     def render(self, settings):
         if not self.active:
             return
@@ -870,9 +877,24 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
         glBufferData(GL_ARRAY_BUFFER, 10000000, ctypes.c_void_p(), GL_STATIC_DRAW)
 
 
+    def objectsToUpdate(self):
+        return [self.cf, self.iso_surface] + super().objectsToUpdate()
+
     @inmain_decorator(True)
-    def update(self):
-        super().update()
+    def update(self, cf=None, iso_surface=None, *args):
+        with open("debug.out","a") as f:
+            f.write("update called with = " + str((cf,*args)) + "\n")
+            f.write("cf before = " + repr(self.cf) + "\n")
+        if cf:
+            self.cf = cf
+        if iso_surface:
+            self.iso_surface = iso_surface
+        with open("debug.out","a") as f:
+            f.write("cf after = " + repr(self.cf) + "\n")
+            if isinstance(self.cf, ngsolve.GridFunction):
+                f.write("first value = " + str(self.cf.vec[0]))
+        print("cf = ", self.cf)
+        super().update(*args)
         self._getValues(self.cf, ngsolve.VOL, self.getSubdivision(), self.getOrder(), self.values)
         if self.mesh.dim==3:
             try:

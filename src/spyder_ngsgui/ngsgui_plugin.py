@@ -3,6 +3,7 @@
 from spyder.config.base import _
 from spyder.utils.qthelpers import (create_action, create_toolbutton,
                                     add_actions, MENU_SEPARATOR)
+# from spyder.utils import icon_manager as ima
 try:
     # Spyder 4
     from spyder.api.plugins import SpyderPluginWidget
@@ -15,10 +16,17 @@ import ngsgui.gui as G
 from ngsgui.widgets import ArrangeH
 
 # qt imports
-from qtpy import PYQT4, PYSIDE
+from qtpy import PYQT4, PYSIDE, QtCore
+
+import ngsolve, cloudpickle
+import ngsgui.thread as thread
+ngsolve.ngsglobals.msg_level = 0
 
 class NGSolvePlugin(SpyderPluginWidget):
     CONF_SECTION = "ngsolve"
+    # TODO: find out why this doesn't work...
+    LOCATION = QtCore.Qt.BottomDockWidgetArea
+
     def __init__(self, parent):
         super().__init__(parent)
         self.main = parent
@@ -58,17 +66,37 @@ class NGSolvePlugin(SpyderPluginWidget):
         """Refresh tabwidget."""
         pass
 
+    def create_dockwidget(self):
+        doc,loc = super().create_dockwidget()
+        return doc, loc
+
     def get_plugin_actions(self):
         """Return a list of actions related to plugin."""
         return []
 
     def register_plugin(self):
         """Register plugin in Spyder's main window."""
-        with open("debug.out","a") as f:
-            f.write("register ngs plugin\n")
         self.main.add_dockwidget(self)
         self.ipyconsole = self.main.ipyconsole
-        print("plugin loaded")
+        # patch NameSpaceBrowser._handle_spyder_msg to get our ngsolve stuff...
+        import spyder.plugins.ipythonconsole.widgets.namespacebrowser as nsb
+        old_handle_spyder_msg = nsb.NamepaceBrowserWidget._handle_spyder_msg
+        def new_handle_spyder_msg(_self, msg):
+            spyder_msg_type = msg['content'].get('spyder_msg_type')
+            if spyder_msg_type == 'ngsolve_draw':
+                index, args, kwargs = cloudpickle.loads(bytes(msg['buffers'][0]))
+                scene = ngsolve.Draw(*args, **kwargs)
+                scene._redraw_index = index
+            elif spyder_msg_type == 'ngsolve_redraw':
+                values = cloudpickle.loads(bytes(msg['buffers'][0]))
+                for scene in self.gui.getScenesFromCurrentWindow():
+                    if hasattr(scene, "_redraw_index"):
+                        scene.update(*(values[scene._redraw_index]))
+                self.gui.window_tabber.activeGLWindow.glWidget.updateGL()
+            else:
+                old_handle_spyder_msg(_self, msg)
+        nsb.NamepaceBrowserWidget._handle_spyder_msg = new_handle_spyder_msg
+
 
     def check_compatibility(self):
         """Check compatibility for PyQt and sWebEngine."""
