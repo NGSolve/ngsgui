@@ -16,9 +16,14 @@ def Draw(*args, **kwargs):
     get_ipython().kernel.send_spyder_msg("ngsolve_draw", None, [index, args, kwargs])
     
 
+_last_time = False
 def Redraw(*args, **kwargs):
-    # only send the signal, the spyder plugin will query all still drawn objects
-    get_ipython().kernel.send_spyder_msg("ngsolve_redraw", None, [[val() for val in obj] for obj in _ngs_drawn_objects])
+    global _last_time
+    t = time.time()
+    if t-_last_time > 0.02:
+        # only send the signal, the spyder plugin will query all still drawn objects
+        get_ipython().kernel.send_spyder_msg("ngsolve_redraw", None, [[val() for val in obj] for obj in _ngs_drawn_objects])
+        _last_time = t
 
 ngsolve.Draw = Draw
 ngsolve.Redraw = Redraw
