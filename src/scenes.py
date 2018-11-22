@@ -1084,23 +1084,11 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
 
         glEnable(GL_RASTERIZER_DISCARD)
         prog = getProgram('pass_through.vert', 'vectors_filter.geom', feedback=['pos','val'], params=settings, scene=self, elements=elements, USE_GL_VERTEX_ID=True, FILTER_MODE=mode, CLIPPING=1)
+        prog.setFunction(self, elements)
+
         uniforms = prog.uniforms
 
         uniforms.set('grid_size', grid_size)
-
-        glActiveTexture(GL_TEXTURE2)
-        self.values[ngsolve.VOL]['real'][elements.type, elements.curved].bind()
-        uniforms.set('coefficients', 2)
-        uniforms.set('subdivision', 2**self.getSubdivision()-1)
-        uniforms.set('is_complex', self.cf.is_complex)
-        if self.cf.is_complex:
-            glActiveTexture(GL_TEXTURE3)
-            self.values[ngsolve.VOL]['imag'][elements.type, elements.curved].bind()
-            uniforms.set('coefficients_imag', 3)
-
-            uniforms.set('complex_vis_function', self._complex_eval_funcs[self.getComplexEvalFunc()])
-            w = cmath.exp(1j*self.getComplexPhaseShift()/180.0*math.pi)
-            uniforms.set('complex_factor', [w.real, w.imag])
 
         filter_feedback = glGenTransformFeedbacks(1)
         glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, filter_feedback)

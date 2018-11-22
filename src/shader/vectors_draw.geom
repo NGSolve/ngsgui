@@ -81,7 +81,7 @@ void DrawCone( vec3 base, vec3 top, float radius ) {
 }
 
 void main() {
-  float s = 0.5*grid_size*log(length(inData[0].val)/max(colormap.max,1e-6) + 1 + 1e-10);
+  float s = 1.5*grid_size*log(length(inData[0].val)/max(colormap.max,1e-6) + 1 + 1e-10);
     vec3 val = s* normalize(inData[0].val);
 
     float value = length(inData[0].val);
