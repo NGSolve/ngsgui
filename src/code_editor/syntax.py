@@ -1,6 +1,6 @@
 import sys
 
-from pyqt import QtCore
+from qtpy import QtCore
 from qtpy.QtCore import QRegExp, QRegularExpression
 from qtpy.QtGui import QColor, QTextCharFormat, QFont, QSyntaxHighlighter
 
