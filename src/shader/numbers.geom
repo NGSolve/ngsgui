@@ -2,18 +2,13 @@
 
 {include utils.inc}
 #line 4
-uniform mat4 P;
-uniform mat4 MV;
 
 uniform samplerBuffer vertices;
-uniform Mesh mesh;
 
 uniform float font_width_in_texture;
 uniform float font_height_in_texture;
 uniform float font_width_on_screen;
 uniform float font_height_on_screen;
-
-uniform ClippingPlanes clipping_planes;
 
 layout(points) in;
 layout(triangle_strip, max_vertices=40) out;
@@ -31,7 +26,7 @@ vec2 tex_coordinate;
 
 vec3 getPosition() {
     vec3 p = vec3(0,0,0);
-    ELEMENT_TYPE el = getElement(mesh, inData[0].element);
+    ELEMENT_TYPE el = getElement(inData[0].element);
 
     for (int i=0; i<ELEMENT_N_VERTICES; i++) {
         p += el.pos[i];
@@ -60,7 +55,7 @@ void main() {
     }
 
     vec3 p = getPosition();
-    if (!CalcClipping(clipping_planes, p)) return;
+    if (!CalcClipping(p)) return;
     vec4 pos = P*MV*vec4(p,1);
     pos = pos/pos.w;
 

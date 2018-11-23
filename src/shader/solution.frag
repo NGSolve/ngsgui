@@ -4,13 +4,6 @@
 {include interpolation.inc}
 #line 5
 
-uniform sampler1D colors;
-uniform ClippingPlanes clipping_planes;
-uniform mat4 MV;
-uniform Colormap colormap;
-uniform Light light;
-uniform Function function;
-
 in VertexData
 {
   vec3 lam;
@@ -27,7 +20,7 @@ void main()
 #ifdef SKIP_FRAGMENT_CLIPPING
   if(true)
 #else
-  if(CalcClipping(clipping_planes, inData.pos))
+  if(CalcClipping(inData.pos))
 #endif
   {
       float value;
@@ -35,11 +28,11 @@ void main()
 #if defined(ET_QUAD)
       lam = inData.lam.yxz;
 #endif
-      value = Evaluate(function, inData.element, lam);
+      value = Evaluate(FUNCTION, inData.element, lam);
 
-      FragColor.rgb = MapColor(colormap, value);
+      FragColor.rgb = MapColor(value);
       FragColor.a = 1.0;
-      FragColor.rgb = CalcLight(light, FragColor.rgb, MV, inData.pos, inData.normal);
+      FragColor.rgb = CalcLight(FragColor.rgb, MV, inData.pos, inData.normal);
   }
   else
     discard;

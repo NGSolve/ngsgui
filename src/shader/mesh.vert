@@ -3,12 +3,8 @@
 {include utils.inc}
 #line 4
 
-uniform mat4 P;
-uniform mat4 MV;
-uniform Mesh mesh;
 uniform float shrink_elements;
 uniform bool clip_whole_elements;
-uniform ClippingPlanes clipping_planes;
 uniform samplerBuffer coefficients;
 uniform int subdivision;
 uniform int component;
@@ -31,7 +27,7 @@ void main()
 #endif
   int eid = gl_VertexID/nverts;
   int vid = gl_VertexID - nverts*eid;
-  ELEMENT_TYPE element = getElement(mesh, eid);
+  ELEMENT_TYPE element = getElement(eid);
   outData.element = eid;
   outData.normal = vec3(0,0,0);
   outData.lam = vec3(0,0,0);
@@ -40,7 +36,7 @@ void main()
   if(clip_whole_elements) {
       bool is_visible = true;
       for (int i=0; i<ELEMENT_N_VERTICES; i++)
-          is_visible = is_visible && CalcClipping(clipping_planes, element.pos[i]);
+          is_visible = is_visible && CalcClipping(element.pos[i]);
       if(!is_visible) {
           // discard
           gl_Position = vec4(0,0,0,0);

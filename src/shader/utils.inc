@@ -1,48 +1,47 @@
 #line 10001
 
-struct Colormap {
+uniform mat4 MV;
+uniform mat4 P;
+
+uniform struct Colormap {
   float min;
   float max;
   sampler1D colors;
   int n;
   bool linear;
-};
+} colormap;
 
-struct Light {
+uniform struct Light {
   vec3 dir;
   float ambient;
   float diffuse;
   float spec;
   float shininess;
-};
+} light;
 
 #if !defined(NO_CLIPPING) && defined(CLIPPING)
-struct ClippingPlanes
-{
-  vec4 p[N_CLIPPING_PLANES];
-};
+uniform vec4 clipping_planes[N_CLIPPING_PLANES];
 
-bool CalcClipping(in ClippingPlanes cp, vec3 pos)
+bool CalcClipping(vec3 pos)
 {
   bool p[N_CLIPPING_PLANES];
   vec4 pos4 = vec4(pos, 1.0);
   for (int i=0; i<N_CLIPPING_PLANES; i++)
-      p[i] = dot(cp.p[i], pos4) < 0;
+      p[i] = dot(clipping_planes[i], pos4) < 0;
   return CLIPPING_EXPRESSION;
 }
 #else // clipping disabled
-struct ClippingPlanes {bool dummy_var;};
-bool CalcClipping(in ClippingPlanes cp, vec3 pos) { return true; }
+bool CalcClipping(vec3 pos) { return true; }
 #endif
 
-struct Mesh {
+uniform struct Mesh {
     int dim;
     isamplerBuffer elements;
     samplerBuffer vertices;
     int surface_curved_offset;
     int volume_elements_offset;
     int surface_elements_offset;
-};
+} mesh;
 
 int elements1d_size = 4;
 int elements1d_index_offset = 2;
@@ -84,7 +83,7 @@ struct Element3d {
     vec3 pos[4];
 };
 
-vec3 interpolatePoint(in Mesh mesh, Element1d el, float x0) {
+vec3 interpolatePoint(Element1d el, float x0) {
   float x = 1-x0;
   if(el.curved_index<0) {
     return x*el.pos[0] + (1-x)*el.pos[1];
@@ -94,7 +93,7 @@ vec3 interpolatePoint(in Mesh mesh, Element1d el, float x0) {
   }
 }
 
-vec3 interpolatePoint(in Mesh mesh, Element2d el, vec2 lam) {
+vec3 interpolatePoint(Element2d el, vec2 lam) {
     float x = lam.x;
     float y = lam.y;
     if(el.curved_index<0) {
@@ -132,7 +131,7 @@ vec3 interpolatePoint(in Mesh mesh, Element2d el, vec2 lam) {
   }
 }
 
-vec3 interpolatePoint(in Mesh mesh, Element3d tet, Element2d trig, int face, vec2 lam) {
+vec3 interpolatePoint(Element3d tet, Element2d trig, int face, vec2 lam) {
     float x = lam.x;
     float y = lam.y;
     if(tet.curved_index<0) {
@@ -180,7 +179,7 @@ void calcNormals(inout Element2d el) {
   el.normals[2] = n;
 }
 
-Element2d getElement2d(in Mesh mesh, Element3d tet, int face ) {
+Element2d getElement2d(Element3d tet, int face ) {
   Element2d trig;
   trig.nverts = 3;
   trig.index = tet.index;
@@ -215,7 +214,7 @@ Element2d getElement2d(in Mesh mesh, Element3d tet, int face ) {
   return trig;
 }
 
-Element1d getElement1d(in Mesh mesh, int ei ) {
+Element1d getElement1d(int ei ) {
     Element1d el;
     int stride = elements1d_size;
 
@@ -238,7 +237,7 @@ Element1d getElement1d(in Mesh mesh, int ei ) {
     return el;
 }
 
-Element2d getElement2d(in Mesh mesh, int ei ) {
+Element2d getElement2d(int ei ) {
     Element2d el;
     int offset = mesh.surface_elements_offset;
     int stride = elements2d_size;
@@ -269,7 +268,7 @@ Element2d getElement2d(in Mesh mesh, int ei ) {
     return el;
 }
 
-Element3d getElement3d(in Mesh mesh, int ei ) {
+Element3d getElement3d(int ei ) {
     Element3d el;
     int offset = mesh.volume_elements_offset + elements3d_size*ei;
 
@@ -456,7 +455,7 @@ vec3 TransformVec(mat4 MV, vec3 x) {
     return normalize(transpose(mat3(MV))*x);
 }
 
-vec3 CalcLight(in Light light, vec3 color, mat4 MV, vec3 position, vec3 norm)
+vec3 CalcLight(vec3 color, mat4 MV, vec3 position, vec3 norm)
 {
   #ifdef NOLIGHT
     return color;
@@ -481,15 +480,15 @@ vec3 CalcLight(in Light light, vec3 color, mat4 MV, vec3 position, vec3 norm)
   #endif
 }
 
-vec3 MapColor(in Colormap cm, float value)
+vec3 MapColor(float value)
 {
-  value = (value-cm.min)/(cm.max-cm.min);
+  value = (value-colormap.min)/(colormap.max-colormap.min);
   value = clamp(value, 0.0, 1.0-1e-7);
-  if(cm.linear)
-      return texture(cm.colors, value).rgb;
+  if(colormap.linear)
+      return texture(colormap.colors, value).rgb;
 
-  int n = int(cm.n*value);
-  return texelFetch(cm.colors, n, 0).rgb;
+  int n = int(colormap.n*value);
+  return texelFetch(colormap.colors, n, 0).rgb;
 }
 
 int getIndex(int N, int x, int y) {
@@ -613,7 +612,7 @@ struct PointData {
   vec3 edgedist;
 };
 
-PointData interpolatePoint(in Mesh mesh, SEGM el, vec3 lam) {
+PointData interpolatePoint(SEGM el, vec3 lam) {
   PointData p;
   p.pos =  mix(el.pos[0], el.pos[1], lam.x);
   p.normal =  el.normal;
@@ -621,7 +620,7 @@ PointData interpolatePoint(in Mesh mesh, SEGM el, vec3 lam) {
   return p;
 }
 
-PointData interpolatePoint(in Mesh mesh, TRIG el, vec3 lam) {
+PointData interpolatePoint(TRIG el, vec3 lam) {
   PointData p;
   p.pos =  mix(el.pos[0], el.pos[1], lam.x);
   p.normal =  el.normal;
@@ -631,7 +630,7 @@ PointData interpolatePoint(in Mesh mesh, TRIG el, vec3 lam) {
 
 
 #ifdef ELEMENT_TYPE
-ELEMENT_TYPE getElement(in Mesh mesh, int elnr ) {
+ELEMENT_TYPE getElement(int elnr ) {
     ELEMENT_TYPE el;
 #ifdef ET_POINT
     el.pos[0] = texelFetch(mesh.vertices, elnr).xyz;

@@ -4,13 +4,7 @@
 {include interpolation.inc}
 #line 5
 
-uniform Function function;
-uniform Function iso_function;
-// uniform samplerBuffer coefficients;
-// uniform samplerBuffer coefficients_iso;
-uniform Mesh mesh;
 uniform bool have_gradient;
-// uniform int component;
 uniform int instance;
 uniform float iso_value;
 
@@ -29,10 +23,6 @@ out VertexData
   vec3 normal;
   flat int element;
 } outData;
-
-uniform mat4 MV;
-uniform mat4 P;
-// uniform int subdivision;
 
 void CutSubTet(float values[8], vec3 normals[8], vec3 pos[8], vec3 lams[8], int nodes[4]) {
         // subtet
@@ -69,7 +59,7 @@ void CutSubTet(float values[8], vec3 normals[8], vec3 pos[8], vec3 lams[8], int 
 }
 
 void main() {
-    int N = ORDER*(iso_function.subdivision+1)+1;
+    int N = ORDER*(functions[ISO_FUNCTION].subdivision+1)+1;
     int n = N-1;
 
     int index = instance;
@@ -84,7 +74,7 @@ void main() {
 
     outData.element = inData[0].element;
     // undivided large tet
-    ELEMENT_TYPE tet1 = getElement(mesh, inData[0].element);
+    ELEMENT_TYPE tet1 = getElement(inData[0].element);
 
     float h = 1.0/float(N-1);
 
@@ -102,8 +92,8 @@ void main() {
                 vec4 lam = vec4(ii.x*h, ii.y*h, ii.z*h,1.0-h*(ii.x+ii.y+ii.z));
                 lams[i] = lam.xyz;
                 pos[i] = lam.x * tet1.pos[0] + lam.y * tet1.pos[1] + lam.z * tet1.pos[2] + lam.w * tet1.pos[3];
-                vec4 data = texelFetch(iso_function.coefficients, values_per_element*inData[0].element + getIndex(N, ii.x, ii.y, ii.z)+0);
-                values[i] = data[iso_function.component] - iso_value;
+                vec4 data = texelFetch(functions[ISO_FUNCTION].coefficients, values_per_element*inData[0].element + getIndex(N, ii.x, ii.y, ii.z)+0);
+                values[i] = data[functions[ISO_FUNCTION].component] - iso_value;
                 normals[i] = data.yzw;
             }
     

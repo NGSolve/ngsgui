@@ -6,7 +6,6 @@
 
 uniform samplerBuffer coefficients;
 uniform bool clipping_plane_deformation;
-uniform Mesh mesh;
 uniform float grid_size;
 uniform int subdivision;
 uniform int order;
@@ -34,7 +33,7 @@ void getM( ELEMENT_TYPE tet, out mat3 m, out mat3 minv ) {
 void main() {
     int element = inData[0].element;
     if (element/2*2==element) return;
-    ELEMENT_TYPE tet = getElement(mesh, element);
+    ELEMENT_TYPE tet = getElement(element);
 
     vec4 lam = vec4(0.25,0.25,0.25, 0.25);
     vec4 lam_last;
@@ -92,7 +91,7 @@ void main() {
             */
 
             element = new_element;
-            tet = getElement(mesh, element);
+            tet = getElement(element);
 
             getM(tet, m, minv);
             lam.xyz = minv*(pos2-tet.pos[3]);

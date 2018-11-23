@@ -1013,7 +1013,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
         model, view, projection = settings.model, settings.view, settings.projection
         prog = getProgram('pass_through.vert', 'isosurface.geom', 'solution.frag', elements=elements, params=settings, scene=self)
         prog.setFunction(self, elements)
-        prog.setFunction(self, elements, cf=self.iso_surface, values=self.iso_values[ngsolve.VOL], name='iso_function')
+        prog.setFunction(self, elements, cf=self.iso_surface, values=self.iso_values[ngsolve.VOL], index=2)
 
         uniforms = prog.uniforms
         uniforms.set('P',projection)

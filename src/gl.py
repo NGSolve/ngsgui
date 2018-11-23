@@ -358,10 +358,11 @@ class Program(GLObject):
         self.uniforms = Program.Uniforms(self.id)
         self.attributes = Program.Attributes(self.id)
 
-    def setFunction(self, scene, elements, cf=None, values=None, name='function'):
+    def setFunction(self, scene, elements, cf=None, values=None, index=0):
         cf = cf or scene.cf
         values = values or scene.values[ngsolve.VOL]
-        tex_base = 2 if name=='function' else 4
+        tex_base = 2+2*index
+        name = 'functions['+str(index)+']'
         u = self.uniforms
         u.set(name+'.subdivision', 2**scene.getSubdivision()-1)
         u.set(name+'.is_complex', cf.is_complex)
@@ -459,6 +460,7 @@ def getProgram(*shader_files, feedback=[], elements=None, params=None, scene=Non
 
     glUseProgram(prog.id)
     u = prog.uniforms
+    print('uniforms', u.uniforms)
     if scene != None:
         if 'P' in u:
             u.set('P',scene.projection)
@@ -470,11 +472,11 @@ def getProgram(*shader_files, feedback=[], elements=None, params=None, scene=Non
             u.set('light.dir', [1.,3.,3.])
             u.set('light.spec', scene.getLightSpecular())
             u.set('light.shininess', scene.getLightShininess())
-        if do_clipping and 'clipping_planes.p[0]' in u:
+        if do_clipping and 'clipping_planes[0]' in u:
             n = scene.getClippingNPlanes()
             planes = scene.getClippingPlanes()
             planes = (ctypes.c_float*(4*n))(*planes)
-            glUniform4fv(u['clipping_planes.p[0]'], n, planes)
+            glUniform4fv(u['clipping_planes[0]'], n, planes)
 
         if 'colormap.colors' in u and scene:
             u.set('colormap.n', scene.getColormapSteps())
