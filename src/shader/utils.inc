@@ -22,7 +22,7 @@ struct ClippingPlanes
   vec4 p[N_CLIPPING_PLANES];
 };
 
-bool CalcClipping(ClippingPlanes cp, vec3 pos)
+bool CalcClipping(in ClippingPlanes cp, vec3 pos)
 {
   bool p[N_CLIPPING_PLANES];
   vec4 pos4 = vec4(pos, 1.0);
@@ -32,7 +32,7 @@ bool CalcClipping(ClippingPlanes cp, vec3 pos)
 }
 #else // clipping disabled
 struct ClippingPlanes {bool dummy_var;};
-bool CalcClipping(ClippingPlanes cp, vec3 pos) { return true; }
+bool CalcClipping(in ClippingPlanes cp, vec3 pos) { return true; }
 #endif
 
 struct Mesh {
@@ -84,7 +84,7 @@ struct Element3d {
     vec3 pos[4];
 };
 
-vec3 interpolatePoint(Mesh mesh, Element1d el, float x0) {
+vec3 interpolatePoint(in Mesh mesh, Element1d el, float x0) {
   float x = 1-x0;
   if(el.curved_index<0) {
     return x*el.pos[0] + (1-x)*el.pos[1];
@@ -94,7 +94,7 @@ vec3 interpolatePoint(Mesh mesh, Element1d el, float x0) {
   }
 }
 
-vec3 interpolatePoint(Mesh mesh, Element2d el, vec2 lam) {
+vec3 interpolatePoint(in Mesh mesh, Element2d el, vec2 lam) {
     float x = lam.x;
     float y = lam.y;
     if(el.curved_index<0) {
@@ -132,7 +132,7 @@ vec3 interpolatePoint(Mesh mesh, Element2d el, vec2 lam) {
   }
 }
 
-vec3 interpolatePoint(Mesh mesh, Element3d tet, Element2d trig, int face, vec2 lam) {
+vec3 interpolatePoint(in Mesh mesh, Element3d tet, Element2d trig, int face, vec2 lam) {
     float x = lam.x;
     float y = lam.y;
     if(tet.curved_index<0) {
@@ -180,7 +180,7 @@ void calcNormals(inout Element2d el) {
   el.normals[2] = n;
 }
 
-Element2d getElement2d(Mesh mesh, Element3d tet, int face ) {
+Element2d getElement2d(in Mesh mesh, Element3d tet, int face ) {
   Element2d trig;
   trig.nverts = 3;
   trig.index = tet.index;
@@ -215,7 +215,7 @@ Element2d getElement2d(Mesh mesh, Element3d tet, int face ) {
   return trig;
 }
 
-Element1d getElement1d(Mesh mesh, int ei ) {
+Element1d getElement1d(in Mesh mesh, int ei ) {
     Element1d el;
     int stride = elements1d_size;
 
@@ -238,7 +238,7 @@ Element1d getElement1d(Mesh mesh, int ei ) {
     return el;
 }
 
-Element2d getElement2d(Mesh mesh, int ei ) {
+Element2d getElement2d(in Mesh mesh, int ei ) {
     Element2d el;
     int offset = mesh.surface_elements_offset;
     int stride = elements2d_size;
@@ -269,7 +269,7 @@ Element2d getElement2d(Mesh mesh, int ei ) {
     return el;
 }
 
-Element3d getElement3d(Mesh mesh, int ei ) {
+Element3d getElement3d(in Mesh mesh, int ei ) {
     Element3d el;
     int offset = mesh.volume_elements_offset + elements3d_size*ei;
 
@@ -456,7 +456,7 @@ vec3 TransformVec(mat4 MV, vec3 x) {
     return normalize(transpose(mat3(MV))*x);
 }
 
-vec3 CalcLight(Light light, vec3 color, mat4 MV, vec3 position, vec3 norm)
+vec3 CalcLight(in Light light, vec3 color, mat4 MV, vec3 position, vec3 norm)
 {
   #ifdef NOLIGHT
     return color;
@@ -481,7 +481,7 @@ vec3 CalcLight(Light light, vec3 color, mat4 MV, vec3 position, vec3 norm)
   #endif
 }
 
-vec3 MapColor(Colormap cm, float value)
+vec3 MapColor(in Colormap cm, float value)
 {
   value = (value-cm.min)/(cm.max-cm.min);
   value = clamp(value, 0.0, 1.0-1e-7);
@@ -613,7 +613,7 @@ struct PointData {
   vec3 edgedist;
 };
 
-PointData interpolatePoint(Mesh mesh, SEGM el, vec3 lam) {
+PointData interpolatePoint(in Mesh mesh, SEGM el, vec3 lam) {
   PointData p;
   p.pos =  mix(el.pos[0], el.pos[1], lam.x);
   p.normal =  el.normal;
@@ -621,7 +621,7 @@ PointData interpolatePoint(Mesh mesh, SEGM el, vec3 lam) {
   return p;
 }
 
-PointData interpolatePoint(Mesh mesh, TRIG el, vec3 lam) {
+PointData interpolatePoint(in Mesh mesh, TRIG el, vec3 lam) {
   PointData p;
   p.pos =  mix(el.pos[0], el.pos[1], lam.x);
   p.normal =  el.normal;
@@ -631,7 +631,7 @@ PointData interpolatePoint(Mesh mesh, TRIG el, vec3 lam) {
 
 
 #ifdef ELEMENT_TYPE
-ELEMENT_TYPE getElement(Mesh mesh, int elnr ) {
+ELEMENT_TYPE getElement(in Mesh mesh, int elnr ) {
     ELEMENT_TYPE el;
 #ifdef ET_POINT
     el.pos[0] = texelFetch(mesh.vertices, elnr).xyz;
