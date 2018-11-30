@@ -340,7 +340,9 @@ class BaseMeshScene(BaseScene):
             if isinstance(vb, str) and vb == "facet":
                 values = ngsolve.solve._GetFacetValues(cf, self.mesh, irs)
             else:
-                values = ngsolve.solve._GetValues(cf, self.mesh, vb, irs)
+                covariant = self.mesh.dim==cf.dim
+                print('covariant', covariant)
+                values = ngsolve.solve._GetValues(cf, self.mesh, vb, irs, covariant)
             vals = vals[vb]
             vals['min'] = values['min']
             vals['max'] = values['max']
