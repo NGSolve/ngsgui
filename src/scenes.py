@@ -341,6 +341,7 @@ class BaseMeshScene(BaseScene):
                 values = ngsolve.solve._GetFacetValues(cf, self.mesh, irs)
             else:
                 covariant = self.mesh.dim==cf.dim
+#                 covariant=False
                 print('covariant', covariant)
                 values = ngsolve.solve._GetValues(cf, self.mesh, vb, irs, covariant)
             vals = vals[vb]
@@ -1039,15 +1040,16 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
 
         glEnable(GL_RASTERIZER_DISCARD)
         prog = getProgram('pass_through.vert', 'fieldlines_filter.geom', feedback=['pos','pos2', 'val'], params=settings, scene=self,elements=elements, USE_GL_VERTEX_ID=True, FILTER_MODE='FIELDLINES')
+        prog.setFunction(self, elements)
         uniforms = prog.uniforms
 
-        uniforms.set('grid_size', self.getFieldLinesThickness())
+#         uniforms.set('grid_size', self.getFieldLinesThickness())
         uniforms.set('n_steps', self.getFieldLinesSteps())
 
-        glActiveTexture(GL_TEXTURE2)
-        self.values[ngsolve.VOL]['real'][elements.type, elements.curved].bind()
-        uniforms.set('coefficients', 2)
-        uniforms.set('subdivision', 2**self.getSubdivision()-1)
+#         glActiveTexture(GL_TEXTURE2)
+#         self.values[ngsolve.VOL]['real'][elements.type, elements.curved].bind()
+#         uniforms.set('coefficients', 2)
+#         uniforms.set('subdivision', 2**self.getSubdivision()-1)
 
         filter_feedback = glGenTransformFeedbacks(1)
         glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, filter_feedback)

@@ -343,12 +343,12 @@ class Program(GLObject):
 
                 glTransformFeedbackVaryings(self.id, len(feedback), buff, GL_INTERLEAVED_ATTRIBS)
             glLinkProgram(self.id)
-            if glGetProgramiv( self.id, GL_LINK_STATUS ) != GL_TRUE:
+            if True or glGetProgramiv( self.id, GL_LINK_STATUS ) != GL_TRUE:
                 log = glGetProgramInfoLog( self.id )
                 print(log)
 
         glValidateProgram( self.id )
-        if glGetProgramiv( self.id, GL_VALIDATE_STATUS ) != GL_TRUE:
+        if True or glGetProgramiv( self.id, GL_VALIDATE_STATUS ) != GL_TRUE:
             log = glGetProgramInfoLog( self.id )
             print(log)
 
@@ -460,7 +460,7 @@ def getProgram(*shader_files, feedback=[], elements=None, params=None, scene=Non
 
     glUseProgram(prog.id)
     u = prog.uniforms
-    print('uniforms', u.uniforms)
+#     print('uniforms', u.uniforms)
     if scene != None:
         if 'P' in u:
             u.set('P',scene.projection)
