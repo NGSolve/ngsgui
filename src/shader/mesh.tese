@@ -49,7 +49,7 @@ void main()
     float y = gl_TessCoord.y;
     float z = 1.0-x-y;
 
-    int offset = texelFetch(mesh.elements, ELEMENT_SIZE*gl_PrimitiveID + ELEMENT_SIZE-1).r;
+    int offset = texelFetch(mesh.elements, mesh.offset+ELEMENT_SIZE*gl_PrimitiveID + ELEMENT_SIZE-1).r;
 
 #ifdef MACOS
     struct PatchedInData { vec3 pos; vec3 normal; } inData[ELEMENT_N_VERTICES];

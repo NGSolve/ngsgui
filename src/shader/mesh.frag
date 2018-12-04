@@ -31,7 +31,7 @@ void main()
 #endif
       if(d>1e-5) discard;
   }
-  int index = texelFetch(mesh.elements, ELEMENT_SIZE*inData.element + 1).r;
+  int index = getElementIndex(inData.element);
   if(index==-1)
     FragColor = vec4(0,0,0,1);
   else

@@ -71,7 +71,7 @@ void main() {
             for (int i=0; i<3; i++)
                 if(lam[i]<0.0) lam[i] = 1e-6;
             
-            int new_element = texelFetch(mesh.elements, ELEMENT_SIZE*element+6+face).r;
+            int new_element = texelFetch(mesh.elements, mesh.offset+ELEMENT_SIZE*element+6+face).r;
             if(new_element==-1) return;
 
             element = new_element;
@@ -131,15 +131,15 @@ void main3() {
             lam_last = mix(lam_last, lam, minx);
             pos2 = mix(pos, pos2, minx);
             
-            int new_element = texelFetch(mesh.elements, ELEMENT_SIZE*element+6+face).r;
+            int new_element = texelFetch(mesh.elements, mesh.offset+ELEMENT_SIZE*element+6+face).r;
             if(new_element==-1) return;
             /*
             ivec4 verts0;
             ivec4 verts1;
             lam = vec4(0.0, 0.0, 0.0, 0.0);
             for (int i=0; i<ELEMENT_N_VERTICES; i++) {
-                verts0[i] = texelFetch(mesh.elements, ELEMENT_SIZE*element+i+2).r;
-                verts1[i] = texelFetch(mesh.elements, ELEMENT_SIZE*new_element+i+2).r;
+                verts0[i] = texelFetch(mesh.elements, mesh.offset+ELEMENT_SIZE*element+i+2).r;
+                verts1[i] = texelFetch(mesh.elements, mesh.offset+ELEMENT_SIZE*new_element+i+2).r;
             }
             for (int i=0; i<ELEMENT_N_VERTICES-1; i++) {
                 for (int j=0; j<ELEMENT_N_VERTICES; j++)

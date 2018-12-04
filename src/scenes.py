@@ -520,15 +520,15 @@ class MeshScene(BaseMeshScene):
         uniforms.set('light.diffuse', 0.0)
         uniforms.set('wireframe', True)
         tess_level = 10
-        if settings.fastmode and len(elements.data)//elements.size>10**4:
+        if settings.fastmode and elements.nelements>10**4:
             tess_level=1
         if elements.curved:
             glPatchParameteri(GL_PATCH_VERTICES, 2)
             glPatchParameterfv(GL_PATCH_DEFAULT_OUTER_LEVEL, [1,tess_level])
             glPatchParameterfv(GL_PATCH_DEFAULT_INNER_LEVEL, [1]*2)
-            glDrawArrays(GL_PATCHES, 0, 2*len(elements.data)//elements.size)
+            glDrawArrays(GL_PATCHES, 0, 2*elements.nelements)
         else:
-            glDrawArrays(GL_LINES, 0, 2*len(elements.data)//elements.size)
+            glDrawArrays(GL_LINES, 0, 2*elements.nelements)
 
     def renderEdges(self, settings):
         els = []
@@ -574,7 +574,7 @@ class MeshScene(BaseMeshScene):
             offset = 1
 
         tess_level = 10
-        if settings.fastmode and len(elements.data)//elements.size>10**4:
+        if settings.fastmode and elements.nelements>10**4:
             tess_level=1
 
         glPolygonMode( GL_FRONT_AND_BACK, polygon_mode );
@@ -584,10 +584,10 @@ class MeshScene(BaseMeshScene):
             glPatchParameteri(GL_PATCH_VERTICES, elements.nverts)
             glPatchParameterfv(GL_PATCH_DEFAULT_OUTER_LEVEL, [tess_level]*4)
             glPatchParameterfv(GL_PATCH_DEFAULT_INNER_LEVEL, [tess_level]*2)
-            glDrawArrays(GL_PATCHES, 0, elements.nverts*len(elements.data)//elements.size)
+            glDrawArrays(GL_PATCHES, 0, elements.nverts*elements.nelements)
         else:
             # triangles are the only uncurved 2d elements
-            glDrawArrays(GL_TRIANGLES, 0, 3*len(elements.data)//elements.size)
+            glDrawArrays(GL_TRIANGLES, 0, 3*elements.nelements)
         glDisable(offset_mode)
 
     def _render3DElements(self, settings, elements):
@@ -951,7 +951,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
             uniforms.set('deformation_scale', self.getDeformationScale())
 
         tess_level = 10
-        if settings.fastmode and len(elements.data)//elements.size>10**4:
+        if settings.fastmode and elements.nelements>10**4:
             tess_level=1
 
         nverts = elements.nverts
@@ -996,7 +996,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
             uniforms.set('wireframe', False)
 
             tess_level = 10
-            if settings.fastmode and len(elements.data)//elements.size>10**4:
+            if settings.fastmode and elements.nelements>10**4:
                 tess_level=1
 
             glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
@@ -1006,9 +1006,9 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
                 glPatchParameteri(GL_PATCH_VERTICES, elements.nverts)
                 glPatchParameterfv(GL_PATCH_DEFAULT_OUTER_LEVEL, [tess_level]*4)
                 glPatchParameterfv(GL_PATCH_DEFAULT_INNER_LEVEL, [tess_level]*2)
-                glDrawArrays(GL_PATCHES, 0, elements.nverts*len(elements.data)//elements.size)
+                glDrawArrays(GL_PATCHES, 0, elements.nverts*elements.nelements)
             else:
-                glDrawArrays(GL_TRIANGLES, 0, 3*len(elements.data)//elements.size)
+                glDrawArrays(GL_TRIANGLES, 0, 3*elements.nelements)
             glDisable(GL_POLYGON_OFFSET_FILL)
 
     def _renderIsoSurface(self, settings, elements):

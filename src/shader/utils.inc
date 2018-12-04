@@ -36,6 +36,7 @@ bool CalcClipping(vec3 pos) { return true; }
 
 uniform struct Mesh {
     int dim;
+    int offset;
     isamplerBuffer elements;
     samplerBuffer vertices;
 } mesh;
@@ -196,12 +197,22 @@ ivec4 getTetFromElement( HEX el, int subtet, out TET tet, out vec3 lam[4]) {
 }
 
 #ifdef ELEMENT_TYPE
+
+// material index of element
+int getElementIndex(int elnr) {
+#ifdef ET_POINT
+  return 0;
+#endif
+    int offset = mesh.offset+ELEMENT_SIZE*elnr;
+    return texelFetch(mesh.elements, offset +1).r;
+}
+
 ELEMENT_TYPE getElement(int elnr ) {
     ELEMENT_TYPE el;
 #ifdef ET_POINT
     el.pos[0] = texelFetch(mesh.vertices, elnr).xyz;
 #else // ET_POINT
-    int offset = ELEMENT_SIZE*elnr;
+    int offset = mesh.offset+ELEMENT_SIZE*elnr;
     el.index = texelFetch(mesh.elements, offset +1).r;
     for (int i=0; i<ELEMENT_N_VERTICES; i++) {
         int v = texelFetch(mesh.elements, offset+i+2).r;
