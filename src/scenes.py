@@ -340,7 +340,7 @@ class BaseMeshScene(BaseScene):
             if isinstance(vb, str) and vb == "facet":
                 values = ngsolve.solve._GetFacetValues(cf, self.mesh, irs)
             else:
-                covariant = self.mesh.dim==cf.dim
+                covariant = self.mesh.dim==cf.dim and vb==ngsolve.VOL
 #                 covariant=False
                 print('covariant', covariant)
                 values = ngsolve.solve._GetValues(cf, self.mesh, vb, irs, covariant)
@@ -354,6 +354,7 @@ class BaseMeshScene(BaseScene):
                     if not et in vals[comp]:
                         vals[comp][et] = Texture(GL_TEXTURE_BUFFER, formats[cf.dim])
                     vals[comp][et].store(values[comp][et])
+                    print('values', comp, et, values[comp][et])
         except RuntimeError as e:
             assert("Local Heap" in str(e))
             self.setSubdivision(self.getSubdivision()-1)
@@ -1033,8 +1034,8 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
 
     def renderFieldLines(self, settings, elements):
         # use transform feedback to get position (and direction) of vectors on regular grid
-        if elements.curved:
-            return
+#         if not elements.curved:
+#             return
         if elements.type != ngsolve.ET.TET:
             return
 

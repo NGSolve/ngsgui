@@ -211,8 +211,11 @@ class MeshData(DataContainer):
         for vb in data:
             els = []
             for ei in data[vb]:
-                els.append(MeshData.ElementData(ei, self.vertices, tex, offset=len(eldata)))
-                eldata += ei['data']
+                if type(ei) == type({}):
+                    els.append(MeshData.ElementData(ei, self.vertices, tex, offset=len(eldata)))
+                    eldata += ei['data']
+                else:
+                    eldata += list(ei)
             self.elements[vb] = els
         tex.store(numpy.array(eldata, dtype=numpy.int32))
 
