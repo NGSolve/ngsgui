@@ -4,14 +4,10 @@
 {include interpolation.inc}
 #line 5
 
-// uniform samplerBuffer coefficients;
-// uniform int subdivision;
-// uniform int order;
-// uniform int component;
 uniform int n_steps;
 
 layout(points) in;
-layout(points, max_vertices=100) out;
+layout(points, max_vertices=40) out;
 
 in VertexData
 {
@@ -22,88 +18,126 @@ out vec3 pos;
 out vec3 pos2;
 out vec3 val;
 
-void getM( ELEMENT_TYPE tet, out mat3 m, out mat3 minv ) {
+// global variables
+mat3 m;
+mat3 minv;
+ELEMENT_TYPE tet;
+vec4 lam0;
+vec4 lam1;
+int element;
+
+void getM( ELEMENT_TYPE tet) {
     for (int i=0; i<ELEMENT_N_VERTICES-1; i++)
       m[i] = tet.pos[i]-tet.pos[3];
     minv = inverse(m);
 }
 
+vec3 getPos(vec4 l) {
+    return m*l.xyz + tet.pos[3];
+}
+
+void writePoint() {
+    pos = getPos(lam0);
+    pos2 = getPos(lam1);
+    val = EvaluateVec(FUNCTION, element, lam1.xyz);
+    EmitVertex();
+    EndPrimitive();
+}
+
 void main() {
-    int element = inData[0].element;
-    ELEMENT_TYPE tet = getElement(element);
-    vec3 lam = vec3(0.25,0.25,0.25);
-    vec3 lam_last;
+    element = inData[0].element;
+    tet = getElement(element);
+    lam0 = vec4(0.25,0.25,0.25,0.25);
+    lam1 = lam0;
 
-    mat3 m, minv;
-    getM(tet, m, minv);
-    pos = lam;
-    float h = 0.1;
-    float len;
-    vec3 v;
+    getM(tet);
+    pos = getPos(lam0);
+    float h = 0.05;
 
-    for (int i=0; i<n_steps+1;i++) {
-        pos2 = m*lam + tet.pos[3];
-        v = EvaluateVec(FUNCTION, element, lam);
-        if(i>0) {
-            vec3 p3 = m*(lam+v)+ tet.pos[3];
-            val = p3-pos2;
-            EmitVertex();
-            EndPrimitive();
-        }
-        len = length(v);
-        lam_last = lam;
-        pos = m*lam_last + tet.pos[3];
-        lam = lam + h*normalize(v);
-        float w = 1.0-lam.x-lam.y-lam.z;
-        if(lam.x<0.0 || lam.y<0.0 || lam.z<0.0 || w<0.0) {
+    for (int i=0; i<n_steps+1;i++)
+    {
+        lam0 = lam1;
+        vec4 v;
+        v.xyz = EvaluateVec(1, element, lam0.xyz);
+        v.w = -(v.x+v.y+v.z);
+        lam1 += h*normalize(v);
+        
+        float eps = 0.0;
+        if((lam0.x>0 && lam1.x<0) || (lam0.y>0&&lam1.y<0) || (lam0.z>0&&lam1.z<eps) || (lam0.w>0&&lam1.w<0)) {
             // jumping out of one element -> find adjacent element to continue
             // first cut the current trajectory with the element face
             int face = -1;
-            vec4 x;
-            float wlam = 1.0-lam.x-lam.y-lam.z;
-            float wlaml = 1.0-lam_last.x-lam_last.y-lam_last.z;
-            x.xyz = lam_last/(lam_last-lam);
-            x.w = wlaml/(wlaml-wlam);
-            float minx = 99999.0;
-            vec4 lam4 = vec4(lam, 1.0-lam.x-lam.y-lam.z);
+            vec4 x = lam0/(lam0-lam1);
+            float minx = 1e8;
+
+            // find the face which is cutting the trajectory first
             for (int i=0; i<4; i++) {
-                if( x[i] < minx && x[i]>0.0)
+                if( x[i] < minx && x[i]>0.0 && lam0[i]>0.0 && lam1[i]<0.0 )
                 {
                     minx = x[i];
                     face = i;
                 }
             }
-            if(face==-1) return;
-            // find point on face with lam[face] = 0.0
-            lam = mix(lam_last, lam, minx);
-//             pos2 = m*lam + tet.pos[3];
+            if(face==-1) return; // out of mesh
 
-//             for (int i=0; i<3; i++)
-//                 if(lam[i]<0.0) lam[i] = 1e-6;
+            // calc point on face with lam[face] = 0.0
+            lam1 = mix(lam0, lam1, minx);
+
+            // emit point on face
+            writePoint();
 
             int new_element = texelFetch(mesh.elements, mesh.offset+ELEMENT_SIZE*element+6+face).r;
             if(new_element==-1) return;
 
+            // find barycentric coordinates of lam1 of adjacent element
             ivec4 verts0;
             ivec4 verts1;
-            lam_last = lam;
-            vec4 llast = vec4(lam, 1.0-lam.x-lam.y-lam.z);
-            lam = vec3(0.0, 0.0, 0.0);
             for (int i=0; i<ELEMENT_N_VERTICES; i++) {
                 verts0[i] = texelFetch(mesh.elements, mesh.offset+ELEMENT_SIZE*element+i+2).r;
                 verts1[i] = texelFetch(mesh.elements, mesh.offset+ELEMENT_SIZE*new_element+i+2).r;
             }
-            for (int i=0; i<ELEMENT_N_VERTICES-1; i++) {
-                for (int j=0; j<ELEMENT_N_VERTICES; j++)
-                    if(verts1[i] == verts0[j])
-                        lam[i] = llast[j];
-            }
-
-
             element = new_element;
             tet = getElement(element);
-            getM(tet, m, minv);
+            getM(tet);
 
+            lam0 = lam1;
+            lam1 = vec4(-1,-1,-1,-1);
+            for (int i=0; i<ELEMENT_N_VERTICES; i++) {
+                for (int j=0; j<ELEMENT_N_VERTICES; j++)
+                    if(verts1[i] == verts0[j])
+                        lam1[i] = lam0[j];
+            }
+
+            for (int i=0; i<ELEMENT_N_VERTICES; i++) {
+                if(lam1[i]==-1) {
+                    lam1[i] = 0.0;
+                    lam1[i] = 1.0-lam1.x-lam1.y-lam1.z-lam1.w;
+                }
+            }
+            lam0 = lam1;
         }
+        else
+          writePoint();
+
+        float lmin = 1.0;
+        lmin = min(lam1.x, lmin);
+        lmin = min(lam1.y, lmin);
+        lmin = min(lam1.z, lmin);
+        lmin = min(lam1.w, lmin);
+
+        float lmax = 0.0;
+        lmax = max(lam1.x, lmax);
+        lmax = max(lam1.y, lmax);
+        lmax = max(lam1.z, lmax);
+        lmax = max(lam1.w, lmax);
+
+        // something went wrong
+        if(lmin < -1e-6 || lmax > 1.0+1e-6)
+            return;
+
+        float s = lam1.x+lam1.y+lam1.z+lam1.w;
+        if(abs(s-1.0)>1e-6)
+            return;
     }
 }
+

@@ -74,7 +74,7 @@ void DrawPipe( float radius ) {
     if(!CalcClipping(pos)) return;
 
     vec3 v0,v1,v2,v3;
-    //CalcNormals(end-pos, end-pos , v0, v1, v2, v3);
+//     CalcNormals(end-pos, end-pos , v0, v1, v2, v3);
     CalcNormals(end-pos, inData[0].val, v0, v1, v2, v3);
 
     vec3 v01 = normalize(v0+v1);

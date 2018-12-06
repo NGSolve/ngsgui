@@ -9,7 +9,6 @@ out VertexData
   vec3 val;
 } outData;
 
-
 in vec3 pos;
 in vec3 pos2;
 in vec3 val;

@@ -331,7 +331,7 @@ class BaseMeshScene(BaseScene):
         return False
 
     # evaluate given CoefficientFunction and store results in vals (a dictionary with special structure)
-    def _getValues(self, cf, vb, sd, order, vals):
+    def _getValues(self, cf, vb, sd, order, vals, covariant=False):
         formats = [None, GL_R32F, GL_RG32F, GL_RGB32F, GL_RGBA32F];
         if vb not in vals:
             vals[vb] = {'real':{}, 'imag':{}}
@@ -340,9 +340,6 @@ class BaseMeshScene(BaseScene):
             if isinstance(vb, str) and vb == "facet":
                 values = ngsolve.solve._GetFacetValues(cf, self.mesh, irs)
             else:
-                covariant = self.mesh.dim==cf.dim and vb==ngsolve.VOL
-#                 covariant=False
-                print('covariant', covariant)
                 values = ngsolve.solve._GetValues(cf, self.mesh, vb, irs, covariant)
             vals = vals[vb]
             vals['min'] = values['min']
@@ -719,6 +716,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
         self.iso_surface = iso_surface or cf
         self.values = {}
         self.iso_values = {}
+        self.fieldline_values = {}
         self.__initial_values.update({"Order" : order,
                                       "ShowClippingPlane" : clippingPlane,
                                       "Subdivision" : sd})
@@ -783,7 +781,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
             vol_grid_size = settings.ValueParameter(name="VolumeGridSize", label="grid size", default_value=0.5, min_value=1e-2, step=0.1)
             cp_grid_size = settings.ValueParameter(name="ClippingPlaneGridSize", label="grid size", default_value=0.5, min_value=1e-2, step=0.1)
             fl_thickness = settings.ValueParameter(name="FieldLinesThickness", label="thickness", default_value=0.1, min_value=0.0, step=0.01)
-            fl_steps = settings.ValueParameter(name="FieldLinesSteps", label="steps", default_value=1, min_value=0, max_values=40)
+            fl_steps = settings.ValueParameter(name="FieldLinesSteps", label="steps", default_value=40, min_value=0, max_values=40)
             fl_start_element = settings.ValueParameter(name="FieldLinesStartElement", label="start element", default_value=-1, min_value=-1, max_values=self.mesh.ne)
             self.addParameters("Show",
                                settings.ValueParameter(name="Component", label="Component",
@@ -878,7 +876,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
 
         self.filter_buffer = ArrayBuffer()
         self.filter_buffer.bind()
-        glBufferData(GL_ARRAY_BUFFER, 10000000, ctypes.c_void_p(), GL_STATIC_DRAW)
+        glBufferData(GL_ARRAY_BUFFER, 100000000, ctypes.c_void_p(), GL_STATIC_DRAW)
 
 
     def objectsToUpdate(self):
@@ -901,6 +899,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
             self.iso_values = self.values
         else:
             self._getValues(self.iso_surface, ngsolve.VOL, self.getSubdivision(), self.getOrder(), self.iso_values)
+        self._getValues(self.cf, ngsolve.VOL, self.getSubdivision(), self.getOrder(), self.fieldline_values, covariant=True)
 
 
     def _filterElements(self, settings, elements, filter_type):
@@ -1042,15 +1041,10 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
         glEnable(GL_RASTERIZER_DISCARD)
         prog = getProgram('pass_through.vert', 'fieldlines_filter.geom', feedback=['pos','pos2', 'val'], params=settings, scene=self,elements=elements, USE_GL_VERTEX_ID=True, FILTER_MODE='FIELDLINES')
         prog.setFunction(self, elements)
+        prog.setFunction(self, elements, index=1, values=self.fieldline_values[ngsolve.VOL])
         uniforms = prog.uniforms
 
-#         uniforms.set('grid_size', self.getFieldLinesThickness())
         uniforms.set('n_steps', self.getFieldLinesSteps())
-
-#         glActiveTexture(GL_TEXTURE2)
-#         self.values[ngsolve.VOL]['real'][elements.type, elements.curved].bind()
-#         uniforms.set('coefficients', 2)
-#         uniforms.set('subdivision', 2**self.getSubdivision()-1)
 
         filter_feedback = glGenTransformFeedbacks(1)
         glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, filter_feedback)
@@ -1072,9 +1066,12 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
         uniforms.set('grid_size', self.getFieldLinesThickness())
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
 
-        prog.attributes.bind('pos', self.filter_buffer, stride=36, offset=0)
-        prog.attributes.bind('pos2', self.filter_buffer, stride=36, offset=12)
-        prog.attributes.bind('val', self.filter_buffer, stride=36, offset=24)
+        nvars = 5
+        w=12 # vec3 = 12 bytes
+        stride = 3*w
+        prog.attributes.bind('pos', self.filter_buffer, stride=stride, offset=0*w)
+        prog.attributes.bind('pos2', self.filter_buffer, stride=stride, offset=1*w)
+        prog.attributes.bind('val', self.filter_buffer, stride=stride, offset=2*w)
         glDrawTransformFeedback(GL_POINTS, filter_feedback)
 
 
