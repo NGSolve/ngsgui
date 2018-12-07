@@ -17,6 +17,7 @@ in VertexData
 out vec3 pos;
 out vec3 pos2;
 out vec3 val;
+out vec3 val2;
 
 // global variables
 mat3 m;
@@ -39,7 +40,10 @@ vec3 getPos(vec4 l) {
 void writePoint() {
     pos = getPos(lam0);
     pos2 = getPos(lam1);
-    val = EvaluateVec(FUNCTION, element, lam1.xyz);
+    val = EvaluateVec(FUNCTION, element, lam0.xyz);
+    val2 = EvaluateVec(FUNCTION, element, lam1.xyz);
+    if(dot(val2, pos2-pos)<0) val2 = -val2;
+    if(dot(val, pos2-pos)<0) val = -val;
     EmitVertex();
     EndPrimitive();
 }
@@ -52,7 +56,21 @@ void main() {
 
     getM(tet);
     pos = getPos(lam0);
-    float h = 0.05;
+    float h = 0.15;
+
+//     for (int face=0; face<4; face++){
+// //         int type = 2*ELEMENT_N_VERTICES;
+// // #ifdef CURVED
+// //         type+=1;
+// // #endif
+//         int other_element_g = texelFetch(mesh.elements, mesh.offset+ELEMENT_SIZE*element+6+face).r;
+//         if(other_element_g==-1) continue;
+//         int other_element = texelFetch(mesh.elements, 2*other_element_g+1).r;
+//         int other_type = texelFetch(mesh.elements, 2*other_element_g).r;
+//         if(other_type!=8) return;
+//     }
+
+
 
     for (int i=0; i<n_steps+1;i++)
     {
@@ -86,8 +104,16 @@ void main() {
             // emit point on face
             writePoint();
 
-            int new_element = texelFetch(mesh.elements, mesh.offset+ELEMENT_SIZE*element+6+face).r;
-            if(new_element==-1) return;
+            int type = 2*ELEMENT_N_VERTICES;
+#ifdef CURVED
+            type+=1;
+#endif
+            int new_element_g = texelFetch(mesh.elements, mesh.offset+ELEMENT_SIZE*element+6+face).r;
+//             if(new_element_g==-1) return;
+//             int new_element = texelFetch(mesh.elements, 2*new_element_g+1).r;
+//             int new_type = texelFetch(mesh.elements, 2*new_element_g).r;
+//             if(new_type!=type) return;
+            int new_element= new_element_g;
 
             // find barycentric coordinates of lam1 of adjacent element
             ivec4 verts0;
@@ -102,6 +128,7 @@ void main() {
 
             lam0 = lam1;
             lam1 = vec4(-1,-1,-1,-1);
+            lam1*=0.0;
             for (int i=0; i<ELEMENT_N_VERTICES; i++) {
                 for (int j=0; j<ELEMENT_N_VERTICES; j++)
                     if(verts1[i] == verts0[j])
@@ -132,11 +159,11 @@ void main() {
         lmax = max(lam1.w, lmax);
 
         // something went wrong
-        if(lmin < -1e-6 || lmax > 1.0+1e-6)
+        if(lmin < -1e-5 || lmax > 1.0+1e-5)
             return;
 
         float s = lam1.x+lam1.y+lam1.z+lam1.w;
-        if(abs(s-1.0)>1e-6)
+        if(abs(s-1.0)>1e-5)
             return;
     }
 }

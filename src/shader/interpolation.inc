@@ -1,4 +1,7 @@
 #line 40001
+#ifndef INTERPOLATION_INC
+#define INTERPOLATION_INC
+
 vec4 getValue(samplerBuffer coefficients, int offset) {
   return texelFetch(coefficients, offset);
 }
@@ -74,3 +77,4 @@ vec3 EvaluateVec(int f, int element, vec3 lam)
   }
   return value;
 }
+#endif // INTERPOLATION_INC

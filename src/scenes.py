@@ -164,10 +164,21 @@ name : str = "action" + consecutive number
     def doubleClickAction(self,point):
         if self._actions:
             self._actions[self.getAction()](point)
+    def getOrder(self):
+        return self._global_rendering_parameters.getOrder()
+    def setOrder(self, value):
+        return self._global_rendering_parameters.setOrder(value)
+
+    def getSubdivision(self):
+        return self._global_rendering_parameters.getSubdivision()
+    def setSubdivision(self, value):
+        return self._global_rendering_parameters.setSubdivision(value)
 
 GUI.sceneCreators[BaseScene] = lambda scene,*args,**kwargs: scene
 
 class RenderingSettings(BaseScene, settings.CameraSettings, settings.LightSettings, settings.ColormapSettings, settings.ClippingSettings):
+    interpolationChanged = QtCore.Signal()
+
     def __init__(self, *args, **kwargs):
         self._individual_rendering_parameters = False
         super().__init__(*args, **kwargs)
@@ -179,6 +190,12 @@ class RenderingSettings(BaseScene, settings.CameraSettings, settings.LightSettin
                            settings.CheckboxParameter(name="ShowColorbar",label= "Show Colorbar",
                                                       default_value=True),
                            settings.CheckboxParameter(name="ShowVersion",label= "Show Version", default_value=True))
+        val_order = settings.ValueParameter(name="Order",label= "Order", default_value=1, min=0, max=3, notUpdateGL=True)
+        val_sd = settings.ValueParameter(name="Subdivision",label= "Subdivision", default_value=1, min=0, max=6, notUpdateGL=True)
+        self.addParameters("Interpolation", val_order, val_sd)
+
+        val_order.changed.connect(self.interpolationChanged.emit)
+        val_sd.changed.connect(self.interpolationChanged.emit)
 
         def storeRenderingSettings():
             import io, base64, pickle
@@ -286,14 +303,10 @@ class BaseMeshScene(BaseScene):
             self._deformation_values = None
             scale_par = settings.ValueParameter(name="DeformationScale", label="Scale",
                     default_value=1.0, min_value = 0.0, max_value = 1e99, step=0.1)
-            sd_par = settings.ValueParameter(name="DeformationSubdivision", label="Subdivision",
-                    default_value=1, min_value = 0, max_value = 5, updateScene=True)
-            order_par = settings.ValueParameter(name="DeformationOrder", label="Order",
-                    default_value=2, min_value = 1, max_value = 3, updateScene=True)
             self.addParameters("Deformation",
                     settings.CheckboxParameterCluster(name="Deformation", label="Deformation",
                         default_value = self.__initial_values["Deformation"],
-                        sub_parameters=[scale_par, sd_par, order_par],
+                        sub_parameters=[scale_par],
                     updateWidgets=True))
 
     def initGL(self):
@@ -312,7 +325,7 @@ class BaseMeshScene(BaseScene):
             self.mesh_data = getOpenGLData(self.mesh)
             if self.deformation:
                 vb = ngsolve.BND if self.mesh.dim==3 else ngsolve.VOL
-                self._getValues(self.deformation, vb, self.getDeformationSubdivision(), self.getDeformationOrder(), self._deformation_values )
+                self._getValues(self.deformation, vb, self.getSubdivision(), self.getOrder(), self._deformation_values )
 
     def __getstate__(self):
         super_state = super().__getstate__()
@@ -351,7 +364,6 @@ class BaseMeshScene(BaseScene):
                     if not et in vals[comp]:
                         vals[comp][et] = Texture(GL_TEXTURE_BUFFER, formats[cf.dim])
                     vals[comp][et].store(values[comp][et])
-                    print('values', comp, et, values[comp][et])
         except RuntimeError as e:
             assert("Local Heap" in str(e))
             self.setSubdivision(self.getSubdivision()-1)
@@ -445,9 +457,6 @@ class MeshScene(BaseMeshScene):
                                settings.CheckboxParameter(name="ShowElementNumbers",
                                                           label="Elements",
                                                           default_value=self.__initial_values["ShowElementNumbers"]))
-        self.addParameters("",
-                           settings.ValueParameter(name="GeomSubdivision", label="Subdivision",
-                                                   default_value=5, min_value=1, max_value=20))
         self.addParameters("Save",
                            settings.Button(name="SaveMesh", label="Save Mesh"))
 
@@ -537,10 +546,11 @@ class MeshScene(BaseMeshScene):
         use_tessellation = elements.curved or use_deformation
         shader = ['mesh.vert', 'mesh.frag']
         options = {}
+        print('user tess', use_tessellation)
         if use_tessellation:
             shader.append('mesh.tese')
         if use_deformation:
-            options["DEFORMATION_ORDER"] = self.getDeformationOrder()
+            options["DEFORMATION_ORDER"] = self.getOrder()
         prog = getProgram(*shader, elements=elements, params=settings, DEFORMATION=use_deformation, scene=self, **options)
         uniforms = prog.uniforms
 
@@ -549,8 +559,8 @@ class MeshScene(BaseMeshScene):
             vb = ngsolve.VOL if self.mesh.dim==2 else ngsolve.BND
             self._deformation_values[vb]['real'][(elements.type, elements.curved)].bind()
             uniforms.set('deformation.coefficients', 4)
-            uniforms.set('deformation.subdivision', 2**self.getDeformationSubdivision()-1)
-            uniforms.set('deformation.order', self.getDeformationOrder())
+            uniforms.set('deformation.subdivision', 2**self.getSubdivision()-1)
+            uniforms.set('deformation.order', self.getOrder())
             uniforms.set('deformation_scale', self.getDeformationScale())
 
         glActiveTexture(GL_TEXTURE3)
@@ -701,9 +711,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
                            "imag" : 1,
                            "abs" : 2,
                            "arg" : 3}
-    __initial_values = {"Order" : 2,
-                        "ShowClippingPlane" : False,
-                        "Subdivision" : 1,
+    __initial_values = {"ShowClippingPlane" : False,
                         "ShowIsoSurface" : False,
                         "ShowVolumeVectors" : False,
                         "ShowClippingPlaneVectors" : False,
@@ -717,9 +725,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
         self.values = {}
         self.iso_values = {}
         self.fieldline_values = {}
-        self.__initial_values.update({"Order" : order,
-                                      "ShowClippingPlane" : clippingPlane,
-                                      "Subdivision" : sd})
+        self.__initial_values.update({"ShowClippingPlane" : clippingPlane })
 
         if hasattr(self.cf,"vecs") and len(self.cf.vecs) > 1:
             self._gfComponents = self.cf
@@ -747,18 +753,6 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
     @inmain_decorator(True)
     def _createParameters(self):
         super()._createParameters()
-        self.addParameters("Subdivision",
-                           settings.ValueParameter(name="Subdivision",
-                                                   label="Subdivision",
-                                                   default_value=int(self.__initial_values["Subdivision"]),
-                                                   min_value = 0,
-                                                   updateScene=True),
-                           settings.ValueParameter(name="Order",
-                                                   label="Order",
-                                                   default_value=int(self.__initial_values["Order"]),
-                                                   min_value=1,
-                                                   max_value=4,
-                                                   updateScene=True))
         if self.mesh.dim>1:
             self.addParameters("Show",
                                settings.CheckboxParameter(name="ShowSurface",
@@ -934,7 +928,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
         if use_tessellation:
             shader.append('mesh.tese')
         if use_deformation:
-            options["DEFORMATION_ORDER"] = self.getDeformationOrder()
+            options["DEFORMATION_ORDER"] = self.getOrder()
 
         prog = getProgram(*shader, elements=elements, params=settings, scene=self, **options)
         prog.setFunction(self, elements)
@@ -946,8 +940,8 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
             glActiveTexture(GL_TEXTURE4)
             self._deformation_values[ngsolve.VOL]['real'][(elements.type, elements.curved)].bind()
             uniforms.set('deformation.coefficients', 4)
-            uniforms.set('deformation.subdivision', 2**self.getDeformationSubdivision()-1)
-            uniforms.set('deformation.order', self.getDeformationOrder())
+            uniforms.set('deformation.subdivision', 2**self.getSubdivision()-1)
+            uniforms.set('deformation.order', self.getOrder())
             uniforms.set('deformation_scale', self.getDeformationScale())
 
         tess_level = 10
@@ -978,7 +972,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
             if use_tessellation:
                 shader.append('mesh.tese')
             if use_deformation:
-                options["DEFORMATION_ORDER"] = self.getDeformationOrder()
+                options["DEFORMATION_ORDER"] = self.getOrder()
 
             prog = getProgram(*shader, elements=elements, params=settings, scene=self, **options)
             prog.setFunction(self, elements, values=self.values[vb])
@@ -988,8 +982,8 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
                 glActiveTexture(GL_TEXTURE4)
                 self._deformation_values[vb]['real'][(elements.type, elements.curved)].bind()
                 uniforms.set('deformation.coefficients', 4)
-                uniforms.set('deformation.subdivision', 2**self.getDeformationSubdivision()-1)
-                uniforms.set('deformation.order', self.getDeformationOrder())
+                uniforms.set('deformation.subdivision', 2**self.getSubdivision()-1)
+                uniforms.set('deformation.order', self.getOrder())
                 uniforms.set('deformation_scale', self.getDeformationScale())
 
 
@@ -1039,7 +1033,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
             return
 
         glEnable(GL_RASTERIZER_DISCARD)
-        prog = getProgram('pass_through.vert', 'fieldlines_filter.geom', feedback=['pos','pos2', 'val'], params=settings, scene=self,elements=elements, USE_GL_VERTEX_ID=True, FILTER_MODE='FIELDLINES')
+        prog = getProgram('pass_through.vert', 'fieldlines_filter.geom', feedback=['pos','pos2', 'val', 'val2'], params=settings, scene=self,elements=elements, USE_GL_VERTEX_ID=True, FILTER_MODE='FIELDLINES')
         prog.setFunction(self, elements)
         prog.setFunction(self, elements, index=1, values=self.fieldline_values[ngsolve.VOL])
         uniforms = prog.uniforms
@@ -1053,7 +1047,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
 
         el = self.getFieldLinesStartElement()
         if el==-1:
-            glDrawArrays(GL_POINTS, 0, self.mesh.ne)
+            glDrawArrays(GL_POINTS, 0, elements.nelements)
         else:
             glDrawArrays(GL_POINTS, el, 1)
 
@@ -1061,17 +1055,17 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
         glDisable(GL_RASTERIZER_DISCARD)
 
         # render actual vectors
-        prog = getProgram('fieldlines.vert', 'fieldlines_draw.geom', 'vectors.frag', elements=elements, params=settings, scene=self)
+        prog = getProgram('fieldlines.vert', 'fieldlines_draw.geom', 'fieldlines.frag', elements=elements, params=settings, scene=self)
         uniforms = prog.uniforms
         uniforms.set('grid_size', self.getFieldLinesThickness())
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
 
-        nvars = 5
         w=12 # vec3 = 12 bytes
-        stride = 3*w
+        stride = 4*w
         prog.attributes.bind('pos', self.filter_buffer, stride=stride, offset=0*w)
         prog.attributes.bind('pos2', self.filter_buffer, stride=stride, offset=1*w)
         prog.attributes.bind('val', self.filter_buffer, stride=stride, offset=2*w)
+        prog.attributes.bind('val2', self.filter_buffer, stride=stride, offset=3*w)
         glDrawTransformFeedback(GL_POINTS, filter_feedback)
 
 
@@ -1191,26 +1185,14 @@ class FacetSolutionScene(BaseMeshScene, settings.ColormapSettings):
         if deform:
             self._deformation_values = {}
             self.deformation = deform
-            self._getValues(self.deformation, "facet", self.getDeformationSubdivision(),
-                            self.getDeformationOrder(), self._deformation_values)
+            self._getValues(self.deformation, "facet", self.getSubdivision(),
+                            self.getOrder(), self._deformation_values)
             print("values = ", self._deformation_values)
         self._getValues(self.cf, "facet", self.getSubdivision(), self.getOrder(),
                         self.values)
 
     def _createParameters(self):
         super()._createParameters()
-        self.addParameters("Subdivision",
-                           settings.ValueParameter(name="Subdivision",
-                                                   label="Subdivision",
-                                                   default_value=1,
-                                                   min_value = 0,
-                                                   updateScene=True),
-                           settings.ValueParameter(name="Order",
-                                                   label="Order",
-                                                   default_value=1,
-                                                   min_value=1,
-                                                   max_value=4,
-                                                   updateScene=True))
         if self.cf.dim > 1:
             self.addParameters("Show",settings.ValueParameter(name="Component", label="Component",
                                                        default_value=0,
@@ -1243,15 +1225,15 @@ class FacetSolutionScene(BaseMeshScene, settings.ColormapSettings):
                 if self.mesh.dim == 2:
                     options["NOLIGHT"] = True
                 if use_deformation:
-                    options["DEFORMATION_ORDER"] = self.getDeformationOrder()
+                    options["DEFORMATION_ORDER"] = self.getOrder()
                 prog = getProgram(*shader, elements=facets, params=settings, scene=self, **options)
                 uniforms = prog.uniforms
                 if use_deformation:
                     glActiveTexture(GL_TEXTURE4)
                     self._deformation_values["facet"]['real'][(facets.type, facets.curved)].bind()
                     uniforms.set('deformation_coefficients', 4)
-                    uniforms.set('deformation_subdivision', 2**self.getDeformationSubdivision()-1)
-                    uniforms.set('deformation_order', self.getDeformationOrder())
+                    uniforms.set('deformation_subdivision', 2**self.getSubdivision()-1)
+                    uniforms.set('deformation_order', self.getOrder())
                     uniforms.set('deformation_scale', self.getDeformationScale())
                 glActiveTexture(GL_TEXTURE2)
                 self.values["facet"]['real'][(facets.type, facets.curved)].bind()

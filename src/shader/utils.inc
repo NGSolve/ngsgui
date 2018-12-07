@@ -3,6 +3,10 @@
 uniform mat4 MV;
 uniform mat4 P;
 
+#ifdef CURVED
+#endif
+
+
 uniform struct Colormap {
   float min;
   float max;

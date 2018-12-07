@@ -20,6 +20,7 @@ layout(quads) in;
 #define ORDER DEFORMATION_ORDER
 #line 0
 {include interpolation.inc}
+{include interpolation.inc}
 #line 23
 uniform float deformation_scale;
 

@@ -206,18 +206,21 @@ class MeshData(DataContainer):
         self.max = data.pop('max')
         self.vertices.store(data.pop('vertices'))
 
-        tex = Texture(GL.GL_TEXTURE_BUFFER, GL.GL_R32I)
-        eldata = []
         for vb in data:
+            tex = Texture(GL.GL_TEXTURE_BUFFER, GL.GL_R32I)
+            eldata = []
             els = []
+            for ei in data[vb]:
+                if type(ei) != type({}):
+                    eldata += list(ei)
             for ei in data[vb]:
                 if type(ei) == type({}):
                     els.append(MeshData.ElementData(ei, self.vertices, tex, offset=len(eldata)))
                     eldata += ei['data']
-                else:
-                    eldata += list(ei)
+#                 else:
+#                     eldata += list(ei)
             self.elements[vb] = els
-        tex.store(numpy.array(eldata, dtype=numpy.int32))
+            tex.store(numpy.array(eldata, dtype=numpy.int32))
 
 def getMeshData(mesh):
     if hasattr(mesh,"_opengl_data"):
