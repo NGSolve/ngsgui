@@ -915,7 +915,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
         glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, self.filter_buffer.id)
         glBeginTransformFeedback(GL_POINTS)
 
-        glDrawArrays(GL_POINTS, 0, self.mesh.ne)
+        glDrawArrays(GL_POINTS, 0, elements.nelements)
 
         glEndTransformFeedback()
         glDisable(GL_RASTERIZER_DISCARD)
