@@ -23,7 +23,7 @@ class ToolBoxItem(QtWidgets.QWidget):
                     self.clicked.connect(signal.emit)
                     signal.connect(self.next)
                 self.setIcon(QtGui.QIcon(self._lst[0]))
-                self.setIconSize(QtCore.QSize(12,12))
+                self.setIconSize(QtCore.QSize(2*12,2*12))
                 self.setAutoRaise(True)
                 if tooltip:
                     self.setToolTip(tooltip)

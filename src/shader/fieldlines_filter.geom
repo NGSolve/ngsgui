@@ -7,7 +7,7 @@
 uniform int n_steps;
 
 layout(points) in;
-layout(points, max_vertices=40) out;
+layout(points, max_vertices=20) out;
 
 in VertexData
 {
@@ -50,6 +50,7 @@ void writePoint() {
 
 void main() {
     element = inData[0].element;
+//    if(element/10*10!=element) return;
     tet = getElement(element);
     lam0 = vec4(0.25,0.25,0.25,0.25);
     lam1 = lam0;

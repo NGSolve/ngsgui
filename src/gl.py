@@ -369,7 +369,7 @@ class Program(GLObject):
         glActiveTexture(GL_TEXTURE0+tex_base)
         values['real'][elements.type, elements.curved].bind()
         u.set(name+'.coefficients', tex_base)
-        u.set(name+'.component', scene.getComponent() if cf.dim>1 else 0)
+#         u.set(name+'.component', scene.getComponent() if cf.dim>1 else 0)
 
         if cf.is_complex:
             glActiveTexture(GL_TEXTURE0+tex_base+1)

@@ -546,22 +546,21 @@ class MeshScene(BaseMeshScene):
         use_tessellation = elements.curved or use_deformation
         shader = ['mesh.vert', 'mesh.frag']
         options = {}
-        print('user tess', use_tessellation)
         if use_tessellation:
             shader.append('mesh.tese')
-        if use_deformation:
-            options["DEFORMATION_ORDER"] = self.getOrder()
         prog = getProgram(*shader, elements=elements, params=settings, DEFORMATION=use_deformation, scene=self, **options)
         uniforms = prog.uniforms
 
         if use_deformation:
-            glActiveTexture(GL_TEXTURE4)
             vb = ngsolve.VOL if self.mesh.dim==2 else ngsolve.BND
-            self._deformation_values[vb]['real'][(elements.type, elements.curved)].bind()
-            uniforms.set('deformation.coefficients', 4)
-            uniforms.set('deformation.subdivision', 2**self.getSubdivision()-1)
-            uniforms.set('deformation.order', self.getOrder())
+            prog.setFunction(self, elements, cf=self.deformation, values=self._deformation_values[vb], index=1)
             uniforms.set('deformation_scale', self.getDeformationScale())
+#             glActiveTexture(GL_TEXTURE4)
+#             self._deformation_values[vb]['real'][(elements.type, elements.curved)].bind()
+#             uniforms.set('deformation.coefficients', 4)
+#             uniforms.set('deformation.subdivision', 2**self.getSubdivision()-1)
+#             uniforms.set('deformation.order', self.getOrder())
+#             uniforms.set('deformation_scale', self.getDeformationScale())
 
         glActiveTexture(GL_TEXTURE3)
         self.tex_surf_colors.bind()
@@ -599,6 +598,10 @@ class MeshScene(BaseMeshScene):
         glDisable(offset_mode)
 
     def _render3DElements(self, settings, elements):
+#         if elements.type == ngsolve.PRISM:
+#             return
+#         if elements.type == ngsolve.PYRAMID:
+#             return
         use_deformation = self.getDeformation()
         shader = ['mesh.vert', 'mesh.frag']
         prog = getProgram(*shader, elements=elements, params=settings, DEFORMATION=0, scene=self)
@@ -615,7 +618,7 @@ class MeshScene(BaseMeshScene):
         uniforms.set('light.ambient', 0.3)
         uniforms.set('light.diffuse', 0.7)
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
-        glDrawArraysInstanced(GL_TRIANGLES, 0, 3*self.mesh.ne, elements.n_instances_2d)
+        glDrawArraysInstanced(GL_TRIANGLES, 0, 3*elements.nelements, elements.n_instances_2d)
 
     def _renderNumbers(self, settings, elements):
         prog = getProgram('pass_through.vert', 'numbers.geom', 'font.frag', params=settings, elements=elements, scene=self, USE_GL_VERTEX_ID=True)
@@ -774,8 +777,8 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
         if self.cf.dim > 1:
             vol_grid_size = settings.ValueParameter(name="VolumeGridSize", label="grid size", default_value=0.5, min_value=1e-2, step=0.1)
             cp_grid_size = settings.ValueParameter(name="ClippingPlaneGridSize", label="grid size", default_value=0.5, min_value=1e-2, step=0.1)
-            fl_thickness = settings.ValueParameter(name="FieldLinesThickness", label="thickness", default_value=0.1, min_value=0.0, step=0.01)
-            fl_steps = settings.ValueParameter(name="FieldLinesSteps", label="steps", default_value=40, min_value=0, max_values=40)
+            fl_thickness = settings.ValueParameter(name="FieldLinesThickness", label="thickness", default_value=0.03, min_value=0.0, step=0.01)
+            fl_steps = settings.ValueParameter(name="FieldLinesSteps", label="steps", default_value=40, min_value=0, max_values=20)
             fl_start_element = settings.ValueParameter(name="FieldLinesStartElement", label="start element", default_value=-1, min_value=-1, max_values=self.mesh.ne)
             self.addParameters("Show",
                                settings.ValueParameter(name="Component", label="Component",
@@ -927,8 +930,6 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
         shader = ['mesh.vert', 'solution.frag']
         if use_tessellation:
             shader.append('mesh.tese')
-        if use_deformation:
-            options["DEFORMATION_ORDER"] = self.getOrder()
 
         prog = getProgram(*shader, elements=elements, params=settings, scene=self, **options)
         prog.setFunction(self, elements)
@@ -971,19 +972,14 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
             options = dict(DEFORMATION=use_deformation)
             if use_tessellation:
                 shader.append('mesh.tese')
-            if use_deformation:
-                options["DEFORMATION_ORDER"] = self.getOrder()
 
             prog = getProgram(*shader, elements=elements, params=settings, scene=self, **options)
             prog.setFunction(self, elements, values=self.values[vb])
             uniforms = prog.uniforms
 
             if use_deformation:
+                prog.setFunction(self, elements, cf=self.deformation, values=self._deformation_values[vb], index=1)
                 glActiveTexture(GL_TEXTURE4)
-                self._deformation_values[vb]['real'][(elements.type, elements.curved)].bind()
-                uniforms.set('deformation.coefficients', 4)
-                uniforms.set('deformation.subdivision', 2**self.getSubdivision()-1)
-                uniforms.set('deformation.order', self.getOrder())
                 uniforms.set('deformation_scale', self.getDeformationScale())
 
 
@@ -1187,7 +1183,6 @@ class FacetSolutionScene(BaseMeshScene, settings.ColormapSettings):
             self.deformation = deform
             self._getValues(self.deformation, "facet", self.getSubdivision(),
                             self.getOrder(), self._deformation_values)
-            print("values = ", self._deformation_values)
         self._getValues(self.cf, "facet", self.getSubdivision(), self.getOrder(),
                         self.values)
 
@@ -1224,8 +1219,6 @@ class FacetSolutionScene(BaseMeshScene, settings.ColormapSettings):
                 options = dict(DEFORMATION=use_deformation)
                 if self.mesh.dim == 2:
                     options["NOLIGHT"] = True
-                if use_deformation:
-                    options["DEFORMATION_ORDER"] = self.getOrder()
                 prog = getProgram(*shader, elements=facets, params=settings, scene=self, **options)
                 uniforms = prog.uniforms
                 if use_deformation:
