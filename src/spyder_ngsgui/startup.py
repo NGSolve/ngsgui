@@ -10,20 +10,19 @@ G._load_plugins()
 _ngs_drawn_objects = []
 def Draw(*args, **kwargs):
     scene = G._createScene(*args,**kwargs)
-    vals = scene.objectsToUpdate()
     index = len(_ngs_drawn_objects)
-    _ngs_drawn_objects.append([weakref.ref(val) if not (val is None) else lambda : None for val in vals])
-    get_ipython().kernel.send_spyder_msg("ngsolve_draw", None, [index, args, kwargs])
+    _ngs_drawn_objects.append(scene.objectsToUpdate())
+    get_ipython().get_ipython().kernel.send_spyder_msg("ngsolve_draw", None, [index, args, kwargs])
     
 
-_last_time = False
+_last_time_ngs_draw = False
 def Redraw(*args, **kwargs):
-    global _last_time
+    global _last_time_ngs_draw
     t = time.time()
-    if t-_last_time > 0.02:
+    if t-_last_time_ngs_draw > 0.2:
         # only send the signal, the spyder plugin will query all still drawn objects
-        get_ipython().kernel.send_spyder_msg("ngsolve_redraw", None, [[val() for val in obj] for obj in _ngs_drawn_objects])
-        _last_time = t
+        get_ipython().get_ipython().kernel.send_spyder_msg("ngsolve_redraw", None, _ngs_drawn_objects)
+        _last_time_ngs_draw = t
 
 ngsolve.Draw = Draw
 ngsolve.Redraw = Redraw
