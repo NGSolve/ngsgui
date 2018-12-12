@@ -1,7 +1,5 @@
 #version 150
 
-uniform mat4 MV;
-uniform mat4 P;
 uniform samplerBuffer vertices;
 uniform isamplerBuffer triangles;
 uniform samplerBuffer normals;

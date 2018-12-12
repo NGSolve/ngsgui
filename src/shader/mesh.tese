@@ -15,32 +15,14 @@ layout(quads) in;
 {include utils.inc}
 #line 12
 
-uniform mat4 P;
-uniform mat4 MV;
-uniform Mesh mesh;
-uniform sampler1D colors;
-
 #if DEFORMATION
 #undef ORDER
 #define ORDER DEFORMATION_ORDER
 #line 0
 {include interpolation.inc}
 #line 23
-uniform Function deformation;
 uniform float deformation_scale;
 
-/*
-uniform int subdivision;
-uniform int component;
-uniform samplerBuffer deformation_coefficients;
-uniform int deformation_subdivision;
-// for complex-valued functions
-uniform bool is_complex;
-uniform samplerBuffer coefficients;
-uniform samplerBuffer coefficients_imag;
-uniform int complex_vis_function; // 0=real, 1=imag, 2=abs, 3=arg
-uniform vec2 complex_factor; // factor to multiply with values before visualizing
-*/
 #endif // DEFORMATION
 
 in VertexData
@@ -67,7 +49,7 @@ void main()
     float y = gl_TessCoord.y;
     float z = 1.0-x-y;
 
-    int offset = texelFetch(mesh.elements, ELEMENT_SIZE*gl_PrimitiveID + ELEMENT_SIZE-1).r;
+    int offset = texelFetch(mesh.elements, mesh.offset+ELEMENT_SIZE*gl_PrimitiveID + ELEMENT_SIZE-1).r;
 
 #ifdef MACOS
     struct PatchedInData { vec3 pos; vec3 normal; } inData[ELEMENT_N_VERTICES];
@@ -138,7 +120,7 @@ void main()
 #endif // CURVED
 
 #if DEFORMATION
-      outData.pos += deformation_scale * EvaluateVec(deformation, gl_PrimitiveID, outData.lam);
+      outData.pos += deformation_scale * EvaluateVec(DEFORMATION_FUNCTION, gl_PrimitiveID, outData.lam);
 #endif // DEFORMATION
 
     gl_Position = P * MV * vec4(outData.pos, 1);

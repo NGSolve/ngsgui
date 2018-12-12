@@ -6,11 +6,7 @@
 layout(points) in;
 layout(triangle_strip, max_vertices=32) out;
 
-uniform mat4 MV;
-uniform mat4 P;
 uniform float grid_size;
-uniform ClippingPlanes clipping_planes;
-uniform Colormap colormap;
 
 void DrawVertex( vec3 pos ) {
     gl_Position = P * MV *vec4(pos,1);
@@ -75,9 +71,10 @@ void DrawPipe( float radius ) {
     vec3 pos = inData[0].pos;
     vec3 end = inData[0].pos2;
 
-    if(!CalcClipping(clipping_planes, pos)) return;
+    if(!CalcClipping(pos)) return;
 
     vec3 v0,v1,v2,v3;
+//     CalcNormals(end-pos, end-pos , v0, v1, v2, v3);
     CalcNormals(end-pos, inData[0].val, v0, v1, v2, v3);
 
     vec3 v01 = normalize(v0+v1);
@@ -99,7 +96,7 @@ void main() {
     float s = 0.5*grid_size;
 
     float value = length(inData[0].val);
-    outData.color.rgb = MapColor(colormap, value);
+    outData.color.rgb = MapColor(value);
 
     DrawPipe( s/4);
 }

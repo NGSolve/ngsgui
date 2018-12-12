@@ -6,17 +6,8 @@ layout(points, max_vertices=1) out;
 {include utils.inc}
 {include interpolation.inc}
 
-uniform Mesh mesh;
-uniform ClippingPlanes clipping_planes;
-
-uniform Function function;
 uniform float iso_value;
 uniform int filter_type; // 0...clipping plane, 1...iso-surface
-/*
-uniform samplerBuffer coefficients;
-uniform int subdivision;
-uniform int component;
-*/
 
 in VertexData
 {
@@ -26,15 +17,15 @@ in VertexData
 flat out int element;
 
 bool isCuttingClippingPlane() {
-    ELEMENT_TYPE el = getElement(mesh, inData[0].element);
+    ELEMENT_TYPE el = getElement(inData[0].element);
 
     bool is_cutting = false;
 
     for( int ci=0; ci<N_CLIPPING_PLANES; ci++ ) {
-        float min_dist = dot(clipping_planes.p[ci], vec4(el.pos[0], 1.0));
+        float min_dist = dot(clipping_planes[ci], vec4(el.pos[0], 1.0));
         float max_dist = min_dist;
         for (int i=1; i<ELEMENT_N_VERTICES; i++) {
-            float dist = dot(clipping_planes.p[ci], vec4(el.pos[i], 1.0));
+            float dist = dot(clipping_planes[ci], vec4(el.pos[i], 1.0));
             min_dist = min(min_dist, dist);
             max_dist = max(max_dist, dist);
         }
@@ -48,15 +39,15 @@ bool isCuttingIsoSurface() {
     float min_value;
     float max_value;
 
-    int n = function.subdivision+1;
+    int n = functions[ISO_FUNCTION].subdivision+1;
     int N = ORDER*n+1;
     int values_per_element = N*(N+1)*(N+2)/6;
     int first = inData[0].element*values_per_element;
-    float value = texelFetch(function.coefficients, first)[function.component];
+    float value = texelFetch(functions[ISO_FUNCTION].coefficients, first)[functions[ISO_FUNCTION].component];
     min_value = value;
     max_value = value;
     for (int i=1; i<values_per_element; i++) {
-        float value = texelFetch(function.coefficients, first+i)[function.component];
+        float value = texelFetch(functions[ISO_FUNCTION].coefficients, first+i)[functions[ISO_FUNCTION].component];
         min_value = min(min_value, value);
         max_value = max(max_value, value);
     }

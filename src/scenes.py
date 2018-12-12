@@ -331,7 +331,7 @@ class BaseMeshScene(BaseScene):
         return False
 
     # evaluate given CoefficientFunction and store results in vals (a dictionary with special structure)
-    def _getValues(self, cf, vb, sd, order, vals):
+    def _getValues(self, cf, vb, sd, order, vals, covariant=False):
         formats = [None, GL_R32F, GL_RG32F, GL_RGB32F, GL_RGBA32F];
         if vb not in vals:
             vals[vb] = {'real':{}, 'imag':{}}
@@ -340,7 +340,7 @@ class BaseMeshScene(BaseScene):
             if isinstance(vb, str) and vb == "facet":
                 values = ngsolve.solve._GetFacetValues(cf, self.mesh, irs)
             else:
-                values = ngsolve.solve._GetValues(cf, self.mesh, vb, irs)
+                values = ngsolve.solve._GetValues(cf, self.mesh, vb, irs, covariant)
             vals = vals[vb]
             vals['min'] = values['min']
             vals['max'] = values['max']
@@ -351,6 +351,7 @@ class BaseMeshScene(BaseScene):
                     if not et in vals[comp]:
                         vals[comp][et] = Texture(GL_TEXTURE_BUFFER, formats[cf.dim])
                     vals[comp][et].store(values[comp][et])
+                    print('values', comp, et, values[comp][et])
         except RuntimeError as e:
             assert("Local Heap" in str(e))
             self.setSubdivision(self.getSubdivision()-1)
@@ -517,15 +518,15 @@ class MeshScene(BaseMeshScene):
         uniforms.set('light.diffuse', 0.0)
         uniforms.set('wireframe', True)
         tess_level = 10
-        if settings.fastmode and len(elements.data)//elements.size>10**4:
+        if settings.fastmode and elements.nelements>10**4:
             tess_level=1
         if elements.curved:
             glPatchParameteri(GL_PATCH_VERTICES, 2)
             glPatchParameterfv(GL_PATCH_DEFAULT_OUTER_LEVEL, [1,tess_level])
             glPatchParameterfv(GL_PATCH_DEFAULT_INNER_LEVEL, [1]*2)
-            glDrawArrays(GL_PATCHES, 0, 2*len(elements.data)//elements.size)
+            glDrawArrays(GL_PATCHES, 0, 2*elements.nelements)
         else:
-            glDrawArrays(GL_LINES, 0, 2*len(elements.data)//elements.size)
+            glDrawArrays(GL_LINES, 0, 2*elements.nelements)
 
     def renderEdges(self, settings):
         els = []
@@ -571,7 +572,7 @@ class MeshScene(BaseMeshScene):
             offset = 1
 
         tess_level = 10
-        if settings.fastmode and len(elements.data)//elements.size>10**4:
+        if settings.fastmode and elements.nelements>10**4:
             tess_level=1
 
         glPolygonMode( GL_FRONT_AND_BACK, polygon_mode );
@@ -581,10 +582,10 @@ class MeshScene(BaseMeshScene):
             glPatchParameteri(GL_PATCH_VERTICES, elements.nverts)
             glPatchParameterfv(GL_PATCH_DEFAULT_OUTER_LEVEL, [tess_level]*4)
             glPatchParameterfv(GL_PATCH_DEFAULT_INNER_LEVEL, [tess_level]*2)
-            glDrawArrays(GL_PATCHES, 0, elements.nverts*len(elements.data)//elements.size)
+            glDrawArrays(GL_PATCHES, 0, elements.nverts*elements.nelements)
         else:
             # triangles are the only uncurved 2d elements
-            glDrawArrays(GL_TRIANGLES, 0, 3*len(elements.data)//elements.size)
+            glDrawArrays(GL_TRIANGLES, 0, 3*elements.nelements)
         glDisable(offset_mode)
 
     def _render3DElements(self, settings, elements):
@@ -715,6 +716,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
         self.iso_surface = iso_surface or cf
         self.values = {}
         self.iso_values = {}
+        self.fieldline_values = {}
         self.__initial_values.update({"Order" : order,
                                       "ShowClippingPlane" : clippingPlane,
                                       "Subdivision" : sd})
@@ -779,7 +781,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
             vol_grid_size = settings.ValueParameter(name="VolumeGridSize", label="grid size", default_value=0.5, min_value=1e-2, step=0.1)
             cp_grid_size = settings.ValueParameter(name="ClippingPlaneGridSize", label="grid size", default_value=0.5, min_value=1e-2, step=0.1)
             fl_thickness = settings.ValueParameter(name="FieldLinesThickness", label="thickness", default_value=0.1, min_value=0.0, step=0.01)
-            fl_steps = settings.ValueParameter(name="FieldLinesSteps", label="steps", default_value=1, min_value=0, max_values=40)
+            fl_steps = settings.ValueParameter(name="FieldLinesSteps", label="steps", default_value=40, min_value=0, max_values=40)
             fl_start_element = settings.ValueParameter(name="FieldLinesStartElement", label="start element", default_value=-1, min_value=-1, max_values=self.mesh.ne)
             self.addParameters("Show",
                                settings.ValueParameter(name="Component", label="Component",
@@ -874,7 +876,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
 
         self.filter_buffer = ArrayBuffer()
         self.filter_buffer.bind()
-        glBufferData(GL_ARRAY_BUFFER, 10000000, ctypes.c_void_p(), GL_STATIC_DRAW)
+        glBufferData(GL_ARRAY_BUFFER, 100000000, ctypes.c_void_p(), GL_STATIC_DRAW)
 
 
     def objectsToUpdate(self):
@@ -897,6 +899,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
             self.iso_values = self.values
         else:
             self._getValues(self.iso_surface, ngsolve.VOL, self.getSubdivision(), self.getOrder(), self.iso_values)
+        self._getValues(self.cf, ngsolve.VOL, self.getSubdivision(), self.getOrder(), self.fieldline_values, covariant=True)
 
 
     def _filterElements(self, settings, elements, filter_type):
@@ -948,7 +951,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
             uniforms.set('deformation_scale', self.getDeformationScale())
 
         tess_level = 10
-        if settings.fastmode and len(elements.data)//elements.size>10**4:
+        if settings.fastmode and elements.nelements>10**4:
             tess_level=1
 
         nverts = elements.nverts
@@ -993,7 +996,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
             uniforms.set('wireframe', False)
 
             tess_level = 10
-            if settings.fastmode and len(elements.data)//elements.size>10**4:
+            if settings.fastmode and elements.nelements>10**4:
                 tess_level=1
 
             glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
@@ -1003,9 +1006,9 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
                 glPatchParameteri(GL_PATCH_VERTICES, elements.nverts)
                 glPatchParameterfv(GL_PATCH_DEFAULT_OUTER_LEVEL, [tess_level]*4)
                 glPatchParameterfv(GL_PATCH_DEFAULT_INNER_LEVEL, [tess_level]*2)
-                glDrawArrays(GL_PATCHES, 0, elements.nverts*len(elements.data)//elements.size)
+                glDrawArrays(GL_PATCHES, 0, elements.nverts*elements.nelements)
             else:
-                glDrawArrays(GL_TRIANGLES, 0, 3*len(elements.data)//elements.size)
+                glDrawArrays(GL_TRIANGLES, 0, 3*elements.nelements)
             glDisable(GL_POLYGON_OFFSET_FILL)
 
     def _renderIsoSurface(self, settings, elements):
@@ -1013,7 +1016,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
         model, view, projection = settings.model, settings.view, settings.projection
         prog = getProgram('pass_through.vert', 'isosurface.geom', 'solution.frag', elements=elements, params=settings, scene=self)
         prog.setFunction(self, elements)
-        prog.setFunction(self, elements, cf=self.iso_surface, values=self.iso_values[ngsolve.VOL], name='iso_function')
+        prog.setFunction(self, elements, cf=self.iso_surface, values=self.iso_values[ngsolve.VOL], index=2)
 
         uniforms = prog.uniforms
         uniforms.set('P',projection)
@@ -1030,22 +1033,18 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
 
     def renderFieldLines(self, settings, elements):
         # use transform feedback to get position (and direction) of vectors on regular grid
-        if elements.curved:
-            return
+#         if not elements.curved:
+#             return
         if elements.type != ngsolve.ET.TET:
             return
 
         glEnable(GL_RASTERIZER_DISCARD)
         prog = getProgram('pass_through.vert', 'fieldlines_filter.geom', feedback=['pos','pos2', 'val'], params=settings, scene=self,elements=elements, USE_GL_VERTEX_ID=True, FILTER_MODE='FIELDLINES')
+        prog.setFunction(self, elements)
+        prog.setFunction(self, elements, index=1, values=self.fieldline_values[ngsolve.VOL])
         uniforms = prog.uniforms
 
-        uniforms.set('grid_size', self.getFieldLinesThickness())
         uniforms.set('n_steps', self.getFieldLinesSteps())
-
-        glActiveTexture(GL_TEXTURE2)
-        self.values[ngsolve.VOL]['real'][elements.type, elements.curved].bind()
-        uniforms.set('coefficients', 2)
-        uniforms.set('subdivision', 2**self.getSubdivision()-1)
 
         filter_feedback = glGenTransformFeedbacks(1)
         glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, filter_feedback)
@@ -1067,9 +1066,12 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
         uniforms.set('grid_size', self.getFieldLinesThickness())
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
 
-        prog.attributes.bind('pos', self.filter_buffer, stride=36, offset=0)
-        prog.attributes.bind('pos2', self.filter_buffer, stride=36, offset=12)
-        prog.attributes.bind('val', self.filter_buffer, stride=36, offset=24)
+        nvars = 5
+        w=12 # vec3 = 12 bytes
+        stride = 3*w
+        prog.attributes.bind('pos', self.filter_buffer, stride=stride, offset=0*w)
+        prog.attributes.bind('pos2', self.filter_buffer, stride=stride, offset=1*w)
+        prog.attributes.bind('val', self.filter_buffer, stride=stride, offset=2*w)
         glDrawTransformFeedback(GL_POINTS, filter_feedback)
 
 

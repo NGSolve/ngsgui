@@ -3,12 +3,8 @@
 {include utils.inc}
 #line 5
 
-uniform mat4 MV;
-uniform Mesh mesh;
-uniform ClippingPlanes clipping_planes;
 uniform bool wireframe;
 uniform sampler1D colors;
-uniform Light light;
 
 in VertexData
 {
@@ -35,18 +31,18 @@ void main()
 #endif
       if(d>1e-5) discard;
   }
-  int index = texelFetch(mesh.elements, ELEMENT_SIZE*inData.element + 1).r;
+  int index = getElementIndex(inData.element);
   if(index==-1)
     FragColor = vec4(0,0,0,1);
   else
     FragColor = vec4(texelFetch(colors, index, 0));
 
-  if(!CalcClipping(clipping_planes, inData.pos))
+  if(!CalcClipping(inData.pos))
     discard;
 
   if (FragColor.a == 0.0)
     discard;
 
 
-  FragColor.rgb = CalcLight(light, FragColor.rgb, MV, inData.pos, inData.normal);
+  FragColor.rgb = CalcLight(FragColor.rgb, MV, inData.pos, inData.normal);
 }

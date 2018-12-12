@@ -6,10 +6,7 @@
 layout(points) in;
 layout(triangle_strip, max_vertices=48) out;
 
-uniform mat4 MV;
-uniform mat4 P;
 uniform float grid_size;
-uniform Colormap colormap;
 
 void DrawVertex( vec3 pos ) {
     gl_Position = P * MV *vec4(pos,1);
@@ -85,7 +82,7 @@ void main() {
     vec3 val = s* normalize(inData[0].val);
 
     float value = length(inData[0].val);
-    outData.color.rgb = MapColor(colormap, value);
+    outData.color.rgb = MapColor(value);
 
     DrawCone( inData[0].pos-0.5*val, inData[0].pos+0.5*val, s/4);
 }

@@ -3,11 +3,8 @@
 {include utils.inc}
 #line 5
 
-uniform mat4 MV;
-uniform Mesh mesh;
 uniform bool wireframe;
 uniform sampler1D colors;
-uniform Light light;
 
 in VertexData
 {

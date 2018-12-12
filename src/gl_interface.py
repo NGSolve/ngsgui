@@ -167,11 +167,10 @@ class MeshData(DataContainer):
                 ngs.ET.HEX: 6
                 }
 
-        def __init__(self, ei, vertices):
-            import numpy
+        def __init__(self, ei, vertices, eldata, offset):
             self.type = ei['type']
             self.nelements = ei['nelements']
-            self.data = ei['data']
+            self.offset = offset
             self.curved = ei['curved']
             self.nverts = MeshData.ElementData.nverts[self.type]
             self.nfaces = MeshData.ElementData.nfaces[self.type]
@@ -184,10 +183,9 @@ class MeshData(DataContainer):
             if self.type == ngs.ET.POINT:
                 self.size = 1
 
-            assert len(self.data) == self.nelements*self.size
+            assert len(ei['data']) == self.nelements*self.size
             self.tex_vertices = vertices
-            self.tex = Texture(GL.GL_TEXTURE_BUFFER, GL.GL_R32I)
-            self.tex.store(numpy.array(self.data, dtype=numpy.int32))
+            self.tex = eldata
 
     @inmain_decorator(True)
     def __init__(self, mesh):
@@ -200,6 +198,7 @@ class MeshData(DataContainer):
 
     @inmain_decorator(True)
     def update(self):
+        import numpy
         data = ngs.solve._GetVisualizationData( self.obj(), getP2Rules() )
 
         self.elements = {}
@@ -207,11 +206,18 @@ class MeshData(DataContainer):
         self.max = data.pop('max')
         self.vertices.store(data.pop('vertices'))
 
+        tex = Texture(GL.GL_TEXTURE_BUFFER, GL.GL_R32I)
+        eldata = []
         for vb in data:
             els = []
             for ei in data[vb]:
-                els.append(MeshData.ElementData(ei, self.vertices))
+                if type(ei) == type({}):
+                    els.append(MeshData.ElementData(ei, self.vertices, tex, offset=len(eldata)))
+                    eldata += ei['data']
+                else:
+                    eldata += list(ei)
             self.elements[vb] = els
+        tex.store(numpy.array(eldata, dtype=numpy.int32))
 
 def getMeshData(mesh):
     if hasattr(mesh,"_opengl_data"):

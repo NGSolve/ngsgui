@@ -2,10 +2,7 @@
 
 {include utils.inc}
 
-uniform mat4 MV;
-uniform ClippingPlanes clipping_planes;
 uniform bool clip_whole_elements;
-uniform Light light;
 
 in VertexData
 {
@@ -25,11 +22,11 @@ void main()
 {
   FragColor = inData.color;
 
-  if(!clip_whole_elements && !CalcClipping(clipping_planes, inData.pos))
+  if(!clip_whole_elements && !CalcClipping(inData.pos))
     discard;
 
   if (FragColor.a == 0.0)
     discard;
 
-  FragColor.rgb = CalcLight(light, FragColor.rgb, MV, inData.pos, inData.normal);
+  FragColor.rgb = CalcLight(FragColor.rgb, MV, inData.pos, inData.normal);
 }
