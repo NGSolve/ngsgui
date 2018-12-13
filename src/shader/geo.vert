@@ -1,5 +1,8 @@
 #version 150
 
+{include utils.inc}
+#line 4
+
 uniform samplerBuffer vertices;
 uniform isamplerBuffer triangles;
 uniform samplerBuffer normals;

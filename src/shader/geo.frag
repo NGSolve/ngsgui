@@ -1,6 +1,7 @@
 #version 150
 
 {include utils.inc}
+#line 4
 
 uniform bool clip_whole_elements;
 
