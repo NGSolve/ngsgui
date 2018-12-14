@@ -27,6 +27,6 @@ setup(name="ngsgui",
                    "Environment :: X11 Applications :: Qt",
                    "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)"),
       install_requires=["PyOpenGL", "psutil", "qtconsole>=4.4.0", "numpy",
-                        "matplotlib>=2.2.3", "qtpy>=1.5"],
+                        "matplotlib>=2.2.3", "qtpy>=1.5.2"],
       entry_points={ "console_scripts" : "ngsolve = ngsgui.__main__:main" })
 
