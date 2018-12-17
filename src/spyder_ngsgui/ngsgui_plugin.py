@@ -71,7 +71,7 @@ class NGSolvePlugin(SpyderPluginWidget):
     def __init__(self, parent):
         super().__init__(parent)
         self.main = parent
-        self.gui = G.GUI(flags=["--noOutputpipe", "--noConsole", "--noEditor"],startApplication=False,
+        self.gui = G.GUI(flags=["--noOutputpipe", "--noConsole"],startApplication=False,
                          createMenu=False)
         G.gui = self.gui
         self.initialize_plugin()

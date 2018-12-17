@@ -2,7 +2,6 @@
 from qtpy import QtCore, QtWidgets, QtGui
 from .thread import inmain_decorator
 import re, os, time, sys
-from ngsgui.code_editor.text_partition import Lines
 
 class Receiver(QtCore.QObject):
     """Class responsible for piping the stdout to the internal output. Removes ansi escape characters.

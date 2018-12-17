@@ -1,7 +1,7 @@
 
 import os
 
-from . import glwindow, code_editor
+from . import glwindow
 from . widgets import ArrangeV
 from .thread import inmain_decorator
 from .globalSettings import SettingDialog
@@ -196,8 +196,6 @@ not none, argument is parsed instead of command line args"""
         parser = argparse.ArgumentParser()
         parser.add_argument("file",type=str,nargs="?",
                             help="load file, readable file types: py,ngs,stl,step,geo,in2d,vol.gz,vol")
-        parser.add_argument("-nex","--noexec", action="store_true",
-                            help="don't execute file on startup only load it into editor")
         parser.add_argument("-fm","--fastmode", action="store_false",
                             help="Activate fastmode, some large scenes are drawn less accurate but faster")
         parser.add_argument("-nc","--noConsole", action="store_true",
@@ -206,8 +204,6 @@ not none, argument is parsed instead of command line args"""
                             help="Don't pipe output to buffer in gui")
         parser.add_argument("-dc","--dontCatchExceptions", action="store_true",
                             help="Don't catch exceptions up to user input, but show internal gui traceback")
-        parser.add_argument("-ne", "--noEditor", action="store_false",
-                            help="Don't open the code editor")
         if flags:
             self._flags = parser.parse_args(flags)
         else:
@@ -243,8 +239,6 @@ not none, argument is parsed instead of command line args"""
         for tab,name in tabs:
             if isinstance(tab, glwindow.WindowTab):
                 tab.create(self._commonContext)
-            if isinstance(tab, code_editor.baseEditor.BaseEditor):
-                tab.gui = self
             self.window_tabber.addTab(tab, name)
         for setting in settings:
             setting.gui = self
@@ -315,22 +309,14 @@ another Redraw after a time loop may be needed to see the final solutions."""
 
     def loadPythonFile(self, filename):
         """Load a Python file and execute it if gui.executeFileOnStartup is True"""
-        settings = QtCore.QSettings()
-        editorType = settings.value("editor/type", "default")
-        if editorType ==  "none" or not self._flags.noEditor:
-            from .code_editor.baseEditor import BaseEditor
-            editTab = BaseEditor(filename=filename, gui=self)
-        elif editorType == "emacs":
-            from .code_editor.emacs import EmacsEditor
-            editTab = EmacsEditor(filename, self)
-            self.window_tabber.addTab(editTab, filename)
-        elif editorType == "default":
-            from .code_editor.texteditor import CodeEditor
-            editTab = CodeEditor(filename=filename,gui=self,parent=self.window_tabber)
-            self.window_tabber.addTab(editTab, filename)
-        if not self._flags.noexec:
-            editTab.computation_started_at = 0
-            editTab.run()
+        with open(filename, "r") as f:
+            code = f.read()
+            try:
+                exec(code, {"__name__" : "__main__"})
+            except Exception as ex:
+                self.msgbox = QtWidgets.QMessageBox(text = type(ex).__name__ + ": " + str(ex))
+                self.msgbox.setWindowTitle("Exception caught!")
+                self.msgbox.show()
 
     def _run(self,do_after_run=lambda : None, run_event_loop=True):
         import sys, inspect
@@ -359,13 +345,6 @@ another Redraw after a time loop may be needed to see the final solutions."""
         def switchTabWindow(direction):
             self.window_tabber.setCurrentIndex((self.window_tabber.currentIndex() + direction)
                                                %self.window_tabber.count())
-        def focusEditor():
-            from ngsgui.code_editor.baseEditor import BaseEditor
-            for i in range(self.window_tabber.count()):
-                if isinstance(self.window_tabber.widget(i), BaseEditor):
-                    self.window_tabber.setCurrentIndex(i)
-                    self.window_tabber.widget(i).setFocus()
-                    return
         if not self._flags.noConsole:
             def activateConsole():
                 self.output_tabber.setCurrentWidget(self.console)
@@ -377,8 +356,6 @@ another Redraw after a time loop may be needed to see the final solutions."""
                     lambda: self.window_tabber._remove_tab(self.window_tabber.currentIndex()))
         addShortcut(self.mainWidget, "Gui-Next Tab", "Ctrl+LeftArrow", lambda: switchTabWindow(-1))
         addShortcut(self.mainWidget, "Gui-Previous Tab", "Ctrl+RightArrow", lambda: switchTabWindow(1))
-        addShortcut(self.mainWidget, "Gui-Go to Editor", "Ctrl+e", focusEditor)
-
 
     def _addTestMenu(self):
         """Adds menu options to create tests"""

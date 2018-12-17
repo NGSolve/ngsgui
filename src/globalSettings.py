@@ -7,16 +7,11 @@ from .thread import inmain_decorator
 class BaseSettings(QtWidgets.QWidget):
     def __init__(self, *args, **kwargs):
         super().__init__(*args,**kwargs)
-        self._editorCB = QtWidgets.QComboBox()
-        self._editorCB.addItems(["default","emacs","none"])
         settings = QtCore.QSettings()
-        self._editorCB.setCurrentText(settings.value("editor/type", "default"))
-        self._editorCB.currentTextChanged.connect(self._checkValidSelection)
         self._sysmonCB = QtWidgets.QCheckBox("System monitor")
         self._sysmonCB.setChecked(settings.value("sysmon/active", "false") == "true")
         self._sysmonCB.stateChanged.connect(self._checkSysmonRequirement)
         self.setLayout(ArrangeV(QtWidgets.QLabel("Settings will get active after restarting the GUI"),
-                                ArrangeH(QtWidgets.QLabel("Editor:"), self._editorCB),
                                 self._sysmonCB))
 
     def _checkSysmonRequirement(self):
@@ -34,14 +29,12 @@ class BaseSettings(QtWidgets.QWidget):
             try:
                 import epc
             except ModuleNotFoundError:
-                self._editorCB.setCurrentText("default")
                 self.msgbox = QtWidgets.QMessageBox(text="""Cannot embed emacs without epc, please install it with
 pip3 install --user epc""")
                 self.msgbox.show()
 
     def _save(self):
         settings = QtCore.QSettings()
-        settings.setValue("editor/type", self._editorCB.currentText())
         settings.setValue("sysmon/active", self._sysmonCB.isChecked())
 
 class ShortcutSettings(QtWidgets.QWidget):

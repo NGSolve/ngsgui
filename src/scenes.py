@@ -351,7 +351,6 @@ class BaseMeshScene(BaseScene):
                     if not et in vals[comp]:
                         vals[comp][et] = Texture(GL_TEXTURE_BUFFER, formats[cf.dim])
                     vals[comp][et].store(values[comp][et])
-                    print('values', comp, et, values[comp][et])
         except RuntimeError as e:
             assert("Local Heap" in str(e))
             self.setSubdivision(self.getSubdivision()-1)
