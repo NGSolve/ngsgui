@@ -59,7 +59,7 @@ class NgsSpyderKernelSpec(SpyderKernelSpec):
     @property
     def env(self):
         env_vars = super().env
-        start_code = "import os; os.environ['NGSGUI_HEADLESS'] = '1'; del os; import spyder_ngsgui.startup as s; s.initialize_startup(); del s; "
+        start_code = "import os; os.environ['NGSGUI_HEADLESS'] = '1'; del os; import spyder_ngsgui.startup as s;"
         env_vars['SPY_RUN_LINES_O'] = start_code + env_vars['SPY_RUN_LINES_O']
         return env_vars
 
@@ -141,15 +141,6 @@ class NGSolvePlugin(SpyderPluginWidget):
         ipyplugin.SpyderKernelSpec = NgsSpyderKernelSpec
         # monkeypatch notebookplugin if available
         try:
-            import spyder_notebook.notebookplugin as nbp
-            import time
-            old_create_client = nbp.NotebookPlugin.create_new_client
-            def new_create_client(_self, *args, **kwargs):
-                old_create_client(_self, *args, **kwargs)
-                # wait for client to open
-                time.sleep(2)
-                _self.open_console()
-            nbp.NotebookPlugin.create_new_client = new_create_client
             import spyder_notebook.utils.nbopen as nbo
             nbo.KERNELSPEC = ('spyder_ngsgui.ngsgui_plugin.NgsSpyderKernelSpec')
         except ImportError:
