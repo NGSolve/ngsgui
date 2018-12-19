@@ -604,7 +604,7 @@ class MeshScene(BaseMeshScene):
         uniforms.set('light.ambient', 0.3)
         uniforms.set('light.diffuse', 0.7)
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
-        glDrawArraysInstanced(GL_TRIANGLES, 0, 3*self.mesh.ne, elements.n_instances_2d)
+        glDrawArraysInstanced(GL_TRIANGLES, 0, 3*elements.nelements, elements.n_instances_2d)
 
     def _renderNumbers(self, settings, elements):
         prog = getProgram('pass_through.vert', 'numbers.geom', 'font.frag', params=settings, elements=elements, scene=self, USE_GL_VERTEX_ID=True)
@@ -917,7 +917,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
         glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, self.filter_buffer.id)
         glBeginTransformFeedback(GL_POINTS)
 
-        glDrawArrays(GL_POINTS, 0, self.mesh.ne)
+        glDrawArrays(GL_POINTS, 0, elements.nelements)
 
         glEndTransformFeedback()
         glDisable(GL_RASTERIZER_DISCARD)
@@ -1052,7 +1052,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
 
         el = self.getFieldLinesStartElement()
         if el==-1:
-            glDrawArrays(GL_POINTS, 0, self.mesh.ne)
+            glDrawArrays(GL_POINTS, 0, elements.nelements)
         else:
             glDrawArrays(GL_POINTS, el, 1)
 
@@ -1101,7 +1101,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
         for i in range(20): # maxmimal 20*40=800 vectors per element
             uniforms.set('filter_first', filter_first)
             with Query(GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN) as q:
-                glDrawArrays(GL_POINTS, 0, self.mesh.ne)
+                glDrawArrays(GL_POINTS, 0, elements.nelements)
             filter_first+=40
             if q.value==0:
                 break;
@@ -1192,7 +1192,6 @@ class FacetSolutionScene(BaseMeshScene, settings.ColormapSettings):
             self.deformation = deform
             self._getValues(self.deformation, "facet", self.getDeformationSubdivision(),
                             self.getDeformationOrder(), self._deformation_values)
-            print("values = ", self._deformation_values)
         self._getValues(self.cf, "facet", self.getSubdivision(), self.getOrder(),
                         self.values)
 

@@ -460,7 +460,6 @@ def getProgram(*shader_files, feedback=[], elements=None, params=None, scene=Non
 
     glUseProgram(prog.id)
     u = prog.uniforms
-#     print('uniforms', u.uniforms)
     if scene != None:
         if 'P' in u:
             u.set('P',scene.projection)
