@@ -5,6 +5,7 @@
 #line 5
 
 uniform int n_steps;
+uniform float step_size;
 
 layout(points) in;
 layout(points, max_vertices=40) out;
@@ -52,7 +53,7 @@ void main() {
 
     getM(tet);
     pos = getPos(lam0);
-    float h = 0.05;
+    float h = step_size;
 
     for (int i=0; i<n_steps+1;i++)
     {

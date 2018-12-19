@@ -781,6 +781,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
             cp_grid_size = settings.ValueParameter(name="ClippingPlaneGridSize", label="grid size", default_value=0.5, min_value=1e-2, step=0.1)
             fl_thickness = settings.ValueParameter(name="FieldLinesThickness", label="thickness", default_value=0.1, min_value=0.0, step=0.01)
             fl_steps = settings.ValueParameter(name="FieldLinesSteps", label="steps", default_value=40, min_value=0, max_values=40)
+            fl_step_size = settings.ValueParameter(name="FieldLinesStepsize", label="stepsize", default_value=0.1, min_value=0.0, max_values=1.0)
             fl_start_element = settings.ValueParameter(name="FieldLinesStartElement", label="start element", default_value=-1, min_value=-1, max_values=self.mesh.ne)
             self.addParameters("Show",
                                settings.ValueParameter(name="Component", label="Component",
@@ -798,7 +799,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
                                settings.CheckboxParameterCluster(name="ShowFieldLines",
                                                           label="&Field lines",
                                                           default_value = self.__initial_values["ShowFieldLines"],
-                                                             sub_parameters = [fl_thickness, fl_steps, fl_start_element], updateWidgets=True)
+                                                             sub_parameters = [fl_thickness, fl_steps, fl_step_size, fl_start_element], updateWidgets=True)
                                )
 
         if self.cf.is_complex:
@@ -1044,6 +1045,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
         uniforms = prog.uniforms
 
         uniforms.set('n_steps', self.getFieldLinesSteps())
+        uniforms.set('step_size', self.getFieldLinesStepsize())
 
         filter_feedback = glGenTransformFeedbacks(1)
         glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, filter_feedback)
