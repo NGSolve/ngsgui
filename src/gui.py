@@ -3,7 +3,7 @@ import os
 
 from . import glwindow
 from . widgets import ArrangeV
-from .thread import inmain_decorator
+from .thread import inmain_decorator, inthread
 from .globalSettings import SettingDialog
 from .stdPipes import OutputBuffer
 
@@ -312,7 +312,7 @@ another Redraw after a time loop may be needed to see the final solutions."""
         with open(filename, "r") as f:
             code = f.read()
             try:
-                exec(code, {"__name__" : "__main__"})
+                inthread(lambda : exec(code, {"__name__" : "__main__"}))
             except Exception as ex:
                 self.msgbox = QtWidgets.QMessageBox(text = type(ex).__name__ + ": " + str(ex))
                 self.msgbox.setWindowTitle("Exception caught!")
