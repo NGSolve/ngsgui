@@ -35,7 +35,7 @@ void main()
   if(index==-1)
     FragColor = vec4(0,0,0,1);
   else
-    FragColor = vec4(texelFetch(colors, index, 0));
+    FragColor = vec4(texelFetch(colors, inData.element, 0));
 
   if(!CalcClipping(inData.pos))
     discard;

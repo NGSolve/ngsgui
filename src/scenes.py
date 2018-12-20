@@ -391,7 +391,7 @@ class MeshScene(BaseMeshScene):
                            settings.CheckboxParameter(name="ShowWireframe", label="Show Wireframe",
                                                       default_value = self.__initial_values["ShowWireframe"]))
         if self.mesh.dim > 1:
-            surf_values = self.mesh.GetBoundaries() if self.mesh.dim == 3 else self.mesh.GetMaterials()
+            surf_values = list(map(str, range(self.mesh.ne)))
             surf_color = settings.ColorParameter(name="SurfaceColors", values = surf_values,
                                                  default_value = (0,255,0,255))
             self.addParameters("Show",
