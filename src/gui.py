@@ -145,7 +145,8 @@ state and being able to reload it without a graphical interface."""
             from .console import MultiQtKernelManager, NGSJupyterWidget
             self.multikernel_manager = MultiQtKernelManager()
             self.console = NGSJupyterWidget(gui=self,multikernel_manager = self.multikernel_manager)
-            self.console.exit_requested.connect(self.app.quit)
+            if self._hasApplication:
+                self.console.exit_requested.connect(self.app.quit)
             self.output_tabber.addTab(self.console,"Console")
         if not self._flags.noOutputpipe:
             self.outputBuffer = OutputBuffer()
@@ -204,7 +205,7 @@ not none, argument is parsed instead of command line args"""
                             help="Don't pipe output to buffer in gui")
         parser.add_argument("-dc","--dontCatchExceptions", action="store_true",
                             help="Don't catch exceptions up to user input, but show internal gui traceback")
-        if flags:
+        if not flags is None:
             self._flags = parser.parse_args(flags)
         else:
             self._flags = parser.parse_args()
@@ -307,12 +308,19 @@ another Redraw after a time loop may be needed to see the final solutions."""
                 txt += line
         return txt
 
+    def _runCode(self, code):
+        locs = {"__name__" : "__main__" }
+        exec(code, locs)
+        if not self._flags.noConsole:
+            locs.pop("__name__")
+            self.console.pushVariables(locs)
+
     def loadPythonFile(self, filename):
         """Load a Python file and execute it if gui.executeFileOnStartup is True"""
         with open(filename, "r") as f:
             code = f.read()
             try:
-                inthread(lambda : exec(code, {"__name__" : "__main__"}))
+                inthread(lambda : self._runCode(code))
             except Exception as ex:
                 self.msgbox = QtWidgets.QMessageBox(text = type(ex).__name__ + ": " + str(ex))
                 self.msgbox.setWindowTitle("Exception caught!")
