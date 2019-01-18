@@ -7,6 +7,9 @@ from .thread import inmain_decorator, inthread
 from .globalSettings import SettingDialog
 from .stdPipes import OutputBuffer
 
+import logging
+logger = logging.getLogger(__name__)
+
 import ngsolve
 
 
@@ -205,10 +208,16 @@ not none, argument is parsed instead of command line args"""
                             help="Don't pipe output to buffer in gui")
         parser.add_argument("-dc","--dontCatchExceptions", action="store_true",
                             help="Don't catch exceptions up to user input, but show internal gui traceback")
+        parser.add_argument("--logfile", nargs=1, type=str, action="store")
         if not flags is None:
             self._flags = parser.parse_args(flags)
         else:
             self._flags = parser.parse_args()
+        if self._flags.logfile is not None:
+            logging.basicConfig(level=logging.DEBUG,
+                                filename=os.path.join(os.getcwd(), self._flags.logfile[0]),
+                                filemode="w")
+
 
     def showMessageBox(self, title, text):
         self._msgbox = QtWidgets.QMessageBox(text=text)
