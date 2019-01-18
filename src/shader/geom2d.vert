@@ -1,4 +1,6 @@
 #version 150
+{include utils.inc}
+#line 3
 
 uniform sampler1D colors;
 
