@@ -194,7 +194,9 @@ exist a load function for the file extension type registered in GUI.file_loaders
             try:
                 GUI.file_loaders[ext](self, filename)
             except Exception as e:
+                import traceback
                 self.showMessageBox("Exception in load file:", str(e))
+                traceback.print_exc()
 
     def _parseFlags(self, flags):
         """Parses command line arguments and calls functions registered in GUI.flags. If argument is
@@ -328,7 +330,9 @@ another Redraw after a time loop may be needed to see the final solutions."""
                 locs.pop("__name__")
                 self.console.pushVariables(locs)
         except Exception as e:
-            self.showMessageBox(str(e))
+            import traceback
+            self.showMessageBox("Exception in run code:", str(e))
+            traceback.print_exc()
 
     def loadPythonFile(self, filename):
         """Load a Python file and execute it if gui.executeFileOnStartup is True"""
