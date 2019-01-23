@@ -438,9 +438,10 @@ def _loadSTL(gui, filename):
 
 def _loadOCC(gui, filename):
     try:
-        import netgen.NgOCC as occ
-        geo = occ.LoadOCCGeometry(filename)
-        ngsolve.Draw(geo)
+        gui.console.execute("import ngsolve")
+        gui.console.execute("import netgen.NgOCC")
+        gui.console.execute("geo = netgen.NgOCC.LoadOCCGeometry('" + filename + "')")
+        gui.console.execute("ngsolve.Draw(geo)")
     except ImportError:
         gui.showMessageBox("Netgen is not built with OCC support!")
 def _loadGeo(gui, filename):
@@ -455,6 +456,7 @@ def _loadin2d(gui, filename):
 
 GUI.file_loaders[".stl"] = _loadSTL
 GUI.file_loaders[".step"] = _loadOCC
+GUI.file_loaders[".stp"] = _loadOCC
 GUI.file_loaders[".geo"] = _loadGeo
 GUI.file_loaders[".in2d"] = _loadin2d
 if os.getenv("NGSGUI_TEST_CREATION"):
