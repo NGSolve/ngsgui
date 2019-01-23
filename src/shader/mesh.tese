@@ -16,13 +16,9 @@ layout(quads) in;
 #line 12
 
 #if DEFORMATION
-#undef ORDER
-#define ORDER DEFORMATION_ORDER
-#line 0
 {include interpolation.inc}
-#line 23
+#line 20
 uniform float deformation_scale;
-
 #endif // DEFORMATION
 
 in VertexData

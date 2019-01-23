@@ -44,9 +44,9 @@ def test_cf(name, mesh):
     settings.zoom=-100
 
     s = SolutionScene(z+x*x-0.3*y*y, mesh, iso_surface=x+2*y+z*z)
+    s._global_rendering_parameters = settings
     Draw(s, name=name, tab=name+'_cf')
     # appy custom rendering settings (also because there are not global settings in headless mode)
-    s._global_rendering_parameters = settings
 
     s.setOrder(3)
     s.setSubdivision(3)
@@ -74,10 +74,11 @@ def test_mesh(name, mesh):
     s.setSurfaceColors(colors)
     s.setEdgeColors(colors)
 
-    Draw(s, name=name, tab=name)
-    # appy custom rendering settings (also because there are not global settings in headless mode)
     settings = getParameters()
+
+    Draw(s, name=name, tab=name)
     s._global_rendering_parameters = settings
+    # appy custom rendering settings (also because there are not global settings in headless mode)
 
     # set up scene settings
     s.setShowSurface(False)

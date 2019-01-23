@@ -18,12 +18,13 @@ in VertexData
   vec3 pos;
   vec3 pos2;
   vec3 val;
+  vec3 val2;
 } inData[];
 
 out VertexData
 {
   vec3 normal;
-  vec3 color;
+  vec3 value;
 } outData;
 
 void DrawQuad( float radius, vec3 start, vec3 end, vec3 v1, vec3 v2, vec3 v3, vec3 v4 ) {
@@ -32,10 +33,12 @@ void DrawQuad( float radius, vec3 start, vec3 end, vec3 v1, vec3 v2, vec3 v3, ve
     vec3 c = end+radius*v3;
     vec3 d = end+radius*v4;
 
+    outData.value = inData[0].val;
     outData.normal = v1;
     DrawVertex(a);
     outData.normal = v2;
     DrawVertex(b);
+    outData.value = inData[0].val2;
     outData.normal = v3;
     DrawVertex(c);
     outData.normal = v4;
@@ -74,8 +77,8 @@ void DrawPipe( float radius ) {
     if(!CalcClipping(pos)) return;
 
     vec3 v0,v1,v2,v3;
-//     CalcNormals(end-pos, end-pos , v0, v1, v2, v3);
-    CalcNormals(end-pos, inData[0].val, v0, v1, v2, v3);
+    // CalcNormals(end-pos, end-pos , v0, v1, v2, v3);
+    CalcNormals(end-pos, inData[0].val2, v0, v1, v2, v3);
 
     vec3 v01 = normalize(v0+v1);
     vec3 v10 = normalize(v0-v1);
@@ -95,8 +98,6 @@ void DrawPipe( float radius ) {
 void main() {
     float s = 0.5*grid_size;
 
-    float value = length(inData[0].val);
-    outData.color.rgb = MapColor(value);
 
     DrawPipe( s/4);
 }

@@ -70,8 +70,6 @@ class WindowTab(QtWidgets.QWidget):
         self.glWidget.updateGL()
 
 class GLWidget(QtOpenGL.QGLWidget):
-    redraw_signal = QtCore.Signal()
-
     def __init__(self,shared=None, rendering_parameters=None, *args, **kwargs):
         f = QtOpenGL.QGLFormat()
         f.setVersion(3,2)
@@ -97,8 +95,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.redraw_mutex = QtCore.QMutex()
 
         self._settings = scenes.RenderingSettings(name="Global settings") 
-
-        self.redraw_signal.connect(self.updateScenes)
+        self._settings.interpolationChanged.connect(self.updateScenes)
 
         self.lastPos = QtCore.QPoint()
         self.lastFastmode = self._settings.fastmode

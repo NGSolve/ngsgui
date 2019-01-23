@@ -770,8 +770,8 @@ class ClippingSettings(BaseSettings):
             VectorParameter(name="ClippingPoint2", label="Point", default_value=(0.5,0.5,0.5), step=0.1),
             ]
         self._clipping_normals = [
-            VectorParameter(name="ClippingNormal", label="Normal", min_value=-1.0, max_value=1.0, default_value=(1.0,0.0,0.0), step=0.1),
-            VectorParameter(name="ClippingNormal1", label="Normal", min_value=-1.0, max_value=1.0, default_value=(0.0,1.0,0.0), step=0.1),
+            VectorParameter(name="ClippingNormal", label="Normal", min_value=-1.0, max_value=1.0, default_value=(0.0,1.0,0.0), step=0.1),
+            VectorParameter(name="ClippingNormal1", label="Normal", min_value=-1.0, max_value=1.0, default_value=(1.0,0.0,0.0), step=0.1),
             VectorParameter(name="ClippingNormal2", label="Normal", min_value=-1.0, max_value=1.0, default_value=(0.0,0.0,1.0), step=0.1),
             ]
         if _have_qt:
