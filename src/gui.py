@@ -191,7 +191,10 @@ exist a load function for the file extension type registered in GUI.file_loaders
             if not ext in GUI.file_loaders:
                 self.showMessageBox("File loading error", "Cannot load file type: " + ext)
                 return
-            GUI.file_loaders[ext](self, filename)
+            try:
+                GUI.file_loaders[ext](self, filename)
+            except Exception as e:
+                self.showMessageBox("Exception in load file:", str(e))
 
     def _parseFlags(self, flags):
         """Parses command line arguments and calls functions registered in GUI.flags. If argument is
@@ -221,7 +224,7 @@ not none, argument is parsed instead of command line args"""
 
     def showMessageBox(self, title, text):
         self._msgbox = QtWidgets.QMessageBox(text=text)
-        self._msgbox.SetWindowTitle(title)
+        self._msgbox.setWindowTitle(title)
         self._msgbox.show()
 
     def saveSolution(self):
@@ -319,10 +322,13 @@ another Redraw after a time loop may be needed to see the final solutions."""
 
     def _runCode(self, code):
         locs = {"__name__" : "__main__" }
-        exec(code, locs)
-        if not self._flags.noConsole:
-            locs.pop("__name__")
-            self.console.pushVariables(locs)
+        try:
+            exec(code, locs)
+            if not self._flags.noConsole:
+                locs.pop("__name__")
+                self.console.pushVariables(locs)
+        except Exception as e:
+            self.showMessageBox(str(e))
 
     def loadPythonFile(self, filename):
         """Load a Python file and execute it if gui.executeFileOnStartup is True"""
