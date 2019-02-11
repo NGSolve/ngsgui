@@ -167,7 +167,7 @@ class MeshData(DataContainer):
                 ngs.ET.HEX: 6
                 }
 
-        def __init__(self, ei, vertices, eldata, offset):
+        def __init__(self, ei, vertices, eldata=None, offset=0):
             self.type = ei['type']
             self.nelements = ei['nelements']
             self.offset = offset
