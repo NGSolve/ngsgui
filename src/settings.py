@@ -829,11 +829,10 @@ class ColormapSettings(BaseSettings):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._colormap_tex = None
-        options = [False, True]
         self._individualColormap = False
         self.individualColormapChanged.connect(lambda: setattr(self,
                                                                "_individualColormap",
-                                                               options[(options.index(self._individualColormap)+1)%len(options)]))
+                                                               not self._individualColormap))
         self.individualColormapChanged.connect(self._updateGL)
         for par in self._individualColormapSubparameters:
             par.setVisible(False)
@@ -842,7 +841,7 @@ class ColormapSettings(BaseSettings):
             self.individualColormapChanged.connect(self.widgets.update)
 
     def _setter(self, value):
-        while not self._individualColormap == value:
+        if not self._individualColormap == value:
             self.individualColormapChanged.emit()
 
     individualColormap = property(lambda self: self._individualColormap, _setter)
