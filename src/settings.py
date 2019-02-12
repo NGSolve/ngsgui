@@ -780,8 +780,10 @@ class ClippingSettings(BaseSettings):
         self._individualClippingPlaneSubparameters += [p for pair in zip(self._clipping_points,self._clipping_normals) for p in pair]
         if not self._individual_rendering_parameters:
             self.getClippingEnable = lambda : self.individualClippingPlane
+            self.setClippingEnable = lambda : self.individualClippingPlaneChanged.emit()
         else:
             self.getClippingEnable = lambda : self.individualClippingPlane == True or (self.individualClippingPlane == None and self._global_rendering_parameters.individualClippingPlane == True)
+            self.setClippingEnable = lambda : self.individualClippingPlaneChanged.emit()
         self.addParameters("Clipping", *self._individualClippingPlaneSubparameters)
         if self._individual_rendering_parameters:
             _patchGetterFunctionsWithGlobalSettings(self, 'getClipping', ['Point', 'Normal', 'NPlanes', 'Expression', 'Point1', 'Point2', 'Normal1', 'Normal2', 'Planes'], 'individualClippingPlane')
@@ -906,4 +908,7 @@ class ColormapSettings(BaseSettings):
         if self._colormap_tex == None:
             self._updateColormap()
         return self._colormap_tex
+
+    def getGlobalRenderingParameters(self):
+        return self._global_rendering_parameters
 
