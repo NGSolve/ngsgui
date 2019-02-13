@@ -335,7 +335,8 @@ another Redraw after a time loop may be needed to see the final solutions."""
         locs["__name__"] = "__main__"
         if filename:
             locs["__file__"] = filename
-        locs.hook = lambda name, val: self.console.pushVariables({ name: val})
+        if not self._flags.noConsole:
+            locs.hook = lambda name, val: self.console.pushVariables({ name: val})
         try:
             code = compile(code_string, filename, 'exec')
             exec(code, locs)
