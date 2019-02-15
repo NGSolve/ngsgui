@@ -12,6 +12,14 @@ logger = logging.getLogger(__name__)
 
 import ngsolve
 
+class DictWithHook(dict):
+    def __setitem__(self, name, val):
+        super().__setitem__(name,val)
+        self.hook(name,val)
+
+    def hook(self, name, val):
+        """This function can be patched to hook into setitem"""
+        pass
 
 def _load_plugins():
     import pkg_resources
@@ -322,13 +330,16 @@ another Redraw after a time loop may be needed to see the final solutions."""
                 txt += line
         return txt
 
-    def _runCode(self, code):
-        locs = {"__name__" : "__main__" }
+    def _runCode(self, code_string, filename=None):
+        locs = DictWithHook()
+        locs["__name__"] = "__main__"
+        if filename:
+            locs["__file__"] = filename
+        if not self._flags.noConsole:
+            locs.hook = lambda name, val: self.console.pushVariables({ name: val})
         try:
+            code = compile(code_string, filename, 'exec')
             exec(code, locs)
-            if not self._flags.noConsole:
-                locs.pop("__name__")
-                self.console.pushVariables(locs)
         except Exception as e:
             import traceback
             self.showMessageBox("Exception in run code:", str(e))
@@ -339,7 +350,7 @@ another Redraw after a time loop may be needed to see the final solutions."""
         with open(filename, "r") as f:
             code = f.read()
             try:
-                inthread(lambda : self._runCode(code))
+                inthread(lambda : self._runCode(code, filename))
             except Exception as ex:
                 self.msgbox = QtWidgets.QMessageBox(text = type(ex).__name__ + ": " + str(ex))
                 self.msgbox.setWindowTitle("Exception caught!")

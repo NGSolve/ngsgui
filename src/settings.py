@@ -780,8 +780,10 @@ class ClippingSettings(BaseSettings):
         self._individualClippingPlaneSubparameters += [p for pair in zip(self._clipping_points,self._clipping_normals) for p in pair]
         if not self._individual_rendering_parameters:
             self.getClippingEnable = lambda : self.individualClippingPlane
+            self.setClippingEnable = lambda : self.individualClippingPlaneChanged.emit()
         else:
             self.getClippingEnable = lambda : self.individualClippingPlane == True or (self.individualClippingPlane == None and self._global_rendering_parameters.individualClippingPlane == True)
+            self.setClippingEnable = lambda : self.individualClippingPlaneChanged.emit()
         self.addParameters("Clipping", *self._individualClippingPlaneSubparameters)
         if self._individual_rendering_parameters:
             _patchGetterFunctionsWithGlobalSettings(self, 'getClipping', ['Point', 'Normal', 'NPlanes', 'Expression', 'Point1', 'Point2', 'Normal1', 'Normal2', 'Planes'], 'individualClippingPlane')
@@ -827,11 +829,10 @@ class ColormapSettings(BaseSettings):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._colormap_tex = None
-        options = [False, True]
         self._individualColormap = False
         self.individualColormapChanged.connect(lambda: setattr(self,
                                                                "_individualColormap",
-                                                               options[(options.index(self._individualColormap)+1)%len(options)]))
+                                                               not self._individualColormap))
         self.individualColormapChanged.connect(self._updateGL)
         for par in self._individualColormapSubparameters:
             par.setVisible(False)
@@ -840,7 +841,7 @@ class ColormapSettings(BaseSettings):
             self.individualColormapChanged.connect(self.widgets.update)
 
     def _setter(self, value):
-        while not self._individualColormap == value:
+        if not self._individualColormap == value:
             self.individualColormapChanged.emit()
 
     individualColormap = property(lambda self: self._individualColormap, _setter)
@@ -906,4 +907,7 @@ class ColormapSettings(BaseSettings):
         if self._colormap_tex == None:
             self._updateColormap()
         return self._colormap_tex
+
+    def getGlobalRenderingParameters(self):
+        return self._global_rendering_parameters
 
