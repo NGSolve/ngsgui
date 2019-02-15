@@ -194,8 +194,8 @@ class RenderingSettings(BaseScene, settings.CameraSettings, settings.LightSettin
         val_sd = settings.ValueParameter(name="Subdivision",label= "Subdivision", default_value=1, min=0, max=6, notUpdateGL=True)
         self.addParameters("Interpolation", val_order, val_sd)
 
-        val_order.changed.connect(self.interpolationChanged.emit)
-        val_sd.changed.connect(self.interpolationChanged.emit)
+        val_order.changed.connect(lambda dummy: self.interpolationChanged.emit())
+        val_sd.changed.connect(lambda dummy:self.interpolationChanged.emit())
 
         def storeRenderingSettings():
             import io, base64, pickle
