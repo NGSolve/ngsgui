@@ -284,12 +284,21 @@ class RenderingSettings(BaseScene, settings.CameraSettings, settings.LightSettin
 
 class BaseMeshScene(BaseScene):
     """Base class for all scenes that depend on a mesh"""
-    __initial_values = {"Deformation" : False}
+    __initial_values = {"Deformation" : False,
+                        "deformation_scale" : 1}
     def __init__(self, mesh,*args, **kwargs):
         self.mesh = mesh
+        kwarg_vals = {}
+        for arg, val in kwargs.items():
+            if arg in self.__initial_values:
+                kwarg_vals[arg] = kwargs[arg]
+        self.__initial_values.update(kwarg_vals)
+        for arg in kwarg_vals:
+            kwargs.pop(arg)
         self.deformation = None
         if 'deformation' in kwargs:
             self.deformation = kwargs.pop('deformation')
+            self.__initial_values["Deformation"] = True
 
         super().__init__(*args, **kwargs)
 
@@ -302,7 +311,8 @@ class BaseMeshScene(BaseScene):
         if self.deformation != None:
             self._deformation_values = None
             scale_par = settings.ValueParameter(name="DeformationScale", label="Scale",
-                    default_value=1.0, min_value = 0.0, max_value = 1e99, step=0.1)
+                    default_value=self.__initial_values["deformation_scale"],
+                                                min_value = 0.0, max_value = 1e99, step=0.1)
             self.addParameters("Deformation",
                     settings.CheckboxParameterCluster(name="Deformation", label="Deformation",
                         default_value = self.__initial_values["Deformation"],
