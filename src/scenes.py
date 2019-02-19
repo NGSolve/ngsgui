@@ -285,20 +285,16 @@ class RenderingSettings(BaseScene, settings.CameraSettings, settings.LightSettin
 class BaseMeshScene(BaseScene):
     """Base class for all scenes that depend on a mesh"""
     __initial_values = {"Deformation" : False,
-                        "deformation_scale" : 1}
+                        "deformation_scale" : 1.0}
     def __init__(self, mesh,*args, **kwargs):
         self.mesh = mesh
         kwarg_vals = {}
-        for arg, val in kwargs.items():
-            if arg in self.__initial_values:
-                kwarg_vals[arg] = kwargs[arg]
-        self.__initial_values.update(kwarg_vals)
-        for arg in kwarg_vals:
-            kwargs.pop(arg)
+        if "deformation_scale" in kwargs:
+            self.__initial_values.update(float(kwargs.pop("deformation_scale")))
         self.deformation = None
         if 'deformation' in kwargs:
             self.deformation = kwargs.pop('deformation')
-            self.__initial_values["Deformation"] = True
+            self.__initial_values["Deformation"] = kwargs['use_deformation'] if 'use_deformation' in kwargs else False
 
         super().__init__(*args, **kwargs)
 
