@@ -630,10 +630,10 @@ class TextRenderer:
 
             metrics = QtGui.QFontMetrics(qfont)
 
-            font.width = metrics.maxWidth()
+            font.width = metrics.width("W")
             font.height = metrics.height()
 
-            font.tex_width = (1+128-32)*metrics.maxWidth()
+            font.tex_width = (1+128-32)*font.width
             font.tex_width = (font.tex_width+3)//4*4 # should be multiple of 4
             font.tex_height = metrics.height()
             for i in range(32,128):
@@ -647,7 +647,7 @@ class TextRenderer:
             painter.setFont(qfont)
             painter.setPen(QtCore.Qt.white)
             for i in range(32,128):
-                w = metrics.maxWidth()
+                w = font.width
                 text = bytes([i]).decode()
                 painter.drawText((i-32)*w,0, (i+1-32)*w, font.height, QtCore.Qt.AlignTop | QtCore.Qt.AlignLeft, text)
             painter.end()
