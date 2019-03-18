@@ -293,32 +293,53 @@ another Redraw after a time loop may be needed to see the final solutions."""
         self.window_tabber.activeGLWindow.glWidget.updateScenes()
 
     @inmain_decorator(wait_for_return=True)
-    def renderToImage(self, width, height, filename=None):
+    def renderToImage(self, width, height, filename=None, num_samples=16):
         """Render the current active GLWindow into a file"""
         import copy
         import OpenGL.GL as GL
         from qtpy import QtOpenGL
         viewport = GL.glGetIntegerv( GL.GL_VIEWPORT )
         GL.glViewport(0, 0, width, height)
+        GL.glEnable(GL.GL_MULTISAMPLE)
 
-        # create framebuffer
+        # =======================================
+        # create framebuffer without multisampling
+        simple_fb = GL.glGenFramebuffers(1)
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, simple_fb)
+
+        # create renderbuffer for image without multisampling
+        simple_rb = GL.glGenRenderbuffers(1)
+        GL.glBindRenderbuffer(GL.GL_RENDERBUFFER, simple_rb)
+        GL.glRenderbufferStorage(GL.GL_RENDERBUFFER, GL.GL_RGBA8, width, height)
+        GL.glFramebufferRenderbuffer(GL.GL_FRAMEBUFFER, GL.GL_COLOR_ATTACHMENT0, GL.GL_RENDERBUFFER, simple_rb)
+
+        # =======================================
+        # create framebuffer with multisampling
         fb = GL.glGenFramebuffers(1)
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, fb)
 
         # create renderbuffer for image
         rb = GL.glGenRenderbuffers(1)
         GL.glBindRenderbuffer(GL.GL_RENDERBUFFER, rb)
-        GL.glRenderbufferStorage(GL.GL_RENDERBUFFER, GL.GL_RGBA8, width, height)
+        GL.glRenderbufferStorageMultisample(GL.GL_RENDERBUFFER, num_samples, GL.GL_RGBA8, width, height)
         GL.glFramebufferRenderbuffer(GL.GL_FRAMEBUFFER, GL.GL_COLOR_ATTACHMENT0, GL.GL_RENDERBUFFER, rb)
 
         # renderbuffer for depth
         depth_rb = GL.glGenRenderbuffers(1)
         GL.glBindRenderbuffer(GL.GL_RENDERBUFFER, depth_rb)
-        GL.glRenderbufferStorage(GL.GL_RENDERBUFFER, GL.GL_DEPTH_COMPONENT32, width, height)
+        GL.glRenderbufferStorageMultisample(GL.GL_RENDERBUFFER, num_samples, GL.GL_DEPTH_COMPONENT32, width, height)
         GL.glFramebufferRenderbuffer(GL.GL_FRAMEBUFFER, GL.GL_DEPTH_ATTACHMENT, GL.GL_RENDERBUFFER, depth_rb)
 
+        # render image
         self.window_tabber.activeGLWindow.glWidget.paintGL()
         GL.glFinish()
+
+        # blit image from multisampled framebuffer to simple frambuffer
+        GL.glBindFramebuffer(GL.GL_READ_FRAMEBUFFER, fb)
+        GL.glBindFramebuffer(GL.GL_DRAW_FRAMEBUFFER, simple_fb)
+        GL.glBlitFramebuffer(0, 0, width, height, 0, 0, width, height, GL.GL_COLOR_BUFFER_BIT, GL.GL_NEAREST)
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, simple_fb)
+
         data = GL.glReadPixels(0, 0, width, height, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, outputType=None)
         import PIL.Image as im
         image = im.frombytes('RGBA', (width,height), data).transpose(im.FLIP_TOP_BOTTOM)
@@ -328,8 +349,8 @@ another Redraw after a time loop may be needed to see the final solutions."""
 
         # cleanup
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
-        GL.glDeleteFramebuffers(1, [fb])
-        GL.glDeleteRenderbuffers(1, [rb])
+        GL.glDeleteFramebuffers(2, [fb, simple_fb])
+        GL.glDeleteRenderbuffers(2, [rb, simple_rb])
         GL.glDeleteRenderbuffers(1, [depth_rb])
 
         GL.glViewport(*viewport)
