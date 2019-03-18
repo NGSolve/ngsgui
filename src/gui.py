@@ -300,21 +300,38 @@ another Redraw after a time loop may be needed to see the final solutions."""
         from qtpy import QtOpenGL
         viewport = GL.glGetIntegerv( GL.GL_VIEWPORT )
         GL.glViewport(0, 0, width, height)
-        format = QtOpenGL.QGLFramebufferObjectFormat()
-        format.setAttachment(QtOpenGL.QGLFramebufferObject.Depth)
-        format.setInternalTextureFormat(GL.GL_RGBA8);
-        fbo = QtOpenGL.QGLFramebufferObject(width, height, format)
-        fbo.bind()
+
+        # create framebuffer
+        fb = GL.glGenFramebuffers(1)
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, fb)
+
+        # create renderbuffer for image
+        rb = GL.glGenRenderbuffers(1)
+        GL.glBindRenderbuffer(GL.GL_RENDERBUFFER, rb)
+        GL.glRenderbufferStorage(GL.GL_RENDERBUFFER, GL.GL_RGBA8, width, height)
+        GL.glFramebufferRenderbuffer(GL.GL_FRAMEBUFFER, GL.GL_COLOR_ATTACHMENT0, GL.GL_RENDERBUFFER, rb)
+
+        # renderbuffer for depth
+        depth_rb = GL.glGenRenderbuffers(1)
+        GL.glBindRenderbuffer(GL.GL_RENDERBUFFER, depth_rb)
+        GL.glRenderbufferStorage(GL.GL_RENDERBUFFER, GL.GL_DEPTH_COMPONENT32, width, height)
+        GL.glFramebufferRenderbuffer(GL.GL_FRAMEBUFFER, GL.GL_DEPTH_ATTACHMENT, GL.GL_RENDERBUFFER, depth_rb)
 
         self.window_tabber.activeGLWindow.glWidget.paintGL()
         GL.glFinish()
         data = GL.glReadPixels(0, 0, width, height, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, outputType=None)
         import PIL.Image as im
-        image = im.fromarray(data[::-1,:,:])
+        image = im.frombytes('RGBA', (width,height), data).transpose(im.FLIP_TOP_BOTTOM)
 
         if filename!=None:
             image.save(filename)
-        fbo.release()
+
+        # cleanup
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
+        GL.glDeleteFramebuffers(1, [fb])
+        GL.glDeleteRenderbuffers(1, [rb])
+        GL.glDeleteRenderbuffers(1, [depth_rb])
+
         GL.glViewport(*viewport)
         return image
 
