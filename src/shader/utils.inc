@@ -85,6 +85,30 @@ vec3 MapColor(float value)
   return texelFetch(colormap.colors, n, 0).rgb;
 }
 
+vec3 MapColorIso(float value)
+{
+  value = (value-colormap.min)/(colormap.max-colormap.min);
+  value = clamp(value, 0.0, 1.0-1e-7);
+  int n = int(colormap.n*value);
+
+  vec3 col;
+  if(colormap.linear)
+    col = texture(colormap.colors, value).rgb;
+  else
+    col = texelFetch(colormap.colors, n, 0).rgb;
+
+  float rest = colormap.n*value - n;
+  rest = max(rest, 1.0-rest);
+  rest = rest*rest;
+  rest = rest*rest;
+  rest = rest*rest;
+  rest = rest*rest;
+  rest = rest*rest;
+  rest = rest*rest;
+  rest = 1.0-rest;
+  return rest*col;
+}
+
 int getIndex(int N, int x, int y) {
   int res = N*(N+1)/2 - (N-y)*(N-y+1)/2;
   res += x;
