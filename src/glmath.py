@@ -11,6 +11,14 @@ _up_default = Vector(3)
 _up_default[:] = 0
 _up_default[1] = 1
 
+
+def Normalize(a):
+    res = Vector(3)
+    s = 1.0/a.Norm()
+    res[0] = a[0]*s
+    res[1] = a[1]*s
+    res[2] = a[2]*s
+    return res
 def Dot(a,b):
     res = 0.0
     for i in range(len(a)):
