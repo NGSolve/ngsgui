@@ -10,7 +10,7 @@ def Draw(obj, *args, tab=None, **kwargs):
     return scene
 
 _last_time = 0
-def Redraw(blocking=False,**kwargs):
+def Redraw(blocking=False, fr=25, **kwargs):
     from time import time
     import ngsgui.gui as G
     global _last_time
@@ -19,7 +19,7 @@ def Redraw(blocking=False,**kwargs):
         G.gui.app.processEvents()
     else:
         t = time()
-        if t-_last_time > 0.02:
+        if fr*(t-_last_time) > 1:
             G.gui.app.processEvents()
             G.gui.redraw()
             _last_time = t
