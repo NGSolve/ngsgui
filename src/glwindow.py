@@ -73,6 +73,7 @@ class GLWidget(QtOpenGL.QGLWidget):
     def __init__(self,shared=None, rendering_parameters=None, *args, **kwargs):
         f = QtOpenGL.QGLFormat()
         f.setVersion(3,2)
+        f.setSamples(16)
         # f.setProfile(QtOpenGL.QGLFormat.CompatibilityProfile)
         f.setProfile(QtOpenGL.QGLFormat.CoreProfile)
         if _debug:
