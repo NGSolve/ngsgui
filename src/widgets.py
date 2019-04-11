@@ -278,7 +278,7 @@ class ColorPickerWidget(QtWidgets.QWidget):
         super().__init__()
         self._initial_color = initial_color
         self._colorbtns = {}
-        self._checkboxes = []
+        self._checkboxes = {}
         self.names = names
 
         layouts = []
@@ -297,7 +297,7 @@ class ColorPickerWidget(QtWidgets.QWidget):
                 btn = QColorButton(initial_color=initial_color)
                 btn.colorChanged.connect(self.colors_changed.emit)
                 cb_visible = QtWidgets.QCheckBox('visible')
-                self._checkboxes.append(cb_visible)
+                self._checkboxes[name] = cb_visible
                 cb_visible.setChecked(True)
                 cb_visible.stateChanged.connect(ObjectHolder(btn,call_func))
                 self._colorbtns[name] = btn
@@ -319,14 +319,14 @@ class ColorPickerWidget(QtWidgets.QWidget):
 
     def checkAll(self):
         old_state = self.blockSignals(True)
-        for cb in self._checkboxes:
+        for cb in self._checkboxes.values():
             cb.setChecked(True)
         self.blockSignals(old_state)
         self.colors_changed.emit()
 
     def uncheckAll(self):
         old_state = self.blockSignals(True)
-        for cb in self._checkboxes:
+        for cb in self._checkboxes.values():
             cb.setChecked(False)
         self.blockSignals(old_state)
         self.colors_changed.emit()
@@ -341,6 +341,7 @@ class ColorPickerWidget(QtWidgets.QWidget):
     def setRandom(self):
         import itertools
         import random
+        old_state = self.blockSignals(True)
         n = 2
         while n**3+1 < len(self._colorbtns):
             n += 1
@@ -361,14 +362,20 @@ class ColorPickerWidget(QtWidgets.QWidget):
             color.setHsvF(h,s,v)
             color.setAlpha(btn.color().alpha())
             btn.setColor(color)
+        self.blockSignals(old_state)
         self.colors_changed.emit()
         
 
     def setColors(self, colors):
         old_state = self.blockSignals(True)
-        for i, (btn,cb) in enumerate(zip(self._colorbtns.values(), self._checkboxes)):
-            btn.setColor(QtGui.QColor(*colors[i*4:(i+1)*4]))
-            cb.setChecked(colors[i*4+3])
+        if type(colors) is dict:
+            for key, val in colors.items():
+                self._colorbtns[key].setColor(QtGui.QColor(*val))
+                self._checkboxes[key].setChecked(val[3])
+        else:
+            for i, (btn,cb) in enumerate(zip(self._colorbtns.values(), self._checkboxes)):
+                btn.setColor(QtGui.QColor(*colors[i*4:(i+1)*4]))
+                cb.setChecked(colors[i*4+3])
         self.blockSignals(old_state)
         self.colors_changed.emit()
 
