@@ -171,7 +171,10 @@ class ColorParameter(Parameter):
         return [f() for c in self._colorWidget.getColors() for f in [c.red, c.green, c.blue, c.alpha] ]
 
     def setValue(self, vals):
-        self._colorWidget.setColors(vals)
+        if vals == None:
+            self._colorWidget.setRandom()
+        else:
+            self._colorWidget.setColors(vals)
 
     def __getstate__(self):
         superstate = super().__getstate__()
