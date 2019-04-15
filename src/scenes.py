@@ -190,7 +190,7 @@ class RenderingSettings(BaseScene, settings.CameraSettings, settings.LightSettin
                            settings.CheckboxParameter(name="ShowColorbar",label= "Show Colorbar",
                                                       default_value=True),
                            settings.CheckboxParameter(name="ShowVersion",label= "Show Version", default_value=True))
-        val_order = settings.ValueParameter(name="Order",label= "Order", default_value=1, min=0, max=3, notUpdateGL=True)
+        val_order = settings.ValueParameter(name="Order",label= "Order", default_value=2, min=0, max=3, notUpdateGL=True)
         val_sd = settings.ValueParameter(name="Subdivision",label= "Subdivision", default_value=1, min=0, max=6, notUpdateGL=True)
         self.addParameters("Interpolation", val_order, val_sd)
 
