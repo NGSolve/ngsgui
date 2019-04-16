@@ -19,7 +19,7 @@ build:
   <<: *ubuntu
   stage: build
   script:
-    - pip3 install --user .
+    - pip3 install --user .[test]
 
 test:
   <<: *ubuntu
