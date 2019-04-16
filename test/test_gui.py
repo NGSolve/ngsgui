@@ -1,5 +1,4 @@
 
-from unittest.mock import Mock
 import ngsgui.gui as G
 import pytest, os
 
