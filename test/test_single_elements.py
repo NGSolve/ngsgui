@@ -32,6 +32,8 @@ def getParameters():
     settings.setShowCross(False)
     settings.setShowVersion(False)
     settings.setShowColorbar(False)
+    settings.setOrder(3)
+    settings.setSubdivision(3)
     return settings
 
 @pytest.mark.parametrize("name,mesh", meshes.meshes_3d)
@@ -48,8 +50,6 @@ def test_cf(name, mesh):
     Draw(s, name=name, tab=name+'_cf')
     # appy custom rendering settings (also because there are not global settings in headless mode)
 
-    s.setOrder(3)
-    s.setSubdivision(3)
     s.setShowSurface(True)
     s.setShowClippingPlane(True)
 
