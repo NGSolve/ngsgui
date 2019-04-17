@@ -72,6 +72,7 @@ the gui is closed"""
 
     def _createMenu(self):
         """Creates menu bar. It can afterwards be modified by plugins"""
+        logger.debug("Create menu bar")
         from .menu import MenuBarWithDict
         self.menuBar = MenuBarWithDict()
         filemenu = self.menuBar["&File"]
@@ -107,6 +108,7 @@ state and being able to reload it without a graphical interface."""
         import pickle
         from .glwindow import WindowTab
         from .settings import BaseSettings
+        logger.debug("Load testfile {}".format(filename))
         save_setstate = BaseSettings.__setstate__
         def newSetstate(scene, state):
             BaseSettings.__init__(scene)
@@ -188,6 +190,7 @@ state and being able to reload it without a graphical interface."""
         """Crawls registered plugins, plugins can be added by using the entry point ngsgui.plugin"""
         import pkg_resources
         for entry_point in pkg_resources.iter_entry_points(group="ngsgui.plugin",name=None):
+            logger.debug("Load plugin {}".format(str(entry_point)))
             plugin = entry_point.load()
             plugin(self)
 
@@ -197,14 +200,16 @@ exist a load function for the file extension type registered in GUI.file_loaders
         if os.path.isfile(filename):
             name, ext = os.path.splitext(filename)
             if not ext in GUI.file_loaders:
-                self.showMessageBox("File loading error", "Cannot load file type: " + ext)
+                self.showErrorMessageBox("File loading error", "Cannot load file type: " + ext)
                 return
             try:
                 GUI.file_loaders[ext](self, filename)
             except Exception as e:
                 import traceback
-                self.showMessageBox("Exception in load file:", str(e))
+                self.showErrorMessageBox("Exception in load file:", str(e))
                 traceback.print_exc()
+        else:
+            logger.error("Couldn't find file {}".format(filename))    
 
     def _parseFlags(self, flags):
         """Parses command line arguments and calls functions registered in GUI.flags. If argument is
@@ -221,18 +226,25 @@ not none, argument is parsed instead of command line args"""
                             help="Don't pipe output to buffer in gui")
         parser.add_argument("-dc","--dontCatchExceptions", action="store_true",
                             help="Don't catch exceptions up to user input, but show internal gui traceback")
-        parser.add_argument("--logfile", nargs=1, type=str, action="store")
+        parser.add_argument("--logfile", nargs=1, type=str, action="store",
+                            help="Write debug log to file")
+        parser.add_argument("--logformat", nargs=1, type=str, action="store",
+                            help="Set format for logging, only active if logfile is set")
         if not flags is None:
             self._flags = parser.parse_args(flags)
         else:
             self._flags = parser.parse_args()
         if self._flags.logfile is not None:
+            fmt = self._flags.logformat if self._flags.logformat else '%(asctime)s [%(levelname)s] {%(name)s} - %(message)s'
             logging.basicConfig(level=logging.DEBUG,
+                                format=fmt,
                                 filename=os.path.join(os.getcwd(), self._flags.logfile[0]),
                                 filemode="w")
+        logger.debug("Parsed flags: {}".format(self._flags))
 
 
-    def showMessageBox(self, title, text):
+    def showErrorMessageBox(self, title, text):
+        logger.error(text)
         self._msgbox = QtWidgets.QMessageBox(text=text)
         self._msgbox.setWindowTitle(title)
         self._msgbox.show()
@@ -380,7 +392,7 @@ another Redraw after a time loop may be needed to see the final solutions."""
             exec(code, locs)
         except Exception as e:
             import traceback
-            self.showMessageBox("Exception in run code:", str(e))
+            self.showErrorMessageBox("Exception in run code:", str(e))
             traceback.print_exc()
 
     def loadPythonFile(self, filename):
@@ -492,7 +504,7 @@ def _loadOCC(gui, filename):
         gui.console.execute("geo = netgen.NgOCC.LoadOCCGeometry('" + filename + "')")
         gui.console.execute("ngsolve.Draw(geo)")
     except ImportError:
-        gui.showMessageBox("Netgen is not built with OCC support!")
+        gui.showErrorMessageBox("Netgen is not built with OCC support!")
 def _loadGeo(gui, filename):
     import netgen.csg as csg
     geo = csg.CSGeometry(filename)
