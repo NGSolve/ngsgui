@@ -7,10 +7,10 @@ def gui(qtbot):
     G.gui = gui = G.GUI(startApplication=False, flags=[])
     return gui
 
-def test_loadPython(gui, qtbot):
-    with open("small.py", "w") as f:
-        f.write("a = 5")
-    gui.loadPythonFile("small.py")
+def test_loadPython(gui, qtbot, tmpdir):
+    f = tmpdir.join("small.py")
+    f.write("a=5")
+    gui.loadPythonFile(str(f))
     qtbot.wait(10)
     callback_called = []
     def callback(msg):
@@ -19,7 +19,6 @@ def test_loadPython(gui, qtbot):
     gui.console._silent_exec_callback("a", callback)
     qtbot.wait(10)
     assert callback_called
-    os.remove("small.py")
 
 def test_exception_in_console(gui, qtbot):
     # raise an exception
