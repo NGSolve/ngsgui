@@ -28,6 +28,7 @@ void main()
 #if defined(ET_QUAD)
       lam = inData.lam.yxz;
 #endif
+      lam = clamp(lam,0,1);
       value = Evaluate(FUNCTION, inData.element, lam);
 
       FragColor.rgb = MapColor(value);
