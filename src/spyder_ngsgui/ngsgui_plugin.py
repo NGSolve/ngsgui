@@ -7,14 +7,19 @@ from spyder.utils import icon_manager as ima
 try:
     # Spyder 4
     from spyder.api.plugins import SpyderPluginWidget
+    from spyder.plugins.ipythonconsole.utils.kernelspec import SpyderKernelSpec
+    import spyder.plugins.ipythonconsole.plugin as ipyplugin
+    import spyder.plugins.ipythonconsole.widgets.namespacebrowser as spyder_namespacebrowser
 except ImportError:
     # Spyder 3
     from spyder.plugins import SpyderPluginWidget
+    from spyder.utils.ipython.kernelspec import SpyderKernelSpec
+    import spyder.plugins.ipythonconsole as ipyplugin
+    import spyder.widgets.ipythonconsole.namespacebrowser as spyder_namespacebrowser
 
 # NGSolve imports
 import ngsgui.gui as G
 from ngsgui.widgets import ArrangeH
-from spyder.plugins.ipythonconsole.utils.kernelspec import SpyderKernelSpec
 
 import logging
 logger = logging.getLogger(__name__)
@@ -122,8 +127,7 @@ class NGSolvePlugin(SpyderPluginWidget):
         self.ipyconsole = self.main.ipyconsole
         _drawer = self.ipyconsole._ngs_drawer = Drawer()
         # patch NameSpaceBrowser._handle_spyder_msg to get our ngsolve stuff...
-        import spyder.plugins.ipythonconsole.widgets.namespacebrowser as nsb
-        old_handle_spyder_msg = nsb.NamepaceBrowserWidget._handle_spyder_msg
+        old_handle_spyder_msg = spyder_namespacebrowser.NamepaceBrowserWidget._handle_spyder_msg
         def new_handle_spyder_msg(_self, msg):
             spyder_msg_type = msg['content'].get('spyder_msg_type')
             if spyder_msg_type == 'ngsolve_draw':
@@ -136,8 +140,8 @@ class NGSolvePlugin(SpyderPluginWidget):
                     pass
             else:
                 old_handle_spyder_msg(_self, msg)
-        nsb.NamepaceBrowserWidget._handle_spyder_msg = new_handle_spyder_msg
-        import spyder.plugins.ipythonconsole.plugin as ipyplugin
+        spyder_namespacebrowser.NamepaceBrowserWidget._handle_spyder_msg = new_handle_spyder_msg
+
         ipyplugin.SpyderKernelSpec = NgsSpyderKernelSpec
         # monkeypatch notebookplugin if available
         try:
