@@ -164,15 +164,25 @@ class GLWidget(QtOpenGL.QGLWidget):
         rp = self._settings
         rp.ratio = screen_width/max(screen_height,1)
 
+        for scene in self.scenes:
+            if scene.active and hasattr(scene, "individualColormap") and scene.individualColormap and scene.getColormapAutoscale():
+                smin, smax = scene.getAutoscaleRange(rp)
+                state = self.blockSignals(True)
+                scene.setColormapMin(smin)
+                scene.setColormapMax(smax)
+                self.blockSignals(state)
+
         if rp.getColormapAutoscale():
-            colormap_min = 1e99
-            colormap_max = -1e99
+            colormap_min = 0
+            colormap_max = 1
+            # use the autoscale of the last drawn scene
             for scene in self.scenes:
-                a,b = scene.getAutoscaleRange(rp)
-                colormap_min = min(a, colormap_min)
-                colormap_max = max(b, colormap_max)
+                if scene.active and hasattr(scene, "individualColormap") and not scene.individualColormap:
+                    colormap_min, colormap_max = scene.getAutoscaleRange(rp)
+            state = self.blockSignals(True)
             rp.setColormapMin(colormap_min)
             rp.setColormapMax(colormap_max)
+            self.blockSignals(state)
         for scene in self.scenes[1:]:
             scene.render(rp)
         rp.render(rp)
