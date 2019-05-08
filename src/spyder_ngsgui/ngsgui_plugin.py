@@ -20,6 +20,7 @@ except ImportError:
 # NGSolve imports
 import ngsgui.gui as G
 from ngsgui.widgets import ArrangeH
+import weakref
 
 import logging
 logger = logging.getLogger(__name__)
@@ -33,6 +34,7 @@ ngsolve.ngsglobals.msg_level = 0
 
 class Drawer:
     def __init__(self):
+        self.index_table = {}
         self.to_draw = queue.Queue()
         def run():
             while True:
@@ -51,14 +53,42 @@ class Drawer:
                     index, args, kwargs = values
                     scene = ngsolve.Draw(*args, **kwargs)
                     scene._redraw_index = index
+                    self.index_table[index] = weakref.ref(scene)
+                elif what == "set_scene_item":
+                    index, name, val = values
+                    logger.debug("Receive set {} of scene {} to {}".format(name, index, val))
+                    scene = self.getScene(index)
+                    if scene:
+                        setattr(scene, name, val)
+                elif what == "call_scene_item":
+                    index, name, args, kwargs = values
+                    logger.debug("Receive call {} of scene {} with args {} and kwargs {}".format(name, index,
+                                                                                                 args, kwargs))
+                    scene = self.getScene(index)
+                    if scene:
+                            getattr(scene, name)(*args, **kwargs)
                 else:
-                    for scene in G.gui.getScenesFromCurrentWindow():
+                    assert what == "redraw"
+                    widget = G.gui.window_tabber.activeGLWindow.glWidget
+                    state = widget.blockSignals(True)
+                    for scene in widget.scenes:
                         if hasattr(scene, "_redraw_index"):
                             scene.update(*(values[scene._redraw_index]))
-                    G.gui.window_tabber.activeGLWindow.glWidget.updateGL()
+                    widget.blockSignals(state)
+                    widget.updateGL()
                 self.to_draw.task_done()
         self.worker = threading.Thread(target=run)
         self.worker.start()
+
+    def getScene(self, index):
+        if index in self.index_table:
+            scene = self.index_table[index]()
+            if not scene:
+                logger.debug("Scene {} already dead".format(index))
+        else:
+            scene = None
+            logger.error("Scene {} does not exist".format(index))
+        return scene
 
 class NgsSpyderKernelSpec(SpyderKernelSpec):
     @property
@@ -70,7 +100,6 @@ class NgsSpyderKernelSpec(SpyderKernelSpec):
 
 class NGSolvePlugin(SpyderPluginWidget):
     CONF_SECTION = "ngsolve"
-    # TODO: find out why this doesn't work...
     LOCATION = QtCore.Qt.BottomDockWidgetArea
 
     def __init__(self, parent):
@@ -130,14 +159,16 @@ class NGSolvePlugin(SpyderPluginWidget):
         old_handle_spyder_msg = spyder_namespacebrowser.NamepaceBrowserWidget._handle_spyder_msg
         def new_handle_spyder_msg(_self, msg):
             spyder_msg_type = msg['content'].get('spyder_msg_type')
-            if spyder_msg_type == 'ngsolve_draw':
-                _drawer.to_draw.put(["draw",cloudpickle.loads(bytes(msg['buffers'][0]))])
-            elif spyder_msg_type == 'ngsolve_redraw':
+            if spyder_msg_type == 'ngsolve_redraw':
                 try:
                     _drawer.to_draw.put(["redraw",cloudpickle.loads(bytes(msg['buffers'][0]))])
                 except Exception as e:
                     # TODO: sometimes this crashes with a bad_weak_ptr exception...
                     pass
+            elif spyder_msg_type.startswith("ngsolve_"):
+                ngs_type, vals = spyder_msg_type[8:], cloudpickle.loads(bytes(msg['buffers'][0]))
+                logger.debug("Receive ngsolve msg {} with values {}".format(ngs_type, vals))
+                _drawer.to_draw.put([ngs_type, vals])
             else:
                 old_handle_spyder_msg(_self, msg)
         spyder_namespacebrowser.NamepaceBrowserWidget._handle_spyder_msg = new_handle_spyder_msg

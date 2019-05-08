@@ -5,7 +5,22 @@ del os
 import ngsolve, weakref, time
 import ngsgui.gui as G
 
+import logging
+logger = logging.getLogger(__name__)
+
 G._load_plugins()
+
+class ProxyItem:
+    def __init__(self, index, name):
+        self.index = index
+        self.name = name
+
+    def __set__(self, obj, value):
+        get_ipython().get_ipython().kernel.send_spyder_msg("ngsolve_set_scene_item", None, [self.index, self.name,
+                                                                                            value])
+    def __call__(self, *args, **kwargs):
+        get_ipython().get_ipython().kernel.send_spyder_msg("ngsolve_call_scene_item", None, [self.index, self.name,
+                                                                                             args, kwargs])
 
 _ngs_drawn_objects = []
 def Draw(*args, **kwargs):
@@ -13,6 +28,12 @@ def Draw(*args, **kwargs):
     index = len(_ngs_drawn_objects)
     _ngs_drawn_objects.append(scene.objectsToUpdate())
     get_ipython().get_ipython().kernel.send_spyder_msg("ngsolve_draw", None, [index, args, kwargs])
+    class ProxyScene:
+        pass
+    for attr in dir(scene):
+        if not attr.startswith("_"):
+            setattr(ProxyScene, attr, ProxyItem(index, attr))
+    return ProxyScene()
     
 
 _last_time_ngs_draw = 0
