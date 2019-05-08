@@ -95,10 +95,12 @@ class RangeGroup(QtWidgets.QWidget):
         self.setLayout(ArrangeV(ArrangeH(self.label, self.valueBox), self.scroll))
         self.setValue(value)
 
+    @inmain_decorator(True)
     def setIntValue(self, int_value):
         float_value = int_value*1.0/self.scalingFactor
         self.valueBox.setValue(float_value)
 
+    @inmain_decorator(True)
     def setValue(self, float_value):
         int_value = round(self.scalingFactor*float_value)
         self.scroll.setValue(int_value)
@@ -216,6 +218,10 @@ class ScienceSpinBox(QtWidgets.QDoubleSpinBox):
         self.setDecimals(1000)
         self.lastWheelStep = 1.
         self.changed.connect(self.setValue)
+
+    @inmain_decorator(True)
+    def setValue(self, value):
+        super().setValue(value)
 
     def validate(self,text,position):
         return self.validator.validate(text,position)
@@ -397,6 +403,7 @@ class WidgetWithLabel(QtWidgets.QWidget):
             lay.setMargin(0)
             self.setLayout(lay)
 
+    @inmain_decorator(True)
     def setValue(self, value):
         if isinstance(self._value_widget, QtWidgets.QCheckBox):
             self._value_widget.setCheckState(QtCore.Qt.Checked if value else QtCore.Qt.Unchecked)
