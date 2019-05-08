@@ -12,6 +12,9 @@ import time, ngsolve, weakref
 from ngsolve.bla import Vector
 from math import exp, sqrt
 
+import logging
+logger = logging.getLogger(__name__)
+
 from qtpy import QtWidgets, QtOpenGL, QtCore, QtGui
 from OpenGL import GL
 import pickle
@@ -63,6 +66,7 @@ class WindowTab(QtWidgets.QWidget):
     @inmain_decorator(True)
     def remove(self, scene):
         """Remove scene from window"""
+        logger.debug("Remove scene {}".format(scene.name))
         self.glWidget.makeCurrent()
         scene.window = None
         self.glWidget.scenes.remove(scene)
@@ -70,6 +74,7 @@ class WindowTab(QtWidgets.QWidget):
         self.glWidget.updateGL()
 
 class GLWidget(QtOpenGL.QGLWidget):
+    _trace_paintGL_calls = False
     def __init__(self,shared=None, rendering_parameters=None, *args, **kwargs):
         f = QtOpenGL.QGLFormat()
         f.setVersion(3,2)
@@ -150,6 +155,10 @@ class GLWidget(QtOpenGL.QGLWidget):
 #         print("frames per second: ", 1.0/t, end='\r')
         self.old_time = time.time()
 
+        if self._trace_paintGL_calls:
+            import traceback
+            logger.debug("\n".join(["************************ paintGL stack *****************************"]
+                                   + traceback.format_stack()))
 
         GL.glClearColor( 1, 1, 1, 0)
         GL.glClear(GL.GL_COLOR_BUFFER_BIT|GL.GL_DEPTH_BUFFER_BIT)

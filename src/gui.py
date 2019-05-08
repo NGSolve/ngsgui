@@ -230,6 +230,10 @@ not none, argument is parsed instead of command line args"""
                             help="Write debug log to file")
         parser.add_argument("--logformat", nargs=1, type=str, action="store",
                             help="Set format for logging, only active if logfile is set")
+        parser.add_argument("--keep_matplotlib_debug_log", action="store_true",
+                            help="Matplotlib writes a lot of debug log output, which we remove from the log files, set this to keep it.")
+        parser.add_argument("--trace_paintGL_calls", action="store_true",
+                            help="Write trace of paintGL calls to logfile")
         if not flags is None:
             self._flags = parser.parse_args(flags)
         else:
@@ -240,6 +244,10 @@ not none, argument is parsed instead of command line args"""
                                 format=fmt,
                                 filename=os.path.join(os.getcwd(), self._flags.logfile[0]),
                                 filemode="w")
+            if not self._flags.keep_matplotlib_debug_log:
+                logging.getLogger("matplotlib").setLevel(logging.INFO)
+            if self._flags.trace_paintGL_calls:
+                glwindow.GLWidget._trace_paintGL_calls = True
         logger.debug("Parsed flags: {}".format(self._flags))
 
 
@@ -297,11 +305,13 @@ not none, argument is parsed instead of command line args"""
     def redraw(self):
         """Redraw non-blocking. Redraw signals with a framerate higher than 50 fps are discarded, so
 another Redraw after a time loop may be needed to see the final solutions."""
+        logger.debug("Call redraw")
         self.window_tabber.activeGLWindow.glWidget.updateScenes()
 
     @inmain_decorator(wait_for_return=True)
     def redraw_blocking(self):
         """Draw blocking, no Redraw signals are discarded but it is a lot slower than non blocking"""
+        logger.debug("Blocking redraw")
         self.window_tabber.activeGLWindow.glWidget.updateScenes()
 
     @inmain_decorator(wait_for_return=True)
