@@ -20,7 +20,7 @@ except ImportError:
     dependencies += ["PySide2"]
 
 setup(name="ngsgui",
-      version="0.1.10",
+      version="0.1.11",
       description="New graphical interface for NGSolve",
       packages=modules,
       package_dir=dirs,
