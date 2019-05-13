@@ -27,7 +27,7 @@ def _load_plugins():
         plugin = entry_point.load()
         plugin(None)
 
-def _createScene(obj, *args, **kwargs):
+def _createScene(obj, *args, tab=None, **kwargs):
     for t in type(obj).__mro__:
         if t in GUI.sceneCreators:
             return GUI.sceneCreators[t](obj, *args, **kwargs)
