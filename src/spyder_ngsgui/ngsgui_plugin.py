@@ -33,8 +33,9 @@ import ngsgui.thread as thread
 ngsolve.ngsglobals.msg_level = 0
 
 class Drawer:
-    def __init__(self):
+    def __init__(self, ngs_plugin):
         self.index_table = {}
+        self._ngs_plugin = ngs_plugin
         self.to_draw = queue.Queue()
         def run():
             while True:
@@ -52,6 +53,7 @@ class Drawer:
                 if what == "draw":
                     index, args, kwargs = values
                     scene = ngsolve.Draw(*args, **kwargs)
+                    self._ngs_plugin.switch_to_plugin()
                     scene._redraw_index = index
                     self.index_table[index] = weakref.ref(scene)
                 elif what == "set_scene_item":
@@ -108,13 +110,12 @@ class NGSolvePlugin(SpyderPluginWidget):
         self.gui = G.GUI(flags=["--noOutputpipe", "--noConsole"],startApplication=False,
                          createMenu=False)
         G.gui = self.gui
-        self.initialize_plugin()
         self.setLayout(ArrangeH(self.gui.mainWidget))
 
     # SpyderPluginMixin API
     def on_first_registration(self):
         """Action to be performed on first plugin registration."""
-        pass
+        self.tabify(self.main.variableexplorer)
 
     def update_font(self):
         """Update font from Preferences."""
@@ -152,9 +153,9 @@ class NGSolvePlugin(SpyderPluginWidget):
 
     def register_plugin(self):
         """Register plugin in Spyder's main window."""
-        self.main.add_dockwidget(self)
+        super().register_plugin()
         self.ipyconsole = self.main.ipyconsole
-        _drawer = self.ipyconsole._ngs_drawer = Drawer()
+        _drawer = self.ipyconsole._ngs_drawer = Drawer(self)
         # patch NameSpaceBrowser._handle_spyder_msg to get our ngsolve stuff...
         old_handle_spyder_msg = spyder_namespacebrowser.NamepaceBrowserWidget._handle_spyder_msg
         def new_handle_spyder_msg(_self, msg):
@@ -166,6 +167,8 @@ class NGSolvePlugin(SpyderPluginWidget):
                     # TODO: sometimes this crashes with a bad_weak_ptr exception...
                     pass
             elif spyder_msg_type.startswith("ngsolve_"):
+                logger.debug("msg_type = {}".format(spyder_msg_type))
+                logger.debug("Receive msg = {}".format(bytes(msg['buffers'][0])))
                 ngs_type, vals = spyder_msg_type[8:], cloudpickle.loads(bytes(msg['buffers'][0]))
                 logger.debug("Receive ngsolve msg {} with values {}".format(ngs_type, vals))
                 _drawer.to_draw.put([ngs_type, vals])
