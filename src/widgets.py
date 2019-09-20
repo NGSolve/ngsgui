@@ -180,6 +180,8 @@ class QColorButton(QtWidgets.QPushButton):
         if self._color:
             dlg.setCurrentColor(self._color)
 
+        dlg.setOption(QtWidgets.QColorDialog.ShowAlphaChannel)
+
         if dlg.exec_():
             self.setColor(dlg.currentColor())
             self.colorChanged.emit()

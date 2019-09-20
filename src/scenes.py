@@ -648,6 +648,8 @@ class MeshScene(BaseMeshScene):
         uniforms.set('font_width_on_screen', 2*font.width/screen_width)
         uniforms.set('font_height_on_screen', 2*font.height/screen_height)
 
+        uniforms.set('font_color', [0,0,0,1])
+
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
         glPolygonOffset (0,0)
         glDrawArrays(GL_POINTS, 0, elements.nelements)

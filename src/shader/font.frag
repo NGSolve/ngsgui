@@ -1,6 +1,8 @@
 #version 150
 uniform sampler2D font;
 
+uniform vec4 font_color;
+
 out vec4 FragColor;
 
 in VertexData_out
