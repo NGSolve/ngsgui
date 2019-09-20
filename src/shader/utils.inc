@@ -25,10 +25,12 @@ uniform struct Light {
 
 #if !defined(NO_CLIPPING) && defined(CLIPPING)
 uniform vec4 clipping_planes[N_CLIPPING_PLANES];
+uniform vec4 clipping_sphere;
 
 bool CalcClipping(vec3 pos)
 {
   bool p[N_CLIPPING_PLANES];
+  bool s = length(pos-clipping_sphere.xyz) < clipping_sphere.w;
   vec4 pos4 = vec4(pos, 1.0);
   for (int i=0; i<N_CLIPPING_PLANES; i++)
       p[i] = dot(clipping_planes[i], pos4) < 0;

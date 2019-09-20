@@ -474,11 +474,15 @@ def getProgram(*shader_files, feedback=[], elements=None, params=None, scene=Non
             u.set('light.dir', [1.,3.,3.])
             u.set('light.spec', scene.getLightSpecular())
             u.set('light.shininess', scene.getLightShininess())
-        if do_clipping and 'clipping_planes[0]' in u:
+        if do_clipping:
             n = scene.getClippingNPlanes()
-            planes = scene.getClippingPlanes()
-            planes = (ctypes.c_float*(4*n))(*planes)
-            glUniform4fv(u['clipping_planes[0]'], n, planes)
+            if 'clipping_planes[0]' in u:
+                planes = scene.getClippingPlanes()
+                planes = (ctypes.c_float*(4*n))(*planes)
+                glUniform4fv(u['clipping_planes[0]'], n, planes)
+            if 'clipping_sphere' in u:
+                sphere = [*scene.getClippingSphereCenter()] + [scene.getClippingSphereRadius()]
+                u.set('clipping_sphere', sphere)
 
         if 'colormap.colors' in u and scene:
             u.set('colormap.n', scene.getColormapSteps())

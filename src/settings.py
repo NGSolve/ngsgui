@@ -592,6 +592,8 @@ class CameraSettings(BaseSettings):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+        self._center = False
+
         self.rotmat = glmath.Identity()
         self.zoom = 0.0
         self.ratio = 1.0
@@ -609,7 +611,7 @@ class CameraSettings(BaseSettings):
         self.far_plane = 20.
         self.field_of_view = 0.8
 
-        self.__members = ['zoom', 'ratio', 'dx', 'dy', 'fastmode', 'near_plane', 'far_plane', 'field_of_view']
+        self.__members = ['center', 'zoom', 'ratio', 'dx', 'dy', 'fastmode', 'near_plane', 'far_plane', 'field_of_view']
 
     def rotateCamera(self, dx, dy):
         self.rotmat = glmath.RotateY(-dx/50.0)*self.rotmat
@@ -620,11 +622,16 @@ class CameraSettings(BaseSettings):
         self.dx += dx/s
         self.dy += dy/s
 
+    def setCenter(self, center):
+        if self._individual_rendering_parameters:
+            return self._global_rendering_parameters.setCenter(center)
+        self._center = center
+
     @property
     def center(self):
         if self._individual_rendering_parameters:
             return self._global_rendering_parameters.center
-        return 0.5*(self.min+self.max)
+        return self._center or 0.5*(self.min+self.max)
 
     @property
     def _modelSize(self):
@@ -696,6 +703,19 @@ def _patchGetterFunctionsWithGlobalSettings(obj, name_prefix, names, individual)
     for name in names:
         patchFunction(obj, name_prefix+name)
 
+def _patchFunctionsWithGlobalSettings(obj, name_prefix, names, individual):
+    def patchFunction(self, name):
+        gname = 'get'+name_prefix+name
+        setattr(self, '_'+gname, getattr(self, gname))
+        setattr(self, gname, lambda : getattr(self, '_'+gname)() if getattr(self, individual) else getattr(self._global_rendering_parameters, gname)())
+
+        sname = 'set'+name_prefix+name
+        setattr(self, '_'+sname, getattr(self, sname))
+        setattr(self, sname, lambda val: getattr(self, '_'+sname)(val) if getattr(self, individual) else getattr(self._global_rendering_parameters, sname)(val))
+
+    for name in names:
+        patchFunction(obj, name)
+
 class ClippingSettings(BaseSettings):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -737,6 +757,9 @@ class ClippingSettings(BaseSettings):
         p = glmath.Vector(self.getClippingPoint())
         return glmath.Vector( [n[0], n[1], n[2], -glmath.Dot(n,p)])
 
+    def setClippingPlanes(self, planes):
+        pass
+
     def getClippingPlanes(self):
         n = self.getClippingNPlanes()
         res = []
@@ -752,10 +775,10 @@ class ClippingSettings(BaseSettings):
             nplanes = self.getClippingNPlanes()
         if self.individualClippingPlane:
             if nplanes<2:
-                self._individualClippingPlaneSubparameters[1].setValue('p[0]')
-                self._individualClippingPlaneSubparameters[1].setVisible(False)
+                self._individualClippingPlaneSubparameters[3].setValue('p[0]')
+                self._individualClippingPlaneSubparameters[3].setVisible(False)
             else:
-                self._individualClippingPlaneSubparameters[1].setVisible(True)
+                self._individualClippingPlaneSubparameters[3].setVisible(True)
 
             for i in range(3):
                 self._clipping_points[i].setVisible(i<nplanes)
@@ -765,6 +788,8 @@ class ClippingSettings(BaseSettings):
         super()._createParameters()
         self._individualClippingPlaneSubparameters = [
             ValueParameter(name="ClippingNPlanes", label="Number", default_value=1, max_value=3, min_value=1),
+            VectorParameter(name="ClippingSphereCenter", label="Sphere center", default_value=(0.0,0.0,0.0), step=0.1),
+            ValueParameter(name="ClippingSphereRadius", label="Sphere radius", default_value=1.0, step=0.1),
             TextParameter(name="ClippingExpression", label="Expression", default_value='p[0]')
         ]
         self._clipping_points = [
@@ -789,7 +814,7 @@ class ClippingSettings(BaseSettings):
             self.setClippingEnable = lambda : self.individualClippingPlaneChanged.emit()
         self.addParameters("Clipping", *self._individualClippingPlaneSubparameters)
         if self._individual_rendering_parameters:
-            _patchGetterFunctionsWithGlobalSettings(self, 'getClipping', ['Point', 'Normal', 'NPlanes', 'Expression', 'Point1', 'Point2', 'Normal1', 'Normal2', 'Planes'], 'individualClippingPlane')
+            _patchFunctionsWithGlobalSettings(self, 'Clipping', ['Point', 'Normal', 'NPlanes', 'Expression', 'Point1', 'Point2', 'Normal1', 'Normal2', 'Planes', 'SphereCenter', 'SphereRadius'], 'individualClippingPlane')
 
 class LightSettings(BaseSettings):
     def __init__(self, *args, **kwargs):

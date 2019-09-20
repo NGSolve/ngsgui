@@ -298,8 +298,12 @@ class GLWidget(QtOpenGL.QGLWidget):
         if self.do_zoom:
             self._settings.zoom += dy
         if self.do_move_clippingplane:
-            s = 200.0*exp(-self._settings.zoom/100)
+            s = 100.0*exp(-self._settings.zoom/100)
             self._settings.moveClippingPoint(-dy/s)
+
+            r = self._settings.getClippingSphereRadius()
+            r = r * (1-dy/s)
+            self._settings.setClippingSphereRadius(r)
         if self.do_rotate_clippingplane:
             self._settings.rotateClippingNormal(dx, dy, self._settings.rotmat)
         self.lastPos = QtCore.QPoint(event.pos())
