@@ -50,7 +50,7 @@ void main()
 #ifdef MACOS
     struct PatchedInData { vec3 pos; vec3 normal; } inData[ELEMENT_N_VERTICES];
     // some bug in the intel drivers for mac (or invalid opengl code?) leads to invalid data in inData[], thus reload everything
-    ELEMENT_TYPE el = getElement(mesh, gl_PrimitiveID);
+    ELEMENT_TYPE el = getElement(gl_PrimitiveID);
     inData[0].normal = el.normal;
     for (int i=0; i<ELEMENT_N_VERTICES; i++)
     {
