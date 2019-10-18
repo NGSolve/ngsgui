@@ -381,6 +381,11 @@ class Program(GLObject):
             u.set(name+'.complex_vis_function', scene._complex_eval_funcs[scene.getComplexEvalFunc()])
             w = cmath.exp(1j*scene.getComplexPhaseShift()/180.0*math.pi)
             u.set(name+'.complex_factor', [w.real, w.imag])
+        if not cf.is_complex:
+            glActiveTexture(GL_TEXTURE0+tex_base+1)
+            u.set(name+'.coefficients_imag', tex_base+1)
+            u.set(name+'.complex_vis_function', 1)
+            u.set(name+'.complex_factor', [0.0, 0.0])
 
 def getProgram(*shader_files, feedback=[], elements=None, params=None, scene=None, **define_flags):
     import base64, zlib
