@@ -21,6 +21,17 @@ const uint32_t HEIGHT = 480;
 const bool ENABLE_DEBUGGING = false;
 
 const char* DEBUG_LAYER = "VK_LAYER_LUNARG_standard_validation";
+void PrintMat( glm::mat4 mat)
+{
+  for (int i=0;i<4;i++)
+  {
+    for (int k=0;k<4;k++)
+      std::cout << mat[i][k] << '\t';
+    std::cout << std::endl;
+  }
+    std::cout << std::endl;
+    std::cout << std::endl;
+}
 
 // Debug callback
 VkBool32 debugCallback(VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objType, uint64_t srcObject, size_t location, int32_t msgCode, const char* pLayerPrefix, const char* pMsg, void* pUserData) {
@@ -148,10 +159,12 @@ private:
 	void mainLoop() {
             bool should_close = false;
 		while (!should_close) {
-                    should_close = glfwWindowShouldClose(window);
+                  auto timeNow = std::chrono::high_resolution_clock::now();
+                  long long millis = std::chrono::duration_cast<std::chrono::milliseconds>(timeNow - timeStart).count();
+                  std::cout << millis << std::endl;
+                  should_close = glfwWindowShouldClose(window);
 			updateUniformData();
 			draw();
-
 			glfwPollEvents();
 		}
 	}
@@ -685,7 +698,10 @@ private:
 		long long millis = std::chrono::duration_cast<std::chrono::milliseconds>(timeStart - timeNow).count();
 		float angle = (millis % 4000) / 4000.0f * glm::radians(360.f);
 
-		glm::mat4 modelMatrix;
+		glm::mat4 modelMatrix{};
+                for (int i=0;i<4;i++)
+                  modelMatrix[i][i] = 1.0;
+                PrintMat(modelMatrix);
 		modelMatrix = glm::rotate(modelMatrix, angle, glm::vec3(0, 0, 1));
 		modelMatrix = glm::translate(modelMatrix, glm::vec3(0.5f / 3.0f, -0.5f / 3.0f, 0.0f));
 
@@ -693,9 +709,15 @@ private:
 		auto viewMatrix = glm::lookAt(glm::vec3(1, 1, 1), glm::vec3(0, 0, 0), glm::vec3(0, 0, -1));
 
 		// Set up projection
+                std::cout << swapChainExtent.width << ',' << swapChainExtent.height << std::endl;
 		auto projMatrix = glm::perspective(glm::radians(70.f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 10.0f);
 
+                std::cout << "angle " << angle << std::endl;
+//                 PrintMat(projMatrix);
+//                 PrintMat(viewMatrix);
+//                 PrintMat(modelMatrix);
 		uniformBufferData.transformationMatrix = projMatrix * viewMatrix * modelMatrix;
+                PrintMat(uniformBufferData.transformationMatrix);
 
 		void* data;
 		vkMapMemory(device, uniformBufferMemory, 0, sizeof(uniformBufferData), 0, &data);
