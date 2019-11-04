@@ -367,8 +367,8 @@ private:
     }
 
     void createGraphicsPipeline() {
-        auto vertShaderCode = readFile("trig.vert.spv");
-        auto fragShaderCode = readFile("trig.frag.spv");
+        auto vertShaderCode = readFile("tex.vert.spv");
+        auto fragShaderCode = readFile("tex.frag.spv");
 
         VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
         VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
@@ -540,10 +540,13 @@ private:
         int texWidth, texHeight, texChannels;
         texWidth = 100;
         texHeight = 100;
-        texChannels = 3;
+        texChannels = 4;
+        VkDeviceSize imageSize = texWidth * texHeight * 4;
 //         stbi_uc* pixels = stbi_load("textures/texture.jpg", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 
-        VkDeviceSize imageSize = texWidth * texHeight * 4;
+        unsigned char pixels[100*100*4];
+        for (auto i=0; i<100*100*4; i++)
+          pixels[i] = (i*i*4 + i)%256;
 
 //         if (!pixels) {
 //             throw std::runtime_error("failed to load texture image!");
@@ -555,7 +558,7 @@ private:
 
         void* data;
         vkMapMemory(device, stagingBufferMemory, 0, imageSize, 0, &data);
-//             memcpy(data, pixels, static_cast<size_t>(imageSize));
+        memcpy(data, pixels, static_cast<size_t>(imageSize));
         vkUnmapMemory(device, stagingBufferMemory);
 
 //         stbi_image_free(pixels);
