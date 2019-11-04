@@ -7,10 +7,14 @@
 #include <functional>
 #include <cstring>
 
+int n_trigs;
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
 #include <glm/gtc/matrix_transform.hpp>
+
+#include <comp.hpp>
+using namespace ngcomp;
 
 using namespace std::placeholders;
 
@@ -49,7 +53,7 @@ VkBool32 debugCallback(VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT o
 // Vertex layout
 struct Vertex {
 	float pos[3];
-	float color[3];
+	float normal[3];
 };
 
 bool windowResized = false;
@@ -159,9 +163,9 @@ private:
 	void mainLoop() {
             bool should_close = false;
 		while (!should_close) {
-                  auto timeNow = std::chrono::high_resolution_clock::now();
-                  long long millis = std::chrono::duration_cast<std::chrono::milliseconds>(timeNow - timeStart).count();
-                  std::cout << millis << std::endl;
+//                   auto timeNow = std::chrono::high_resolution_clock::now();
+//                   long long millis = std::chrono::duration_cast<std::chrono::milliseconds>(timeNow - timeStart).count();
+//                   std::cout << millis << std::endl;
                   should_close = glfwWindowShouldClose(window);
 			updateUniformData();
 			draw();
@@ -536,10 +540,44 @@ private:
 			{ { -0.5f,  0.5f,  0.0f }, { 0.0f, 1.0f, 0.0f } },
 			{ {  0.5f,  0.5f,  0.0f }, { 0.0f, 0.0f, 1.0f } }
 		};
-		uint32_t verticesSize = (uint32_t) (vertices.size() * sizeof(vertices[0]));
 
 		// Setup indices
 		std::vector<uint32_t> indices = { 0, 1, 2 };
+
+
+                MeshAccess mesh("mesh.vol");
+                auto & ngmesh = *mesh.GetNetgenMesh();
+
+                vertices.clear();
+                indices.clear();
+
+                for (auto & p : ngmesh.Points())
+                  vertices.push_back( {static_cast<float>(p[0]), static_cast<float>(p[1]), static_cast<float>(p[2])} );
+
+                for (auto sel : ngmesh.SurfaceElements())
+                {
+                  auto verts = sel.Vertices();
+                  auto v1 = ngmesh[verts[1]]-ngmesh[verts[0]];
+                  auto v2 = ngmesh[verts[2]]-ngmesh[verts[0]];
+                  auto n = Cross(v1,v2);
+
+                  for (auto v : sel.Vertices())
+                  {
+                    indices.push_back(v-netgen::PointIndex::BASE);
+                    for (auto i : IntRange(3))
+                      vertices[v-netgen::PointIndex::BASE].normal[i] = n[i];
+                  }
+                }
+
+
+                n_trigs = indices.size()/3;
+                cout << "number of trigs: " << n_trigs << endl;
+
+
+
+
+
+		uint32_t verticesSize = (uint32_t) (vertices.size() * sizeof(vertices[0]));
 		uint32_t indicesSize = (uint32_t) (indices.size() * sizeof(indices[0]));
 
 		VkMemoryAllocateInfo memAlloc = {};
@@ -663,7 +701,7 @@ private:
 		vertexAttributeDescriptions[0].location = 0;
 		vertexAttributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
 		
-		// vec3 color
+		// vec3 normal
 		vertexAttributeDescriptions[1].binding = 0;
 		vertexAttributeDescriptions[1].location = 1;
 		vertexAttributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
@@ -701,24 +739,18 @@ private:
 		glm::mat4 modelMatrix{};
                 for (int i=0;i<4;i++)
                   modelMatrix[i][i] = 1.0;
-                PrintMat(modelMatrix);
 		modelMatrix = glm::rotate(modelMatrix, angle, glm::vec3(0, 0, 1));
 		modelMatrix = glm::translate(modelMatrix, glm::vec3(0.5f / 3.0f, -0.5f / 3.0f, 0.0f));
+                float s = 0.3f;
+		modelMatrix = glm::scale(modelMatrix, {s,s,s});
 
 		// Set up view
 		auto viewMatrix = glm::lookAt(glm::vec3(1, 1, 1), glm::vec3(0, 0, 0), glm::vec3(0, 0, -1));
 
 		// Set up projection
-                std::cout << swapChainExtent.width << ',' << swapChainExtent.height << std::endl;
 		auto projMatrix = glm::perspective(glm::radians(70.f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 10.0f);
 
-                std::cout << "angle " << angle << std::endl;
-//                 PrintMat(projMatrix);
-//                 PrintMat(viewMatrix);
-//                 PrintMat(modelMatrix);
 		uniformBufferData.transformationMatrix = projMatrix * viewMatrix * modelMatrix;
-                PrintMat(uniformBufferData.transformationMatrix);
-
 		void* data;
 		vkMapMemory(device, uniformBufferMemory, 0, sizeof(uniformBufferData), 0, &data);
 		memcpy(data, &uniformBufferData, sizeof(uniformBufferData));
@@ -1306,7 +1338,7 @@ private:
 
 			vkCmdBindIndexBuffer(graphicsCommandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-			vkCmdDrawIndexed(graphicsCommandBuffers[i], 3, 1, 0, 0, 0);
+			vkCmdDrawIndexed(graphicsCommandBuffers[i], 3*n_trigs, 1, 0, 0, 0);
 
 			vkCmdEndRenderPass(graphicsCommandBuffers[i]);
 
