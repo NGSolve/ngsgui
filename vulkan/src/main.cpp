@@ -85,6 +85,8 @@ public:
 private:
 	GLFWwindow* window;
 
+        GlobalSettings globals;
+
 	VkInstance instance;
 	VkSurfaceKHR windowSurface;
 	VkPhysicalDevice physicalDevice;
@@ -100,17 +102,6 @@ private:
 	VkDeviceMemory indexBufferMemory;
 	VkVertexInputBindingDescription vertexBindingDescription;
 	std::vector<VkVertexInputAttributeDescription> vertexAttributeDescriptions;
-
-	struct Matrices {
-		glm::mat4 MVP;
-		glm::mat4 MV;
-		glm::mat4 MV_inv_trans;
-	} matrices;
-        unique_ptr<UniformBuffer<Matrices>> u_matrices;
-
-	VkDescriptorSetLayout descriptorSetLayout;
-	VkDescriptorPool descriptorPool;
-	VkDescriptorSet descriptorSet;
 
 	VkExtent2D swapChainExtent;
 	VkFormat swapChainFormat;
@@ -151,7 +142,7 @@ private:
 		createImageViews();
 		createFramebuffers();
 		createGraphicsPipeline();
-		createDescriptorPool();
+		globals.createDescriptorPool();
 		createDescriptorSet();
 		createCommandBuffers();
 	}
@@ -200,17 +191,13 @@ private:
 			vkDestroyImageView(device, swapChainImageViews[i], nullptr);
 		}
 
-		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+		vkDestroyDescriptorSetLayout(device, globals.descriptorSetLayout, nullptr);
 		
 		if (fullClean) {
 			vkDestroySemaphore(device, imageAvailableSemaphore, nullptr);
 			vkDestroySemaphore(device, renderingFinishedSemaphore, nullptr);
 
 			vkDestroyCommandPool(device, commandPool, nullptr);
-
-			// Clean up uniform buffer related objects
-			vkDestroyDescriptorPool(device, descriptorPool, nullptr);
-                        u_matrices = nullptr;
 
 			// Buffers must be destroyed after no command buffers are referring to them anymore
 			vkDestroyBuffer(device, vertexBuffer, nullptr);
@@ -704,35 +691,12 @@ private:
 	}
 
 	void createUniformBuffer() {
-                u_matrices = make_unique<UniformBuffer<Matrices>>(0);
+          globals.createUniformBuffer();
 		updateUniformData();
 	}
 
 	void updateUniformData() {
-		// Rotate based on time
-		auto timeNow = std::chrono::high_resolution_clock::now();
-		long long millis = std::chrono::duration_cast<std::chrono::milliseconds>(timeStart - timeNow).count();
-		float angle = (millis % 4000) / 4000.0f * glm::radians(360.f);
-
-		glm::mat4 modelMatrix{};
-                for (int i=0;i<4;i++)
-                  modelMatrix[i][i] = 1.0;
-		modelMatrix = glm::rotate(modelMatrix, angle, glm::vec3(0, 0, 1));
-		modelMatrix = glm::translate(modelMatrix, glm::vec3(0.5f / 3.0f, -0.5f / 3.0f, 0.0f));
-                float s = 0.3f;
-		modelMatrix = glm::scale(modelMatrix, {s,s,s});
-
-		// Set up view
-		auto viewMatrix = glm::lookAt(glm::vec3(1, 1, 1), glm::vec3(0, 0, 0), glm::vec3(0, 0, -1));
-
-		// Set up projection
-		auto projMatrix = glm::perspective(glm::radians(70.f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 10.0f);
-
-                auto MV = viewMatrix * modelMatrix;
-		matrices.MVP = projMatrix * MV;
-		matrices.MV = MV;
-		matrices.MV_inv_trans = glm::inverse(glm::transpose(MV));
-                u_matrices->Update(matrices);
+          globals.updateUniformData(swapChainExtent);
 	}
 
 	void createSwapChain() {
@@ -1109,37 +1073,7 @@ private:
 		colorBlendCreateInfo.blendConstants[2] = 0.0f;
 		colorBlendCreateInfo.blendConstants[3] = 0.0f;
 
-		// Describe pipeline layout
-		// Note: this describes the mapping between memory and shader resources (descriptor sets)
-		// This is for uniform buffers and samplers
-		VkDescriptorSetLayoutBinding layoutBinding = {};
-		layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		layoutBinding.descriptorCount = 1;
-		layoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-		
-		VkDescriptorSetLayoutCreateInfo descriptorLayoutCreateInfo = {};
-		descriptorLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-		descriptorLayoutCreateInfo.bindingCount = 1;
-		descriptorLayoutCreateInfo.pBindings = &layoutBinding;
-
-		if (vkCreateDescriptorSetLayout(device, &descriptorLayoutCreateInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
-			std::cerr << "failed to create descriptor layout" << std::endl;
-			exit(1);
-		} else {
-			std::cout << "created descriptor layout" << std::endl;
-		}
-
-		VkPipelineLayoutCreateInfo layoutCreateInfo = {};
-		layoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-		layoutCreateInfo.setLayoutCount = 1;
-		layoutCreateInfo.pSetLayouts = &descriptorSetLayout;
-
-		if (vkCreatePipelineLayout(device, &layoutCreateInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
-			std::cerr << "failed to create pipeline layout" << std::endl;
-			exit(1);
-		} else {
-			std::cout << "created pipeline layout" << std::endl;
-		}
+                globals.Init(pipelineLayout);
 
 		// Create the graphics pipeline
 		VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
@@ -1170,44 +1104,9 @@ private:
 		vkDestroyShaderModule(device, fragmentShaderModule, nullptr);
 	}
 
-	void createDescriptorPool() {
-		// This describes how many descriptor sets we'll create from this pool for each type
-		VkDescriptorPoolSize typeCount;
-		typeCount.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		typeCount.descriptorCount = 1;
-
-		VkDescriptorPoolCreateInfo createInfo = {};
-		createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-		createInfo.poolSizeCount = 1;
-		createInfo.pPoolSizes = &typeCount;
-		createInfo.maxSets = 1;
-		
-		if (vkCreateDescriptorPool(device, &createInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
-			std::cerr << "failed to create descriptor pool" << std::endl;
-			exit(1);
-		} else {
-			std::cout << "created descriptor pool" << std::endl;
-		}
-	}
 
 	void createDescriptorSet() {
-		// There needs to be one descriptor set per binding point in the shader
-		VkDescriptorSetAllocateInfo allocInfo = {};
-		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-		allocInfo.descriptorPool = descriptorPool;
-		allocInfo.descriptorSetCount = 1;
-		allocInfo.pSetLayouts = &descriptorSetLayout;
-
-		if (vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet) != VK_SUCCESS) {
-			std::cerr << "failed to create descriptor set" << std::endl;
-			exit(1);
-		} else {
-			std::cout << "created descriptor set" << std::endl;
-		}
-
-		auto writeDescriptorSet = u_matrices->m_writeDescriptorSet;
-		writeDescriptorSet.dstSet = descriptorSet;
-		vkUpdateDescriptorSets(device, 1, &writeDescriptorSet, 0, nullptr);
+          globals.createDescriptorSet();
 	}
 
 	void createCommandBuffers() {
@@ -1281,7 +1180,7 @@ private:
 
 			vkCmdBeginRenderPass(graphicsCommandBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-			vkCmdBindDescriptorSets(graphicsCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+			vkCmdBindDescriptorSets(graphicsCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &globals.descriptorSet, 0, nullptr);
 
 			vkCmdBindPipeline(graphicsCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 

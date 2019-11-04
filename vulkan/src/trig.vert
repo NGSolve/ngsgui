@@ -11,7 +11,7 @@ layout (location = 2) smooth out vec3 outNormal;
 
 void main(){
 	outColor = vec3(0.0, 1.0, 0.0);
-        float lam = 0.99;
+        outNormal = inNormal;
         outPos = inPos;
-	gl_Position = matrices.MVP * vec4( inPos, 1.0 );
+	gl_Position = globals.MVP * vec4( inPos, 1.0 );
 }

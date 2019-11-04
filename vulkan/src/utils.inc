@@ -1,27 +1,28 @@
-layout(binding = 0) uniform Matrices
+layout(binding = 0) uniform Globals
 {
   mat4 MVP;
   mat4 MV;
   mat4 MV_inv_trans;
-} matrices;
 
-layout(binding = 1) uniform Colormap {
-  float min;
-  float max;
-  // sampler1D colors;
-  int n;
-  bool linear;
-} colormap;
+  vec3 light_dir;
+  float light_ambient;
+  float light_diffuse;
+  float light_spec;
+  float light_shininess;
 
-layout(binding = 2) uniform sampler1D colormap_colors;
+  int mesh_dim;
+  int mesh_offset;
 
-layout(binding = 3) uniform Light {
-  vec3 dir;
-  float ambient;
-  float diffuse;
-  float spec;
-  float shininess;
-} light;
+  float colormap_min;
+  float colormap_max;
+  int colormap_n;
+  bool colormap_linear;
+} globals;
+
+layout(binding = 1) uniform sampler1D colormap_colors;
+layout(binding = 2) uniform isamplerBuffer mesh_elements;
+layout(binding = 3) uniform samplerBuffer mesh_vertices;
+
 
 #if !defined(NO_CLIPPING) && defined(CLIPPING)
 uniform vec4 clipping_planes[N_CLIPPING_PLANES];
@@ -38,13 +39,6 @@ bool CalcClipping(vec3 pos)
 bool CalcClipping(vec3 pos) { return true; }
 #endif
 
-layout(binding = 4) uniform Mesh {
-    int dim;
-    int offset;
-} mesh;
-layout(binding = 5) uniform isamplerBuffer mesh_elements;
-layout(binding = 6) uniform samplerBuffer mesh_vertices;
-
 vec3 TransformVec(mat4 MV, vec3 x) {
     return normalize(transpose(mat3(MV))*x);
 }
@@ -54,51 +48,51 @@ vec3 CalcLight(vec3 color, vec3 position, vec3 norm)
   #ifdef NOLIGHT
     return color;
   #else
-        mat3 mvt = transpose(inverse(mat3(matrices.MV)));
-        // mat3 mvt = mat3(matrices.MV_inv_trans);
+        // mat3 mvt = transpose(inverse(mat3(globals.MV)));
+        mat3 mvt = mat3(globals.MV_inv_trans);
 	vec3 n = normalize( mvt*norm );
-	vec3 s = normalize( light.dir);
-        vec4 p = matrices.MV*vec4(position,1);
+	vec3 s = normalize( globals.light_dir);
+        vec4 p = globals.MV*vec4(position,1);
 	vec3 v = normalize( -p.xyz/p.w );
 	vec3 r = reflect( -s, n );
 
-	float ambient = light.ambient;
+	float ambient = globals.light_ambient;
 
 	// float sDotN = max( dot( s, n ), 0.0 );
 	float sDotN = abs( dot( s, n ));
-	float diffuse = light.diffuse * sDotN;
+	float diffuse = globals.light_diffuse * sDotN;
 
 	// spec = Light[lightIndex].Ls * Material.Ks * pow( max( dot(r,v) , 0.0 ), Material.Shininess );
-	float spec = pow( max( dot(r,v) , 0.0 ), light.shininess );
+	float spec = pow( max( dot(r,v) , 0.0 ), globals.light_shininess );
         if(diffuse==0.0) spec = 0.0;
-        return color*(ambient+diffuse) + spec*light.spec*vec3(1,1,1);
+        return color*(ambient+diffuse) + spec*globals.light_spec*vec3(1,1,1);
   #endif
 }
 
 vec3 MapColor(float value)
 {
-  value = (value-colormap.min)/(colormap.max-colormap.min);
+  value = (value-globals.colormap_min)/(globals.colormap_max-globals.colormap_min);
   value = clamp(value, 0.0, 1.0-1e-7);
-  if(colormap.linear)
+  if(globals.colormap_linear)
       return texture(colormap_colors, value).rgb;
 
-  int n = int(colormap.n*value);
+  int n = int(globals.colormap_n*value);
   return texelFetch(colormap_colors, n, 0).rgb;
 }
 
 vec3 MapColorIso(float value)
 {
-  value = (value-colormap.min)/(colormap.max-colormap.min);
+  value = (value-globals.colormap_min)/(globals.colormap_max-globals.colormap_min);
   value = clamp(value, 0.0, 1.0-1e-7);
-  int n = int(colormap.n*value);
+  int n = int(globals.colormap_n*value);
 
   vec3 col;
-  if(colormap.linear)
+  if(globals.colormap_linear)
     col = texture(colormap_colors, value).rgb;
   else
     col = texelFetch(colormap_colors, n, 0).rgb;
 
-  float rest = colormap.n*value - n;
+  float rest = globals.colormap_n*value - n;
   rest = max(rest, 1.0-rest);
   rest = rest*rest;
   rest = rest*rest;
