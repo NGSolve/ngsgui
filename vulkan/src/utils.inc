@@ -1,6 +1,8 @@
 layout(binding = 0) uniform Matrices
 {
   mat4 MVP;
+  mat4 MV;
+  mat4 MV_inv_trans;
 } matrices;
 
 layout(binding = 1) uniform Colormap {
@@ -47,15 +49,16 @@ vec3 TransformVec(mat4 MV, vec3 x) {
     return normalize(transpose(mat3(MV))*x);
 }
 
-vec3 CalcLight(vec3 color, mat4 MV, vec3 position, vec3 norm)
+vec3 CalcLight(vec3 color, vec3 position, vec3 norm)
 {
   #ifdef NOLIGHT
     return color;
   #else
-        mat3 mvt = transpose(inverse(mat3(MV)));
+        mat3 mvt = transpose(inverse(mat3(matrices.MV)));
+        // mat3 mvt = mat3(matrices.MV_inv_trans);
 	vec3 n = normalize( mvt*norm );
 	vec3 s = normalize( light.dir);
-        vec4 p = MV*vec4(position,1);
+        vec4 p = matrices.MV*vec4(position,1);
 	vec3 v = normalize( -p.xyz/p.w );
 	vec3 r = reflect( -s, n );
 

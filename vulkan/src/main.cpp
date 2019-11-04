@@ -108,7 +108,9 @@ private:
 	std::vector<VkVertexInputAttributeDescription> vertexAttributeDescriptions;
 
 	struct {
-		glm::mat4 transformationMatrix;
+		glm::mat4 MVP;
+		glm::mat4 MV;
+		glm::mat4 MV_inv_trans;
 	} uniformBufferData;
 	VkBuffer uniformBuffer;
 	VkDeviceMemory uniformBufferMemory;
@@ -750,7 +752,10 @@ private:
 		// Set up projection
 		auto projMatrix = glm::perspective(glm::radians(70.f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 10.0f);
 
-		uniformBufferData.transformationMatrix = projMatrix * viewMatrix * modelMatrix;
+                auto MV = viewMatrix * modelMatrix;
+		uniformBufferData.MVP = projMatrix * MV;
+		uniformBufferData.MV = MV;
+		uniformBufferData.MV_inv_trans = glm::inverse(glm::transpose(MV));
 		void* data;
 		vkMapMemory(device, uniformBufferMemory, 0, sizeof(uniformBufferData), 0, &data);
 		memcpy(data, &uniformBufferData, sizeof(uniformBufferData));
