@@ -1,7 +1,10 @@
 #version 450
 
+#include <utils.inc>
+
 layout (location = 0) smooth in vec3 inColor;
-layout (location = 1) smooth in vec3 inNormal;
+layout (location = 1) smooth in vec3 inPos;
+layout (location = 2) smooth in vec3 inNormal;
 
 layout (location = 0) out vec4 outFragColor;
 
