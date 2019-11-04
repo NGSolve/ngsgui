@@ -8,11 +8,7 @@
 #include <cstring>
 
 int n_trigs;
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
-
-#include <glm/gtc/matrix_transform.hpp>
-
+#include "vkutil.hpp"
 #include <comp.hpp>
 using namespace ngcomp;
 
@@ -22,7 +18,7 @@ using namespace std::placeholders;
 const uint32_t WIDTH = 640;
 const uint32_t HEIGHT = 480;
 
-const bool ENABLE_DEBUGGING = false;
+const bool ENABLE_DEBUGGING = true;
 
 const char* DEBUG_LAYER = "VK_LAYER_LUNARG_standard_validation";
 void PrintMat( glm::mat4 mat)
@@ -92,11 +88,9 @@ private:
 	VkInstance instance;
 	VkSurfaceKHR windowSurface;
 	VkPhysicalDevice physicalDevice;
-	VkDevice device;
 	VkDebugReportCallbackEXT callback;
 	VkQueue graphicsQueue;
 	VkQueue presentQueue;
-	VkPhysicalDeviceMemoryProperties deviceMemoryProperties;
 	VkSemaphore imageAvailableSemaphore;
 	VkSemaphore renderingFinishedSemaphore;
 
@@ -107,13 +101,13 @@ private:
 	VkVertexInputBindingDescription vertexBindingDescription;
 	std::vector<VkVertexInputAttributeDescription> vertexAttributeDescriptions;
 
-	struct {
+	struct Matrices {
 		glm::mat4 MVP;
 		glm::mat4 MV;
 		glm::mat4 MV_inv_trans;
-	} uniformBufferData;
-	VkBuffer uniformBuffer;
-	VkDeviceMemory uniformBufferMemory;
+	} matrices;
+        unique_ptr<UniformBuffer<Matrices>> u_matrices;
+
 	VkDescriptorSetLayout descriptorSetLayout;
 	VkDescriptorPool descriptorPool;
 	VkDescriptorSet descriptorSet;
@@ -216,8 +210,7 @@ private:
 
 			// Clean up uniform buffer related objects
 			vkDestroyDescriptorPool(device, descriptorPool, nullptr);
-			vkDestroyBuffer(device, uniformBuffer, nullptr);
-			vkFreeMemory(device, uniformBufferMemory, nullptr);
+                        u_matrices = nullptr;
 
 			// Buffers must be destroyed after no command buffers are referring to them anymore
 			vkDestroyBuffer(device, vertexBuffer, nullptr);
@@ -711,24 +704,7 @@ private:
 	}
 
 	void createUniformBuffer() {
-		VkBufferCreateInfo bufferInfo = {};
-		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		bufferInfo.size = sizeof(uniformBufferData);
-		bufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-
-		vkCreateBuffer(device, &bufferInfo, nullptr, &uniformBuffer);
-
-		VkMemoryRequirements memReqs;
-		vkGetBufferMemoryRequirements(device, uniformBuffer, &memReqs);
-
-		VkMemoryAllocateInfo allocInfo = {};
-		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-		allocInfo.allocationSize = memReqs.size;
-		getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &allocInfo.memoryTypeIndex);
-
-		vkAllocateMemory(device, &allocInfo, nullptr, &uniformBufferMemory);
-		vkBindBufferMemory(device, uniformBuffer, uniformBufferMemory, 0);
-
+                u_matrices = make_unique<UniformBuffer<Matrices>>(0);
 		updateUniformData();
 	}
 
@@ -753,27 +729,10 @@ private:
 		auto projMatrix = glm::perspective(glm::radians(70.f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 10.0f);
 
                 auto MV = viewMatrix * modelMatrix;
-		uniformBufferData.MVP = projMatrix * MV;
-		uniformBufferData.MV = MV;
-		uniformBufferData.MV_inv_trans = glm::inverse(glm::transpose(MV));
-		void* data;
-		vkMapMemory(device, uniformBufferMemory, 0, sizeof(uniformBufferData), 0, &data);
-		memcpy(data, &uniformBufferData, sizeof(uniformBufferData));
-		vkUnmapMemory(device, uniformBufferMemory);
-	}
-
-	// Find device memory that is supported by the requirements (typeBits) and meets the desired properties
-	VkBool32 getMemoryType(uint32_t typeBits, VkFlags properties, uint32_t* typeIndex) {
-		for (uint32_t i = 0; i < 32; i++) {
-			if ((typeBits & 1) == 1) {
-				if ((deviceMemoryProperties.memoryTypes[i].propertyFlags & properties) == properties) {
-					*typeIndex = i;
-					return true;
-				}
-			}
-			typeBits >>= 1;
-		}
-		return false;
+		matrices.MVP = projMatrix * MV;
+		matrices.MV = MV;
+		matrices.MV_inv_trans = glm::inverse(glm::transpose(MV));
+                u_matrices->Update(matrices);
 	}
 
 	void createSwapChain() {
@@ -1246,20 +1205,8 @@ private:
 			std::cout << "created descriptor set" << std::endl;
 		}
 
-		// Update descriptor set with uniform binding
-		VkDescriptorBufferInfo descriptorBufferInfo = {};
-		descriptorBufferInfo.buffer = uniformBuffer;
-		descriptorBufferInfo.offset = 0;
-		descriptorBufferInfo.range = sizeof(uniformBufferData);
-
-		VkWriteDescriptorSet writeDescriptorSet = {};
-		writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		auto writeDescriptorSet = u_matrices->m_writeDescriptorSet;
 		writeDescriptorSet.dstSet = descriptorSet;
-		writeDescriptorSet.descriptorCount = 1;
-		writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		writeDescriptorSet.pBufferInfo = &descriptorBufferInfo;
-		writeDescriptorSet.dstBinding = 0;
-
 		vkUpdateDescriptorSets(device, 1, &writeDescriptorSet, 0, nullptr);
 	}
 
