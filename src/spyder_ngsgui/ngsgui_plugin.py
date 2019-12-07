@@ -4,18 +4,10 @@ from spyder.config.base import _
 from spyder.utils.qthelpers import (create_action, create_toolbutton,
                                     add_actions, MENU_SEPARATOR)
 from spyder.utils import icon_manager as ima
-try:
-    # Spyder 4
-    from spyder.api.plugins import SpyderPluginWidget
-    from spyder.plugins.ipythonconsole.utils.kernelspec import SpyderKernelSpec
-    import spyder.plugins.ipythonconsole.plugin as ipyplugin
-    import spyder.plugins.ipythonconsole.widgets.namespacebrowser as spyder_namespacebrowser
-except ImportError:
-    # Spyder 3
-    from spyder.plugins import SpyderPluginWidget
-    from spyder.utils.ipython.kernelspec import SpyderKernelSpec
-    import spyder.plugins.ipythonconsole as ipyplugin
-    import spyder.widgets.ipythonconsole.namespacebrowser as spyder_namespacebrowser
+from spyder.api.plugins import SpyderPluginWidget
+from spyder.plugins.ipythonconsole.utils.kernelspec import SpyderKernelSpec
+import spyder.plugins.ipythonconsole.plugin as ipyplugin
+import spyder.plugins.ipythonconsole.widgets.namespacebrowser as spyder_namespacebrowser
 
 # NGSolve imports
 import ngsgui.gui as G
@@ -105,12 +97,12 @@ class NGSolvePlugin(SpyderPluginWidget):
     LOCATION = QtCore.Qt.BottomDockWidgetArea
 
     def __init__(self, parent):
-        super().__init__(parent)
-        self.main = parent
+        SpyderPluginWidget.__init__(self, parent)
         self.gui = G.GUI(flags=["--noOutputpipe", "--noConsole"],startApplication=False,
                          createMenu=False)
         G.gui = self.gui
         self.setLayout(ArrangeH(self.gui.mainWidget))
+        self.shellwidgets = {}
 
     # SpyderPluginMixin API
     def on_first_registration(self):
@@ -122,6 +114,29 @@ class NGSolvePlugin(SpyderPluginWidget):
         pass
 
     # ------ SpyderPluginWidget API -------------------------------------------
+
+    def add_shellwidget(self, shellwidget):
+        shellwidget_id = id(shellwidget)
+        if shellwidget_id not in self.shellwidgets:
+            self.shellwidgets[shellwidget_id] = shellwidget
+            def redraw(drawn_objects):
+                self.drawer.to_draw.put(["redraw", drawn_objects])
+            def draw(index, *args, **kwargs):
+                self.drawer.to_draw.put(["draw", (index, args, kwargs)])
+            shellwidget.spyder_kernel_comm.register_call_handler("ngsolve_redraw", redraw)
+            shellwidget.spyder_kernel_comm.register_call_handler("ngsolve_draw", draw)
+            def loadNGS():
+                shellwidget.silent_execute("import os")
+                shellwidget.silent_execute("os.environ['NGSGUI_HEADLESS'] = '1'")
+                shellwidget.silent_execute("import spyder_ngsgui.startup as s")
+                shellwidget.silent_execute("del os")
+                shellwidget.silent_execute("del s")
+            shellwidget.sig_prompt_ready.connect(loadNGS)
+
+    def remove_shellwidget(self, shellwidget_id):
+        if shellwidget_id in self.shellwidgets:
+            sw = self.shellwidgets.pop(shellwidget_id)
+
     def get_plugin_title(self):
         """Return widget title."""
         title = _('NGSolve')
@@ -135,56 +150,30 @@ class NGSolvePlugin(SpyderPluginWidget):
         """Return the widget to give focus to."""
         return self.gui.mainWidget
 
-    def closing_plugin(self, cancelable=False):
-        """Perform actions before parent main window is closed."""
-        return True
-
-    def refresh_plugin(self):
-        """Refresh tabwidget."""
-        pass
-
-    def create_dockwidget(self):
-        doc,loc = super().create_dockwidget()
-        return doc, loc
-
-    def get_plugin_actions(self):
-        """Return a list of actions related to plugin."""
-        return []
-
     def register_plugin(self):
         """Register plugin in Spyder's main window."""
         super().register_plugin()
         self.ipyconsole = self.main.ipyconsole
-        _drawer = self.ipyconsole._ngs_drawer = Drawer(self)
-        # patch NameSpaceBrowser._handle_spyder_msg to get our ngsolve stuff...
-        old_handle_spyder_msg = spyder_namespacebrowser.NamepaceBrowserWidget._handle_spyder_msg
-        def new_handle_spyder_msg(_self, msg):
-            spyder_msg_type = msg['content'].get('spyder_msg_type')
-            if spyder_msg_type == 'ngsolve_redraw':
-                try:
-                    _drawer.to_draw.put(["redraw",cloudpickle.loads(bytes(msg['buffers'][0]))])
-                except Exception as e:
-                    # TODO: sometimes this crashes with a bad_weak_ptr exception...
-                    pass
-            elif spyder_msg_type.startswith("ngsolve_"):
-                logger.debug("msg_type = {}".format(spyder_msg_type))
-                logger.debug("Receive msg = {}".format(bytes(msg['buffers'][0])))
-                ngs_type, vals = spyder_msg_type[8:], cloudpickle.loads(bytes(msg['buffers'][0]))
-                logger.debug("Receive ngsolve msg {} with values {}".format(ngs_type, vals))
-                _drawer.to_draw.put([ngs_type, vals])
-            else:
-                old_handle_spyder_msg(_self, msg)
-        spyder_namespacebrowser.NamepaceBrowserWidget._handle_spyder_msg = new_handle_spyder_msg
+        # call add_shellwidget everywhere
+        self.drawer = Drawer(self)
+        old_connect_external_kernel = self.ipyconsole.connect_external_kernel
+        def new_connect_external_kernel(_self, sw):
+            old_connect_external_kernel(_self, sw)
+            self.add_shellwidget(sw)
+            kc = sw.kernel_client
+            kc.stopped_channels.connect(lambda : self.remove_shellwidget(id(sw)))
+        self.ipyconsole.connect_external_kernel = new_connect_external_kernel
+        old_process_started = self.ipyconsole.process_started
+        def new_process_started(client):
+            old_process_started(client)
+            self.add_shellwidget(client.shellwidget)
+        self.ipyconsole.process_started = new_process_started
 
-        ipyplugin.SpyderKernelSpec = NgsSpyderKernelSpec
-        # monkeypatch notebookplugin if available
-        try:
-            import spyder_notebook.utils.nbopen as nbo
-            nbo.KERNELSPEC = ('spyder_ngsgui.ngsgui_plugin.NgsSpyderKernelSpec')
-        except ImportError:
-            pass
-
-
+        old_process_finished = self.ipyconsole.process_finished
+        def new_process_finished(client):
+            old_process_finished(client)
+            self.remove_shellwidget(id(client.shellwidget))
+        self.ipyconsole.process_finished = new_process_finished
 
     def check_compatibility(self):
         """Check compatibility for PyQt and sWebEngine."""

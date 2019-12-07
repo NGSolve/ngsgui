@@ -27,7 +27,8 @@ def Draw(*args, **kwargs):
     scene = G._createScene(*args,**kwargs)
     index = len(_ngs_drawn_objects)
     _ngs_drawn_objects.append(scene.objectsToUpdate())
-    get_ipython().get_ipython().kernel.send_spyder_msg("ngsolve_draw", None, [index, args, kwargs])
+    handler = get_ipython().kernel.frontend_comm.remote_call()
+    handler.ngsolve_draw(index, *args, **kwargs)
     class ProxyScene:
         pass
     for attr in dir(scene):
@@ -42,7 +43,8 @@ def Redraw(*args, fr=25, **kwargs):
     t = time.time()
     if (t-_last_time_ngs_draw) * fr > 1:
         # only send the signal, the spyder plugin will query all still drawn objects
-        get_ipython().get_ipython().kernel.send_spyder_msg("ngsolve_redraw", None, _ngs_drawn_objects)
+        handler = get_ipython().kernel.frontend_comm.remote_call()
+        handler.ngsolve_redraw(_ngs_drawn_objects, *args, **kwargs)
         _last_time_ngs_draw = t
 
 ngsolve.Draw = Draw
