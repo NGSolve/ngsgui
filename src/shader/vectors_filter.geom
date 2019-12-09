@@ -78,7 +78,7 @@ void main() {
             p.z = pmin.z;
             while(p.z<pmax.z) {
                 vec4 lam = bary_mat * p;
-                if(dot(clipping_planes[0], p)<0 && 
+                if(CalcClipping(p.xyz) &&
                    lam.x>=0 && lam.y>=0 && lam.z >=0 && lam.w >=0 &&
                    lam.x<1 && lam.y<1 && lam.z <1 && lam.w <1 )
                 {
