@@ -76,6 +76,43 @@ the gui is closed"""
         from .menu import MenuBarWithDict
         self.menuBar = MenuBarWithDict()
         filemenu = self.menuBar["&File"]
+
+        def selectMeshFile():
+            filename, filt = QtWidgets.QFileDialog.getOpenFileName(caption = "Load Mesh",
+                                                                   filter = "Netgen mesh file (*.vol, *.vol.gz);; Neutral format (*.mesh, *.emt);; Surface format (*.surf);; Universal format (*.unv);; Olaf format (*.emt);; TET format (*.tet);; STL format (*.stl, *.stlb);; Pro/ENGINEER neutral format (*.fnf)")
+            if filename:
+                if filename.endswith(".vol") or filename.endswith(".vol.gz"):
+                    mesh = ngsolve.Mesh(filename)
+                else:
+                    from netgen.meshing import ImportMesh
+                    mesh = ngsolve.Mesh(ImportMesh(filename))
+                ngsolve.Draw(mesh)
+                if not self._flags.noConsole:
+                    self.console.pushVariables({"mesh" : mesh})
+
+        def saveNetgenMesh():
+            from .scenes import BaseMeshScene
+            activeWindow = self.getCurrentGLWindow().glWidget
+            meshes = set()
+            for scene in activeWindow.scenes:
+                if scene.active and isinstance(scene, BaseMeshScene):
+                    meshes.add(scene.mesh)
+            if len(meshes) != 1:
+                self.showErrorMessageBox("Failure mesh saving",
+                                         "Failed to save mesh, hide all scenes with meshes except the one to save")
+                return
+            mesh = meshes.pop()
+
+            filename, filt = QtWidgets.QFileDialog.getSaveFileName(caption="Save Mesh",
+                                                                   filter="Netgen mesh file (*.vol, *.vol.gz)")
+            if filename:
+                mesh.ngmesh.Save(filename)
+
+        loadMesh = filemenu["&Load"].addAction("&Mesh")
+        loadMesh.triggered.connect(selectMeshFile)
+        saveMesh = filemenu["&Save"].addAction("&Mesh")
+        saveMesh.triggered.connect(saveNetgenMesh)
+
         saveSolution = filemenu["&Save"].addAction("&Solution")
         loadSolution = filemenu["&Load"].addAction("&Solution")
         loadSolution.triggered.connect(self.loadSolution)
@@ -151,7 +188,7 @@ state and being able to reload it without a graphical interface."""
                                                    parent=window_splitter)
         self.window_tabber._fastmode = self._flags.fastmode
         window_splitter.addWidget(self.window_tabber)
-        if not (self._flags.noConsole and self._flags.noOutputpipe):
+        if not (self._flags.noConsole and not self._flags.outputpipe):
             self.output_tabber = glwindow.WindowTabber(commonContext=self._commonContext,
                                                    parent=window_splitter)
         if not self._flags.noConsole:
@@ -161,7 +198,7 @@ state and being able to reload it without a graphical interface."""
             if self._hasApplication:
                 self.console.exit_requested.connect(self.app.quit)
             self.output_tabber.addTab(self.console,"Console")
-        if not self._flags.noOutputpipe:
+        if self._flags.outputpipe:
             self.outputBuffer = OutputBuffer()
             self.output_tabber.addTab(self.outputBuffer, "Output")
             self.output_tabber.setCurrentWidget(self.outputBuffer)
@@ -172,13 +209,13 @@ state and being able to reload it without a graphical interface."""
             self._SysMonitor.setFixedHeight(30)
             sysmon_splitter = QtWidgets.QSplitter(parent=window_splitter)
             sysmon_splitter.setOrientation(QtCore.Qt.Vertical)
-            if not (self._flags.noOutputpipe and self._flags.noConsole):
+            if self._flags.outputpipe or not self._flags.noConsole:
                 sysmon_splitter.addWidget(self.output_tabber)
             sysmon_splitter.addWidget(self._SysMonitor)
             sysmon_splitter.setSizes([10000,2000])
             window_splitter.addWidget(sysmon_splitter)
         else:
-            if not (self._flags.noOutputpipe and self._flags.noConsole):
+            if self._flags.outputpipe or not self._flags.noConsole:
                 window_splitter.addWidget(self.output_tabber)
         if self._hasMenuBar:
             menu_splitter.setSizes([100, 10000])
@@ -222,8 +259,8 @@ not none, argument is parsed instead of command line args"""
                             help="Activate fastmode, some large scenes are drawn less accurate but faster")
         parser.add_argument("-nc","--noConsole", action="store_true",
                             help="Start without jupyter console")
-        parser.add_argument("-no", "--noOutputpipe", action="store_true",
-                            help="Don't pipe output to buffer in gui")
+        parser.add_argument("-o", "--outputpipe", action="store_true",
+                            help="Pipe output to buffer in gui")
         parser.add_argument("-dc","--dontCatchExceptions", action="store_true",
                             help="Don't catch exceptions up to user input, but show internal gui traceback")
         parser.add_argument("--logfile", nargs=1, type=str, action="store",
@@ -423,7 +460,7 @@ another Redraw after a time loop may be needed to see the final solutions."""
         if not self._flags.noConsole:
             self.console.pushVariables(globs)
         settings = QtCore.QSettings()
-        if not self._flags.noOutputpipe:
+        if self._flags.outputpipe:
             self.outputBuffer.start()
         if settings.value("sysmon/active", "false") == "true":
             self._SysMonitor.start()
@@ -431,7 +468,7 @@ another Redraw after a time loop may be needed to see the final solutions."""
         if self._flags.file:
             self._tryLoadFile(self._flags.file)
         def onQuit():
-            if not self._flags.noOutputpipe:
+            if self._flags.outputpipe:
                 self.outputBuffer.onQuit()
         self.app.aboutToQuit.connect(onQuit)
         if run_event_loop:
