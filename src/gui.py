@@ -77,9 +77,32 @@ the gui is closed"""
         self.menuBar = MenuBarWithDict()
         filemenu = self.menuBar["&File"]
 
-        def selectMeshFile():
+        def loadGeometryFile():
+            filename, filt = QtWidgets.QFileDialog.getOpenFileName(caption = "Load Geometry",
+                                                                   filter = "Geometry file (*.in2d *.geo *.step *.stp *.iges *.stl *.stlb)")
+            if filename:
+                if filename.endswith(".in2d"):
+                    import netgen.geom2d as gm
+                    geo = gm.SplineGeometry(filename)
+                elif filename.endswith(".geo"):
+                    import netgen.csg as gm
+                    geo = gm.CSGeometry(filename)
+                elif filename.endswith(".step") or filename.endswith(".stp") or filename.endswith(".iges"):
+                    import netgen.occ as gm
+                    geo = gm.OCCGeometry(filename)
+                else:
+                    import netgen.stl as gm
+                    geo = gm.STLGeometry(filename)
+                ngsolve.Draw(geo)
+                if not self._flags.noConsole:
+                    self.console.pushVariables({"geo" : geo})
+
+        loadGeometry = filemenu["&Load"].addAction("&Geometry")
+        loadGeometry.triggered.connect(loadGeometryFile)
+
+        def loadMeshFile():
             filename, filt = QtWidgets.QFileDialog.getOpenFileName(caption = "Load Mesh",
-                                                                   filter = "Netgen mesh file (*.vol, *.vol.gz);; Neutral format (*.mesh, *.emt);; Surface format (*.surf);; Universal format (*.unv);; Olaf format (*.emt);; TET format (*.tet);; STL format (*.stl, *.stlb);; Pro/ENGINEER neutral format (*.fnf)")
+                                                                   filter = "Netgen mesh file (*.vol *.vol.gz);; Neutral format (*.mesh *.emt);; Surface format (*.surf);; Universal format (*.unv);; Olaf format (*.emt);; TET format (*.tet);; STL format (*.stl *.stlb);; Pro/ENGINEER neutral format (*.fnf)")
             if filename:
                 if filename.endswith(".vol") or filename.endswith(".vol.gz"):
                     mesh = ngsolve.Mesh(filename)
@@ -90,28 +113,8 @@ the gui is closed"""
                 if not self._flags.noConsole:
                     self.console.pushVariables({"mesh" : mesh})
 
-        def saveNetgenMesh():
-            from .scenes import BaseMeshScene
-            activeWindow = self.getCurrentGLWindow().glWidget
-            meshes = set()
-            for scene in activeWindow.scenes:
-                if scene.active and isinstance(scene, BaseMeshScene):
-                    meshes.add(scene.mesh)
-            if len(meshes) != 1:
-                self.showErrorMessageBox("Failure mesh saving",
-                                         "Failed to save mesh, hide all scenes with meshes except the one to save")
-                return
-            mesh = meshes.pop()
-
-            filename, filt = QtWidgets.QFileDialog.getSaveFileName(caption="Save Mesh",
-                                                                   filter="Netgen mesh file (*.vol, *.vol.gz)")
-            if filename:
-                mesh.ngmesh.Save(filename)
-
         loadMesh = filemenu["&Load"].addAction("&Mesh")
-        loadMesh.triggered.connect(selectMeshFile)
-        saveMesh = filemenu["&Save"].addAction("&Mesh")
-        saveMesh.triggered.connect(saveNetgenMesh)
+        loadMesh.triggered.connect(loadMeshFile)
 
         saveSolution = filemenu["&Save"].addAction("&Solution")
         loadSolution = filemenu["&Load"].addAction("&Solution")
