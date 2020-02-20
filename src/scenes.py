@@ -905,7 +905,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
             self.iso_values = self.values
         else:
             self._getValues(self.iso_surface, ngsolve.VOL, self.getSubdivision(), self.getOrder(), self.iso_values)
-        self._getValues(self.cf, ngsolve.VOL, self.getSubdivision(), self.getOrder(), self.fieldline_values, covariant=True)
+        # self._getValues(self.cf, ngsolve.VOL, self.getSubdivision(), self.getOrder(), self.fieldline_values, covariant=True)
 
 
     def _filterElements(self, settings, elements, filter_type):

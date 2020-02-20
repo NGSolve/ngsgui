@@ -9,5 +9,5 @@ from ngsgui.__main__ import Draw,Redraw
 
 ngs.Draw = Draw
 ngs.Redraw = Redraw
-G.gui = G.GUI(flags=['--noOutputpipe', '--noConsole'])
+G.gui = G.GUI(flags=['--noConsole'])
 G.gui._run(run_event_loop=False)
