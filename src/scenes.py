@@ -723,6 +723,7 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
                            "abs" : 2,
                            "arg" : 3}
     __initial_values = {"ShowClippingPlane" : False,
+                        "ClippingPlaneOpacity" : 1.0,
                         "ShowIsoSurface" : False,
                         "ShowVolumeVectors" : False,
                         "ShowClippingPlaneVectors" : False,
@@ -772,10 +773,12 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
 
         if self.mesh.dim > 2:
             iso_value = settings.ValueParameter(name="IsoValue", label="Value", default_value=0.0)
+            clipping_opacity = settings.ValueParameter(name="ClippingPlaneOpacity", label="Opacity", default_value=1.0)
             self.addParameters("Show",
-                               settings.CheckboxParameter(name="ShowClippingPlane",
+                               settings.CheckboxParameterCluster(name="ShowClippingPlane",
                                                           label="Solution in &Clipping plane",
-                                                          default_value=self.__initial_values["ShowClippingPlane"]),
+                                                          default_value=self.__initial_values["ShowClippingPlane"],
+                                                          sub_parameters = [clipping_opacity], updateWidgets=True),
                                settings.CheckboxParameterCluster(name="ShowIsoSurface",
                                                                  label="&Isosurface",
                                                                  default_value = self.__initial_values["ShowIsoSurface"],
