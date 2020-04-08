@@ -488,6 +488,8 @@ def getProgram(*shader_files, feedback=[], elements=None, params=None, scene=Non
             if 'clipping_sphere' in u:
                 sphere = [*scene.getClippingSphereCenter()] + [scene.getClippingSphereRadius()]
                 u.set('clipping_sphere', sphere)
+            if 'clipping_plane_opacity' in u:
+                u.set('clipping_plane_opacity', scene.getClippingPlaneOpacity())
 
         if 'colormap.colors' in u and scene:
             u.set('colormap.n', scene.getColormapSteps())

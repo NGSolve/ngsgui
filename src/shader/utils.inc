@@ -26,6 +26,7 @@ uniform struct Light {
 #if !defined(NO_CLIPPING) && defined(CLIPPING)
 uniform vec4 clipping_planes[N_CLIPPING_PLANES];
 uniform vec4 clipping_sphere;
+uniform float clipping_plane_opacity;
 
 bool CalcClipping(vec3 pos)
 {

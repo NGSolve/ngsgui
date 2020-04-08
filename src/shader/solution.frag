@@ -18,6 +18,7 @@ void main()
 {
   FragColor = vec4(0,1,0,1);
 #ifdef SKIP_FRAGMENT_CLIPPING
+  FragColor.w = clipping_plane_opacity;
   if(true)
 #else
   if(CalcClipping(inData.pos))
@@ -32,7 +33,6 @@ void main()
       value = Evaluate(FUNCTION, inData.element, lam);
 
       FragColor.rgb = MapColor(value);
-      FragColor.a = 1.0;
       FragColor.rgb = CalcLight(FragColor.rgb, MV, inData.pos, inData.normal);
   }
   else
