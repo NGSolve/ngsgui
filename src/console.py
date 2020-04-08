@@ -1,12 +1,25 @@
 
 from jupyter_client.multikernelmanager import MultiKernelManager
-from qtconsole.inprocess import QtInProcessRichJupyterWidget
-from traitlets import DottedObjectName
+from qtconsole.inprocess import QtInProcessRichJupyterWidget, QtInProcessKernelManager, QtInProcessKernelClient, QtInProcessChannel
+from traitlets import DottedObjectName, Type
 
 from .thread import inmain_decorator
 
+# workaround because inprocesskernelclient misses this static member
+class FixQtInProcessKernelClient(QtInProcessKernelClient):
+    control_channel_class = Type(QtInProcessChannel)
+
+    @property
+    def control_channel(self):
+        if self._control_channel is None:
+            self._control_channel  = self.control_channel_class(self)
+        return self._control_channel
+
+class FixQtInProcessKernelManager(QtInProcessKernelManager):
+    client_class = __module__ + ".FixQtInProcessKernelClient"
+
 class MultiQtKernelManager(MultiKernelManager):
-    kernel_manager_class = DottedObjectName("qtconsole.inprocess.QtInProcessKernelManager",
+    kernel_manager_class = DottedObjectName(__module__ + ".FixQtInProcessKernelManager",
                                             config = True,
                                             help = """kernel manager class""")
 
