@@ -18,7 +18,7 @@ dependencies = ["PyOpenGL", "psutil", "qtconsole>=4.4.0", "numpy",
 try:
     import PyQt5
 except ImportError:
-    dependencies += ["PySide2"]
+    dependencies += ["PySide2>=5.14"]
 
 setup(name="ngsgui",
       version="0.1.11",
