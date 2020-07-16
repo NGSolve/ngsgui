@@ -20,7 +20,8 @@ def qt_message_handler(mode, context, message):
         mode = 'DEBUG'
 #     print('qt_message_handler: line: %d, func: %s(), file: %s' % (
 #           context.line, context.function, context.file))
-#     print('  %s: %s\n' % (mode, message))
+    if 'QPainter' not in message:
+        print('  %s: %s\n' % (mode, message))
 
 QtCore.qInstallMessageHandler(qt_message_handler)
 
