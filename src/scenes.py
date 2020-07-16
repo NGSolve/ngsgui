@@ -400,7 +400,7 @@ class MeshScene(BaseMeshScene):
                                        "ShowPointNumbers" : pointNumbers,
                                        "ShowEdgeElementNumbers" : edgeNumbers,
                                        "ShowElementNumbers" : elementNumbers})
-        self.tex_vol_colors = self.tex_surf_colors = self.tex_edge_colors = None
+        self.tex_eltype_colors = self.tex_vol_colors = self.tex_surf_colors = self.tex_edge_colors = None
         super().__init__(mesh, **kwargs)
 
     @inmain_decorator(True)
@@ -423,12 +423,21 @@ class MeshScene(BaseMeshScene):
                                                  default_value=1.0, min_value = 0.0, max_value = 1.0,
                                                  step = 0.1)
             color_par = settings.ColorParameter(name="MaterialColors", values=self.mesh.GetMaterials())
+            et_color = settings.CheckboxParameter(name="ColorByElType", label="Color by element type", default_value = False)
+            et_color_par = settings.ColorParameter(name="ElementColors", values=["Tet", "Prism", "Pyramid", "Hex"])
+            et_color_par.setValue( { "Tet": [0,0,255,255], "Prism":[0,255,255,255], "Pyramid":[255,0,255,255], "Hex":[0,255,0,255] } )
+            filter_min = settings.ValueParameter(name="FilterMin", label="Min", default_value=0.0, min=0.0, max=float(self.mesh.ne))
+            filter_max = settings.ValueParameter(name="FilterMax", label="Max", default_value=float(self.mesh.ne), min=0.0, max=float(self.mesh.ne))
+            filter_par = settings.CheckboxParameterCluster(name="FilterElements", label="Filter elements", default_value = False,
+                    sub_parameters = [filter_min, filter_max])
             self.addParameters("Show",
                                settings.CheckboxParameterCluster(name="ShowElements",
                                                                  label="Volume Elements",
                                                                  default_value = self.__initial_values["ShowElements"],
                                                                  sub_parameters=[color_par,
-                                                                                shrink_par],
+                                                                                shrink_par,
+                                                                                et_color,
+                                                                                et_color_par, filter_par],
                                                                  updateWidgets=True),
                                settings.CheckboxParameter(name="ShowEdges", label="Edges",
                                                           default_value=self.__initial_values["ShowEdges"]))
@@ -475,6 +484,10 @@ class MeshScene(BaseMeshScene):
         if parameter.name == "MaterialColors":
             parameter.changed.connect(lambda : self.tex_vol_colors and self.tex_vol_colors.store(self.getMaterialColors(),
                                                                          data_format=GL_UNSIGNED_BYTE))
+
+        if parameter.name == "ElementColors":
+            parameter.changed.connect(lambda : self.tex_eltype_colors and self.tex_eltype_colors.store(self.getElementColors(),
+                                                                         data_format=GL_UNSIGNED_BYTE))
         if parameter.name == "EdgeColors":
             parameter.changed.connect(lambda : self.tex_edge_colors and self.tex_edge_colors.store(self.getEdgeColors(),
                                                                           data_format=GL_UNSIGNED_BYTE))
@@ -493,7 +506,7 @@ class MeshScene(BaseMeshScene):
         return (super_state,)
 
     def __setstate__(self, state):
-        self.tex_vol_colors = self.tex_surf_colors = self.tex_edge_colors = None
+        self.tex_vol_filter = self.tex_eltype_colors = self.tex_vol_colors = self.tex_surf_colors = self.tex_edge_colors = None
         super().__setstate__(state[0])
 
     def addShortcuts(self, widget):
@@ -503,9 +516,13 @@ class MeshScene(BaseMeshScene):
     def initGL(self):
         super().initGL()
         with self._vao:
+            self.tex_eltype_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
             self.tex_vol_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
+            self.tex_vol_filter = Texture(GL_TEXTURE_BUFFER, GL_R32F)
             if self.mesh.dim > 2:
                 self.tex_vol_colors.store(self.getMaterialColors(), data_format=GL_UNSIGNED_BYTE)
+                self.tex_eltype_colors.store(self.getElementColors(), data_format=GL_UNSIGNED_BYTE)
+                self.setFilterValues(list(range(self.mesh.ne)))
             self.tex_surf_colors = Texture(GL_TEXTURE_1D, GL_RGBA)
             if self.mesh.dim > 1:
                 self.tex_surf_colors.store(self.getSurfaceColors(), data_format=GL_UNSIGNED_BYTE)
@@ -513,6 +530,10 @@ class MeshScene(BaseMeshScene):
             self.tex_edge_colors.store(self.getEdgeColors(), data_format=GL_UNSIGNED_BYTE)
 
             self.text_renderer = TextRenderer()
+
+    def setFilterValues(self, values):
+        assert len(values) == self.mesh.ne
+        self.tex_vol_filter.store(numpy.array(values, dtype=numpy.float32), data_format=GL_FLOAT)
 
 
     def _render1DElements(self, settings, elements):
@@ -618,8 +639,22 @@ class MeshScene(BaseMeshScene):
         uniforms.set('clip_whole_elements', True)
 
         glActiveTexture(GL_TEXTURE3)
-        self.tex_vol_colors.bind()
+
+        uniforms.set('color_by_element_type', self.getColorByElType())
+        if self.getColorByElType():
+            self.tex_eltype_colors.bind()
+        else:
+            self.tex_vol_colors.bind()
+
         uniforms.set('colors', 3)
+
+        if self.getFilterElements():
+            uniforms.set('filter_elements', True)
+            glActiveTexture(GL_TEXTURE4)
+            self.tex_vol_filter.bind()
+            uniforms.set('tex_filter', 4)
+            uniforms.set('filter_min', self.getFilterMin())
+            uniforms.set('filter_max', self.getFilterMax())
 
         uniforms.set('light.ambient', 0.3)
         uniforms.set('light.diffuse', 0.7)

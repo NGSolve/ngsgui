@@ -4,6 +4,7 @@
 #line 5
 
 uniform bool wireframe;
+uniform bool color_by_element_type;
 uniform sampler1D colors;
 
 in VertexData
@@ -32,17 +33,29 @@ void main()
       if(d>1e-5) discard;
   }
   int index = getElementIndex(inData.element);
-  if(index==-1)
-    FragColor = vec4(0,0,0,1);
-  else
-    FragColor = vec4(texelFetch(colors, index, 0));
 
   if(!CalcClipping(inData.pos))
     discard;
 
-  if (FragColor.a == 0.0)
+  if(index==-1)
     discard;
 
+  if(color_by_element_type)
+  {
+#if defined ET_TET
+    index = 0;
+#elif defined ET_PRISM
+    index = 1;
+#elif defined ET_PYRAMID
+    index = 2;
+#elif defined ET_HEX
+    index = 3;
+#endif
+  }
+
+  FragColor = vec4(texelFetch(colors, index, 0));
+  if (FragColor.a == 0.0)
+    discard;
 
   FragColor.rgb = CalcLight(FragColor.rgb, MV, inData.pos, inData.normal);
 }

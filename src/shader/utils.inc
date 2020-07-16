@@ -238,6 +238,15 @@ int getElementIndex(int elnr) {
     return texelFetch(mesh.elements, offset +1).r;
 }
 
+int getElementNr(int elnr ) {
+#ifdef ET_POINT
+    return elnr
+#else // ET_POINT
+    int offset = mesh.offset+ELEMENT_SIZE*elnr;
+    return texelFetch(mesh.elements, offset).r;
+#endif // ET_POINT
+}
+
 ELEMENT_TYPE getElement(int elnr ) {
     ELEMENT_TYPE el;
 #ifdef ET_POINT

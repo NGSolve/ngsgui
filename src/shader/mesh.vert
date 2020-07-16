@@ -9,6 +9,11 @@ uniform samplerBuffer coefficients;
 uniform int subdivision;
 uniform int component;
 
+uniform bool filter_elements;
+uniform samplerBuffer tex_filter;
+uniform float filter_min;
+uniform float filter_max;
+
 out VertexData
 {
   vec3 lam;
@@ -27,6 +32,18 @@ void main()
 #endif
   int eid = gl_VertexID/nverts;
   int vid = gl_VertexID - nverts*eid;
+
+  if(filter_elements)
+  {
+    int nr = getElementNr(eid);
+    float val = texelFetch(tex_filter, nr).r;
+    if(val<filter_min || val>filter_max)
+    {
+      gl_Position = vec4(0,0,0,0);
+      return;
+    }
+  }
+
   ELEMENT_TYPE element = getElement(eid);
   outData.element = eid;
   outData.normal = vec3(0,0,0);
