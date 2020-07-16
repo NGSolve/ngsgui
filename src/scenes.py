@@ -426,8 +426,8 @@ class MeshScene(BaseMeshScene):
             et_color = settings.CheckboxParameter(name="ColorByElType", label="Color by element type", default_value = False)
             et_color_par = settings.ColorParameter(name="ElementColors", values=["Tet", "Prism", "Pyramid", "Hex"])
             et_color_par.setValue( { "Tet": [0,0,255,255], "Prism":[0,255,255,255], "Pyramid":[255,0,255,255], "Hex":[0,255,0,255] } )
-            filter_min = settings.ValueParameter(name="FilterMin", label="Min", default_value=0.0, min=0.0, max=float(self.mesh.ne))
-            filter_max = settings.ValueParameter(name="FilterMax", label="Max", default_value=float(self.mesh.ne), min=0.0, max=float(self.mesh.ne))
+            filter_min = settings.ValueParameter(name="FilterMin", label="Min", default_value=0.0, min=-1e10, max=1e10)
+            filter_max = settings.ValueParameter(name="FilterMax", label="Max", default_value=float(self.mesh.ne), min=-1e10, max=1e10)
             filter_par = settings.CheckboxParameterCluster(name="FilterElements", label="Filter elements", default_value = False,
                     sub_parameters = [filter_min, filter_max])
             self.addParameters("Show",
@@ -531,6 +531,7 @@ class MeshScene(BaseMeshScene):
 
             self.text_renderer = TextRenderer()
 
+    @inmain_decorator(True)
     def setFilterValues(self, values):
         assert len(values) == self.mesh.ne
         self.tex_vol_filter.store(numpy.array(values, dtype=numpy.float32), data_format=GL_FLOAT)

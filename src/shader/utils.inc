@@ -240,7 +240,7 @@ int getElementIndex(int elnr) {
 
 int getElementNr(int elnr ) {
 #ifdef ET_POINT
-    return elnr
+    return elnr;
 #else // ET_POINT
     int offset = mesh.offset+ELEMENT_SIZE*elnr;
     return texelFetch(mesh.elements, offset).r;
