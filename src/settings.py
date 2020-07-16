@@ -611,7 +611,7 @@ class CameraSettings(BaseSettings):
         self.far_plane = 20.
         self.field_of_view = 0.8
 
-        self.__members = ['center', 'zoom', 'ratio', 'dx', 'dy', 'fastmode', 'near_plane', 'far_plane', 'field_of_view']
+        self.__members = ['zoom', 'ratio', 'dx', 'dy', 'fastmode', 'near_plane', 'far_plane', 'field_of_view']
 
     def rotateCamera(self, dx, dy):
         self.rotmat = glmath.RotateY(-dx/50.0)*self.rotmat
@@ -622,16 +622,19 @@ class CameraSettings(BaseSettings):
         self.dx += dx/s
         self.dy += dy/s
 
-    def setCenter(self, center):
-        if self._individual_rendering_parameters:
-            return self._global_rendering_parameters.setCenter(center)
-        self._center = center
-
     @property
     def center(self):
         if self._individual_rendering_parameters:
             return self._global_rendering_parameters.center
         return self._center or 0.5*(self.min+self.max)
+
+    @center.setter
+    def center(self, center):
+        if self._individual_rendering_parameters:
+            self._global_rendering_parameters._center = center
+        else:
+            self._center = center
+
 
     @property
     def _modelSize(self):
@@ -668,6 +671,7 @@ class CameraSettings(BaseSettings):
         res = super().getSettings() if recursive else {}
         for m in self.__members:
             res['Camera_' + m] = getattr(self, m)
+        res['Camera_center'] = list(self.center)
         res['Camera_min'] = list(self.min)
         res['Camera_max'] = list(self.max)
         rotmat = [[self.rotmat[i,j] for j in range(3)] for i in range(3)]
@@ -678,6 +682,7 @@ class CameraSettings(BaseSettings):
         for m in self.__members:
             name = 'Camera_' + m
             setattr(self, m, settings.pop(name))
+        self.center = glmath.Vector(settings.pop('Camera_center'))
         self.min = glmath.Vector(settings.pop('Camera_min'))
         self.max = glmath.Vector(settings.pop('Camera_max'))
         self.rotmat = glmath.Identity()
