@@ -656,6 +656,8 @@ class MeshScene(BaseMeshScene):
             uniforms.set('tex_filter', 4)
             uniforms.set('filter_min', self.getFilterMin())
             uniforms.set('filter_max', self.getFilterMax())
+        else:
+            uniforms.set('filter_elements', False)
 
         uniforms.set('light.ambient', 0.3)
         uniforms.set('light.diffuse', 0.7)
