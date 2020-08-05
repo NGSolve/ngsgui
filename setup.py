@@ -13,7 +13,7 @@ modules += ['spyder_ngsgui']
 dirs['spyder_ngsgui'] = 'src/spyder_ngsgui'
 
 dependencies = ["PyOpenGL", "psutil", "qtconsole>=4.4.0", "numpy",
-                "matplotlib>=2.2.3", "qtpy>=1.5.2", "ipykernel<5",
+                "matplotlib>=2.2.3", "qtpy>=1.5.2", "ipykernel>=5.3.2",
                 "cloudpickle<1.2"]
 try:
     import PyQt5
