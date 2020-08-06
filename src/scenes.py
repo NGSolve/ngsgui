@@ -1496,11 +1496,23 @@ GUI.sceneCreators[netgen.geom2d.SplineGeometry] = GeometryScene2D
 GUI.sceneCreators[netgen.meshing.NetgenGeometry] = GeometryScene
 
 
+def _LoadMesh(gui, filename):
+    if filename.endswith(".vol") or filename.endswith(".vol.gz"):
+        mesh = ngsolve.Mesh(filename)
+        ngsolve.Draw(mesh)
+    else:
+        from netgen.meshing import ImportMesh
+        mesh = ngsolve.Mesh(ImportMesh(filename))
+    if not gui._flags.noConsole:
+        gui.console.pushVariables({"mesh" : mesh })
+
 def _load_gz_mesh(gui, filename):
     if os.path.splitext(os.path.splitext(filename)[0])[1] == ".vol":
-        ngsolve.Draw(ngsolve.Mesh(filename))
+        _LoadMesh(gui, filename)
     else:
         print("Do not know file extension for ", filename)
 
 GUI.file_loaders[".gz"] = _load_gz_mesh
-GUI.file_loaders[".vol"] = lambda gui, filename: ngsolve.Draw(ngsolve.Mesh(filename))
+for meshformat in (".vol", ".mesh", ".emt", ".surf", ".unv", ".tet",
+                   ".fnf", ".cgns"):
+    GUI.file_loaders[meshformat] = _LoadMesh
