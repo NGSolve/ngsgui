@@ -1499,10 +1499,10 @@ GUI.sceneCreators[netgen.meshing.NetgenGeometry] = GeometryScene
 def _LoadMesh(gui, filename):
     if filename.endswith(".vol") or filename.endswith(".vol.gz"):
         mesh = ngsolve.Mesh(filename)
-        ngsolve.Draw(mesh)
     else:
         from netgen.meshing import ImportMesh
         mesh = ngsolve.Mesh(ImportMesh(filename))
+    ngsolve.Draw(mesh)
     if not gui._flags.noConsole:
         gui.console.pushVariables({"mesh" : mesh })
 
