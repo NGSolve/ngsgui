@@ -16,11 +16,11 @@ class ProxyItem:
         self.name = name
 
     def __set__(self, obj, value):
-        get_ipython().get_ipython().kernel.send_spyder_msg("ngsolve_set_scene_item", None, [self.index, self.name,
-                                                                                            value])
+        handler = get_ipython().kernel.frontend_comm.remote_call()
+        handler.ngsolve_set_scene_item(self.index, self.name, value)
     def __call__(self, *args, **kwargs):
-        get_ipython().get_ipython().kernel.send_spyder_msg("ngsolve_call_scene_item", None, [self.index, self.name,
-                                                                                             args, kwargs])
+        handler = get_ipython().kernel.frontend_comm.remote_call()
+        handler.ngsolve_call_scene_item(self.index, self.name, *args, **kwargs)
 
 _ngs_drawn_objects = []
 def Draw(*args, **kwargs):

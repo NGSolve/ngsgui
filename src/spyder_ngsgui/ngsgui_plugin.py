@@ -60,7 +60,7 @@ class Drawer:
                                                                                                  args, kwargs))
                     scene = self.getScene(index)
                     if scene:
-                            getattr(scene, name)(*args, **kwargs)
+                        getattr(scene, name)(*args, **kwargs)
                 else:
                     assert what == "redraw"
                     widget = G.gui.window_tabber.activeGLWindow.glWidget
@@ -123,8 +123,14 @@ class NGSolvePlugin(SpyderPluginWidget):
                 self.drawer.to_draw.put(["redraw", drawn_objects])
             def draw(index, *args, **kwargs):
                 self.drawer.to_draw.put(["draw", (index, args, kwargs)])
+            def set_scene_item(index, name, value):
+                self.drawer.to_draw.put(["set_scene_item", (index, name, value)])
+            def call_scene_item(index, name, *args, **kwargs):
+                self.drawer.to_draw.put(["call_scene_item", (index, name, args, kwargs)])
             shellwidget.spyder_kernel_comm.register_call_handler("ngsolve_redraw", redraw)
             shellwidget.spyder_kernel_comm.register_call_handler("ngsolve_draw", draw)
+            shellwidget.spyder_kernel_comm.register_call_handler("ngsolve_set_scene_item", set_scene_item)
+            shellwidget.spyder_kernel_comm.register_call_handler("ngsolve_call_scene_item", call_scene_item)
             def loadNGS():
                 shellwidget.silent_execute("import os")
                 shellwidget.silent_execute("os.environ['NGSGUI_HEADLESS'] = '1'")
