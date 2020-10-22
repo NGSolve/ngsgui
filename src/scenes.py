@@ -621,8 +621,10 @@ class MeshScene(BaseMeshScene):
             glPatchParameterfv(GL_PATCH_DEFAULT_INNER_LEVEL, [tess_level]*2)
             glDrawArrays(GL_PATCHES, 0, elements.nverts*elements.nelements)
         else:
-            # triangles are the only uncurved 2d elements
-            glDrawArrays(GL_TRIANGLES, 0, 3*elements.nelements)
+            if elements.nverts==3:
+                glDrawArrays(GL_TRIANGLES, 0, 3*elements.nelements)
+            if elements.nverts==4:
+                glDrawArraysInstanced(GL_TRIANGLES, 0, 3*elements.nelements, 2)
         glDisable(offset_mode)
 
     def _render3DElements(self, settings, elements):
@@ -1048,7 +1050,10 @@ class SolutionScene(BaseMeshScene, settings.ColormapSettings):
                 glPatchParameterfv(GL_PATCH_DEFAULT_INNER_LEVEL, [tess_level]*2)
                 glDrawArrays(GL_PATCHES, 0, elements.nverts*elements.nelements)
             else:
-                glDrawArrays(GL_TRIANGLES, 0, 3*elements.nelements)
+                if elements.nverts==3:
+                    glDrawArrays(GL_TRIANGLES, 0, 3*elements.nelements)
+                if elements.nverts==4:
+                    glDrawArraysInstanced(GL_TRIANGLES, 0, 3*elements.nelements, 2)
             glDisable(GL_POLYGON_OFFSET_FILL)
 
     def _renderIsoSurface(self, settings, elements):

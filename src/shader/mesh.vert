@@ -27,6 +27,9 @@ void main()
 {
 #if ELEMENT_DIM<=2
   int nverts = ELEMENT_N_VERTICES;
+  #if defined(ET_QUAD) && !defined(CURVED)
+  nverts = 3;
+  #endif
 #else
   int nverts = 3;
 #endif
@@ -87,8 +90,15 @@ void main()
     if(vid==1 || vid==2) outData.lam.y = 1.0;
     outData.normal = texelFetch(mesh.vertices, element.curved_vertices+vid).xyz;
   #else
-    outData.lam[vid] = 1.0;
     outData.normal = element.normal;
+    int fid = gl_InstanceID;
+    if(fid==1)
+    {
+      vid = ivec3(0,3,2)[vid];
+      outData.pos = element.pos[vid];
+    }
+    if(vid>1) outData.lam.x = 1.0;
+    if(vid==1 || vid==2) outData.lam.y = 1.0;
   #endif
 ///////////////////////////////////////////////////////////////////////////////
 #elif defined(ET_TET)
