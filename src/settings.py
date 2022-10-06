@@ -289,13 +289,13 @@ class ValueParameter(Parameter):
         elif isinstance(self._initial_value, int):
             self._spinbox = QtWidgets.QSpinBox()
             if self._step:
-                self._spinbox.setSingleStep(self._step)
+                self._spinbox.setSingleStep(int(self._step))
         else:
             raise Exception("Cannot create ValueParameter for type ", type(default_value))
         if self._min_value != None:
-            self._spinbox.setMinimum(self._min_value)
+            self._spinbox.setMinimum(int(self._min_value))
         if self._max_value != None:
-            self._spinbox.setMaximum(self._max_value)
+            self._spinbox.setMaximum(int(self._max_value))
         self._spinbox.setValue(self._initial_value)
         self._spinbox.valueChanged.connect(self.changed.emit)
         return self._spinbox
